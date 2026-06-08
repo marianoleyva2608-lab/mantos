@@ -543,7 +543,15 @@ function ts(id,st,force=false){
   if(!force)upd();
 }
 function tc(id){document.getElementById("cb"+id).classList.toggle("open");}
-function sc(id){IC[id]=document.getElementById("tx"+id).value;document.getElementById("cm"+id).classList.toggle("has",!!IC[id]);}
+function sc(id){
+  IC[id]=document.getElementById("tx"+id).value;
+  document.getElementById("cm"+id).classList.toggle("has",!!IC[id]);
+  // Clear red outline if NG item now has comment
+  if(IS[id]==="ng" && IC[id].trim()){
+    const row=document.getElementById("r"+id);
+    if(row){row.style.outline="none";row.style.background="";}
+  }
+}
 function upd(){
   const tot=SHEET_MAPPING[CM.file][CM.sheet].items.length;
   let ok=0,ng=0;
@@ -592,23 +600,41 @@ function validateReport(){
     if(!v || v === null) pending.push(i);
   }
   if(pending.length > 0){
-    // Highlight missing items
     for(let i = 0; i < si.items.length; i++){
       const row = document.getElementById("ri"+i);
       if(row){
-        if(!IS["i"+i]){
-          row.style.outline = "2.5px solid #f44336";
-          row.style.background = "#fff8f8";
-        } else {
-          row.style.outline = "none";
-          row.style.background = "";
-        }
+        if(!IS["i"+i]){ row.style.outline="2.5px solid #f44336"; row.style.background="#fff8f8"; }
+        else { row.style.outline="none"; row.style.background=""; }
       }
     }
-    // Scroll to first missing
     const firstRow = document.getElementById("ri"+pending[0]);
     if(firstRow) firstRow.scrollIntoView({behavior:'smooth', block:'center'});
     showToast("⚠️ Faltan " + pending.length + " punto(s) sin evaluar (marcados en rojo)");
+    return false;
+  }
+  // Check NG items have comments
+  const ngSinComentario = [];
+  for(let i = 0; i < si.items.length; i++){
+    if(IS["i"+i] === "ng"){
+      const txt = document.getElementById("txi"+i);
+      const comment = txt ? txt.value.trim() : (IC["i"+i]||"").trim();
+      if(!comment){
+        ngSinComentario.push(i);
+        const row = document.getElementById("ri"+i);
+        if(row){ row.style.outline="2.5px solid #f44336"; row.style.background="#fff8f8"; }
+        // Open comment box
+        const cb = document.getElementById("cbi"+i);
+        if(cb) cb.classList.add("open");
+      } else {
+        const row = document.getElementById("ri"+i);
+        if(row){ row.style.outline="none"; row.style.background=""; }
+      }
+    }
+  }
+  if(ngSinComentario.length > 0){
+    const firstRow = document.getElementById("ri"+ngSinComentario[0]);
+    if(firstRow) firstRow.scrollIntoView({behavior:'smooth', block:'center'});
+    showToast("⚠️ Los puntos NG requieren comentario (" + ngSinComentario.length + " sin comentario)");
     return false;
   }
   // Check fecha within allowed range (mes anterior, actual o siguiente)
