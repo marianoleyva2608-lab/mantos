@@ -527,12 +527,6 @@ function renderForm(){
   </div></div>`;
   document.getElementById("form-c").innerHTML=h;
   // Inject Compartir + Guardar buttons and signatures into scrollable area
-  const _fc=document.getElementById("form-c");
-  const _ab=document.createElement("div");
-  _ab.style.cssText="padding:12px 12px 0;display:flex;flex-direction:column;gap:8px;";
-  _ab.innerHTML=`<button class="btn-share-sup" onclick="shareWithSupervisor()">&#128241;&nbsp; Compartir al Supervisor (WhatsApp)</button>
-    <button class="btn-save" onclick="saveReport()">&#128190;&nbsp; Guardar Reporte</button>`;
-  _fc.appendChild(_ab);
   addSigSections();
 }
 
@@ -779,6 +773,15 @@ function addSigSections(){
   if(!isLocked){
     if(sigData.tecnico) restoreSigInForm('tecnico');
     if(sigData.supervisor) restoreSigInForm('supervisor');
+  }
+  // Action buttons after firmas
+  if(!isLocked){
+    const ab=document.createElement("div");
+    ab.id="form-actions";
+    ab.style.cssText="padding:12px;display:flex;flex-direction:column;gap:8px;";
+    ab.innerHTML=`<button class="btn-share-sup" onclick="shareWithSupervisor()">&#128241;&nbsp; Compartir al Supervisor (WhatsApp)</button>
+      <button class="btn-save" onclick="saveReport()">&#128190;&nbsp; Guardar Reporte</button>`;
+    fc.appendChild(ab);
   }
 }
 
