@@ -86,22 +86,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .btn-save{width:100%;padding:13px;background:#e8f5e9;color:#1a5c2a;border:2px solid #1a5c2a;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px}
 .btn-save:active{background:#c8e6c9}
 
-/* Firmas inline */
+/* Firmas con contraseña */
 .sig-section{background:#fff;margin:12px 12px 0;border-radius:var(--rad);box-shadow:var(--sh);overflow:hidden}
-.sig-person{padding:12px;border-bottom:1px solid #f0f0f0}
+.sig-person{padding:14px;border-bottom:1px solid #f0f0f0}
 .sig-person:last-child{border-bottom:none}
-.sig-person-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.sig-lbl{font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ts);letter-spacing:.5px}
-.sig-controls{display:flex;gap:6px}
-.btn-sign{padding:8px 14px;border:2px solid var(--gd);border-radius:7px;background:#fff;color:var(--gd);font-size:12px;font-weight:700;cursor:pointer}
-.btn-sign.signed{background:var(--gd);color:#fff}
-.btn-clear-sig{padding:8px 10px;border:2px solid #ccc;border-radius:7px;background:#fff;color:#666;font-size:12px;cursor:pointer}
-.sig-canvas-wrap{display:none;margin-top:4px}
-.sig-canvas-wrap.open{display:block}
-.sig-canvas-el{width:100%;height:130px;border:2px dashed #1a5c2a;border-radius:8px;background:#f9fff9;display:block;touch-action:none;cursor:crosshair}
-.sig-img-preview{max-height:50px;border:1px solid #eee;border-radius:6px;display:none;margin-top:6px}
-.sig-img-preview.show{display:block}
+.sig-status{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.sig-lbl{font-size:13px;font-weight:700;color:var(--tx);flex:1}
+.sig-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:#f5f5f5;color:#999}
+.sig-badge.ok{background:var(--okb);color:var(--ok)}
+.sig-pin-row{display:flex;gap:8px}
+.sig-pin-input{flex:1;padding:10px 12px;border:1.5px solid var(--br);border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;background:#fafafa}
+.sig-pin-input:focus{outline:none;border-color:var(--gm)}
+.btn-sign{padding:10px 18px;border:none;background:var(--gd);color:#fff;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-sign:active{background:var(--gm)}
 .btn-share-sup{width:100%;padding:12px;background:#25D366;color:#fff;border:none;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+/* Settings page */
+#page-settings{background:#f5f5f5}
+.set-card{background:#fff;margin:12px;border-radius:var(--rad);box-shadow:var(--sh);overflow:hidden}
+.set-row{padding:14px;border-bottom:1px solid #f0f0f0;display:flex;flex-direction:column;gap:6px}
+.set-row:last-child{border-bottom:none}
+.set-lbl{font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ts);letter-spacing:.5px}
+.set-input{padding:10px 12px;border:1.5px solid var(--br);border-radius:8px;font-size:15px;letter-spacing:3px;background:#fafafa;width:100%}
+.set-input:focus{outline:none;border-color:var(--gm)}
+.btn-set-save{width:calc(100% - 24px);margin:12px;padding:13px;background:var(--gd);color:#fff;border:none;border-radius:var(--rad);font-size:15px;font-weight:700;cursor:pointer}
 /* Supervisor page */
 #page-supervisor{background:var(--gl)}
 .sup-card{background:#fff;margin:16px;border-radius:var(--rad);padding:16px;box-shadow:var(--sh)}
@@ -113,7 +120,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <body>
 
 <div id="page-home" class="page active">
-  <div class="hdr"><div><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div></div>
+  <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
   <div class="home-c" id="home-c"></div>
 </div>
 
@@ -403,7 +410,7 @@ function deleteReport(id,e){
 }
 
 function goHome(){showPage("home");CM=null;}
-function showPage(id){document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));document.getElementById("page-"+id).classList.add("active");window.scrollTo(0,0);}
+function showPage(id){document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));document.getElementById("page-"+id).classList.add("active");window.scrollTo(0,0);if(id==='settings')loadSettingsPage();}
 
 function renderHome(){
   const saved=getSaved();
@@ -647,103 +654,85 @@ function showToast(msg){
   setTimeout(()=>t.classList.remove("show"),5000);
 }
 
-// ── SIGNATURES (inline canvas per person) ────────────────────
+// ── PASSWORDS / SETTINGS ─────────────────────────────────────
+function getPasswords(){
+  const d = JSON.parse(localStorage.getItem('mtto_passwords')||'{}');
+  return {tecnico: d.tecnico||'1234', supervisor: d.supervisor||'5678'};
+}
+function saveSettings(){
+  const tec = document.getElementById('set-tec-pwd').value.trim();
+  const sup = document.getElementById('set-sup-pwd').value.trim();
+  if(!tec||!sup){showToast('⚠️ Escribe ambas contraseñas');return;}
+  localStorage.setItem('mtto_passwords', JSON.stringify({tecnico:tec, supervisor:sup}));
+  showToast('✅ Contraseñas guardadas');
+  showPage('home');
+}
+function loadSettingsPage(){
+  const p = getPasswords();
+  const ti = document.getElementById('set-tec-pwd');
+  const si = document.getElementById('set-sup-pwd');
+  if(ti) ti.value = p.tecnico;
+  if(si) si.value = p.supervisor;
+}
+
+// ── SIGNATURES with password ──────────────────────────────────
 let sigData = {tecnico: null, supervisor: null};
 
 function addSigSections(){
   const fc = document.getElementById('form-c');
-  if(!fc || document.getElementById('sig-section-form')) return;
+  if(!fc||document.getElementById('sig-section-form')) return;
   const div = document.createElement('div');
   div.id = 'sig-section-form';
   div.innerHTML = `
     <div class="sig-section" style="margin-top:8px">
-      <div class="bttl" style="background:var(--gd);color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#9999;&#65039; FIRMAS</div>
-      ${makeSigPerson('tecnico','Técnico')}
-      ${makeSigPerson('supervisor','Supervisor')}
+      <div class="bttl" style="background:var(--gd);color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#128272; FIRMAS</div>
+      ${buildSigPerson('tecnico','Técnico')}
+      ${buildSigPerson('supervisor','Supervisor')}
     </div>`;
   fc.appendChild(div);
-  setupInlineSig('tecnico');
-  setupInlineSig('supervisor');
-  if(sigData.tecnico) restoreSigPreview('tecnico');
-  if(sigData.supervisor) restoreSigPreview('supervisor');
+  if(sigData.tecnico) markSigned('tecnico', sigData.tecnico);
+  if(sigData.supervisor) markSigned('supervisor', sigData.supervisor);
 }
 
-function makeSigPerson(id, label){
+function buildSigPerson(id, label){
   return `<div class="sig-person">
-    <div class="sig-person-hdr">
-      <span class="sig-lbl">&#9997;&#65039; ${label}</span>
-      <div class="sig-controls">
-        <button class="btn-clear-sig" onclick="clearInlineSig('${id}')">Borrar</button>
-        <button class="btn-sign" id="sbtn-${id}" onclick="toggleSigCanvas('${id}')">Firmar</button>
-      </div>
+    <div class="sig-status">
+      <div class="sig-lbl">&#9997;&#65039; ${label}</div>
+      <div class="sig-badge" id="sbadge-${id}">Sin firmar</div>
     </div>
-    <div class="sig-canvas-wrap open" id="swrap-${id}">
-      <canvas class="sig-canvas-el" id="sc-${id}"></canvas>
+    <div class="sig-pin-row">
+      <input class="sig-pin-input" type="password" id="spin-${id}" placeholder="Contraseña" maxlength="20">
+      <button class="btn-sign" onclick="firmar('${id}')">Firmar</button>
     </div>
-    <img class="sig-img-preview" id="simg-${id}" alt="firma">
   </div>`;
 }
 
-function setupInlineSig(id){
-  const canvas = document.getElementById('sc-'+id);
-  if(!canvas) return;
-  function resize(){
-    const w = canvas.parentElement.offsetWidth || 300;
-    canvas.width = w;
-    canvas.height = 130;
+function firmar(id){
+  const input = document.getElementById('spin-'+id);
+  const pwd = input ? input.value.trim() : '';
+  const passwords = getPasswords();
+  if(!pwd){showToast('⚠️ Escribe la contraseña');return;}
+  if(pwd !== passwords[id]){
+    input.style.borderColor='#f44336';
+    input.value='';
+    showToast('❌ Contraseña incorrecta');
+    setTimeout(()=>input.style.borderColor='',1500);
+    return;
   }
-  resize();
-  const ctx = canvas.getContext('2d');
-  ctx.strokeStyle='#1a5c2a'; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.lineJoin='round';
-  let drawing=false, last=null;
-  function getP(e){
-    const r=canvas.getBoundingClientRect();
-    const s=e.touches?e.touches[0]:e;
-    return {x:(s.clientX-r.left)*(canvas.width/r.width), y:(s.clientY-r.top)*(canvas.height/r.height)};
-  }
-  function down(e){e.preventDefault();drawing=true;last=getP(e);ctx.beginPath();ctx.moveTo(last.x,last.y);}
-  function mve(e){e.preventDefault();if(!drawing)return;const p=getP(e);ctx.lineTo(p.x,p.y);ctx.stroke();last=p;}
-  function up(e){
-    drawing=false;
-    // Auto-save after drawing
-    const blank=document.createElement('canvas');blank.width=canvas.width;blank.height=canvas.height;
-    if(canvas.toDataURL()!==blank.toDataURL()){
-      sigData[id]=canvas.toDataURL('image/png',0.6);
-      document.getElementById('sbtn-'+id).classList.add('signed');
-      document.getElementById('sbtn-'+id).textContent='✓ Firmado';
-    }
-  }
-  canvas.addEventListener('touchstart',down,{passive:false});
-  canvas.addEventListener('touchmove',mve,{passive:false});
-  canvas.addEventListener('touchend',up);
-  canvas.addEventListener('mousedown',down);
-  canvas.addEventListener('mousemove',mve);
-  canvas.addEventListener('mouseup',up);
+  const now = new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+  markSigned(id, now);
+  sigData[id] = now;
+  input.value='';
+  showToast('✅ Firma registrada');
 }
 
-function toggleSigCanvas(id){
-  const wrap=document.getElementById('swrap-'+id);
-  wrap.classList.toggle('open');
-}
-function clearInlineSig(id){
-  const canvas=document.getElementById('sc-'+id);
-  if(canvas){const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);}
-  sigData[id]=null;
-  const btn=document.getElementById('sbtn-'+id);
-  if(btn){btn.classList.remove('signed');btn.textContent='Firmar';}
-  const img=document.getElementById('simg-'+id);
-  if(img){img.classList.remove('show');img.src='';}
-}
-function restoreSigPreview(id){
-  const btn=document.getElementById('sbtn-'+id);
-  if(btn){btn.classList.add('signed');btn.textContent='✓ Firmado';}
-  // Draw saved sig back on canvas
-  const canvas=document.getElementById('sc-'+id);
-  if(canvas && sigData[id]){
-    const img=new Image();
-    img.onload=()=>{const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);};
-    img.src=sigData[id];
-  }
+function markSigned(id, timestamp){
+  const badge = document.getElementById('sbadge-'+id);
+  const input = document.getElementById('spin-'+id);
+  const btn = document.querySelector(`button[onclick="firmar('${id}')"]`);
+  if(badge){badge.textContent='✓ Firmado '+timestamp;badge.classList.add('ok');}
+  if(input){input.disabled=true;input.style.background='#f5f5f5';input.placeholder='✓ Firmado';}
+  if(btn){btn.textContent='✓';btn.style.background='#81c784';}
 }
 
 // ── SHARE WITH SUPERVISOR ────────────────────────────────────
