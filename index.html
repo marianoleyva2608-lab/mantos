@@ -753,21 +753,29 @@ function generateExcel(){
       const ws=wb.Sheets[CM.sheet];
       const si=SHEET_MAPPING[CM.file][CM.sheet];
 
+      // Helper: update cell value preserving existing style
+      function setCell(ref, val){
+        if(ws[ref]){ ws[ref].v=val; ws[ref].t='s'; delete ws[ref].f; }
+        else { ws[ref]={t:"s",v:val}; }
+      }
+
       for(let i=0;i<si.items.length;i++){
         const row=si.items[i].row,id=`i${i}`;
         const st=IS[id]||null,cm=IC[id]||"";
-        ws["K"+row]={t:"s",v:st==="ok"?"( ✓ )":"(   )"};
-        ws["L"+row]={t:"s",v:st==="ng"?"( ✓ )":"(   )"};
-        if(cm)ws["M"+row]={t:"s",v:cm};
+        setCell("K"+row, st==="ok"?"( ✓ )":"(   )");
+        setCell("L"+row, st==="ng"?"( ✓ )":"(   )");
+        if(cm) setCell("M"+row, cm);
       }
       const cr=si.cal_data_row;
-      for(const m of MONTHS)ws[MCOLS[m]+cr]={t:"s",v:SM.has(m)?"( ✓ )":"(   )"};
-      if(l1)ws["N"+cr]={t:"s",v:l1};if(l2)ws["O"+cr]={t:"s",v:l2};
-      if(l3)ws["P"+cr]={t:"s",v:l3};if(vc)ws["Q"+cr]={t:"s",v:vc};
+      for(const m of MONTHS) setCell(MCOLS[m]+cr, SM.has(m)?"( ✓ )":"(   )");
+      if(l1) setCell("N"+cr, l1);
+      if(l2) setCell("O"+cr, l2);
+      if(l3) setCell("P"+cr, l3);
+      if(vc) setCell("Q"+cr, vc);
       const sr=si.sig_row;
-      ws["B"+sr]={t:"s",v:`Realizó: ${tec}\n\nFirma: _________________________`};
-      ws["H"+sr]={t:"s",v:`Fecha: ${fec}`};
-      ws["K"+sr]={t:"s",v:`Supervisor de Producción: ${sup}\n\nFirma: _____________________________`};
+      setCell("B"+sr, `Realizó: ${tec}\n\nFirma: _________________________`);
+      setCell("H"+sr, `Fecha: ${fec}`);
+      setCell("K"+sr, `Supervisor de Producción: ${sup}\n\nFirma: _____________________________`);
 
       spt.textContent="Preparando descarga...";
 
