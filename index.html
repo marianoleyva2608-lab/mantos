@@ -496,6 +496,14 @@ function renderForm(){
     <div class="vf"><label>VAC</label><input type="number" id="vvac" placeholder="V"></div>
   </div></div>`;
   document.getElementById("form-c").innerHTML=h;
+  // Inject Compartir + Guardar buttons and signatures into scrollable area
+  const _fc=document.getElementById("form-c");
+  const _ab=document.createElement("div");
+  _ab.style.cssText="padding:12px 12px 0;display:flex;flex-direction:column;gap:8px;";
+  _ab.innerHTML=`<button class="btn-share-sup" onclick="shareWithSupervisor()">&#128241;&nbsp; Compartir al Supervisor (WhatsApp)</button>
+    <button class="btn-save" onclick="saveReport()">&#128190;&nbsp; Guardar Reporte</button>`;
+  _fc.appendChild(_ab);
+  addSigSections();
 }
 
 function ts(id,st,force=false){
