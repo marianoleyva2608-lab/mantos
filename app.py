@@ -161,164 +161,74 @@ if __name__ == '__main__':
 
 @app.route('/generar_pdf', methods=['POST'])
 def generar_pdf():
+    import subprocess, tempfile, shutil
+    tmp = None
     try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib import colors
-        from reportlab.lib.units import mm
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.enums import TA_CENTER, TA_LEFT
-
+        # 1. Generar el Excel igual que /generar
         data = request.json
-        buf = io.BytesIO()
-        doc = SimpleDocTemplate(buf, pagesize=A4,
-                                leftMargin=12*mm, rightMargin=12*mm,
-                                topMargin=12*mm, bottomMargin=12*mm)
+        file_key = data.get('file', 'termoformado')
+        template = 'MTTO_Preventivo_Termoformado_2026.xlsx' if file_key=='termoformado' else 'MTTO_Preventivo_Conversion_2026.xlsx'
 
-        styles = getSampleStyleSheet()
-        GREEN  = colors.HexColor('#1a5c2a')
-        LGREEN = colors.HexColor('#e8f5e9')
-        WHITE  = colors.white
-        GRAY   = colors.HexColor('#f5f5f5')
+        wb = openpyxl.load_workbook(template)
+        ws = wb[data['sheet']]
 
-        s_title  = ParagraphStyle('t', fontSize=13, textColor=WHITE, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=0)
-        s_sub    = ParagraphStyle('s', fontSize=9,  textColor=WHITE, fontName='Helvetica', alignment=TA_CENTER)
-        s_label  = ParagraphStyle('l', fontSize=8,  fontName='Helvetica-Bold')
-        s_value  = ParagraphStyle('v', fontSize=8,  fontName='Helvetica')
-        s_small  = ParagraphStyle('sm', fontSize=7, fontName='Helvetica')
-        s_head   = ParagraphStyle('h', fontSize=8,  fontName='Helvetica-Bold', textColor=WHITE)
-        s_ok     = ParagraphStyle('ok', fontSize=9, fontName='Helvetica-Bold', textColor=colors.HexColor('#2e7d32'), alignment=TA_CENTER)
-        s_ng     = ParagraphStyle('ng', fontSize=9, fontName='Helvetica-Bold', textColor=colors.HexColor('#c62828'), alignment=TA_CENTER)
+        for item in data.get('items', []):
+            row, st, cm = item['row'], item.get('status',''), item.get('comment','')
+            ws.cell(row=row, column=11).value = '( v )' if st=='ok' else '(   )'
+            ws.cell(row=row, column=12).value = '( v )' if st=='ng' else '(   )'
+            if cm: ws.cell(row=row, column=13).value = cm
 
-        story = []
-        W = A4[0] - 24*mm
-
-        # ── HEADER ──────────────────────────────────────────────
-        header_data = [[
-            Paragraph(f"MANTENIMIENTO PREVENTIVO", s_title),
-            Paragraph(f"{data.get('machineName','')}", s_title),
-        ]]
-        header_table = Table(header_data, colWidths=[W*0.5, W*0.5])
-        header_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), GREEN),
-            ('TEXTCOLOR',  (0,0), (-1,-1), WHITE),
-            ('ALIGN',      (0,0), (-1,-1), 'CENTER'),
-            ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
-            ('ROWBACKGROUNDS', (0,0), (-1,-1), [GREEN]),
-            ('TOPPADDING',    (0,0),(-1,-1), 8),
-            ('BOTTOMPADDING', (0,0),(-1,-1), 8),
-        ]))
-        story.append(header_table)
-        story.append(Spacer(1, 3*mm))
-
-        # ── INFO GENERAL ────────────────────────────────────────
-        info_data = [
-            [Paragraph('Técnico:', s_label), Paragraph(data.get('tecnico',''), s_value),
-             Paragraph('Fecha:', s_label),   Paragraph(data.get('fecha',''), s_value),
-             Paragraph('Supervisor:', s_label), Paragraph(data.get('supervisor',''), s_value)],
-        ]
-        info_table = Table(info_data, colWidths=[W*0.1, W*0.23, W*0.07, W*0.18, W*0.1, W*0.32])
-        info_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0),(-1,-1), LGREEN),
-            ('GRID', (0,0),(-1,-1), 0.3, colors.HexColor('#c8e6c9')),
-            ('TOPPADDING',(0,0),(-1,-1),5), ('BOTTOMPADDING',(0,0),(-1,-1),5),
-        ]))
-        story.append(info_table)
-        story.append(Spacer(1, 3*mm))
-
-        # ── CHECKLIST ───────────────────────────────────────────
-        ch_header = [
-            Paragraph('#', s_head),
-            Paragraph('Descripción', s_head),
-            Paragraph('OK', s_head),
-            Paragraph('NG', s_head),
-            Paragraph('Comentario', s_head),
-        ]
-        ch_rows = [ch_header]
-        for i, item in enumerate(data.get('items', []), 1):
-            st = item.get('status','')
-            ok_mark = Paragraph('✓', s_ok) if st=='ok' else Paragraph('', s_small)
-            ng_mark = Paragraph('✓', s_ng) if st=='ng' else Paragraph('', s_small)
-            bg = colors.HexColor('#f1faf2') if st=='ok' else (colors.HexColor('#fff5f5') if st=='ng' else WHITE)
-            ch_rows.append([
-                Paragraph(str(i), s_small),
-                Paragraph(item.get('desc', item.get('description', '')), s_small),
-                ok_mark, ng_mark,
-                Paragraph(item.get('comment',''), s_small),
-            ])
-
-        col_w = [W*0.05, W*0.52, W*0.07, W*0.07, W*0.29]
-        ch_table = Table(ch_rows, colWidths=col_w, repeatRows=1)
-        style_ch = [
-            ('BACKGROUND', (0,0),(-1,0), GREEN),
-            ('TEXTCOLOR',  (0,0),(-1,0), WHITE),
-            ('GRID', (0,0),(-1,-1), 0.3, colors.HexColor('#c8e6c9')),
-            ('ALIGN', (2,0),(3,-1), 'CENTER'),
-            ('VALIGN', (0,0),(-1,-1), 'MIDDLE'),
-            ('TOPPADDING',(0,0),(-1,-1),3), ('BOTTOMPADDING',(0,0),(-1,-1),3),
-            ('FONTSIZE',(0,0),(-1,-1),7),
-        ]
-        for i in range(1, len(ch_rows)):
-            st = data['items'][i-1].get('status','')
-            if st=='ok': style_ch.append(('BACKGROUND',(0,i),(-1,i), colors.HexColor('#f1faf2')))
-            elif st=='ng': style_ch.append(('BACKGROUND',(0,i),(-1,i), colors.HexColor('#fff5f5')))
-            else: style_ch.append(('BACKGROUND',(0,i),(-1,i), WHITE if i%2==0 else GRAY))
-        ch_table.setStyle(TableStyle(style_ch))
-        story.append(ch_table)
-        story.append(Spacer(1, 3*mm))
-
-        # ── CALENDARIO ──────────────────────────────────────────
+        cal_row = data.get('cal_data_row')
         months = set(data.get('month', []))
-        all_months = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
-        cal_header = [Paragraph(m, ParagraphStyle('mc', fontSize=7, fontName='Helvetica-Bold', textColor=WHITE, alignment=TA_CENTER)) for m in all_months]
-        cal_vals   = [Paragraph('( ✓ )' if m in months else '(   )', ParagraphStyle('mv', fontSize=8, alignment=TA_CENTER)) for m in all_months]
-        cal_table  = Table([cal_header, cal_vals], colWidths=[W/12]*12)
-        cal_table.setStyle(TableStyle([
-            ('BACKGROUND',(0,0),(-1,0), GREEN),
-            ('BACKGROUND',(0,1),(-1,1), LGREEN),
-            ('GRID',(0,0),(-1,-1), 0.3, colors.HexColor('#c8e6c9')),
-            ('ALIGN',(0,0),(-1,-1),'CENTER'),
-            ('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),
-        ]))
-        story.append(cal_table)
-        story.append(Spacer(1, 4*mm))
+        if cal_row:
+            for m, col in MONTH_COLS.items():
+                ws.cell(row=cal_row, column=ord(col)-ord('A')+1).value = '( v )' if m in months else '(   )'
+            v = data.get('voltaje', {})
+            for col_n, key in [(14,'l1'),(15,'l2'),(16,'l3'),(17,'vac')]:
+                if v.get(key): ws.cell(row=cal_row, column=col_n).value = v[key]
 
-        # ── FIRMAS ──────────────────────────────────────────────
-        def sig_cell(label, name, b64img):
-            content = [Paragraph(f'<b>{label}:</b> {name}', s_small), Spacer(1,1*mm)]
-            if b64img:
-                try:
-                    raw = base64.b64decode(b64img.split(',')[1] if ',' in b64img else b64img)
-                    pil = PILImage.open(io.BytesIO(raw)).convert("RGBA")
-                    bg  = PILImage.new("RGBA", pil.size, (255,255,255,255))
-                    bg.paste(pil, mask=pil.split()[3])
-                    pil = bg.convert("RGB")
-                    ibuf = io.BytesIO(); pil.save(ibuf, format='PNG'); ibuf.seek(0)
-                    img = RLImage(ibuf, width=55*mm, height=16*mm)
-                    content.append(img)
-                except:
-                    content.append(Paragraph('[ firma ]', s_small))
-            content.append(Paragraph('Firma: ________________________', s_small))
-            return content
+        sig_row = data.get('sig_row')
+        if sig_row:
+            tec = data.get('tecnico', '_______________')
+            fec = data.get('fecha',   '_______________')
+            sup = data.get('supervisor', '_______________')
+            firma_row = sig_row + 1
+            ws.cell(row=sig_row, column=2).value  = f"Realizo: {tec}"
+            ws.cell(row=sig_row, column=8).value  = f"Fecha: {fec}"
+            ws.cell(row=sig_row, column=11).value = f"Supervisor: {sup}"
+            tec_sig = data.get('sigTecnicoImg')
+            if tec_sig:
+                add_sig_anchored(ws, tec_sig, col_idx=1, row_idx=firma_row-1, width_px=560, height_px=60)
+            sup_sig = data.get('sigSupervisorImg')
+            if sup_sig:
+                add_sig_anchored(ws, sup_sig, col_idx=10, row_idx=firma_row-1, width_px=660, height_px=60)
 
-        tec_cell = sig_cell('Realizó', data.get('tecnico',''), data.get('sigTecnicoImg'))
-        sup_cell = sig_cell('Supervisor', data.get('supervisor',''), data.get('sigSupervisorImg'))
+        # 2. Guardar xlsx en carpeta temporal
+        tmp = tempfile.mkdtemp()
+        xlsx_path = os.path.join(tmp, 'reporte.xlsx')
+        wb.save(xlsx_path)
 
-        from reportlab.platypus import KeepInFrame
-        sig_table = Table([[tec_cell, sup_cell]], colWidths=[W*0.5, W*0.5])
-        sig_table.setStyle(TableStyle([
-            ('BACKGROUND',(0,0),(-1,-1), LGREEN),
-            ('GRID',(0,0),(-1,-1), 0.3, colors.HexColor('#c8e6c9')),
-            ('VALIGN',(0,0),(-1,-1),'TOP'),
-            ('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),
-            ('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6),
-        ]))
-        story.append(sig_table)
+        # 3. Convertir a PDF con LibreOffice headless
+        result = subprocess.run(
+            ['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', tmp, xlsx_path],
+            capture_output=True, text=True, timeout=60
+        )
+        pdf_path = os.path.join(tmp, 'reporte.pdf')
+        if not os.path.exists(pdf_path):
+            raise Exception(f"LibreOffice error: {result.stderr or result.stdout}")
 
-        doc.build(story)
-        buf.seek(0)
+        with open(pdf_path, 'rb') as f:
+            pdf_bytes = f.read()
+
         fname = f"REPORTE_{data.get('machineId','EQ')}_{data.get('fecha','').replace('/','-')}.pdf"
-        return send_file(buf, as_attachment=True, download_name=fname, mimetype='application/pdf')
+        return send_file(io.BytesIO(pdf_bytes), as_attachment=True,
+                         download_name=fname, mimetype='application/pdf')
     except Exception as e:
         import traceback; traceback.print_exc()
-        return {'error': str(e)}, 500
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if tmp:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT',3000)), debug=False)
