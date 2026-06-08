@@ -602,18 +602,27 @@ function validateReport(){
     showToast("⚠️ Escribe el nombre del técnico");
     return false;
   }
-  // Check both signatures
+  // Check technician signature (required)
   if(!sigData.tecnico || !sigData.tecnico.timestamp){
     const sigSection = document.getElementById('sig-section-form');
     if(sigSection) sigSection.scrollIntoView({behavior:'smooth', block:'center'});
     showToast("⚠️ Falta la firma del Técnico");
     return false;
   }
-  if(!sigData.supervisor || !sigData.supervisor.timestamp){
-    const sigSection = document.getElementById('sig-section-form');
-    if(sigSection) sigSection.scrollIntoView({behavior:'smooth', block:'center'});
-    showToast("⚠️ Falta la firma del Supervisor");
-    return false;
+  // Check voltaje >= 110V (if filled)
+  const voltFields = [{id:'vl1',label:'L1'},{id:'vl2',label:'L2'},{id:'vl3',label:'L3'},{id:'vvac',label:'VAC'}];
+  for(const f of voltFields){
+    const el = document.getElementById(f.id);
+    if(el && el.value.trim() !== ''){
+      const val = parseFloat(el.value);
+      if(isNaN(val) || val < 110){
+        el.style.border = '2px solid #f44336';
+        el.focus();
+        showToast(`⚠️ Voltaje ${f.label} debe ser mínimo 110V`);
+        setTimeout(()=>el.style.border='',2000);
+        return false;
+      }
+    }
   }
   return true;
 }
