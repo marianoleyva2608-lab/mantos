@@ -86,28 +86,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .btn-save{width:100%;padding:13px;background:#e8f5e9;color:#1a5c2a;border:2px solid #1a5c2a;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px}
 .btn-save:active{background:#c8e6c9}
 
-/* Signature Modal */
-.sig-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:flex-end}
-.sig-overlay.show{display:flex}
-.sig-box{background:#fff;width:100%;border-radius:20px 20px 0 0;padding:16px}
-.sig-title{font-weight:700;font-size:16px;color:var(--gd);margin-bottom:4px}
-.sig-hint{font-size:12px;color:var(--ts);margin-bottom:10px}
-#sig-canvas{width:100%;height:150px;border:2px dashed #ccc;border-radius:10px;background:#fafafa;display:block;touch-action:none;cursor:crosshair}
-.sig-actions{display:flex;gap:8px;margin-top:10px}
-.sig-btn{flex:1;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
-.sig-btn-clear{background:#f5f5f5;color:#666}
-.sig-btn-cancel{background:#ffebee;color:#c62828}
-.sig-btn-save{background:var(--gd);color:#fff}
-/* Signature previews in form */
+/* Firmas inline */
 .sig-section{background:#fff;margin:12px 12px 0;border-radius:var(--rad);box-shadow:var(--sh);overflow:hidden}
-.sig-row{display:flex;align-items:center;gap:12px;padding:12px}
-.sig-info{flex:1}
-.sig-label{font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ts);letter-spacing:.5px}
-.sig-preview{max-height:50px;max-width:150px;border:1px solid #eee;border-radius:6px;display:none;margin-top:4px}
-.sig-preview.show{display:block}
-.btn-sign{padding:10px 16px;border:2px solid var(--gd);border-radius:8px;background:#fff;color:var(--gd);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.sig-person{padding:12px;border-bottom:1px solid #f0f0f0}
+.sig-person:last-child{border-bottom:none}
+.sig-person-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.sig-lbl{font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ts);letter-spacing:.5px}
+.sig-controls{display:flex;gap:6px}
+.btn-sign{padding:8px 14px;border:2px solid var(--gd);border-radius:7px;background:#fff;color:var(--gd);font-size:12px;font-weight:700;cursor:pointer}
 .btn-sign.signed{background:var(--gd);color:#fff}
-.btn-share-sup{width:100%;padding:12px;background:#25D366;color:#fff;border:none;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px}
+.btn-clear-sig{padding:8px 10px;border:2px solid #ccc;border-radius:7px;background:#fff;color:#666;font-size:12px;cursor:pointer}
+.sig-canvas-wrap{display:none;margin-top:4px}
+.sig-canvas-wrap.open{display:block}
+.sig-canvas-el{width:100%;height:130px;border:2px dashed #1a5c2a;border-radius:8px;background:#f9fff9;display:block;touch-action:none;cursor:crosshair}
+.sig-img-preview{max-height:50px;border:1px solid #eee;border-radius:6px;display:none;margin-top:6px}
+.sig-img-preview.show{display:block}
+.btn-share-sup{width:100%;padding:12px;background:#25D366;color:#fff;border:none;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
 /* Supervisor page */
 #page-supervisor{background:var(--gl)}
 .sup-card{background:#fff;margin:16px;border-radius:var(--rad);padding:16px;box-shadow:var(--sh)}
@@ -653,90 +647,103 @@ function showToast(msg){
   setTimeout(()=>t.classList.remove("show"),5000);
 }
 
-// ── SIGNATURES ───────────────────────────────────────────────
+// ── SIGNATURES (inline canvas per person) ────────────────────
 let sigData = {tecnico: null, supervisor: null};
-let currentSigTarget = null;
-let isDrawing = false, lastPt = null;
 
-function setupSigCanvas(canvasId) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-  canvas.width = canvas.offsetWidth || 300;
-  canvas.height = 150;
-  const ctx = canvas.getContext('2d');
-  ctx.strokeStyle = '#1a5c2a'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  function getP(e) {
-    const r = canvas.getBoundingClientRect();
-    const s = e.touches ? e.touches[0] : e;
-    return {x:(s.clientX-r.left)*(canvas.width/r.width), y:(s.clientY-r.top)*(canvas.height/r.height)};
-  }
-  function start(e){e.preventDefault();isDrawing=true;lastPt=getP(e);ctx.beginPath();ctx.moveTo(lastPt.x,lastPt.y);}
-  function move(e){e.preventDefault();if(!isDrawing)return;const p=getP(e);ctx.lineTo(p.x,p.y);ctx.stroke();lastPt=p;}
-  function end(){isDrawing=false;}
-  canvas.addEventListener('touchstart',start,{passive:false});
-  canvas.addEventListener('touchmove',move,{passive:false});
-  canvas.addEventListener('touchend',end);
-  canvas.addEventListener('mousedown',start);
-  canvas.addEventListener('mousemove',move);
-  canvas.addEventListener('mouseup',end);
-}
-
-function openSigModal(target) {
-  currentSigTarget = target;
-  const titles = {tecnico:'Firma del Técnico', supervisor:'Firma del Supervisor'};
-  document.getElementById('sig-modal-title').textContent = titles[target]||'Firma';
-  document.getElementById('sig-overlay').classList.add('show');
-  setTimeout(()=>setupSigCanvas('sig-canvas'), 50);
-}
-function closeSigModal(){document.getElementById('sig-overlay').classList.remove('show');}
-function clearSigCanvas(){const c=document.getElementById('sig-canvas');c.getContext('2d').clearRect(0,0,c.width,c.height);}
-function saveSig(){
-  const canvas = document.getElementById('sig-canvas');
-  const ctx = canvas.getContext('2d');
-  const blank = document.createElement('canvas');
-  blank.width=canvas.width; blank.height=canvas.height;
-  if(canvas.toDataURL()===blank.toDataURL()){showToast('⚠️ Dibuja tu firma primero');return;}
-  sigData[currentSigTarget] = canvas.toDataURL('image/png', 0.6);
-  updateSigPreview(currentSigTarget);
-  closeSigModal();
-  showToast('✅ Firma guardada');
-}
-function updateSigPreview(target){
-  const preview = document.getElementById('sig-img-'+target);
-  const btn = document.getElementById('sig-btn-'+target);
-  if(preview && sigData[target]){preview.src=sigData[target];preview.classList.add('show');}
-  if(btn) btn.classList.add('signed');
-}
-
-// Add signature sections at bottom of form
 function addSigSections(){
   const fc = document.getElementById('form-c');
-  if(!fc||document.getElementById('sig-section-form'))return;
+  if(!fc || document.getElementById('sig-section-form')) return;
   const div = document.createElement('div');
   div.id = 'sig-section-form';
   div.innerHTML = `
-    <div class="sig-section">
-      <div class="bttl">&#9999;&#65039; FIRMAS</div>
-      <div class="sig-row">
-        <div class="sig-info">
-          <div class="sig-label">Técnico</div>
-          <img class="sig-preview" id="sig-img-tecnico">
-        </div>
-        <button class="btn-sign" id="sig-btn-tecnico" onclick="openSigModal('tecnico')">Firmar</button>
-      </div>
-      <div style="height:1px;background:#f0f0f0"></div>
-      <div class="sig-row">
-        <div class="sig-info">
-          <div class="sig-label">Supervisor</div>
-          <img class="sig-preview" id="sig-img-supervisor">
-        </div>
-        <button class="btn-sign" id="sig-btn-supervisor" onclick="openSigModal('supervisor')">Firmar</button>
-      </div>
+    <div class="sig-section" style="margin-top:8px">
+      <div class="bttl" style="background:var(--gd);color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#9999;&#65039; FIRMAS</div>
+      ${makeSigPerson('tecnico','Técnico')}
+      ${makeSigPerson('supervisor','Supervisor')}
     </div>`;
   fc.appendChild(div);
-  // Restore sigs if loaded
-  if(sigData.tecnico) updateSigPreview('tecnico');
-  if(sigData.supervisor) updateSigPreview('supervisor');
+  setupInlineSig('tecnico');
+  setupInlineSig('supervisor');
+  if(sigData.tecnico) restoreSigPreview('tecnico');
+  if(sigData.supervisor) restoreSigPreview('supervisor');
+}
+
+function makeSigPerson(id, label){
+  return `<div class="sig-person">
+    <div class="sig-person-hdr">
+      <span class="sig-lbl">&#9997;&#65039; ${label}</span>
+      <div class="sig-controls">
+        <button class="btn-clear-sig" onclick="clearInlineSig('${id}')">Borrar</button>
+        <button class="btn-sign" id="sbtn-${id}" onclick="toggleSigCanvas('${id}')">Firmar</button>
+      </div>
+    </div>
+    <div class="sig-canvas-wrap open" id="swrap-${id}">
+      <canvas class="sig-canvas-el" id="sc-${id}"></canvas>
+    </div>
+    <img class="sig-img-preview" id="simg-${id}" alt="firma">
+  </div>`;
+}
+
+function setupInlineSig(id){
+  const canvas = document.getElementById('sc-'+id);
+  if(!canvas) return;
+  function resize(){
+    const w = canvas.parentElement.offsetWidth || 300;
+    canvas.width = w;
+    canvas.height = 130;
+  }
+  resize();
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle='#1a5c2a'; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.lineJoin='round';
+  let drawing=false, last=null;
+  function getP(e){
+    const r=canvas.getBoundingClientRect();
+    const s=e.touches?e.touches[0]:e;
+    return {x:(s.clientX-r.left)*(canvas.width/r.width), y:(s.clientY-r.top)*(canvas.height/r.height)};
+  }
+  function down(e){e.preventDefault();drawing=true;last=getP(e);ctx.beginPath();ctx.moveTo(last.x,last.y);}
+  function mve(e){e.preventDefault();if(!drawing)return;const p=getP(e);ctx.lineTo(p.x,p.y);ctx.stroke();last=p;}
+  function up(e){
+    drawing=false;
+    // Auto-save after drawing
+    const blank=document.createElement('canvas');blank.width=canvas.width;blank.height=canvas.height;
+    if(canvas.toDataURL()!==blank.toDataURL()){
+      sigData[id]=canvas.toDataURL('image/png',0.6);
+      document.getElementById('sbtn-'+id).classList.add('signed');
+      document.getElementById('sbtn-'+id).textContent='✓ Firmado';
+    }
+  }
+  canvas.addEventListener('touchstart',down,{passive:false});
+  canvas.addEventListener('touchmove',mve,{passive:false});
+  canvas.addEventListener('touchend',up);
+  canvas.addEventListener('mousedown',down);
+  canvas.addEventListener('mousemove',mve);
+  canvas.addEventListener('mouseup',up);
+}
+
+function toggleSigCanvas(id){
+  const wrap=document.getElementById('swrap-'+id);
+  wrap.classList.toggle('open');
+}
+function clearInlineSig(id){
+  const canvas=document.getElementById('sc-'+id);
+  if(canvas){const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);}
+  sigData[id]=null;
+  const btn=document.getElementById('sbtn-'+id);
+  if(btn){btn.classList.remove('signed');btn.textContent='Firmar';}
+  const img=document.getElementById('simg-'+id);
+  if(img){img.classList.remove('show');img.src='';}
+}
+function restoreSigPreview(id){
+  const btn=document.getElementById('sbtn-'+id);
+  if(btn){btn.classList.add('signed');btn.textContent='✓ Firmado';}
+  // Draw saved sig back on canvas
+  const canvas=document.getElementById('sc-'+id);
+  if(canvas && sigData[id]){
+    const img=new Image();
+    img.onload=()=>{const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);};
+    img.src=sigData[id];
+  }
 }
 
 // ── SHARE WITH SUPERVISOR ────────────────────────────────────
