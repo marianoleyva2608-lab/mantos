@@ -120,11 +120,6 @@ def generar():
         if sup_comments and sig_row:
             ws.cell(row=sig_row+1, column=2).value = f"Comentarios del Supervisor: {sup_comments}"
 
-        # Eliminar todas las hojas excepto la seleccionada
-        for sheet_name in wb.sheetnames:
-            if sheet_name != ws.title:
-                del wb[sheet_name]
-
         buf = io.BytesIO()
         wb.save(buf)
         buf.seek(0)
@@ -136,4 +131,4 @@ def generar():
         return {'error': str(e)}, 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT',3000)), debug=Fa
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT',3000)), debug=False)
