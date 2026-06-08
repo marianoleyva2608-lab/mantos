@@ -100,6 +100,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .btn-sign{padding:10px 18px;border:none;background:var(--gd);color:#fff;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
 .btn-sign:active{background:var(--gm)}
 .btn-share-sup{width:100%;padding:12px;background:#25D366;color:#fff;border:none;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.sup-comment-section{background:#fff;margin:8px 0 0;border-radius:var(--rad);box-shadow:var(--sh);overflow:hidden}
+.sup-comment-body{padding:12px}
+.sup-comment-unlock{display:flex;gap:8px;margin-bottom:10px}
+.sup-comment-input{flex:1;padding:10px 12px;border:1.5px solid var(--br);border-radius:8px;font-size:16px;letter-spacing:3px;background:#fafafa}
+.sup-comment-input:focus{outline:none;border-color:var(--gm)}
+.btn-unlock-sup{padding:10px 16px;background:var(--gd);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.sup-comment-write{display:none}
+.sup-comment-write.open{display:block}
+.sup-comment-textarea{width:100%;min-height:90px;padding:10px;border:1.5px solid #90caf9;border-radius:8px;font-size:14px;font-family:inherit;resize:none;background:#f8fbff}
+.sup-comment-textarea:focus{outline:none;border-color:#1565c0}
+.btn-save-sup-comment{width:100%;padding:12px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px}
+.sup-comment-saved{background:#e3f2fd;padding:10px;border-radius:8px;font-size:13px;color:#0d47a1;display:none}
+.sup-comment-saved.show{display:block}
+.btn-saved-disabled{width:100%;padding:12px;background:#e8f5e9;color:#2e7d32;border:2px solid #81c784;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:default;text-align:center}
 .sig-canvas-area{margin-top:10px}
 .sig-canvas-el{width:100%;height:120px;border:2px dashed #1a5c2a;border-radius:8px;background:#f9fff9;display:block;touch-action:none;cursor:crosshair}
 .sig-canvas-hint{font-size:11px;color:#999;text-align:center;margin:4px 0 8px}
@@ -800,13 +814,78 @@ function addSigSections(){
     if(sigData.supervisor) restoreSigInForm('supervisor');
   }
   // Action buttons after firmas
-  if(!isLocked){
-    const ab=document.createElement("div");
-    ab.id="form-actions";
-    ab.style.cssText="padding:12px;display:flex;flex-direction:column;gap:8px;";
+  const ab=document.createElement("div");
+  ab.id="form-actions";
+  ab.style.cssText="padding:12px;display:flex;flex-direction:column;gap:8px;";
+  const alreadySaved = LOAD_DATA && LOAD_DATA.id;
+  if(isLocked){
+    // Locked: only show supervisor comments section
+    ab.innerHTML=buildSupCommentSection(LOAD_DATA);
+  } else if(alreadySaved){
+    // Already saved once: no save button, only supervisor comments
+    ab.innerHTML=`<div class="btn-saved-disabled">&#10003; Reporte guardado — no se puede volver a guardar</div>
+      <button class="btn-share-sup" onclick="shareWithSupervisor()">&#128241;&nbsp; Compartir al Supervisor (WhatsApp)</button>
+      ${buildSupCommentSection(LOAD_DATA)}`;
+  } else {
+    // New report: show save and share
     ab.innerHTML=`<button class="btn-share-sup" onclick="shareWithSupervisor()">&#128241;&nbsp; Compartir al Supervisor (WhatsApp)</button>
       <button class="btn-save" onclick="saveReport()">&#128190;&nbsp; Guardar Reporte</button>`;
-    fc.appendChild(ab);
+  }
+  fc.appendChild(ab);
+}
+
+function buildSupCommentSection(reportData){
+  const saved = reportData && reportData.supComments;
+  return `<div class="sup-comment-section">
+    <div class="bttl" style="background:#1565c0;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#128221; Comentarios del Supervisor</div>
+    <div class="sup-comment-body">
+      ${saved
+        ? `<div class="sup-comment-saved show">&#128172; <b>Comentario del supervisor:</b><br>${saved}</div>`
+        : `<div class="sup-comment-unlock">
+            <input class="sup-comment-input" type="password" id="sup-com-pwd" placeholder="Contraseña supervisor" maxlength="20">
+            <button class="btn-unlock-sup" onclick="unlockSupComment()">Desbloquear</button>
+          </div>
+          <div class="sup-comment-write" id="sup-com-write">
+            <textarea class="sup-comment-textarea" id="sup-com-text" placeholder="Escribe tus observaciones como supervisor..."></textarea>
+            <button class="btn-save-sup-comment" onclick="saveSupComment()">&#128190; Guardar Comentario</button>
+          </div>`
+      }
+    </div>
+  </div>`;
+}
+
+function unlockSupComment(){
+  const pwd = document.getElementById('sup-com-pwd')?.value.trim();
+  if(!pwd){showToast('⚠️ Escribe la contraseña del supervisor');return;}
+  const passwords = getPasswords();
+  if(pwd !== passwords.supervisor){
+    document.getElementById('sup-com-pwd').style.borderColor='#f44336';
+    document.getElementById('sup-com-pwd').value='';
+    showToast('❌ Contraseña incorrecta');
+    setTimeout(()=>document.getElementById('sup-com-pwd').style.borderColor='',1500);
+    return;
+  }
+  document.getElementById('sup-com-pwd').disabled=true;
+  document.querySelector('.btn-unlock-sup').style.display='none';
+  document.getElementById('sup-com-write').classList.add('open');
+  showToast('✅ Acceso de supervisor autorizado');
+}
+
+function saveSupComment(){
+  const txt = document.getElementById('sup-com-text')?.value.trim();
+  if(!txt){showToast('⚠️ Escribe un comentario antes de guardar');return;}
+  if(!LOAD_DATA||!LOAD_DATA.id){showToast('⚠️ Primero guarda el reporte');return;}
+  const arr=getSaved();
+  const idx=arr.findIndex(r=>r.id===LOAD_DATA.id);
+  if(idx>=0){
+    arr[idx].supComments=txt;
+    setSaved(arr);
+    LOAD_DATA.supComments=txt;
+    document.getElementById('sup-com-write').classList.remove('open');
+    const body=document.querySelector('.sup-comment-body');
+    if(body) body.innerHTML=`<div class="sup-comment-saved show">&#128172; <b>Comentario del supervisor:</b><br>${txt}</div>`;
+    showToast('✅ Comentario del supervisor guardado');
+    renderHome();
   }
 }
 
