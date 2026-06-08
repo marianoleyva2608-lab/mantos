@@ -508,7 +508,11 @@ function renderForm(){
   }
   h+=`<div class="sbar"><span class="chip cok" id="sok">&#10003; OK: 0</span><span class="chip cng" id="sng">&#10007; NG: 0</span><span class="chip cpd" id="spd">&#11036; Pendiente: ${items.length}</span></div>`;
   h+=`<div class="bcard"><div class="bttl">&#128197; CALENDARIO DE MANTENIMIENTO</div><div class="mths">`;
-  for(const m of MONTHS)h+=`<button class="mbtn" id="m${m}" onclick="tm('${m}')">${m}</button>`;
+  const _validM=getValidMonths();
+  for(const m of MONTHS){
+    const disabled=_validM.has(m)?'':'disabled style="opacity:0.35;cursor:not-allowed;background:#f0f0f0"';
+    h+=`<button class="mbtn" id="m${m}" onclick="tm('${m}')" ${disabled}>${m}</button>`;
+  }
   h+=`</div></div>`;
   h+=`<div class="bcard"><div class="bttl">&#9889; VOLTAJE ALIMENTACIÓN</div><div class="vgrid">
     <div class="vf"><label>L1</label><input type="number" id="vl1" placeholder="V"></div>
@@ -550,7 +554,22 @@ function upd(){
   document.getElementById("sng").textContent=`✗ NG: ${ng}`;
   document.getElementById("spd").textContent=`⬜ Pendiente: ${tot-ok-ng}`;
 }
+function getValidMonths(){
+  const now = new Date();
+  const MONTHS_LIST = ["ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC"];
+  const cur = now.getMonth(); // 0-indexed
+  const prev = (cur - 1 + 12) % 12;
+  const next = (cur + 1) % 12;
+  return new Set([MONTHS_LIST[prev], MONTHS_LIST[cur], MONTHS_LIST[next]]);
+}
+
 function tm(m){
+  const valid = getValidMonths();
+  if(!valid.has(m)){
+    const arr=[...valid];
+    showToast(`⚠️ Solo puedes seleccionar: ${arr.join(', ')}`);
+    return;
+  }
   if(SM.has(m)){
     SM.delete(m);
     document.getElementById("m"+m).classList.remove("on");
@@ -561,7 +580,7 @@ function tm(m){
     return;
   }
   SM.add(m);
-  document.getElementById("m"+m).classList.toggle("on",SM.has(m));
+  document.getElementById("m"+m).classList.add("on");
 }
 
 // ── DESCARGA COMPATIBLE CON CELULAR ──────────────────────────
@@ -603,12 +622,12 @@ function validateReport(){
     const maxDate = new Date(now.getFullYear(), now.getMonth() + 2, 0);   // último día del mes siguiente
     if(fecha < minDate || fecha > maxDate){
       fechaEl.style.border = '2px solid #f44336';
-      fechaEl.focus();
+      fechaEl.scrollIntoView({behavior:'smooth',block:'center'});
       const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
       const minLbl = meses[minDate.getMonth()] + ' ' + minDate.getFullYear();
       const maxLbl = meses[maxDate.getMonth()] + ' ' + maxDate.getFullYear();
-      showToast(`⚠️ Fecha debe estar entre ${minLbl} y ${maxLbl}`);
-      setTimeout(()=>fechaEl.style.border='',2500);
+      showToast(`⚠️ Fecha debe ser entre ${minLbl} y ${maxLbl}`);
+      setTimeout(()=>{fechaEl.style.border='';},2500);
       return false;
     }
   }
