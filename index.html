@@ -902,20 +902,21 @@ function unlockSupComment(){
   showToast('✅ Acceso de supervisor autorizado');
 }
 
-function saveSupComment(){
+async function saveSupComment(){
   const txt = document.getElementById('sup-com-text')?.value.trim();
-  if(!txt){showToast('⚠️ Escribe un comentario antes de guardar');return;}
-  if(!LOAD_DATA||!LOAD_DATA.id){showToast('⚠️ Primero guarda el reporte');return;}
-  const arr=getSaved();
-  const idx=arr.findIndex(r=>r.id===LOAD_DATA.id);
+  if(!txt){showToast('\u26a0\ufe0f Escribe un comentario antes de guardar');return;}
+  if(!LOAD_DATA||!LOAD_DATA.id){showToast('\u26a0\ufe0f Primero guarda el reporte');return;}
+  const idx=reportCache.findIndex(r=>r.id===LOAD_DATA.id);
   if(idx>=0){
-    arr[idx].supComments=txt;
-    setSaved(arr);
+    reportCache[idx].supComments=txt;
     LOAD_DATA.supComments=txt;
+    try{
+      await fetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(reportCache[idx])});
+    }catch(e){}
     document.getElementById('sup-com-write').classList.remove('open');
     const body=document.querySelector('.sup-comment-body');
     if(body) body.innerHTML=`<div class="sup-comment-saved show">&#128172; <b>Comentario del supervisor:</b><br>${txt}</div>`;
-    showToast('✅ Comentario del supervisor guardado');
+    showToast('\u2705 Comentario del supervisor guardado');
     renderHome();
   }
 }
@@ -1073,23 +1074,22 @@ function markSigned(id, timestamp){
   setTimeout(checkBothSigned, 200);
 }
 
-function checkBothSigned(){
+async function checkBothSigned(){
   if(sigData.tecnico && sigData.supervisor && sigData.tecnico.timestamp && sigData.supervisor.timestamp){
-    // Auto-save as locked report
-    const tec=document.getElementById("ft")?document.getElementById("ft").value||"":"";
     const fec=document.getElementById("ff")?document.getElementById("ff").value||"":"";
-    const arr=getSaved();
-    const idx=arr.findIndex(r=>r.machineId===CM.id&&r.fecha===fec);
+    const idx=reportCache.findIndex(r=>r.machineId===CM.id&&r.fecha===fec);
     if(idx>=0){
-      arr[idx].sigTecnico=sigData.tecnico?sigData.tecnico.timestamp:null;
-      arr[idx].sigSupervisor=sigData.supervisor?sigData.supervisor.timestamp:null;
-      arr[idx].sigTecnicoImg=sigData.tecnico?sigData.tecnico.img:null;
-      arr[idx].sigSupervisorImg=sigData.supervisor?sigData.supervisor.img:null;
-      arr[idx].locked=true;
-      setSaved(arr);
+      reportCache[idx].sigTecnico=sigData.tecnico?sigData.tecnico.timestamp:null;
+      reportCache[idx].sigSupervisor=sigData.supervisor?sigData.supervisor.timestamp:null;
+      reportCache[idx].sigTecnicoImg=sigData.tecnico?sigData.tecnico.img:null;
+      reportCache[idx].sigSupervisorImg=sigData.supervisor?sigData.supervisor.img:null;
+      reportCache[idx].locked=true;
+      try{
+        await fetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(reportCache[idx])});
+      }catch(e){}
     }
     lockForm();
-    showToast('🔒 Reporte firmado y bloqueado');
+    showToast('\ud83d\udd12 Reporte firmado y bloqueado');
   }
 }
 
