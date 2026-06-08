@@ -1062,25 +1062,24 @@ function checkBothSigned(){
   }
 }
 
-function lockForm(){
-  // Disable all OK/NG buttons
-  document.querySelectorAll('.bok,.bng').forEach(b=>{b.disabled=true;b.style.opacity='0.5';});
-  // Disable comment fields
-  document.querySelectorAll('.cmbox textarea').forEach(t=>t.disabled=true);
-  // Disable calendar
+function lockFormFields(){
+  // Lock all form inputs and buttons except supervisor section
+  document.querySelectorAll('.bok,.bng').forEach(b=>{b.disabled=true;b.style.opacity='0.55';});
+  document.querySelectorAll('.cmbox textarea').forEach(t=>{t.disabled=true;});
+  document.querySelectorAll('.bcm').forEach(b=>{b.style.display='none';});
   document.querySelectorAll('.mbtn').forEach(b=>{b.disabled=true;});
-  // Disable voltaje
-  document.querySelectorAll('#vl1,#vl2,#vl3,#vvac').forEach(i=>i.disabled=true);
-  // Disable tecnico/fecha/supervisor fields
+  document.querySelectorAll('#vl1,#vl2,#vl3,#vvac').forEach(i=>{i.disabled=true;});
   ['ft','ff','fs'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
-  // Disable signature inputs
+}
+
+function lockForm(){
+  lockFormFields();
+  // Disable technician signature inputs too
   document.querySelectorAll('.sig-pin-input').forEach(i=>i.disabled=true);
-  document.querySelectorAll('[onclick^="firmar"]').forEach(b=>b.disabled=true);
+  document.querySelectorAll('[onclick^="autenticar"]').forEach(b=>b.disabled=true);
   // Hide save/share buttons, show lock notice
   const ab=document.querySelector('#form-actions');
   if(ab) ab.innerHTML='<div style="background:#fff8e1;border:2px solid #ffd54f;border-radius:10px;padding:12px;text-align:center;font-size:13px;font-weight:600;color:#e65100;">🔒 Reporte bloqueado — firmado por técnico y supervisor</div>';
-  // Hide comment buttons
-  document.querySelectorAll('.bcm').forEach(b=>b.style.display='none');
 }
 
 // ── SHARE WITH SUPERVISOR ────────────────────────────────────
