@@ -594,6 +594,24 @@ function validateReport(){
     showToast("⚠️ Faltan " + pending.length + " punto(s) sin evaluar (marcados en rojo)");
     return false;
   }
+  // Check fecha within allowed range (mes anterior, actual o siguiente)
+  const fechaEl = document.getElementById("ff");
+  if(fechaEl && fechaEl.value){
+    const fecha = new Date(fechaEl.value + 'T00:00:00');
+    const now = new Date();
+    const minDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);   // 1ro del mes anterior
+    const maxDate = new Date(now.getFullYear(), now.getMonth() + 2, 0);   // último día del mes siguiente
+    if(fecha < minDate || fecha > maxDate){
+      fechaEl.style.border = '2px solid #f44336';
+      fechaEl.focus();
+      const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      const minLbl = meses[minDate.getMonth()] + ' ' + minDate.getFullYear();
+      const maxLbl = meses[maxDate.getMonth()] + ' ' + maxDate.getFullYear();
+      showToast(`⚠️ Fecha debe estar entre ${minLbl} y ${maxLbl}`);
+      setTimeout(()=>fechaEl.style.border='',2500);
+      return false;
+    }
+  }
   // Check tecnico name
   const tec = document.getElementById("ft");
   if(tec && !tec.value.trim()){
