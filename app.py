@@ -29,9 +29,8 @@ def make_sig_image(b64_str, width_px, height_px):
             b64_str = b64_str.split(',')[1]
         raw = base64.b64decode(b64_str)
         pil = PILImage.open(io.BytesIO(raw)).convert("RGBA")
-        bg = PILImage.new("RGBA", pil.size, (255,255,255,255))
-        bg.paste(pil, mask=pil.split()[3])
-        pil = bg.convert("RGB").resize((width_px, height_px), PILImage.LANCZOS)
+        # Mantener fondo transparente — NO componer sobre blanco
+        pil = pil.resize((width_px, height_px), PILImage.LANCZOS)
         buf = io.BytesIO()
         pil.save(buf, format='PNG')
         buf.seek(0)
@@ -92,31 +91,29 @@ def generar():
             fec = data.get('fecha','_______________')
             sup = data.get('supervisor','_______________')
 
-            # Get row height to calculate vertical offset for "Firma:" position
-            row_h_pts = ws.row_dimensions[sig_row].height or 60
-            row_h_px  = row_h_pts * 1.333
-            # "Firma:" appears at ~60% height (below name + blank line)
-            firma_y = int(row_h_px * 0.58)
-
-            # Text: name on first part, Firma: label kept
-            ws.cell(row=sig_row, column=2).value  = f"Realizó: {tec}\n\nFirma:"
+            # Escribir solo el nombre en la fila superior; "Firma:" queda en la plantilla
+            ws.cell(row=sig_row, column=2).value  = f"Realizó: {tec}"
             ws.cell(row=sig_row, column=8).value  = f"Fecha: {fec}"
-            ws.cell(row=sig_row, column=11).value = f"Supervisor de Producción: {sup}\n\nFirma:"
+            ws.cell(row=sig_row, column=11).value = f"Supervisor de Producción: {sup}"
 
-            # Technician signature image → column D (idx 3), next to "Firma:"
+            # La fila de "Firma:" es la siguiente (sig_row + 1)
+            firma_row = sig_row + 1
+            firma_y = 8  # pequeño offset desde la parte superior de la fila Firma:
+
+            # Firma del técnico → columna D (idx 3), fila "Firma:"
             tec_sig = data.get('sigTecnicoImg')
             if tec_sig:
                 add_sig_anchored(ws, tec_sig,
-                    col_idx=3,          # Column D
-                    row_idx=sig_row-1,  # 0-based
+                    col_idx=3,              # Column D, junto a "Firma:"
+                    row_idx=firma_row-1,    # 0-based
                     y_offset_px=firma_y)
 
-            # Supervisor signature image → column M (idx 12), next to "Firma:"
+            # Firma del supervisor → columna M (idx 12), fila "Firma:"
             sup_sig = data.get('sigSupervisorImg')
             if sup_sig:
                 add_sig_anchored(ws, sup_sig,
-                    col_idx=12,         # Column M
-                    row_idx=sig_row-1,
+                    col_idx=12,             # Column M, junto a "Firma:"
+                    row_idx=firma_row-1,    # 0-based
                     y_offset_px=firma_y)
 
         # Supervisor comments
