@@ -100,8 +100,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .btn-sign{padding:10px 18px;border:none;background:var(--gd);color:#fff;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
 .btn-sign:active{background:var(--gm)}
 .btn-share-sup{width:100%;padding:12px;background:#25D366;color:#fff;border:none;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
-.sig-canvas-area{display:none;margin-top:10px}
-.sig-canvas-area.open{display:block}
+.sig-canvas-area{margin-top:10px}
 .sig-canvas-el{width:100%;height:120px;border:2px dashed #1a5c2a;border-radius:8px;background:#f9fff9;display:block;touch-action:none;cursor:crosshair}
 .sig-canvas-hint{font-size:11px;color:#999;text-align:center;margin:4px 0 8px}
 .sig-confirm-row{display:flex;gap:8px;margin-top:6px}
@@ -811,7 +810,7 @@ function buildSigPerson(id, label){
       <input class="sig-pin-input" type="password" id="spin-${id}" placeholder="Contraseña" maxlength="20">
       <button class="btn-sign" id="sbtn-${id}" onclick="autenticar('${id}')">Autenticar</button>
     </div>
-    <div class="sig-canvas-area" id="sarea-${id}">
+    <div class="sig-canvas-area" id="sarea-${id}" style="display:none">
       <div class="sig-canvas-hint">Dibuja tu firma con el dedo &#8595;</div>
       <canvas class="sig-canvas-el" id="sc-${id}"></canvas>
       <div class="sig-confirm-row">
@@ -828,7 +827,7 @@ function autenticar(id){
   if(LOAD_DATA && LOAD_DATA.locked){showToast('🔒 Reporte bloqueado');return;}
   const input = document.getElementById('spin-'+id);
   const pwd = input ? input.value.trim() : '';
-  if(!pwd){showToast('⚠️ Escribe la contraseña');input.focus();return;}
+  if(!pwd){showToast('⚠️ Escribe la contraseña');input&&input.focus();return;}
   const passwords = getPasswords();
   if(pwd !== passwords[id]){
     input.style.borderColor='#f44336';
@@ -837,28 +836,42 @@ function autenticar(id){
     setTimeout(()=>input.style.borderColor='',1500);
     return;
   }
-  // Password OK — show canvas
+  // Correct password — show canvas
   input.disabled=true;
-  document.getElementById('sbtn-'+id).style.display='none';
+  const btn=document.getElementById('sbtn-'+id);
+  if(btn) btn.style.display='none';
+  const badge=document.getElementById('sbadge-'+id);
+  if(badge){badge.textContent='Autenticado ✓';badge.style.cssText='background:#fff9c4;color:#e65100;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px';}
   const area=document.getElementById('sarea-'+id);
-  area.classList.add('open');
-  document.getElementById('sbadge-'+id).textContent='Autenticado ✓';
-  document.getElementById('sbadge-'+id).style.background='#fff9c4';
-  document.getElementById('sbadge-'+id).style.color='#f57f17';
-  setupCanvas(id);
-  showToast('✅ Contraseña correcta — dibuja tu firma');
+  if(area) area.style.display='block';
+  // Init canvas AFTER it's visible
+  requestAnimationFrame(()=>requestAnimationFrame(()=>initCanvas(id)));
+  showToast('✅ Autenticado — dibuja tu firma abajo');
 }
 
-function setupCanvas(id){
+function initCanvas(id){
   const canvas=document.getElementById('sc-'+id);
   if(!canvas)return;
-  canvas.width=canvas.offsetWidth||300;
-  canvas.height=120;
+  const rect=canvas.getBoundingClientRect();
+  canvas.width=rect.width||canvas.parentElement.offsetWidth||320;
+  canvas.height=130;
   const ctx=canvas.getContext('2d');
   ctx.strokeStyle='#1a5c2a';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.lineJoin='round';
-  let drawing=false,last=null;
-  function getP(e){const r=canvas.getBoundingClientRect();const s=e.touches?e.touches[0]:e;return{x:(s.clientX-r.left)*(canvas.width/r.width),y:(s.clientY-r.top)*(canvas.height/r.height)};}
-  function down(e){e.preventDefault();drawing=true;last=getP(e);ctx.beginPath();ctx.moveTo(last.x,last.y);}
+  // Draw placeholder hint
+  ctx.fillStyle='#e0e0e0';ctx.font='13px sans-serif';ctx.textAlign='center';
+  ctx.fillText('✍️ Dibuja tu firma aquí',canvas.width/2,canvas.height/2);
+  let drawing=false,last=null,hasDraw=false;
+  function getP(e){
+    const r=canvas.getBoundingClientRect();
+    const s=e.touches?e.touches[0]:e;
+    return{x:(s.clientX-r.left)*(canvas.width/r.width),y:(s.clientY-r.top)*(canvas.height/r.height)};
+  }
+  function down(e){
+    e.preventDefault();
+    if(!hasDraw){ctx.clearRect(0,0,canvas.width,canvas.height);hasDraw=true;}
+    drawing=true;last=getP(e);
+    ctx.beginPath();ctx.moveTo(last.x,last.y);
+  }
   function mve(e){e.preventDefault();if(!drawing)return;const p=getP(e);ctx.lineTo(p.x,p.y);ctx.stroke();last=p;}
   function up(){drawing=false;}
   canvas.addEventListener('touchstart',down,{passive:false});
@@ -871,7 +884,11 @@ function setupCanvas(id){
 
 function clearCanvas(id){
   const c=document.getElementById('sc-'+id);
-  if(c)c.getContext('2d').clearRect(0,0,c.width,c.height);
+  if(!c)return;
+  const ctx=c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.fillStyle='#e0e0e0';ctx.font='13px sans-serif';ctx.textAlign='center';
+  ctx.fillText('✍️ Dibuja tu firma aquí',c.width/2,c.height/2);
 }
 
 function confirmarFirma(id){
