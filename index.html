@@ -368,7 +368,16 @@ function upd(){
   document.getElementById("spd").textContent=`⬜ Pendiente: ${tot-ok-ng}`;
 }
 function tm(m){
-  if(SM.has(m)){SM.delete(m);}else{if(SM.size>=2){showToast("⚠️ Máximo 2 meses por reporte");return;}SM.add(m);}
+  if(SM.has(m)){
+    SM.delete(m);
+    document.getElementById("m"+m).classList.remove("on");
+    return;
+  }
+  if(SM.size >= 2){
+    showToast("⚠️ Solo puedes seleccionar 2 meses");
+    return;
+  }
+  SM.add(m);
   document.getElementById("m"+m).classList.toggle("on",SM.has(m));
 }
 
