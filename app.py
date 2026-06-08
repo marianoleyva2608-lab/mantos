@@ -89,36 +89,35 @@ def generar():
             fec = data.get('fecha','_______________')
             sup = data.get('supervisor','_______________')
 
-            # sig_row = fila "Firma:" en la plantilla
-            # sig_row - 1 = fila "Realizó:" (una fila arriba)
-            realizó_row = sig_row - 1
-            ws.cell(row=realizó_row, column=2).value  = f"Realizó: {tec}"
-            ws.cell(row=realizó_row, column=8).value  = f"Fecha: {fec}"
-            ws.cell(row=realizó_row, column=11).value = f"Supervisor de Producción: {sup}"
+            # sig_row (del JS) = fila "Realizó:"
+            # firma_row       = sig_row + 1 = fila "Firma:" (celda combinada B:G y K:Q)
+            firma_row = sig_row + 1
+            ws.cell(row=sig_row, column=2).value  = f"Realizó: {tec}"
+            ws.cell(row=sig_row, column=8).value  = f"Fecha: {fec}"
+            ws.cell(row=sig_row, column=11).value = f"Supervisor de Producción: {sup}"
 
-            # Imágenes en sig_row (la fila con "Firma:")
-            firma_y = 5  # offset mínimo desde la parte superior
-
-            # Firma del técnico → columna D, fila Firma:
+            # Firma técnico → celda combinada B:G (col B=idx 1), 560x60 px
             tec_sig = data.get('sigTecnicoImg')
             if tec_sig:
                 add_sig_anchored(ws, tec_sig,
-                    col_idx=3,           # Columna D, junto a "Firma:"
-                    row_idx=sig_row-1,   # 0-based → Excel row = sig_row
-                    y_offset_px=firma_y)
+                    col_idx=1,              # Columna B — inicio de celda combinada B:G
+                    row_idx=firma_row - 1,  # 0-based → Excel row = firma_row
+                    width_px=560,
+                    height_px=60)
 
-            # Firma del supervisor → columna M, fila Firma:
+            # Firma supervisor → celda combinada K:Q (col K=idx 10), 660x60 px
             sup_sig = data.get('sigSupervisorImg')
             if sup_sig:
                 add_sig_anchored(ws, sup_sig,
-                    col_idx=12,          # Columna M, junto a "Firma:"
-                    row_idx=sig_row-1,   # 0-based → Excel row = sig_row
-                    y_offset_px=firma_y)
+                    col_idx=10,             # Columna K — inicio de celda combinada K:Q
+                    row_idx=firma_row - 1,
+                    width_px=660,
+                    height_px=60)
 
         # Supervisor comments
         sup_comments = data.get('supComments','')
         if sup_comments and sig_row:
-            ws.cell(row=sig_row+1, column=2).value = f"Comentarios del Supervisor: {sup_comments}"
+            ws.cell(row=sig_row + 2, column=2).value = f"Comentarios del Supervisor: {sup_comments}"
 
         buf = io.BytesIO()
         wb.save(buf)
