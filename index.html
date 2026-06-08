@@ -368,19 +368,16 @@ const MCOLS={ENE:"B",FEB:"C",MAR:"D",ABR:"E",MAY:"F",JUN:"G",JUL:"H",AGO:"I",SEP
 
 let CM=null,IS={},IC={},SM=new Set(),LOAD_DATA=null;
 
-// ── SAVE / LOAD — servidor ────────────────────────────────────
+// ── SAVE / LOAD — servidor ───────────────────────────────────
 let reportCache = [];
-
 async function loadReportsFromServer(){
   try{
-    const res = await fetch('/api/reports');
-    reportCache = await res.json();
+    const res=await fetch('/api/reports');
+    reportCache=await res.json();
   }catch(e){
-    // fallback localStorage
     try{reportCache=JSON.parse(localStorage.getItem('mtto_v1')||'[]');}catch(e2){reportCache=[];}
   }
 }
-
 function getSaved(){ return reportCache; }
 
 async function saveReport(){
@@ -393,21 +390,20 @@ async function saveReport(){
   const l3=document.getElementById("vl3").value||"";
   const vc=document.getElementById("vvac").value||"";
   const report={
-    id: Date.now(),
+    id:Date.now(),
     machineId:CM.id, machineName:CM.name, machineNum:CM.num,
     machineFile:CM.file, machineSheet:CM.sheet, machineArea:CM.area,
     tecnico:tec, fecha:fec, supervisor:sup,
     month:[...SM], voltaje:{l1,l2,l3,vac:vc},
     savedAt:new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}),
     statuses:{...IS}, comments:{...IC},
-    sigTecnico: sigData.tecnico?.timestamp||null,
-    sigTecnicoImg: sigData.tecnico?.img||null,
-    sigSupervisor: sigData.supervisor?.timestamp||null,
-    sigSupervisorImg: sigData.supervisor?.img||null
+    sigTecnico:sigData.tecnico?.timestamp||null,
+    sigTecnicoImg:sigData.tecnico?.img||null,
+    sigSupervisor:sigData.supervisor?.timestamp||null,
+    sigSupervisorImg:sigData.supervisor?.img||null
   };
   try{
     await fetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});
-    // Actualizar cache local
     const idx=reportCache.findIndex(r=>r.machineId===CM.id&&r.fecha===fec);
     if(idx>=0)reportCache[idx]=report; else reportCache.unshift(report);
     showToast("💾 Reporte guardado");
@@ -476,7 +472,7 @@ function restoreForm(r){sigData.tecnico=r.sigTecnico?{timestamp:r.sigTecnico,img
 
 async function deleteReport(id,e){
   e.stopPropagation();
-  if(!confirm("¿Eliminar este reporte guardado?"))return;
+  if(!confirm("\u00bfEliminar este reporte guardado?"))return;
   try{
     await fetch(`/api/reports/${id}`,{method:'DELETE'});
     reportCache=reportCache.filter(x=>x.id!==id);
@@ -1192,4 +1188,15 @@ function checkURLHash(){
       const sigB64=decodeURIComponent(escape(atob(hash.slice(5))));
       sigData.supervisor=sigB64;
       updateSigPreview('supervisor');
-      showToast('✅ Firma del supervisor impor
+      showToast('✅ Firma del supervisor importada');
+      history.replaceState(null,'',window.location.pathname);
+      if(document.getElementById('sig-img-supervisor'))updateSigPreview('supervisor');
+    }catch(e){showToast('❌ Error al importar firma');}
+  }
+}
+
+loadReportsFromServer().then(()=>renderHome());
+checkURLHash();
+</script>
+</body>
+</html>
