@@ -828,7 +828,12 @@ function generatePDF(){
   };
   fetch('/generar_pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(r=>{
-      if(!r.ok) return r.json().then(e=>{throw new Error(e.error||'Error servidor');});
+      if(!r.ok) return r.text().then(t=>{
+        let msg='Error servidor '+r.status;
+        try{msg=JSON.parse(t).error||msg;}catch(e){}
+        if(msg.length>200) msg=msg.substring(0,200)+'...';
+        throw new Error(msg);
+      });
       return r.blob();
     })
     .then(blob=>{
