@@ -71,6 +71,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .dl-panel h3{color:var(--gd);margin-bottom:8px;font-size:16px}
 .dl-panel p{font-size:13px;color:var(--ts);margin-bottom:12px;line-height:1.5}
 .dl-btn{display:inline-block;padding:12px 24px;background:var(--gd);color:#fff;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;margin:4px}
+
+/* ── SAVED REPORTS ── */
+.saved-section{margin:0 0 20px}
+.saved-card{background:#fff;border-radius:var(--rad);padding:13px 14px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh);margin-bottom:8px;border-left:4px solid #1565c0}
+.saved-info{flex:1}
+.saved-name{font-weight:600;font-size:14px}
+.saved-meta{font-size:11px;color:var(--ts);margin-top:2px}
+.saved-btns{display:flex;gap:6px}
+.btn-load{padding:7px 12px;background:#1565c0;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer}
+.btn-del{padding:7px 10px;background:#ffebee;color:#c62828;border:none;border-radius:7px;font-size:14px;cursor:pointer}
+.saved-empty{font-size:13px;color:#9e9e9e;text-align:center;padding:12px 0}
+/* Save button */
+.btn-save{width:100%;padding:13px;background:#e8f5e9;color:#1a5c2a;border:2px solid #1a5c2a;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px}
+.btn-save:active{background:#c8e6c9}
 </style>
 </head>
 <body>
@@ -87,6 +101,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   </div>
   <div class="form-c" id="form-c"></div>
   <div class="genbar">
+    <button class="btn-save" onclick="saveReport()">&#128190;&nbsp; Guardar Reporte</button>
     <button class="genbtn" onclick="generateExcel()">&#128229;&nbsp; Generar y Descargar Reporte Excel</button>
   </div>
 </div>
@@ -277,13 +292,120 @@ const AREAS = [
 const MONTHS=["ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC"];
 const MCOLS={ENE:"B",FEB:"C",MAR:"D",ABR:"E",MAY:"F",JUN:"G",JUL:"H",AGO:"I",SEP:"J",OCT:"K",NOV:"L",DIC:"M"};
 
-let CM=null,IS={},IC={},SM=new Set();
+let CM=null,IS={},IC={},SM=new Set(),LOAD_DATA=null;
+
+// ── SAVE / LOAD ──────────────────────────────────────────────
+function getSaved(){try{return JSON.parse(localStorage.getItem('mtto_v1')||'[]');}catch(e){return[];}}
+function setSaved(arr){localStorage.setItem('mtto_v1',JSON.stringify(arr));}
+
+function saveReport(){
+  const tec=document.getElementById("ft").value||"";
+  const fec=document.getElementById("ff").value||"";
+  const sup=document.getElementById("fs").value||"";
+  const l1=document.getElementById("vl1").value||"";
+  const l2=document.getElementById("vl2").value||"";
+  const l3=document.getElementById("vl3").value||"";
+  const vc=document.getElementById("vvac").value||"";
+  const report={
+    id: Date.now(),
+    machineId:CM.id, machineName:CM.name, machineNum:CM.num,
+    machineFile:CM.file, machineSheet:CM.sheet, machineArea:CM.area,
+    tecnico:tec, fecha:fec, supervisor:sup,
+    month:[...SM], voltaje:{l1,l2,l3,vac:vc},
+    statuses:{...IS}, comments:{...IC},
+    savedAt:new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'})
+  };
+  const arr=getSaved();
+  // Replace if same machine+fecha already saved
+  const idx=arr.findIndex(r=>r.machineId===CM.id&&r.fecha===fec);
+  if(idx>=0)arr[idx]=report; else arr.unshift(report);
+  setSaved(arr);
+  showToast("💾 Reporte guardado");
+  renderHome();
+}
+
+function loadReport(id){
+  const arr=getSaved();
+  const r=arr.find(x=>x.id===id);
+  if(!r)return;
+  // Find area and machine
+  let area=null,machine=null;
+  for(const a of AREAS){const m=a.machines.find(x=>x.id===r.machineId);if(m){area=a;machine=m;break;}}
+  if(!machine){showToast("Equipo no encontrado");return;}
+  CM={...machine,area:area.name};
+  IS={...r.statuses}; IC={...r.comments}; SM=new Set(r.month||[]);
+  LOAD_DATA=r;
+  document.getElementById("ftitle").textContent=machine.name;
+  document.getElementById("fsub").textContent=`No. ${machine.num} · ${area.name}`;
+  renderForm();
+  restoreForm(r);
+  showPage("form");
+}
+
+function restoreForm(r){
+  if(document.getElementById("ft"))document.getElementById("ft").value=r.tecnico||"";
+  if(document.getElementById("ff"))document.getElementById("ff").value=r.fecha||"";
+  if(document.getElementById("fs"))document.getElementById("fs").value=r.supervisor||"";
+  if(document.getElementById("vl1"))document.getElementById("vl1").value=r.voltaje?.l1||"";
+  if(document.getElementById("vl2"))document.getElementById("vl2").value=r.voltaje?.l2||"";
+  if(document.getElementById("vl3"))document.getElementById("vl3").value=r.voltaje?.l3||"";
+  if(document.getElementById("vvac"))document.getElementById("vvac").value=r.voltaje?.vac||"";
+  // Restore statuses
+  for(const[id,st]of Object.entries(r.statuses||{})){
+    if(st)ts(id,st,true);
+  }
+  // Restore comments
+  for(const[id,cm]of Object.entries(r.comments||{})){
+    if(cm&&document.getElementById("tx"+id)){
+      document.getElementById("tx"+id).value=cm;
+      document.getElementById("cb"+id).classList.add("open");
+      document.getElementById("cm"+id).classList.add("has");
+    }
+  }
+  // Restore month
+  for(const m of (r.month||[])){
+    SM.add(m);
+    const btn=document.getElementById("m"+m);
+    if(btn)btn.classList.add("on");
+  }
+  upd();
+}
+
+function deleteReport(id,e){
+  e.stopPropagation();
+  if(!confirm("¿Eliminar este reporte guardado?"))return;
+  const arr=getSaved().filter(x=>x.id!==id);
+  setSaved(arr);
+  renderHome();
+}
 
 function goHome(){showPage("home");CM=null;}
 function showPage(id){document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));document.getElementById("page-"+id).classList.add("active");window.scrollTo(0,0);}
 
 function renderHome(){
+  const saved=getSaved();
   let h="";
+  // Saved reports section
+  h+=`<div class="saved-section">`;
+  h+=`<div class="area-lbl">&#128190; Reportes Guardados</div>`;
+  if(saved.length===0){
+    h+=`<div class="saved-empty">No hay reportes guardados aún</div>`;
+  } else {
+    for(const r of saved){
+      h+=`<div class="saved-card">
+        <div class="saved-info">
+          <div class="saved-name">${r.machineName}</div>
+          <div class="saved-meta">📅 ${r.fecha||"--"} · 👤 ${r.tecnico||"--"} · ${r.savedAt||""}</div>
+        </div>
+        <div class="saved-btns">
+          <button class="btn-load" onclick="loadReport(${r.id})">Abrir</button>
+          <button class="btn-del" onclick="deleteReport(${r.id},event)">🗑</button>
+        </div>
+      </div>`;
+    }
+  }
+  h+=`</div>`;
+  // Machine list
   for(const a of AREAS){
     h+=`<div class="area-lbl">${a.icon} ${a.name}</div><div class="mgrid">`;
     for(const m of a.machines)
@@ -295,7 +417,7 @@ function renderHome(){
 
 function sel(aid,mid){
   const a=AREAS.find(x=>x.id===aid),m=a.machines.find(x=>x.id===mid);
-  CM={...m,area:a.name};IS={};IC={};SM=new Set();
+  CM={...m,area:a.name};IS={};IC={};SM=new Set();LOAD_DATA=null;
   document.getElementById("ftitle").textContent=m.name;
   document.getElementById("fsub").textContent=`No. ${m.num} · ${a.name}`;
   renderForm();showPage("form");
@@ -347,15 +469,16 @@ function renderForm(){
   document.getElementById("form-c").innerHTML=h;
 }
 
-function ts(id,st){
-  const cur=IS[id],ns=cur===st?null:st;IS[id]=ns;
+function ts(id,st,force=false){
+  const cur=IS[id],ns=force?st:(cur===st?null:st);IS[id]=ns;
   const r=document.getElementById("r"+id);
+  if(!r)return;
   document.getElementById("ok"+id).classList.remove("on");
   document.getElementById("ng"+id).classList.remove("on");
   r.classList.remove("ok","ng");
   if(ns==="ok"){r.classList.add("ok");document.getElementById("ok"+id).classList.add("on");}
   else if(ns==="ng"){r.classList.add("ng");document.getElementById("ng"+id).classList.add("on");document.getElementById("cb"+id).classList.add("open");}
-  upd();
+  if(!force)upd();
 }
 function tc(id){document.getElementById("cb"+id).classList.toggle("open");}
 function sc(id){IC[id]=document.getElementById("tx"+id).value;document.getElementById("cm"+id).classList.toggle("has",!!IC[id]);}
