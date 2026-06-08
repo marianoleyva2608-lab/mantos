@@ -746,63 +746,42 @@ function generateExcel(){
 
   const ovl=document.getElementById("overlay");
   const spt=document.getElementById("sptxt");
-  ovl.classList.add("show"); spt.textContent="Cargando plantilla...";
+  ovl.classList.add("show"); spt.textContent="Generando reporte...";
 
-  // Defer to allow UI to update
-  requestAnimationFrame(()=>setTimeout(()=>{
-    try{
-      spt.textContent="Llenando datos...";
-      const wb=XLSX.read(EXCEL_B64[CM.file],{type:"base64"});
-      const ws=wb.Sheets[CM.sheet];
-      const si=SHEET_MAPPING[CM.file][CM.sheet];
+  const si=SHEET_MAPPING[CM.file][CM.sheet];
+  const items=[];
+  for(let i=0;i<si.items.length;i++){
+    items.push({row:si.items[i].row,desc:si.items[i].desc,status:IS["i"+i]||"",comment:IC["i"+i]||""});
+  }
+  const payload={
+    file:CM.file, sheet:CM.sheet, machineId:CM.id, machineName:CM.name,
+    tecnico:tec, fecha:fec, supervisor:sup,
+    month:[...SM], voltaje:{l1,l2,l3,vac:vc},
+    cal_data_row:si.cal_data_row, sig_row:si.sig_row,
+    items:items,
+    supComments: (LOAD_DATA&&LOAD_DATA.supComments)||""
+  };
 
-      // Helper: update cell value preserving existing style
-      function setCell(ref, val){
-        if(ws[ref]){ ws[ref].v=val; ws[ref].t='s'; delete ws[ref].f; }
-        else { ws[ref]={t:"s",v:val}; }
-      }
-
-      for(let i=0;i<si.items.length;i++){
-        const row=si.items[i].row,id=`i${i}`;
-        const st=IS[id]||null,cm=IC[id]||"";
-        setCell("K"+row, st==="ok"?"( ✓ )":"(   )");
-        setCell("L"+row, st==="ng"?"( ✓ )":"(   )");
-        if(cm) setCell("M"+row, cm);
-      }
-      const cr=si.cal_data_row;
-      for(const m of MONTHS) setCell(MCOLS[m]+cr, SM.has(m)?"( ✓ )":"(   )");
-      if(l1) setCell("N"+cr, l1);
-      if(l2) setCell("O"+cr, l2);
-      if(l3) setCell("P"+cr, l3);
-      if(vc) setCell("Q"+cr, vc);
-      const sr=si.sig_row;
-      setCell("B"+sr, `Realizó: ${tec}\n\nFirma: _________________________`);
-      setCell("H"+sr, `Fecha: ${fec}`);
-      setCell("K"+sr, `Supervisor de Producción: ${sup}\n\nFirma: _____________________________`);
-
-      spt.textContent="Preparando descarga...";
-
-      // Generar como array de bytes (más compatible que writeFile en móvil)
-      const wbout=XLSX.write(wb,{bookType:"xlsx",type:"array"});
-      const blob=new Blob([wbout],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-      const fname=`MTTO_${CM.id}_${fec}.xlsx`;
+  fetch('/generar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(r=>{
+      if(!r.ok) return r.json().then(e=>{throw new Error(e.error||'Error servidor');});
+      return r.blob();
+    })
+    .then(blob=>{
+      const fname=`REPORTE_${CM.id}_${fec}.xlsx`;
       const url=URL.createObjectURL(blob);
-
-      // Método que funciona en Android Chrome, iOS Safari y desktop
-      const a=document.createElement("a");
-      a.href=url; a.download=fname; a.style.display="none";
+      const a=document.createElement('a');
+      a.href=url; a.download=fname; a.style.display='none';
       document.body.appendChild(a); a.click();
       setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},3000);
-
       ovl.classList.remove("show");
-      showToast("✅ Descargando: "+fname);
-
-    }catch(err){
+      showToast("✅ Reporte descargado: "+fname);
+    })
+    .catch(err=>{
       ovl.classList.remove("show");
+      showToast("❌ "+err.message);
       console.error(err);
-      showToast("❌ Error: "+err.message);
-    }
-  },100));
+    });
 }
 
 function exportJSON(){

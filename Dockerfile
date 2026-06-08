@@ -1,5 +1,6 @@
-FROM node:18-alpine
+FROM python:3.11-slim
 WORKDIR /app
-COPY index.html .
-RUN npm install -g serve
-CMD sh -c "serve -p ${PORT:-3000} -s ."
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+CMD python app.py
