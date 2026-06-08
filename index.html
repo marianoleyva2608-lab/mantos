@@ -100,6 +100,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .btn-sign{padding:10px 18px;border:none;background:var(--gd);color:#fff;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
 .btn-sign:active{background:var(--gm)}
 .btn-share-sup{width:100%;padding:12px;background:#25D366;color:#fff;border:none;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.sig-canvas-area{display:none;margin-top:10px}
+.sig-canvas-area.open{display:block}
+.sig-canvas-el{width:100%;height:120px;border:2px dashed #1a5c2a;border-radius:8px;background:#f9fff9;display:block;touch-action:none;cursor:crosshair}
+.sig-canvas-hint{font-size:11px;color:#999;text-align:center;margin:4px 0 8px}
+.sig-confirm-row{display:flex;gap:8px;margin-top:6px}
+.btn-sig-clear{flex:1;padding:10px;background:#f5f5f5;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;color:#666}
+.btn-sig-confirm{flex:2;padding:10px;background:var(--gd);border:none;border-radius:8px;font-size:13px;font-weight:700;color:#fff;cursor:pointer}
+.sig-done-box{padding:10px;background:#e8f5e9;border-radius:8px;text-align:center;font-size:13px;font-weight:700;color:#2e7d32;margin-top:6px;display:none}
+.sig-done-box.show{display:block}
 /* Settings page */
 #page-settings{background:#f5f5f5}
 .set-card{background:#fff;margin:12px;border-radius:var(--rad);box-shadow:var(--sh);overflow:hidden}
@@ -698,8 +707,8 @@ function addSigSections(){
   div.innerHTML = `
     <div class="sig-section" style="margin-top:8px">
       <div class="bttl" style="background:var(--gd);color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#128272; FIRMAS</div>
-      ${isLocked ? buildSigLocked('tecnico','Técnico',sigData.tecnico) : buildSigPerson('tecnico','Técnico')}
-      ${isLocked ? buildSigLocked('supervisor','Supervisor',sigData.supervisor) : buildSigPerson('supervisor','Supervisor')}
+      ${isLocked ? buildSigLocked('tecnico','Técnico',LOAD_DATA.sigTecnico,LOAD_DATA.sigTecnicoImg) : buildSigPerson('tecnico','Técnico')}
+      ${isLocked ? buildSigLocked('supervisor','Supervisor',LOAD_DATA.sigSupervisor,LOAD_DATA.sigSupervisorImg) : buildSigPerson('supervisor','Supervisor')}
       ${isLocked ? '<div style="padding:10px 14px;background:#e8f5e9;text-align:center;font-size:12px;font-weight:700;color:#2e7d32">🔒 Reporte firmado — no se puede modificar</div>' : ''}
     </div>`;
   fc.appendChild(div);
@@ -709,36 +718,46 @@ function addSigSections(){
   }
 }
 
-function buildSigLocked(id, label, timestamp){
+function buildSigLocked(id, label, timestamp, imgSrc){
+  const imgHtml = imgSrc ? `<img src="${imgSrc}" style="max-height:45px;border:1px solid #ccc;border-radius:4px;margin-top:6px;display:block">` : '';
   return `<div class="sig-person">
     <div class="sig-status">
       <div class="sig-lbl">&#9997;&#65039; ${label}</div>
       <div class="sig-badge ok">&#10003; Firmado ${timestamp||''}</div>
     </div>
+    ${imgHtml}
   </div>`;
 }
 
 function buildSigPerson(id, label){
-  return `<div class="sig-person">
+  return `<div class="sig-person" id="sperson-${id}">
     <div class="sig-status">
       <div class="sig-lbl">&#9997;&#65039; ${label}</div>
       <div class="sig-badge" id="sbadge-${id}">Sin firmar</div>
     </div>
     <div class="sig-pin-row">
       <input class="sig-pin-input" type="password" id="spin-${id}" placeholder="Contraseña" maxlength="20">
-      <button class="btn-sign" onclick="firmar('${id}')">Firmar</button>
+      <button class="btn-sign" id="sbtn-${id}" onclick="autenticar('${id}')">Autenticar</button>
     </div>
+    <div class="sig-canvas-area" id="sarea-${id}">
+      <div class="sig-canvas-hint">Dibuja tu firma con el dedo &#8595;</div>
+      <canvas class="sig-canvas-el" id="sc-${id}"></canvas>
+      <div class="sig-confirm-row">
+        <button class="btn-sig-clear" onclick="clearCanvas('${id}')">Borrar</button>
+        <button class="btn-sig-confirm" onclick="confirmarFirma('${id}')">&#10003; Confirmar Firma</button>
+      </div>
+    </div>
+    <div class="sig-done-box" id="sdone-${id}"></div>
   </div>`;
 }
 
-function firmar(id){
-  // Block if already locked
-  if(sigData[id]){showToast('🔒 Ya firmado — no se puede repetir');return;}
+function autenticar(id){
+  if(sigData[id]){showToast('🔒 Ya firmado');return;}
   if(LOAD_DATA && LOAD_DATA.locked){showToast('🔒 Reporte bloqueado');return;}
   const input = document.getElementById('spin-'+id);
   const pwd = input ? input.value.trim() : '';
+  if(!pwd){showToast('⚠️ Escribe la contraseña');input.focus();return;}
   const passwords = getPasswords();
-  if(!pwd){showToast('⚠️ Escribe la contraseña');return;}
   if(pwd !== passwords[id]){
     input.style.borderColor='#f44336';
     input.value='';
@@ -746,34 +765,83 @@ function firmar(id){
     setTimeout(()=>input.style.borderColor='',1500);
     return;
   }
-  const now = new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
-  markSigned(id, now);
-  sigData[id] = now;
-  input.value='';
+  // Password OK — show canvas
+  input.disabled=true;
+  document.getElementById('sbtn-'+id).style.display='none';
+  const area=document.getElementById('sarea-'+id);
+  area.classList.add('open');
+  document.getElementById('sbadge-'+id).textContent='Autenticado ✓';
+  document.getElementById('sbadge-'+id).style.background='#fff9c4';
+  document.getElementById('sbadge-'+id).style.color='#f57f17';
+  setupCanvas(id);
+  showToast('✅ Contraseña correcta — dibuja tu firma');
+}
+
+function setupCanvas(id){
+  const canvas=document.getElementById('sc-'+id);
+  if(!canvas)return;
+  canvas.width=canvas.offsetWidth||300;
+  canvas.height=120;
+  const ctx=canvas.getContext('2d');
+  ctx.strokeStyle='#1a5c2a';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.lineJoin='round';
+  let drawing=false,last=null;
+  function getP(e){const r=canvas.getBoundingClientRect();const s=e.touches?e.touches[0]:e;return{x:(s.clientX-r.left)*(canvas.width/r.width),y:(s.clientY-r.top)*(canvas.height/r.height)};}
+  function down(e){e.preventDefault();drawing=true;last=getP(e);ctx.beginPath();ctx.moveTo(last.x,last.y);}
+  function mve(e){e.preventDefault();if(!drawing)return;const p=getP(e);ctx.lineTo(p.x,p.y);ctx.stroke();last=p;}
+  function up(){drawing=false;}
+  canvas.addEventListener('touchstart',down,{passive:false});
+  canvas.addEventListener('touchmove',mve,{passive:false});
+  canvas.addEventListener('touchend',up);
+  canvas.addEventListener('mousedown',down);
+  canvas.addEventListener('mousemove',mve);
+  canvas.addEventListener('mouseup',up);
+}
+
+function clearCanvas(id){
+  const c=document.getElementById('sc-'+id);
+  if(c)c.getContext('2d').clearRect(0,0,c.width,c.height);
+}
+
+function confirmarFirma(id){
+  const canvas=document.getElementById('sc-'+id);
+  const blank=document.createElement('canvas');blank.width=canvas.width;blank.height=canvas.height;
+  if(canvas.toDataURL()===blank.toDataURL()){showToast('⚠️ Dibuja tu firma primero');return;}
+  const imgData=canvas.toDataURL('image/png',0.6);
+  const now=new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+  sigData[id]={timestamp:now, img:imgData};
+  // Update UI
+  document.getElementById('sarea-'+id).classList.remove('open');
+  const badge=document.getElementById('sbadge-'+id);
+  badge.textContent='✓ Firmado '+now;
+  badge.className='sig-badge ok';
+  const done=document.getElementById('sdone-'+id);
+  done.innerHTML=`<img src="${imgData}" style="max-height:45px;border:1px solid #ccc;border-radius:4px;display:block;margin:0 auto 4px"> Firmado el ${now}`;
+  done.classList.add('show');
   showToast('✅ Firma registrada');
+  setTimeout(checkBothSigned, 200);
 }
 
 function markSigned(id, timestamp){
   const badge = document.getElementById('sbadge-'+id);
   const input = document.getElementById('spin-'+id);
-  const btn = document.querySelector(`button[onclick="firmar('${id}')"]`);
   if(badge){badge.textContent='✓ Firmado '+timestamp;badge.classList.add('ok');}
-  if(input){input.disabled=true;input.style.background='#f5f5f5';input.placeholder='✓ Firmado';}
-  if(btn){btn.textContent='✓';btn.style.background='#81c784';}
+  if(input){input.disabled=true;input.style.background='#f5f5f5';}
   // Check if both signed → auto-lock
   setTimeout(checkBothSigned, 200);
 }
 
 function checkBothSigned(){
-  if(sigData.tecnico && sigData.supervisor){
+  if(sigData.tecnico && sigData.supervisor && sigData.tecnico.timestamp && sigData.supervisor.timestamp){
     // Auto-save as locked report
     const tec=document.getElementById("ft")?document.getElementById("ft").value||"":"";
     const fec=document.getElementById("ff")?document.getElementById("ff").value||"":"";
     const arr=getSaved();
     const idx=arr.findIndex(r=>r.machineId===CM.id&&r.fecha===fec);
     if(idx>=0){
-      arr[idx].sigTecnico=sigData.tecnico;
-      arr[idx].sigSupervisor=sigData.supervisor;
+      arr[idx].sigTecnico=sigData.tecnico?sigData.tecnico.timestamp:null;
+      arr[idx].sigSupervisor=sigData.supervisor?sigData.supervisor.timestamp:null;
+      arr[idx].sigTecnicoImg=sigData.tecnico?sigData.tecnico.img:null;
+      arr[idx].sigSupervisorImg=sigData.supervisor?sigData.supervisor.img:null;
       arr[idx].locked=true;
       setSaved(arr);
     }
