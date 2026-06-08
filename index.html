@@ -602,6 +602,19 @@ function validateReport(){
     showToast("⚠️ Escribe el nombre del técnico");
     return false;
   }
+  // Check both signatures
+  if(!sigData.tecnico || !sigData.tecnico.timestamp){
+    const sigSection = document.getElementById('sig-section-form');
+    if(sigSection) sigSection.scrollIntoView({behavior:'smooth', block:'center'});
+    showToast("⚠️ Falta la firma del Técnico");
+    return false;
+  }
+  if(!sigData.supervisor || !sigData.supervisor.timestamp){
+    const sigSection = document.getElementById('sig-section-form');
+    if(sigSection) sigSection.scrollIntoView({behavior:'smooth', block:'center'});
+    showToast("⚠️ Falta la firma del Supervisor");
+    return false;
+  }
   return true;
 }
 
