@@ -89,29 +89,30 @@ def generar():
             fec = data.get('fecha','_______________')
             sup = data.get('supervisor','_______________')
 
-            # Escribir solo el nombre en la fila superior; "Firma:" queda en la plantilla
-            ws.cell(row=sig_row, column=2).value  = f"Realizó: {tec}"
-            ws.cell(row=sig_row, column=8).value  = f"Fecha: {fec}"
-            ws.cell(row=sig_row, column=11).value = f"Supervisor de Producción: {sup}"
+            # sig_row = fila "Firma:" en la plantilla
+            # sig_row - 1 = fila "Realizó:" (una fila arriba)
+            realizó_row = sig_row - 1
+            ws.cell(row=realizó_row, column=2).value  = f"Realizó: {tec}"
+            ws.cell(row=realizó_row, column=8).value  = f"Fecha: {fec}"
+            ws.cell(row=realizó_row, column=11).value = f"Supervisor de Producción: {sup}"
 
-            # La fila de "Firma:" es la siguiente (sig_row + 1)
-            firma_row = sig_row + 1
-            firma_y = 8  # pequeño offset desde la parte superior de la fila Firma:
+            # Imágenes en sig_row (la fila con "Firma:")
+            firma_y = 5  # offset mínimo desde la parte superior
 
-            # Firma del técnico → columna D (idx 3), fila "Firma:"
+            # Firma del técnico → columna D, fila Firma:
             tec_sig = data.get('sigTecnicoImg')
             if tec_sig:
                 add_sig_anchored(ws, tec_sig,
-                    col_idx=3,              # Column D, junto a "Firma:"
-                    row_idx=firma_row-1,    # 0-based
+                    col_idx=3,           # Columna D, junto a "Firma:"
+                    row_idx=sig_row-1,   # 0-based → Excel row = sig_row
                     y_offset_px=firma_y)
 
-            # Firma del supervisor → columna M (idx 12), fila "Firma:"
+            # Firma del supervisor → columna M, fila Firma:
             sup_sig = data.get('sigSupervisorImg')
             if sup_sig:
                 add_sig_anchored(ws, sup_sig,
-                    col_idx=12,             # Column M, junto a "Firma:"
-                    row_idx=firma_row-1,    # 0-based
+                    col_idx=12,          # Columna M, junto a "Firma:"
+                    row_idx=sig_row-1,   # 0-based → Excel row = sig_row
                     y_offset_px=firma_y)
 
         # Supervisor comments
