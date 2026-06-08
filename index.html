@@ -390,6 +390,7 @@ function saveReport(){
     machineFile:CM.file, machineSheet:CM.sheet, machineArea:CM.area,
     tecnico:tec, fecha:fec, supervisor:sup,
     month:[...SM], voltaje:{l1,l2,l3,vac:vc},
+    savedAt: new Date().toLocaleString('es-MX',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}),
     statuses:{...IS}, comments:{...IC},
     sigTecnico: sigData.tecnico?.timestamp||null,
     sigTecnicoImg: sigData.tecnico?.img||null,
@@ -489,7 +490,8 @@ function renderHome(){
       h+=`<div class="saved-card" style="${lockStyle}">
         <div class="saved-info">
           <div class="saved-name">${r.machineName}${lockIcon}</div>
-          <div class="saved-meta">📅 ${r.fecha||"--"} · 👤 ${r.tecnico||"--"} · ${r.savedAt||""}</div>
+          <div class="saved-meta">📅 ${r.fecha||"--"} · 👤 ${r.tecnico||"--"}</div>
+          ${r.savedAt ? `<div style="font-size:11px;color:#1565c0;margin-top:2px">💾 Guardado: ${r.savedAt}</div>` : ''}
         </div>
         <div class="saved-btns">
           <button class="btn-load" onclick="loadReport(${r.id})">${r.locked?'Ver':'Abrir'}</button>
@@ -521,10 +523,14 @@ function renderForm(){
   const td=new Date().toISOString().split("T")[0];
   const si=SHEET_MAPPING[CM.file][CM.sheet];
   const items=si.items;
+  const savedAtInfo = LOAD_DATA && LOAD_DATA.savedAt
+    ? `<div style="background:#e3f2fd;border-radius:8px;padding:8px 10px;font-size:12px;color:#0d47a1;margin-top:10px;display:flex;align-items:center;gap:6px">&#128190; <b>Guardado el:</b>&nbsp;${LOAD_DATA.savedAt}</div>`
+    : '';
   let h=`<div class="fcard">
     <div class="frow"><div class="ff"><label>Técnico que realizó</label><input type="text" id="ft" placeholder="Nombre completo" autocomplete="name"></div></div>
     <div class="frow"><div class="ff"><label>Fecha</label><input type="date" id="ff" value="${td}"></div></div>
     <div class="frow"><div class="ff"><label>Supervisor de Producción</label><input type="text" id="fs" placeholder="Nombre del supervisor"></div></div>
+    ${savedAtInfo}
   </div>`;
   let grps=[],cg=null,pr=null;
   for(let i=0;i<items.length;i++){
