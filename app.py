@@ -203,7 +203,10 @@ def generar_pdf():
             if sup_sig:
                 add_sig_anchored(ws, sup_sig, col_idx=10, row_idx=firma_row-1, width_px=660, height_px=60)
 
-        # 2. Guardar xlsx en carpeta temporal
+        # 2. Eliminar otras hojas y guardar solo la seleccionada
+        for sheet_name in wb.sheetnames:
+            if sheet_name != ws.title:
+                del wb[sheet_name]
         tmp = tempfile.mkdtemp()
         xlsx_path = os.path.join(tmp, 'reporte.xlsx')
         wb.save(xlsx_path)
