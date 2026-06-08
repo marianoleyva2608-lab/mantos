@@ -154,6 +154,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div class="form-c" id="form-c"></div>
   <div class="genbar">
     <button class="genbtn" onclick="generateExcel()">&#128229;&nbsp; Generar y Descargar Reporte Excel</button>
+    <button class="genbtn" onclick="generatePDF()" style="background:#1565c0;margin-top:8px">&#128196;&nbsp; Ver Reporte PDF (Celular)</button>
   </div>
 </div>
 
@@ -800,6 +801,49 @@ function generateExcel(){
       ovl.classList.remove("show");
       showToast("❌ "+err.message);
       console.error(err);
+    });
+}
+
+function generatePDF(){
+  if(!validateReport()) return;
+  const tec=document.getElementById("ft").value||"_______________";
+  const fec=document.getElementById("ff").value||"_______________";
+  const sup=document.getElementById("fs").value||"_______________";
+  const ovl=document.getElementById("overlay");
+  const spt=document.getElementById("sptxt");
+  ovl.classList.add("show"); spt.textContent="Generando PDF...";
+  const si=SHEET_MAPPING[CM.file][CM.sheet];
+  const items=[];
+  for(let i=0;i<si.items.length;i++){
+    items.push({row:si.items[i].row, desc:si.items[i].desc||si.items[i].description||"",
+                status:IS["i"+i]||"", comment:IC["i"+i]||""});
+  }
+  const payload={
+    file:CM.file, sheet:CM.sheet, machineId:CM.id, machineName:CM.name,
+    tecnico:tec, fecha:fec, supervisor:sup,
+    month:[...SM], items:items,
+    supComments:(LOAD_DATA&&LOAD_DATA.supComments)||"",
+    sigTecnicoImg:sigData.tecnico?sigData.tecnico.img||null:null,
+    sigSupervisorImg:sigData.supervisor?sigData.supervisor.img||null:null
+  };
+  fetch('/generar_pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(r=>{
+      if(!r.ok) return r.json().then(e=>{throw new Error(e.error||'Error servidor');});
+      return r.blob();
+    })
+    .then(blob=>{
+      const fname=`REPORTE_${CM.id}_${fec}.pdf`;
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url; a.download=fname; a.style.display='none';
+      document.body.appendChild(a); a.click();
+      setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},3000);
+      ovl.classList.remove("show");
+      showToast("\u2705 PDF generado: "+fname);
+    })
+    .catch(err=>{
+      ovl.classList.remove("show");
+      showToast("\u274c "+err.message);
     });
 }
 
