@@ -399,6 +399,15 @@ function restoreForm(r){sigData.tecnico=r.sigTecnico||null;sigData.supervisor=r.
     if(btn)btn.classList.add("on");
   }
   upd();
+  // If locked, lock the form after restoring
+  if(r.locked){
+    setTimeout(()=>{
+      lockForm();
+      // Re-apply signature badges
+      if(r.sigTecnico) markSigned('tecnico', r.sigTecnico);
+      if(r.sigSupervisor) markSigned('supervisor', r.sigSupervisor);
+    }, 100);
+  }
 }
 
 function deleteReport(id,e){
@@ -422,13 +431,15 @@ function renderHome(){
     h+=`<div class="saved-empty">No hay reportes guardados aún</div>`;
   } else {
     for(const r of saved){
-      h+=`<div class="saved-card">
+      const lockIcon = r.locked ? ' 🔒' : '';
+      const lockStyle = r.locked ? 'border-left-color:#81c784' : '';
+      h+=`<div class="saved-card" style="${lockStyle}">
         <div class="saved-info">
-          <div class="saved-name">${r.machineName}</div>
+          <div class="saved-name">${r.machineName}${lockIcon}</div>
           <div class="saved-meta">📅 ${r.fecha||"--"} · 👤 ${r.tecnico||"--"} · ${r.savedAt||""}</div>
         </div>
         <div class="saved-btns">
-          <button class="btn-load" onclick="loadReport(${r.id})">Abrir</button>
+          <button class="btn-load" onclick="loadReport(${r.id})">${r.locked?'Ver':'Abrir'}</button>
           <button class="btn-del" onclick="deleteReport(${r.id},event)">🗑</button>
         </div>
       </div>`;
@@ -733,6 +744,47 @@ function markSigned(id, timestamp){
   if(badge){badge.textContent='✓ Firmado '+timestamp;badge.classList.add('ok');}
   if(input){input.disabled=true;input.style.background='#f5f5f5';input.placeholder='✓ Firmado';}
   if(btn){btn.textContent='✓';btn.style.background='#81c784';}
+  // Check if both signed → auto-lock
+  setTimeout(checkBothSigned, 200);
+}
+
+function checkBothSigned(){
+  if(sigData.tecnico && sigData.supervisor){
+    // Auto-save as locked report
+    const tec=document.getElementById("ft")?document.getElementById("ft").value||"":"";
+    const fec=document.getElementById("ff")?document.getElementById("ff").value||"":"";
+    const arr=getSaved();
+    const idx=arr.findIndex(r=>r.machineId===CM.id&&r.fecha===fec);
+    if(idx>=0){
+      arr[idx].sigTecnico=sigData.tecnico;
+      arr[idx].sigSupervisor=sigData.supervisor;
+      arr[idx].locked=true;
+      setSaved(arr);
+    }
+    lockForm();
+    showToast('🔒 Reporte firmado y bloqueado');
+  }
+}
+
+function lockForm(){
+  // Disable all OK/NG buttons
+  document.querySelectorAll('.bok,.bng').forEach(b=>{b.disabled=true;b.style.opacity='0.5';});
+  // Disable comment fields
+  document.querySelectorAll('.cmbox textarea').forEach(t=>t.disabled=true);
+  // Disable calendar
+  document.querySelectorAll('.mbtn').forEach(b=>{b.disabled=true;});
+  // Disable voltaje
+  document.querySelectorAll('#vl1,#vl2,#vl3,#vvac').forEach(i=>i.disabled=true);
+  // Disable tecnico/fecha/supervisor fields
+  ['ft','ff','fs'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
+  // Disable signature inputs
+  document.querySelectorAll('.sig-pin-input').forEach(i=>i.disabled=true);
+  document.querySelectorAll('[onclick^="firmar"]').forEach(b=>b.disabled=true);
+  // Hide save/share buttons, show lock notice
+  const ab=document.querySelector('#form-actions');
+  if(ab) ab.innerHTML='<div style="background:#fff8e1;border:2px solid #ffd54f;border-radius:10px;padding:12px;text-align:center;font-size:13px;font-weight:600;color:#e65100;">🔒 Reporte bloqueado — firmado por técnico y supervisor</div>';
+  // Hide comment buttons
+  document.querySelectorAll('.bcm').forEach(b=>b.style.display='none');
 }
 
 // ── SHARE WITH SUPERVISOR ────────────────────────────────────
