@@ -85,6 +85,35 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 /* Save button */
 .btn-save{width:100%;padding:13px;background:#e8f5e9;color:#1a5c2a;border:2px solid #1a5c2a;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px}
 .btn-save:active{background:#c8e6c9}
+
+/* Signature Modal */
+.sig-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:flex-end}
+.sig-overlay.show{display:flex}
+.sig-box{background:#fff;width:100%;border-radius:20px 20px 0 0;padding:16px}
+.sig-title{font-weight:700;font-size:16px;color:var(--gd);margin-bottom:4px}
+.sig-hint{font-size:12px;color:var(--ts);margin-bottom:10px}
+#sig-canvas{width:100%;height:150px;border:2px dashed #ccc;border-radius:10px;background:#fafafa;display:block;touch-action:none;cursor:crosshair}
+.sig-actions{display:flex;gap:8px;margin-top:10px}
+.sig-btn{flex:1;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
+.sig-btn-clear{background:#f5f5f5;color:#666}
+.sig-btn-cancel{background:#ffebee;color:#c62828}
+.sig-btn-save{background:var(--gd);color:#fff}
+/* Signature previews in form */
+.sig-section{background:#fff;margin:12px 12px 0;border-radius:var(--rad);box-shadow:var(--sh);overflow:hidden}
+.sig-row{display:flex;align-items:center;gap:12px;padding:12px}
+.sig-info{flex:1}
+.sig-label{font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ts);letter-spacing:.5px}
+.sig-preview{max-height:50px;max-width:150px;border:1px solid #eee;border-radius:6px;display:none;margin-top:4px}
+.sig-preview.show{display:block}
+.btn-sign{padding:10px 16px;border:2px solid var(--gd);border-radius:8px;background:#fff;color:var(--gd);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-sign.signed{background:var(--gd);color:#fff}
+.btn-share-sup{width:100%;padding:12px;background:#25D366;color:#fff;border:none;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px}
+/* Supervisor page */
+#page-supervisor{background:var(--gl)}
+.sup-card{background:#fff;margin:16px;border-radius:var(--rad);padding:16px;box-shadow:var(--sh)}
+.sup-title{font-size:18px;font-weight:700;color:var(--gd);margin-bottom:8px}
+.sup-detail{font-size:13px;color:var(--ts);margin-bottom:4px}
+.sup-stat{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin:4px 4px 4px 0}
 </style>
 </head>
 <body>
@@ -101,6 +130,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   </div>
   <div class="form-c" id="form-c"></div>
   <div class="genbar">
+    <button class="btn-share-sup" onclick="shareWithSupervisor()">&#128241;&nbsp; Compartir al Supervisor (WhatsApp)</button>
     <button class="btn-save" onclick="saveReport()">&#128190;&nbsp; Guardar Reporte</button>
     <button class="genbtn" onclick="generateExcel()">&#128229;&nbsp; Generar y Descargar Reporte Excel</button>
   </div>
@@ -312,7 +342,7 @@ function saveReport(){
     machineFile:CM.file, machineSheet:CM.sheet, machineArea:CM.area,
     tecnico:tec, fecha:fec, supervisor:sup,
     month:[...SM], voltaje:{l1,l2,l3,vac:vc},
-    statuses:{...IS}, comments:{...IC},
+    statuses:{...IS}, comments:{...IC}, sigTecnico:sigData.tecnico, sigSupervisor:sigData.supervisor,
     savedAt:new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'})
   };
   const arr=getSaved();
@@ -342,7 +372,7 @@ function loadReport(id){
   showPage("form");
 }
 
-function restoreForm(r){
+function restoreForm(r){sigData.tecnico=r.sigTecnico||null;sigData.supervisor=r.sigSupervisor||null;
   if(document.getElementById("ft"))document.getElementById("ft").value=r.tecnico||"";
   if(document.getElementById("ff"))document.getElementById("ff").value=r.fecha||"";
   if(document.getElementById("fs"))document.getElementById("fs").value=r.supervisor||"";
@@ -417,7 +447,7 @@ function renderHome(){
 
 function sel(aid,mid){
   const a=AREAS.find(x=>x.id===aid),m=a.machines.find(x=>x.id===mid);
-  CM={...m,area:a.name};IS={};IC={};SM=new Set();LOAD_DATA=null;
+  CM={...m,area:a.name};IS={};IC={};SM=new Set();LOAD_DATA=null;sigData={tecnico:null,supervisor:null};
   document.getElementById("ftitle").textContent=m.name;
   document.getElementById("fsub").textContent=`No. ${m.num} · ${a.name}`;
   renderForm();showPage("form");
@@ -573,7 +603,176 @@ function showToast(msg){
   setTimeout(()=>t.classList.remove("show"),5000);
 }
 
+// ── SIGNATURES ───────────────────────────────────────────────
+let sigData = {tecnico: null, supervisor: null};
+let currentSigTarget = null;
+let isDrawing = false, lastPt = null;
+
+function setupSigCanvas(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  canvas.width = canvas.offsetWidth || 300;
+  canvas.height = 150;
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#1a5c2a'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  function getP(e) {
+    const r = canvas.getBoundingClientRect();
+    const s = e.touches ? e.touches[0] : e;
+    return {x:(s.clientX-r.left)*(canvas.width/r.width), y:(s.clientY-r.top)*(canvas.height/r.height)};
+  }
+  function start(e){e.preventDefault();isDrawing=true;lastPt=getP(e);ctx.beginPath();ctx.moveTo(lastPt.x,lastPt.y);}
+  function move(e){e.preventDefault();if(!isDrawing)return;const p=getP(e);ctx.lineTo(p.x,p.y);ctx.stroke();lastPt=p;}
+  function end(){isDrawing=false;}
+  canvas.addEventListener('touchstart',start,{passive:false});
+  canvas.addEventListener('touchmove',move,{passive:false});
+  canvas.addEventListener('touchend',end);
+  canvas.addEventListener('mousedown',start);
+  canvas.addEventListener('mousemove',move);
+  canvas.addEventListener('mouseup',end);
+}
+
+function openSigModal(target) {
+  currentSigTarget = target;
+  const titles = {tecnico:'Firma del Técnico', supervisor:'Firma del Supervisor'};
+  document.getElementById('sig-modal-title').textContent = titles[target]||'Firma';
+  document.getElementById('sig-overlay').classList.add('show');
+  setTimeout(()=>setupSigCanvas('sig-canvas'), 50);
+}
+function closeSigModal(){document.getElementById('sig-overlay').classList.remove('show');}
+function clearSigCanvas(){const c=document.getElementById('sig-canvas');c.getContext('2d').clearRect(0,0,c.width,c.height);}
+function saveSig(){
+  const canvas = document.getElementById('sig-canvas');
+  const ctx = canvas.getContext('2d');
+  const blank = document.createElement('canvas');
+  blank.width=canvas.width; blank.height=canvas.height;
+  if(canvas.toDataURL()===blank.toDataURL()){showToast('⚠️ Dibuja tu firma primero');return;}
+  sigData[currentSigTarget] = canvas.toDataURL('image/png', 0.6);
+  updateSigPreview(currentSigTarget);
+  closeSigModal();
+  showToast('✅ Firma guardada');
+}
+function updateSigPreview(target){
+  const preview = document.getElementById('sig-img-'+target);
+  const btn = document.getElementById('sig-btn-'+target);
+  if(preview && sigData[target]){preview.src=sigData[target];preview.classList.add('show');}
+  if(btn) btn.classList.add('signed');
+}
+
+// Add signature sections at bottom of form
+function addSigSections(){
+  const fc = document.getElementById('form-c');
+  if(!fc||document.getElementById('sig-section-form'))return;
+  const div = document.createElement('div');
+  div.id = 'sig-section-form';
+  div.innerHTML = `
+    <div class="sig-section">
+      <div class="bttl">&#9999;&#65039; FIRMAS</div>
+      <div class="sig-row">
+        <div class="sig-info">
+          <div class="sig-label">Técnico</div>
+          <img class="sig-preview" id="sig-img-tecnico">
+        </div>
+        <button class="btn-sign" id="sig-btn-tecnico" onclick="openSigModal('tecnico')">Firmar</button>
+      </div>
+      <div style="height:1px;background:#f0f0f0"></div>
+      <div class="sig-row">
+        <div class="sig-info">
+          <div class="sig-label">Supervisor</div>
+          <img class="sig-preview" id="sig-img-supervisor">
+        </div>
+        <button class="btn-sign" id="sig-btn-supervisor" onclick="openSigModal('supervisor')">Firmar</button>
+      </div>
+    </div>`;
+  fc.appendChild(div);
+  // Restore sigs if loaded
+  if(sigData.tecnico) updateSigPreview('tecnico');
+  if(sigData.supervisor) updateSigPreview('supervisor');
+}
+
+// ── SHARE WITH SUPERVISOR ────────────────────────────────────
+function shareWithSupervisor(){
+  const tec=document.getElementById("ft").value||"Técnico";
+  const fec=document.getElementById("ff").value||"--";
+  const si=SHEET_MAPPING[CM.file][CM.sheet];
+  let ok=0,ng=0;
+  for(const v of Object.values(IS)){if(v==="ok")ok++;if(v==="ng")ng++;}
+  const data={
+    machineName:CM.name, machineId:CM.id, machineNum:CM.num,
+    machineFile:CM.file, machineSheet:CM.sheet, machineArea:CM.area,
+    fecha:fec, tecnico:tec, total:si.items.length, ok, ng,
+    month:[...SM]
+  };
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  const url = window.location.href.split('#')[0] + '#sup=' + encoded;
+  const msg = `🔧 *Reporte de Mantenimiento*
+📋 Equipo: ${CM.name}
+📅 Fecha: ${fec}
+👤 Técnico: ${tec}
+✅ OK: ${ok}  ❌ NG: ${ng}  ⬜ Pendiente: ${si.items.length-ok-ng}
+
+✍️ Por favor firma aquí:
+${url}`;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg));
+}
+
+// ── SUPERVISOR PAGE ──────────────────────────────────────────
+function showSupervisorPage(data){
+  document.getElementById('sup-report-info').innerHTML=`
+    <div class="sup-title">&#128295; ${data.machineName}</div>
+    <div class="sup-detail">&#128197; Fecha: <b>${data.fecha}</b></div>
+    <div class="sup-detail">&#128100; Técnico: <b>${data.tecnico}</b></div>
+    <div class="sup-detail">&#128203; Área: ${data.machineArea||''}</div>
+    <div style="margin-top:8px">
+      <span class="sup-stat" style="background:#e8f5e9;color:#2e7d32">&#10003; OK: ${data.ok}</span>
+      <span class="sup-stat" style="background:#ffebee;color:#c62828">&#10007; NG: ${data.ng}</span>
+      <span class="sup-stat" style="background:#f5f5f5;color:#757575">&#11036; Pendiente: ${data.total-data.ok-data.ng}</span>
+    </div>`;
+  window._supData = data;
+  showPage('supervisor');
+  setTimeout(()=>setupSigCanvas('sup-canvas'),100);
+}
+function clearSupCanvas(){const c=document.getElementById('sup-canvas');c.getContext('2d').clearRect(0,0,c.width,c.height);}
+function sendSupSignature(){
+  const canvas=document.getElementById('sup-canvas');
+  const blank=document.createElement('canvas');blank.width=canvas.width;blank.height=canvas.height;
+  if(canvas.toDataURL()===blank.toDataURL()){showToast('⚠️ Dibuja tu firma primero');return;}
+  const sigB64=canvas.toDataURL('image/png',0.5);
+  const compressed=btoa(unescape(encodeURIComponent(sigB64)));
+  const url=window.location.href.split('#')[0]+'#sig='+compressed;
+  const d=window._supData||{};
+  const msg=`✅ *Firma de Supervisor*
+Equipo: ${d.machineName||''}
+Fecha: ${d.fecha||''}
+
+🔗 Link de firma (abre en tu app):
+${url}`;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg));
+  showToast('✅ Firma enviada al técnico');
+}
+
+// ── IMPORT SUPERVISOR SIGNATURE FROM URL ─────────────────────
+function checkURLHash(){
+  const hash=window.location.hash;
+  if(hash.startsWith('#sup=')){
+    try{
+      const data=JSON.parse(decodeURIComponent(escape(atob(hash.slice(5)))));
+      showSupervisorPage(data);
+      history.replaceState(null,'',window.location.pathname);
+    }catch(e){console.error('Hash parse error',e);}
+  } else if(hash.startsWith('#sig=')){
+    try{
+      const sigB64=decodeURIComponent(escape(atob(hash.slice(5))));
+      sigData.supervisor=sigB64;
+      updateSigPreview('supervisor');
+      showToast('✅ Firma del supervisor importada');
+      history.replaceState(null,'',window.location.pathname);
+      if(document.getElementById('sig-img-supervisor'))updateSigPreview('supervisor');
+    }catch(e){showToast('❌ Error al importar firma');}
+  }
+}
+
 renderHome();
+checkURLHash();
 </script>
 </body>
 </html>
