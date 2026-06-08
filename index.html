@@ -373,8 +373,8 @@ function tm(m){
     document.getElementById("m"+m).classList.remove("on");
     return;
   }
-  if(SM.size >= 2){
-    showToast("⚠️ Solo puedes seleccionar 2 meses");
+  if(SM.size >= 1){
+    showToast("⚠️ Solo puedes seleccionar 1 mes por reporte");
     return;
   }
   SM.add(m);
