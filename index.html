@@ -759,7 +759,9 @@ function generateExcel(){
     month:[...SM], voltaje:{l1,l2,l3,vac:vc},
     cal_data_row:si.cal_data_row, sig_row:si.sig_row,
     items:items,
-    supComments: (LOAD_DATA&&LOAD_DATA.supComments)||""
+    supComments: (LOAD_DATA&&LOAD_DATA.supComments)||"",
+    sigTecnicoImg: sigData.tecnico ? sigData.tecnico.img||null : null,
+    sigSupervisorImg: sigData.supervisor ? sigData.supervisor.img||null : null
   };
 
   fetch('/generar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
