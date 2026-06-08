@@ -161,9 +161,10 @@ if __name__ == '__main__':
 
 @app.route('/generar_pdf', methods=['POST'])
 def generar_pdf():
-    import subprocess, tempfile, shutil
-    tmp = None
     try:
+        import weasyprint
+        from openpyxl.utils import get_column_letter
+
         data = request.json
         file_key = data.get('file', 'termoformado')
         template = 'MTTO_Preventivo_Termoformado_2026.xlsx' if file_key=='termoformado' else 'MTTO_Preventivo_Conversion_2026.xlsx'
@@ -187,50 +188,88 @@ def generar_pdf():
                 if v.get(key): ws.cell(row=cal_row, column=col_n).value = v[key]
 
         sig_row = data.get('sig_row')
+        tec_b64 = data.get('sigTecnicoImg','')
+        sup_b64 = data.get('sigSupervisorImg','')
         if sig_row:
-            tec = data.get('tecnico', '_______________')
-            fec = data.get('fecha',   '_______________')
-            sup = data.get('supervisor', '_______________')
-            firma_row = sig_row + 1
+            tec = data.get('tecnico','_______________')
+            fec = data.get('fecha','_______________')
+            sup = data.get('supervisor','_______________')
             ws.cell(row=sig_row, column=2).value  = f"Realizo: {tec}"
             ws.cell(row=sig_row, column=8).value  = f"Fecha: {fec}"
             ws.cell(row=sig_row, column=11).value = f"Supervisor: {sup}"
-            tec_sig = data.get('sigTecnicoImg')
-            if tec_sig:
-                add_sig_anchored(ws, tec_sig, col_idx=1, row_idx=firma_row-1, width_px=560, height_px=60)
-            sup_sig = data.get('sigSupervisorImg')
-            if sup_sig:
-                add_sig_anchored(ws, sup_sig, col_idx=10, row_idx=firma_row-1, width_px=660, height_px=60)
 
-        # Solo la hoja seleccionada
-        for sheet_name in wb.sheetnames:
-            if sheet_name != ws.title:
-                del wb[sheet_name]
+        merged_map = {}
+        for mc in ws.merged_cells.ranges:
+            for r in range(mc.min_row, mc.max_row+1):
+                for c in range(mc.min_col, mc.max_col+1):
+                    if r == mc.min_row and c == mc.min_col:
+                        merged_map[(r,c)] = (mc.max_row-mc.min_row+1, mc.max_col-mc.min_col+1)
+                    else:
+                        merged_map[(r,c)] = None
 
-        tmp = tempfile.mkdtemp()
-        xlsx_path = os.path.join(tmp, 'reporte.xlsx')
-        wb.save(xlsx_path)
+        def hex_color(color):
+            if not color or color.type == 'theme': return None
+            rgb = color.rgb
+            if rgb and rgb != '00000000' and len(rgb) == 8:
+                return '#' + rgb[2:]
+            return None
 
-        result = subprocess.run(
-            ['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', tmp, xlsx_path],
-            capture_output=True, text=True, timeout=60
-        )
-        pdf_path = os.path.join(tmp, 'reporte.pdf')
-        if not os.path.exists(pdf_path):
-            raise Exception(f"LibreOffice error: {result.stderr or result.stdout}")
+        col_widths = {}
+        for col_idx in range(ws.min_column, ws.max_column+1):
+            letter = get_column_letter(col_idx)
+            w = ws.column_dimensions[letter].width or 8
+            col_widths[col_idx] = max(int(w * 7), 20)
 
-        with open(pdf_path, 'rb') as f:
-            pdf_bytes = f.read()
+        rows_html = ''
+        for row_idx in range(ws.min_row, ws.max_row+1):
+            row_h = ws.row_dimensions[row_idx].height or 15
+            row_h_px = max(int(row_h * 1.33), 14)
+            cells_html = ''
+            for col_idx in range(ws.min_column, ws.max_column+1):
+                if (row_idx, col_idx) in merged_map and merged_map[(row_idx,col_idx)] is None:
+                    continue
+                cell = ws.cell(row=row_idx, column=col_idx)
+                span_attrs = ''
+                if (row_idx, col_idx) in merged_map:
+                    rs, cs = merged_map[(row_idx, col_idx)]
+                    if rs > 1: span_attrs += f' rowspan="{rs}"'
+                    if cs > 1: span_attrs += f' colspan="{cs}"'
+                style = f'height:{row_h_px}px;'
+                if cell.fill and cell.fill.fgColor:
+                    bg = hex_color(cell.fill.fgColor)
+                    if bg: style += f'background:{bg};'
+                if cell.font:
+                    if cell.font.bold: style += 'font-weight:bold;'
+                    if cell.font.size: style += f'font-size:{max(int(cell.font.size),7)}px;'
+                    if cell.font.color:
+                        fc = hex_color(cell.font.color)
+                        if fc: style += f'color:{fc};'
+                align = cell.alignment.horizontal if cell.alignment else 'left'
+                if align in ('center','right'): style += f'text-align:{align};'
+                val = cell.value or ''
+                if isinstance(val, str): val = val.replace('\n','<br>')
+                cells_html += f'<td{span_attrs} style="{style}padding:2px 4px;border:1px solid #ddd;overflow:hidden;">{val}</td>'
+            rows_html += f'<tr>{cells_html}</tr>'
 
+        col_css = ''.join(f'<col style="width:{col_widths.get(i,60)}px">' for i in range(ws.min_column, ws.max_column+1))
+
+        sig_html = ''
+        if tec_b64: sig_html += f'<br><img src="{tec_b64}" style="height:45px">'
+        if sup_b64: sig_html += f'<img src="{sup_b64}" style="height:45px;margin-left:20px">'
+
+        page_css = '@page { size: A4 landscape; margin: 8mm; }'
+        html = (f'<!DOCTYPE html><html><head><meta charset="UTF-8">'
+                f'<style>{page_css} body{{font-family:Calibri,Arial,sans-serif;font-size:9px;margin:0}}'
+                f'table{{border-collapse:collapse;width:100%;table-layout:fixed}}'
+                f'td{{overflow:hidden;vertical-align:middle}}</style></head>'
+                f'<body><table>{col_css}<tbody>{rows_html}</tbody></table>{sig_html}</body></html>')
+
+        pdf_bytes = weasyprint.HTML(string=html).write_pdf()
         fname = f"REPORTE_{data.get('machineId','EQ')}_{data.get('fecha','').replace('/','-')}.pdf"
-        return send_file(io.BytesIO(pdf_bytes), as_attachment=True,
-                         download_name=fname, mimetype='application/pdf')
+        return send_file(io.BytesIO(pdf_bytes), as_attachment=True, download_name=fname, mimetype='application/pdf')
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-    finally:
-        if tmp:
-            shutil.rmtree(tmp, ignore_errors=True)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT',3000)), debug=False)
