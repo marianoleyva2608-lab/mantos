@@ -694,15 +694,28 @@ function addSigSections(){
   if(!fc||document.getElementById('sig-section-form')) return;
   const div = document.createElement('div');
   div.id = 'sig-section-form';
+  const isLocked = LOAD_DATA && LOAD_DATA.locked;
   div.innerHTML = `
     <div class="sig-section" style="margin-top:8px">
       <div class="bttl" style="background:var(--gd);color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#128272; FIRMAS</div>
-      ${buildSigPerson('tecnico','Técnico')}
-      ${buildSigPerson('supervisor','Supervisor')}
+      ${isLocked ? buildSigLocked('tecnico','Técnico',sigData.tecnico) : buildSigPerson('tecnico','Técnico')}
+      ${isLocked ? buildSigLocked('supervisor','Supervisor',sigData.supervisor) : buildSigPerson('supervisor','Supervisor')}
+      ${isLocked ? '<div style="padding:10px 14px;background:#e8f5e9;text-align:center;font-size:12px;font-weight:700;color:#2e7d32">🔒 Reporte firmado — no se puede modificar</div>' : ''}
     </div>`;
   fc.appendChild(div);
-  if(sigData.tecnico) markSigned('tecnico', sigData.tecnico);
-  if(sigData.supervisor) markSigned('supervisor', sigData.supervisor);
+  if(!isLocked){
+    if(sigData.tecnico) markSigned('tecnico', sigData.tecnico);
+    if(sigData.supervisor) markSigned('supervisor', sigData.supervisor);
+  }
+}
+
+function buildSigLocked(id, label, timestamp){
+  return `<div class="sig-person">
+    <div class="sig-status">
+      <div class="sig-lbl">&#9997;&#65039; ${label}</div>
+      <div class="sig-badge ok">&#10003; Firmado ${timestamp||''}</div>
+    </div>
+  </div>`;
 }
 
 function buildSigPerson(id, label){
@@ -719,6 +732,9 @@ function buildSigPerson(id, label){
 }
 
 function firmar(id){
+  // Block if already locked
+  if(sigData[id]){showToast('🔒 Ya firmado — no se puede repetir');return;}
+  if(LOAD_DATA && LOAD_DATA.locked){showToast('🔒 Reporte bloqueado');return;}
   const input = document.getElementById('spin-'+id);
   const pwd = input ? input.value.trim() : '';
   const passwords = getPasswords();
