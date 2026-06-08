@@ -351,7 +351,11 @@ function saveReport(){
     machineFile:CM.file, machineSheet:CM.sheet, machineArea:CM.area,
     tecnico:tec, fecha:fec, supervisor:sup,
     month:[...SM], voltaje:{l1,l2,l3,vac:vc},
-    statuses:{...IS}, comments:{...IC}, sigTecnico:sigData.tecnico, sigSupervisor:sigData.supervisor,
+    statuses:{...IS}, comments:{...IC},
+    sigTecnico: sigData.tecnico?.timestamp||null,
+    sigTecnicoImg: sigData.tecnico?.img||null,
+    sigSupervisor: sigData.supervisor?.timestamp||null,
+    sigSupervisorImg: sigData.supervisor?.img||null,
     savedAt:new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'})
   };
   const arr=getSaved();
@@ -381,7 +385,7 @@ function loadReport(id){
   showPage("form");
 }
 
-function restoreForm(r){sigData.tecnico=r.sigTecnico||null;sigData.supervisor=r.sigSupervisor||null;
+function restoreForm(r){sigData.tecnico=r.sigTecnico?{timestamp:r.sigTecnico,img:r.sigTecnicoImg||null}:null;sigData.supervisor=r.sigSupervisor?{timestamp:r.sigSupervisor,img:r.sigSupervisorImg||null}:null;
   if(document.getElementById("ft"))document.getElementById("ft").value=r.tecnico||"";
   if(document.getElementById("ff"))document.getElementById("ff").value=r.fecha||"";
   if(document.getElementById("fs"))document.getElementById("fs").value=r.supervisor||"";
@@ -415,6 +419,7 @@ function restoreForm(r){sigData.tecnico=r.sigTecnico||null;sigData.supervisor=r.
       // Re-apply signature badges
       if(r.sigTecnico) markSigned('tecnico', r.sigTecnico);
       if(r.sigSupervisor) markSigned('supervisor', r.sigSupervisor);
+      // Show images in locked view
     }, 100);
   }
 }
@@ -772,13 +777,18 @@ function addSigSections(){
     </div>`;
   fc.appendChild(div);
   if(!isLocked){
-    if(sigData.tecnico) markSigned('tecnico', sigData.tecnico);
-    if(sigData.supervisor) markSigned('supervisor', sigData.supervisor);
+    if(sigData.tecnico) restoreSigInForm('tecnico');
+    if(sigData.supervisor) restoreSigInForm('supervisor');
   }
 }
 
 function buildSigLocked(id, label, timestamp, imgSrc){
-  const imgHtml = imgSrc ? `<img src="${imgSrc}" style="max-height:45px;border:1px solid #ccc;border-radius:4px;margin-top:6px;display:block">` : '';
+  const imgHtml = imgSrc
+    ? `<div style="margin-top:8px;padding:8px;background:#f9fff9;border:1px solid #c8e6c9;border-radius:8px;">
+        <div style="font-size:10px;color:#666;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Firma</div>
+        <img src="${imgSrc}" style="max-height:60px;max-width:100%;display:block;border-radius:4px;">
+       </div>`
+    : `<div style="font-size:11px;color:#999;margin-top:4px;font-style:italic">Sin imagen de firma</div>`;
   return `<div class="sig-person">
     <div class="sig-status">
       <div class="sig-lbl">&#9997;&#65039; ${label}</div>
@@ -878,6 +888,24 @@ function confirmarFirma(id){
   done.classList.add('show');
   showToast('✅ Firma registrada');
   setTimeout(checkBothSigned, 200);
+}
+
+function restoreSigInForm(id){
+  const data = sigData[id];
+  if(!data) return;
+  const badge = document.getElementById('sbadge-'+id);
+  const input = document.getElementById('spin-'+id);
+  const btn = document.getElementById('sbtn-'+id);
+  const area = document.getElementById('sarea-'+id);
+  const done = document.getElementById('sdone-'+id);
+  if(badge){badge.textContent='✓ Firmado '+data.timestamp;badge.className='sig-badge ok';}
+  if(input){input.disabled=true;input.style.background='#f5f5f5';}
+  if(btn){btn.style.display='none';}
+  if(area){area.classList.remove('open');}
+  if(done && data.img){
+    done.innerHTML=`<img src="${data.img}" style="max-height:50px;border:1px solid #ccc;border-radius:4px;display:block;margin:0 auto 4px"><span style="font-size:11px">Firmado el ${data.timestamp}</span>`;
+    done.classList.add('show');
+  }
 }
 
 function markSigned(id, timestamp){
