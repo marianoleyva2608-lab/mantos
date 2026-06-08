@@ -1,46 +1,58 @@
-import os, io, json, base64
+import os, io, base64
 from flask import Flask, request, send_file
 
 try:
     import openpyxl
     from openpyxl.drawing.image import Image as XLImage
+    from openpyxl.drawing.xdr import XDRPoint2D, XDRPositiveSize2D
+    from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor
     from PIL import Image as PILImage
 except ImportError:
     os.system("pip install openpyxl Pillow -q")
     import openpyxl
     from openpyxl.drawing.image import Image as XLImage
+    from openpyxl.drawing.xdr import XDRPoint2D, XDRPositiveSize2D
+    from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor
     from PIL import Image as PILImage
 
 app = Flask(__name__)
+EMU = 9525  # 1 pixel = 9525 EMU
 
 MONTH_COLS = {"ENE":"B","FEB":"C","MAR":"D","ABR":"E","MAY":"F","JUN":"G",
               "JUL":"H","AGO":"I","SEP":"J","OCT":"K","NOV":"L","DIC":"M"}
 
-def b64_to_xl_image(b64_str, width, height):
-    """Convert base64 PNG to openpyxl image with given dimensions."""
+def make_sig_image(b64_str, width_px, height_px):
     if not b64_str:
         return None
     try:
-        # Strip data URL prefix if present
         if ',' in b64_str:
             b64_str = b64_str.split(',')[1]
-        img_bytes = base64.b64decode(b64_str)
-        pil_img = PILImage.open(io.BytesIO(img_bytes)).convert("RGBA")
-        # White background for transparency
-        bg = PILImage.new("RGBA", pil_img.size, (255,255,255,255))
-        bg.paste(pil_img, mask=pil_img.split()[3])
-        pil_img = bg.convert("RGB")
-        pil_img = pil_img.resize((width, height), PILImage.LANCZOS)
+        raw = base64.b64decode(b64_str)
+        pil = PILImage.open(io.BytesIO(raw)).convert("RGBA")
+        bg = PILImage.new("RGBA", pil.size, (255,255,255,255))
+        bg.paste(pil, mask=pil.split()[3])
+        pil = bg.convert("RGB").resize((width_px, height_px), PILImage.LANCZOS)
         buf = io.BytesIO()
-        pil_img.save(buf, format='PNG')
+        pil.save(buf, format='PNG')
         buf.seek(0)
-        xl_img = XLImage(buf)
-        xl_img.width = width
-        xl_img.height = height
-        return xl_img
+        img = XLImage(buf)
+        img.width = width_px
+        img.height = height_px
+        return img
     except Exception as e:
-        print(f"Image error: {e}")
+        print(f"Img error: {e}")
         return None
+
+def add_sig_anchored(ws, b64_str, col_idx, row_idx, y_offset_px, width_px=170, height_px=50):
+    """Add signature image anchored next to Firma: text"""
+    img = make_sig_image(b64_str, width_px, height_px)
+    if not img:
+        return
+    # col_idx and row_idx are 0-based
+    p = XDRPoint2D(col=col_idx, colOff=5*EMU, row=row_idx, rowOff=y_offset_px*EMU)
+    s = XDRPositiveSize2D(width_px*EMU, height_px*EMU)
+    img.anchor = OneCellAnchor(_from=p, ext=s)
+    ws.add_image(img)
 
 @app.route('/')
 def index():
@@ -56,74 +68,71 @@ def generar():
         wb = openpyxl.load_workbook(template)
         ws = wb[data['sheet']]
 
-        # ── Fill checklist items ──
+        # Fill checklist
         for item in data.get('items', []):
-            row = item['row']
-            st  = item.get('status','')
-            cm  = item.get('comment','')
+            row, st, cm = item['row'], item.get('status',''), item.get('comment','')
             ws.cell(row=row, column=11).value = '( ✓ )' if st=='ok' else '(   )'
             ws.cell(row=row, column=12).value = '( ✓ )' if st=='ng' else '(   )'
-            if cm:
-                ws.cell(row=row, column=13).value = cm
+            if cm: ws.cell(row=row, column=13).value = cm
 
-        # ── Fill calendar ──
+        # Fill calendar
         cal_row = data.get('cal_data_row')
         months  = set(data.get('month', []))
         if cal_row:
             for m, col in MONTH_COLS.items():
                 ws.cell(row=cal_row, column=ord(col)-ord('A')+1).value = '( ✓ )' if m in months else '(   )'
             v = data.get('voltaje', {})
-            if v.get('l1'):  ws.cell(row=cal_row, column=14).value = v['l1']
-            if v.get('l2'):  ws.cell(row=cal_row, column=15).value = v['l2']
-            if v.get('l3'):  ws.cell(row=cal_row, column=16).value = v['l3']
-            if v.get('vac'): ws.cell(row=cal_row, column=17).value = v['vac']
+            for col_n, key in [(14,'l1'),(15,'l2'),(16,'l3'),(17,'vac')]:
+                if v.get(key): ws.cell(row=cal_row, column=col_n).value = v[key]
 
-        # ── Fill signature row text ──
+        # Signature row
         sig_row = data.get('sig_row')
         if sig_row:
             tec = data.get('tecnico','_______________')
             fec = data.get('fecha','_______________')
             sup = data.get('supervisor','_______________')
+
+            # Get row height to calculate vertical offset for "Firma:" position
+            row_h_pts = ws.row_dimensions[sig_row].height or 60
+            row_h_px  = row_h_pts * 1.333
+            # "Firma:" appears at ~60% height (below name + blank line)
+            firma_y = int(row_h_px * 0.58)
+
+            # Text: name on first part, Firma: label kept
             ws.cell(row=sig_row, column=2).value  = f"Realizó: {tec}\n\nFirma:"
             ws.cell(row=sig_row, column=8).value  = f"Fecha: {fec}"
-            ws.cell(row=sig_row, column=11).value = f"Supervisor: {sup}\n\nFirma:"
+            ws.cell(row=sig_row, column=11).value = f"Supervisor de Producción: {sup}\n\nFirma:"
 
-            # ── Embed technician signature image ──
-            sig_tec_b64 = data.get('sigTecnicoImg')
-            if sig_tec_b64:
-                xl_img = b64_to_xl_image(sig_tec_b64, 160, 55)
-                if xl_img:
-                    # Place signature image at column D, same sig_row
-                    xl_img.anchor = f'D{sig_row}'
-                    ws.add_image(xl_img)
+            # Technician signature image → column D (idx 3), next to "Firma:"
+            tec_sig = data.get('sigTecnicoImg')
+            if tec_sig:
+                add_sig_anchored(ws, tec_sig,
+                    col_idx=3,          # Column D
+                    row_idx=sig_row-1,  # 0-based
+                    y_offset_px=firma_y)
 
-            # ── Embed supervisor signature image ──
-            sig_sup_b64 = data.get('sigSupervisorImg')
-            if sig_sup_b64:
-                xl_img2 = b64_to_xl_image(sig_sup_b64, 160, 55)
-                if xl_img2:
-                    xl_img2.anchor = f'M{sig_row}'
-                    ws.add_image(xl_img2)
+            # Supervisor signature image → column M (idx 12), next to "Firma:"
+            sup_sig = data.get('sigSupervisorImg')
+            if sup_sig:
+                add_sig_anchored(ws, sup_sig,
+                    col_idx=12,         # Column M
+                    row_idx=sig_row-1,
+                    y_offset_px=firma_y)
 
-        # ── Supervisor comments ──
+        # Supervisor comments
         sup_comments = data.get('supComments','')
         if sup_comments and sig_row:
             ws.cell(row=sig_row+1, column=2).value = f"Comentarios del Supervisor: {sup_comments}"
 
-        # ── Save and return ──
         buf = io.BytesIO()
         wb.save(buf)
         buf.seek(0)
-        machine_id = data.get('machineId','EQUIPO')
-        fec2 = data.get('fecha','').replace('/','-')
-        filename = f"REPORTE_{machine_id}_{fec2}.xlsx"
-        return send_file(buf, as_attachment=True, download_name=filename,
+        fname = f"REPORTE_{data.get('machineId','EQ')}_{data.get('fecha','').replace('/','-')}.xlsx"
+        return send_file(buf, as_attachment=True, download_name=fname,
                          mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        import traceback; traceback.print_exc()
         return {'error': str(e)}, 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 3000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT',3000)), debug=False)
