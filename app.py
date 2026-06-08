@@ -4,15 +4,13 @@ from flask import Flask, request, send_file
 try:
     import openpyxl
     from openpyxl.drawing.image import Image as XLImage
-    from openpyxl.drawing.xdr import XDRPositiveSize2D
-    from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor, AnchorMarker
+    from openpyxl.utils import get_column_letter
     from PIL import Image as PILImage
 except ImportError:
     os.system("pip install openpyxl Pillow -q")
     import openpyxl
     from openpyxl.drawing.image import Image as XLImage
-    from openpyxl.drawing.xdr import XDRPositiveSize2D
-    from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor, AnchorMarker
+    from openpyxl.utils import get_column_letter
     from PIL import Image as PILImage
 
 app = Flask(__name__)
@@ -42,15 +40,15 @@ def make_sig_image(b64_str, width_px, height_px):
         print(f"Img error: {e}")
         return None
 
-def add_sig_anchored(ws, b64_str, col_idx, row_idx, y_offset_px, width_px=170, height_px=50):
-    """Add signature image anchored next to Firma: text"""
+def add_sig_anchored(ws, b64_str, col_idx, row_idx, y_offset_px=0, width_px=170, height_px=50):
+    """Add signature image anchored to a cell reference (col_idx 0-based, row_idx 0-based)"""
     img = make_sig_image(b64_str, width_px, height_px)
     if not img:
         return
-    # col_idx and row_idx are 0-based
-    marker = AnchorMarker(col=col_idx, colOff=5*EMU, row=row_idx, rowOff=y_offset_px*EMU)
-    s = XDRPositiveSize2D(width_px*EMU, height_px*EMU)
-    img.anchor = OneCellAnchor(_from=marker, ext=s)
+    # Convertir a referencia de celda estilo Excel, ej. "D46"
+    col_letter = get_column_letter(col_idx + 1)   # 0-based → 1-based → letra
+    excel_row  = row_idx + 1                       # 0-based → 1-based
+    img.anchor = f"{col_letter}{excel_row}"
     ws.add_image(img)
 
 @app.route('/')
