@@ -368,11 +368,22 @@ const MCOLS={ENE:"B",FEB:"C",MAR:"D",ABR:"E",MAY:"F",JUN:"G",JUL:"H",AGO:"I",SEP
 
 let CM=null,IS={},IC={},SM=new Set(),LOAD_DATA=null;
 
-// ── SAVE / LOAD ──────────────────────────────────────────────
-function getSaved(){try{return JSON.parse(localStorage.getItem('mtto_v1')||'[]');}catch(e){return[];}}
-function setSaved(arr){localStorage.setItem('mtto_v1',JSON.stringify(arr));}
+// ── SAVE / LOAD — servidor ────────────────────────────────────
+let reportCache = [];
 
-function saveReport(){
+async function loadReportsFromServer(){
+  try{
+    const res = await fetch('/api/reports');
+    reportCache = await res.json();
+  }catch(e){
+    // fallback localStorage
+    try{reportCache=JSON.parse(localStorage.getItem('mtto_v1')||'[]');}catch(e2){reportCache=[];}
+  }
+}
+
+function getSaved(){ return reportCache; }
+
+async function saveReport(){
   if(!validateReport()) return;
   const tec=document.getElementById("ft").value||"";
   const fec=document.getElementById("ff").value||"";
@@ -387,20 +398,22 @@ function saveReport(){
     machineFile:CM.file, machineSheet:CM.sheet, machineArea:CM.area,
     tecnico:tec, fecha:fec, supervisor:sup,
     month:[...SM], voltaje:{l1,l2,l3,vac:vc},
-    savedAt: new Date().toLocaleString('es-MX',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}),
+    savedAt:new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}),
     statuses:{...IS}, comments:{...IC},
     sigTecnico: sigData.tecnico?.timestamp||null,
     sigTecnicoImg: sigData.tecnico?.img||null,
     sigSupervisor: sigData.supervisor?.timestamp||null,
-    sigSupervisorImg: sigData.supervisor?.img||null,
-    savedAt:new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'})
+    sigSupervisorImg: sigData.supervisor?.img||null
   };
-  const arr=getSaved();
-  // Replace if same machine+fecha already saved
-  const idx=arr.findIndex(r=>r.machineId===CM.id&&r.fecha===fec);
-  if(idx>=0)arr[idx]=report; else arr.unshift(report);
-  setSaved(arr);
-  showToast("💾 Reporte guardado");
+  try{
+    await fetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});
+    // Actualizar cache local
+    const idx=reportCache.findIndex(r=>r.machineId===CM.id&&r.fecha===fec);
+    if(idx>=0)reportCache[idx]=report; else reportCache.unshift(report);
+    showToast("💾 Reporte guardado");
+  }catch(e){
+    showToast("⚠️ Error al guardar");
+  }
   renderHome();
 }
 
@@ -461,11 +474,15 @@ function restoreForm(r){sigData.tecnico=r.sigTecnico?{timestamp:r.sigTecnico,img
   }
 }
 
-function deleteReport(id,e){
+async function deleteReport(id,e){
   e.stopPropagation();
   if(!confirm("¿Eliminar este reporte guardado?"))return;
-  const arr=getSaved().filter(x=>x.id!==id);
-  setSaved(arr);
+  try{
+    await fetch(`/api/reports/${id}`,{method:'DELETE'});
+    reportCache=reportCache.filter(x=>x.id!==id);
+  }catch(err){
+    reportCache=reportCache.filter(x=>x.id!==id);
+  }
   renderHome();
 }
 
@@ -1175,15 +1192,4 @@ function checkURLHash(){
       const sigB64=decodeURIComponent(escape(atob(hash.slice(5))));
       sigData.supervisor=sigB64;
       updateSigPreview('supervisor');
-      showToast('✅ Firma del supervisor importada');
-      history.replaceState(null,'',window.location.pathname);
-      if(document.getElementById('sig-img-supervisor'))updateSigPreview('supervisor');
-    }catch(e){showToast('❌ Error al importar firma');}
-  }
-}
-
-renderHome();
-checkURLHash();
-</script>
-</body>
-</html>
+      showToast('✅ Firma del supervisor impor

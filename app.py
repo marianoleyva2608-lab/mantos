@@ -1,5 +1,20 @@
-import os, io, base64
-from flask import Flask, request, send_file
+import os, io, base64, sqlite3, json
+from flask import Flask, request, send_file, jsonify
+
+DB_PATH = os.path.join(os.path.dirname(__file__), 'reports.db')
+
+def get_db():
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    return con
+
+def init_db():
+    con = get_db()
+    con.execute('''CREATE TABLE IF NOT EXISTS reports
+                   (id INTEGER PRIMARY KEY, machine_id TEXT, fecha TEXT, data TEXT)''')
+    con.commit(); con.close()
+
+init_db()
 
 try:
     import openpyxl
@@ -55,6 +70,34 @@ def add_sig_anchored(ws, b64_str, col_idx, row_idx, y_offset_px=0, width_px=170,
 def index():
     return open('index.html', encoding='utf-8').read(), 200, {'Content-Type':'text/html; charset=utf-8'}
 
+# ── API REPORTES (guardado en servidor) ──────────────────────
+
+@app.route('/api/reports', methods=['GET'])
+def api_get_reports():
+    con = get_db()
+    rows = con.execute('SELECT data FROM reports ORDER BY id DESC').fetchall()
+    con.close()
+    return jsonify([json.loads(r['data']) for r in rows])
+
+@app.route('/api/reports', methods=['POST'])
+def api_save_report():
+    r = request.json
+    con = get_db()
+    # Reemplazar si ya existe misma máquina + fecha
+    con.execute('DELETE FROM reports WHERE machine_id=? AND fecha=?',
+                (r.get('machineId',''), r.get('fecha','')))
+    con.execute('INSERT INTO reports (id, machine_id, fecha, data) VALUES (?,?,?,?)',
+                (r['id'], r.get('machineId',''), r.get('fecha',''), json.dumps(r)))
+    con.commit(); con.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/reports/<int:report_id>', methods=['DELETE'])
+def api_delete_report(report_id):
+    con = get_db()
+    con.execute('DELETE FROM reports WHERE id=?', (report_id,))
+    con.commit(); con.close()
+    return jsonify({'ok': True})
+
 @app.route('/generar', methods=['POST'])
 def generar():
     try:
@@ -100,34 +143,4 @@ def generar():
             tec_sig = data.get('sigTecnicoImg')
             if tec_sig:
                 add_sig_anchored(ws, tec_sig,
-                    col_idx=1,              # Columna B — inicio de celda combinada B:G
-                    row_idx=firma_row - 1,  # 0-based → Excel row = firma_row
-                    width_px=560,
-                    height_px=60)
-
-            # Firma supervisor → celda combinada K:Q (col K=idx 10), 660x60 px
-            sup_sig = data.get('sigSupervisorImg')
-            if sup_sig:
-                add_sig_anchored(ws, sup_sig,
-                    col_idx=10,             # Columna K — inicio de celda combinada K:Q
-                    row_idx=firma_row - 1,
-                    width_px=660,
-                    height_px=60)
-
-        # Supervisor comments
-        sup_comments = data.get('supComments','')
-        if sup_comments and sig_row:
-            ws.cell(row=sig_row + 2, column=2).value = f"Comentarios del Supervisor: {sup_comments}"
-
-        buf = io.BytesIO()
-        wb.save(buf)
-        buf.seek(0)
-        fname = f"REPORTE_{data.get('machineId','EQ')}_{data.get('fecha','').replace('/','-')}.xlsx"
-        return send_file(buf, as_attachment=True, download_name=fname,
-                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        return {'error': str(e)}, 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT',3000)), debug=False)
+                    col_idx=1,              # Columna B — inicio de celda combinada 
