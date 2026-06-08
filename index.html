@@ -329,6 +329,7 @@ function getSaved(){try{return JSON.parse(localStorage.getItem('mtto_v1')||'[]')
 function setSaved(arr){localStorage.setItem('mtto_v1',JSON.stringify(arr));}
 
 function saveReport(){
+  if(!validateReport()) return;
   const tec=document.getElementById("ft").value||"";
   const fec=document.getElementById("ff").value||"";
   const sup=document.getElementById("fs").value||"";
@@ -503,7 +504,8 @@ function ts(id,st,force=false){
   const cur=IS[id],ns=force?st:(cur===st?null:st);IS[id]=ns;
   const r=document.getElementById("r"+id);
   if(!r)return;
-  r.style.outline="none"; // clear validation highlight
+  r.style.outline = "none";
+  r.style.background = "";
   document.getElementById("ok"+id).classList.remove("on");
   document.getElementById("ng"+id).classList.remove("on");
   r.classList.remove("ok","ng");
@@ -536,40 +538,50 @@ function tm(m){
 }
 
 // ── DESCARGA COMPATIBLE CON CELULAR ──────────────────────────
-function generateExcel(){
-  // Validate: no blank items
-  const si=SHEET_MAPPING[CM.file][CM.sheet];
-  const pending=[];
-  for(let i=0;i<si.items.length;i++){
-    if(!IS["i"+i]||IS["i"+i]===null) pending.push(i+1);
+// ── VALIDACIÓN COMPARTIDA ───────────────────────────────────
+function validateReport(){
+  const si = SHEET_MAPPING[CM.file][CM.sheet];
+  // Check all items filled
+  const pending = [];
+  for(let i = 0; i < si.items.length; i++){
+    const v = IS["i"+i];
+    if(!v || v === null) pending.push(i);
   }
-  if(pending.length>0){
-    // Highlight first pending item
-    const firstEl=document.getElementById("ri"+pending[0]-1+1);
-    if(firstEl)firstEl.scrollIntoView({behavior:'smooth',block:'center'});
-    // Mark all pending items in red border
-    for(let i=0;i<si.items.length;i++){
-      const row=document.getElementById("ri"+i);
+  if(pending.length > 0){
+    // Highlight missing items
+    for(let i = 0; i < si.items.length; i++){
+      const row = document.getElementById("ri"+i);
       if(row){
-        if(!IS["i"+i]||IS["i"+i]===null){
-          row.style.outline="2px solid #f44336";
-          row.style.borderRadius="4px";
+        if(!IS["i"+i]){
+          row.style.outline = "2.5px solid #f44336";
+          row.style.background = "#fff8f8";
         } else {
-          row.style.outline="none";
+          row.style.outline = "none";
+          row.style.background = "";
         }
       }
     }
-    showToast(`⚠️ Faltan ${pending.length} punto(s) sin evaluar`);
-    return;
+    // Scroll to first missing
+    const firstRow = document.getElementById("ri"+pending[0]);
+    if(firstRow) firstRow.scrollIntoView({behavior:'smooth', block:'center'});
+    showToast("⚠️ Faltan " + pending.length + " punto(s) sin evaluar (marcados en rojo)");
+    return false;
   }
-  // Validate required fields
-  const tecInput=document.getElementById("ft").value;
-  if(!tecInput){document.getElementById("ft").focus();showToast("⚠️ Escribe el nombre del técnico");return;}
-  const fecInput=document.getElementById("ff").value;
-  if(!fecInput){showToast("⚠️ Selecciona la fecha");return;}
+  // Check tecnico name
+  const tec = document.getElementById("ft");
+  if(tec && !tec.value.trim()){
+    tec.focus();
+    tec.style.border = "2px solid #f44336";
+    showToast("⚠️ Escribe el nombre del técnico");
+    return false;
+  }
+  return true;
+}
 
-  const tec=tecInput||"_______________";
-  const fec=fecInput||"_______________";
+function generateExcel(){
+  if(!validateReport()) return;
+  const tec = document.getElementById("ft").value || "_______________";
+  const fec = document.getElementById("ff").value || "_______________";
   const sup=document.getElementById("fs").value||"_______________";
   const l1=document.getElementById("vl1").value||"";
   const l2=document.getElementById("vl2").value||"";
