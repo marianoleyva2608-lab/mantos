@@ -4,15 +4,15 @@ from flask import Flask, request, send_file
 try:
     import openpyxl
     from openpyxl.drawing.image import Image as XLImage
-    from openpyxl.drawing.xdr import XDRPoint2D, XDRPositiveSize2D
-    from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor
+    from openpyxl.drawing.xdr import XDRPositiveSize2D
+    from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor, AnchorMarker
     from PIL import Image as PILImage
 except ImportError:
     os.system("pip install openpyxl Pillow -q")
     import openpyxl
     from openpyxl.drawing.image import Image as XLImage
-    from openpyxl.drawing.xdr import XDRPoint2D, XDRPositiveSize2D
-    from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor
+    from openpyxl.drawing.xdr import XDRPositiveSize2D
+    from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor, AnchorMarker
     from PIL import Image as PILImage
 
 app = Flask(__name__)
@@ -48,9 +48,9 @@ def add_sig_anchored(ws, b64_str, col_idx, row_idx, y_offset_px, width_px=170, h
     if not img:
         return
     # col_idx and row_idx are 0-based
-    p = XDRPoint2D(col=col_idx, colOff=5*EMU, row=row_idx, rowOff=y_offset_px*EMU)
+    marker = AnchorMarker(col=col_idx, colOff=5*EMU, row=row_idx, rowOff=y_offset_px*EMU)
     s = XDRPositiveSize2D(width_px*EMU, height_px*EMU)
-    img.anchor = OneCellAnchor(_from=p, ext=s)
+    img.anchor = OneCellAnchor(_from=marker, ext=s)
     ws.add_image(img)
 
 @app.route('/')
