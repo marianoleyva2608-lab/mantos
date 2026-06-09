@@ -1,6 +1,9 @@
 import os, io, base64, sqlite3, json
 from flask import Flask, request, send_file, jsonify
 
+app = Flask(__name__)
+EMU = 9525
+
 DATA_DIR = os.environ.get('DATA_DIR', '/app/data')
 os.makedirs(DATA_DIR, exist_ok=True)
 DB_PATH = os.path.join(DATA_DIR, 'reports.db')
@@ -126,9 +129,6 @@ except ImportError:
     from openpyxl.drawing.image import Image as XLImage
     from openpyxl.utils import get_column_letter
     from PIL import Image as PILImage
-
-app = Flask(__name__)
-EMU = 9525
 
 # ── Firma digital PKI ─────────────────────────────────────────────────────────
 CERT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'adpack_cert.p12')
