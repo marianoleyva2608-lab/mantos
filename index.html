@@ -916,7 +916,139 @@ function generatePDFClient(){
     <div class="sig-box"><b>Realizó:</b> ${tec}<br>${tecImg}<small>Firma</small></div>
     <div class="sig-box"><b>Supervisor:</b> ${sup}<br>${supImg}<small>Firma</small></div>
   </div>
-  </body></html>`;
+  
+<!-- MODAL LOGIN / REGISTRO ─────────────────────────────────────── -->
+<div id="auth-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:340px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:38px;margin-bottom:6px">🔐</div>
+      <h2 style="margin:0;color:#1a5c2a;font-size:18px" id="auth-title">Iniciar Sesión</h2>
+      <p style="margin:4px 0 0;font-size:12px;color:#666">Firma Digital AD-PACK</p>
+    </div>
+    <div id="auth-login">
+      <input id="au-email" type="email" placeholder="Email" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:10px;font-size:14px">
+      <input id="au-pin" type="password" placeholder="PIN (mínimo 4 caracteres)" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:14px;font-size:14px">
+      <button onclick="doLogin()" style="width:100%;background:#1a5c2a;color:#fff;border:none;border-radius:8px;padding:12px;font-size:15px;font-weight:bold;cursor:pointer;margin-bottom:10px">Entrar</button>
+      <button onclick="showRegister()" style="width:100%;background:transparent;color:#1a5c2a;border:1px solid #1a5c2a;border-radius:8px;padding:10px;font-size:13px;cursor:pointer">¿No tienes cuenta? Registrarte</button>
+      <div id="auth-err" style="color:#c62828;font-size:12px;text-align:center;margin-top:8px"></div>
+    </div>
+    <div id="auth-register" style="display:none">
+      <input id="ar-nombre" type="text" placeholder="Nombre completo" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:10px;font-size:14px">
+      <input id="ar-email" type="email" placeholder="Email" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:10px;font-size:14px">
+      <input id="ar-pin" type="password" placeholder="PIN (mínimo 4 caracteres)" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:10px;font-size:14px">
+      <input id="ar-pin2" type="password" placeholder="Confirmar PIN" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:14px;font-size:14px">
+      <button onclick="doRegister()" style="width:100%;background:#1a5c2a;color:#fff;border:none;border-radius:8px;padding:12px;font-size:15px;font-weight:bold;cursor:pointer;margin-bottom:10px">Crear Cuenta y Firma Digital</button>
+      <button onclick="showLogin()" style="width:100%;background:transparent;color:#555;border:1px solid #ccc;border-radius:8px;padding:10px;font-size:13px;cursor:pointer">← Volver al Login</button>
+      <div id="auth-err2" style="color:#c62828;font-size:12px;text-align:center;margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BARRA DE USUARIO ────────────────────────────────────────────── -->
+<div id="user-bar" style="display:none;position:fixed;top:0;left:0;right:0;background:#1a5c2a;color:#fff;padding:7px 16px;z-index:1000;display:flex;align-items:center;gap:10px;font-size:13px">
+  <span>🔐</span>
+  <span id="user-bar-name" style="font-weight:bold;flex:1"></span>
+  <span id="user-bar-email" style="opacity:.75;font-size:11px"></span>
+  <button onclick="doLogout()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px">Cerrar sesión</button>
+</div>
+
+<script>
+// ── Auth ──────────────────────────────────────────────────────────
+let currentUser = JSON.parse(localStorage.getItem('mantos_user') || 'null');
+
+function authInit() {
+  if (!currentUser) {
+    document.getElementById('auth-modal').style.display = 'flex';
+    document.getElementById('user-bar').style.display = 'none';
+  } else {
+    document.getElementById('auth-modal').style.display = 'none';
+    document.getElementById('user-bar').style.display = 'flex';
+    document.getElementById('user-bar-name').textContent = currentUser.nombre;
+    document.getElementById('user-bar-email').textContent = currentUser.email;
+  }
+}
+
+function showLogin() {
+  document.getElementById('auth-login').style.display='block';
+  document.getElementById('auth-register').style.display='none';
+  document.getElementById('auth-title').textContent='Iniciar Sesión';
+  document.getElementById('auth-err').textContent='';
+}
+function showRegister() {
+  document.getElementById('auth-login').style.display='none';
+  document.getElementById('auth-register').style.display='block';
+  document.getElementById('auth-title').textContent='Crear Cuenta';
+  document.getElementById('auth-err2').textContent='';
+}
+
+function doLogin() {
+  const email = document.getElementById('au-email').value.trim();
+  const pin   = document.getElementById('au-pin').value.trim();
+  if (!email || !pin) { document.getElementById('auth-err').textContent='Completa todos los campos'; return; }
+  fetch('/api/users/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,pin})})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { document.getElementById('auth-err').textContent = d.error; return; }
+      currentUser = {id: d.id, nombre: d.nombre, email: d.email};
+      localStorage.setItem('mantos_user', JSON.stringify(currentUser));
+      authInit();
+    });
+}
+
+function doRegister() {
+  const nombre = document.getElementById('ar-nombre').value.trim();
+  const email  = document.getElementById('ar-email').value.trim();
+  const pin    = document.getElementById('ar-pin').value.trim();
+  const pin2   = document.getElementById('ar-pin2').value.trim();
+  const err    = document.getElementById('auth-err2');
+  if (!nombre || !email || !pin) { err.textContent='Completa todos los campos'; return; }
+  if (pin !== pin2) { err.textContent='Los PIN no coinciden'; return; }
+  if (pin.length < 4) { err.textContent='El PIN debe tener al menos 4 caracteres'; return; }
+  err.textContent = '⏳ Generando certificado digital...';
+  fetch('/api/users/register', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre,email,pin})})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { err.textContent = d.error; return; }
+      err.style.color = '#2e7d32';
+      err.textContent = '✅ Cuenta creada. Inicia sesión.';
+      setTimeout(() => {
+        showLogin();
+        document.getElementById('au-email').value = email;
+      }, 1500);
+    });
+}
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('mantos_user');
+  authInit();
+}
+
+// Inyectar userEmail en el payload de generatePDF
+const _origGeneratePDF = generatePDF;
+window.generatePDF = function() {
+  if (!currentUser) { showToast('⚠️ Debes iniciar sesión para firmar'); return; }
+  window._currentUserEmail = currentUser.email;
+  _origGeneratePDF();
+};
+
+// Sobrescribir fetch de /generar_pdf para incluir userEmail
+const _origFetch = window.fetch;
+window.fetch = function(url, opts) {
+  if (url === '/generar_pdf' && opts && opts.body && window._currentUserEmail) {
+    try {
+      const body = JSON.parse(opts.body);
+      body.userEmail = window._currentUserEmail;
+      opts = {...opts, body: JSON.stringify(body)};
+    } catch(e) {}
+  }
+  return _origFetch(url, opts);
+};
+
+authInit();
+</script>
+
+</body></html>`;
   const w=window.open('','_blank');
   w.document.write(doc);
   w.document.close();
@@ -1339,5 +1471,137 @@ function checkURLHash(){
 loadReportsFromServer().then(()=>renderHome());
 checkURLHash();
 </script>
+
+<!-- MODAL LOGIN / REGISTRO ─────────────────────────────────────── -->
+<div id="auth-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:340px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:38px;margin-bottom:6px">🔐</div>
+      <h2 style="margin:0;color:#1a5c2a;font-size:18px" id="auth-title">Iniciar Sesión</h2>
+      <p style="margin:4px 0 0;font-size:12px;color:#666">Firma Digital AD-PACK</p>
+    </div>
+    <div id="auth-login">
+      <input id="au-email" type="email" placeholder="Email" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:10px;font-size:14px">
+      <input id="au-pin" type="password" placeholder="PIN (mínimo 4 caracteres)" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:14px;font-size:14px">
+      <button onclick="doLogin()" style="width:100%;background:#1a5c2a;color:#fff;border:none;border-radius:8px;padding:12px;font-size:15px;font-weight:bold;cursor:pointer;margin-bottom:10px">Entrar</button>
+      <button onclick="showRegister()" style="width:100%;background:transparent;color:#1a5c2a;border:1px solid #1a5c2a;border-radius:8px;padding:10px;font-size:13px;cursor:pointer">¿No tienes cuenta? Registrarte</button>
+      <div id="auth-err" style="color:#c62828;font-size:12px;text-align:center;margin-top:8px"></div>
+    </div>
+    <div id="auth-register" style="display:none">
+      <input id="ar-nombre" type="text" placeholder="Nombre completo" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:10px;font-size:14px">
+      <input id="ar-email" type="email" placeholder="Email" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:10px;font-size:14px">
+      <input id="ar-pin" type="password" placeholder="PIN (mínimo 4 caracteres)" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:10px;font-size:14px">
+      <input id="ar-pin2" type="password" placeholder="Confirmar PIN" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:14px;font-size:14px">
+      <button onclick="doRegister()" style="width:100%;background:#1a5c2a;color:#fff;border:none;border-radius:8px;padding:12px;font-size:15px;font-weight:bold;cursor:pointer;margin-bottom:10px">Crear Cuenta y Firma Digital</button>
+      <button onclick="showLogin()" style="width:100%;background:transparent;color:#555;border:1px solid #ccc;border-radius:8px;padding:10px;font-size:13px;cursor:pointer">← Volver al Login</button>
+      <div id="auth-err2" style="color:#c62828;font-size:12px;text-align:center;margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BARRA DE USUARIO ────────────────────────────────────────────── -->
+<div id="user-bar" style="display:none;position:fixed;top:0;left:0;right:0;background:#1a5c2a;color:#fff;padding:7px 16px;z-index:1000;display:flex;align-items:center;gap:10px;font-size:13px">
+  <span>🔐</span>
+  <span id="user-bar-name" style="font-weight:bold;flex:1"></span>
+  <span id="user-bar-email" style="opacity:.75;font-size:11px"></span>
+  <button onclick="doLogout()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px">Cerrar sesión</button>
+</div>
+
+<script>
+// ── Auth ──────────────────────────────────────────────────────────
+let currentUser = JSON.parse(localStorage.getItem('mantos_user') || 'null');
+
+function authInit() {
+  if (!currentUser) {
+    document.getElementById('auth-modal').style.display = 'flex';
+    document.getElementById('user-bar').style.display = 'none';
+  } else {
+    document.getElementById('auth-modal').style.display = 'none';
+    document.getElementById('user-bar').style.display = 'flex';
+    document.getElementById('user-bar-name').textContent = currentUser.nombre;
+    document.getElementById('user-bar-email').textContent = currentUser.email;
+  }
+}
+
+function showLogin() {
+  document.getElementById('auth-login').style.display='block';
+  document.getElementById('auth-register').style.display='none';
+  document.getElementById('auth-title').textContent='Iniciar Sesión';
+  document.getElementById('auth-err').textContent='';
+}
+function showRegister() {
+  document.getElementById('auth-login').style.display='none';
+  document.getElementById('auth-register').style.display='block';
+  document.getElementById('auth-title').textContent='Crear Cuenta';
+  document.getElementById('auth-err2').textContent='';
+}
+
+function doLogin() {
+  const email = document.getElementById('au-email').value.trim();
+  const pin   = document.getElementById('au-pin').value.trim();
+  if (!email || !pin) { document.getElementById('auth-err').textContent='Completa todos los campos'; return; }
+  fetch('/api/users/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,pin})})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { document.getElementById('auth-err').textContent = d.error; return; }
+      currentUser = {id: d.id, nombre: d.nombre, email: d.email};
+      localStorage.setItem('mantos_user', JSON.stringify(currentUser));
+      authInit();
+    });
+}
+
+function doRegister() {
+  const nombre = document.getElementById('ar-nombre').value.trim();
+  const email  = document.getElementById('ar-email').value.trim();
+  const pin    = document.getElementById('ar-pin').value.trim();
+  const pin2   = document.getElementById('ar-pin2').value.trim();
+  const err    = document.getElementById('auth-err2');
+  if (!nombre || !email || !pin) { err.textContent='Completa todos los campos'; return; }
+  if (pin !== pin2) { err.textContent='Los PIN no coinciden'; return; }
+  if (pin.length < 4) { err.textContent='El PIN debe tener al menos 4 caracteres'; return; }
+  err.textContent = '⏳ Generando certificado digital...';
+  fetch('/api/users/register', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre,email,pin})})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { err.textContent = d.error; return; }
+      err.style.color = '#2e7d32';
+      err.textContent = '✅ Cuenta creada. Inicia sesión.';
+      setTimeout(() => {
+        showLogin();
+        document.getElementById('au-email').value = email;
+      }, 1500);
+    });
+}
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('mantos_user');
+  authInit();
+}
+
+// Inyectar userEmail en el payload de generatePDF
+const _origGeneratePDF = generatePDF;
+window.generatePDF = function() {
+  if (!currentUser) { showToast('⚠️ Debes iniciar sesión para firmar'); return; }
+  window._currentUserEmail = currentUser.email;
+  _origGeneratePDF();
+};
+
+// Sobrescribir fetch de /generar_pdf para incluir userEmail
+const _origFetch = window.fetch;
+window.fetch = function(url, opts) {
+  if (url === '/generar_pdf' && opts && opts.body && window._currentUserEmail) {
+    try {
+      const body = JSON.parse(opts.body);
+      body.userEmail = window._currentUserEmail;
+      opts = {...opts, body: JSON.stringify(body)};
+    } catch(e) {}
+  }
+  return _origFetch(url, opts);
+};
+
+authInit();
+</script>
+
 </body>
 </html>

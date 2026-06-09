@@ -17,6 +17,102 @@ def init_db():
 
 init_db()
 
+def init_users_db():
+    con = get_db()
+    con.execute('''CREATE TABLE IF NOT EXISTS users
+                   (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nombre TEXT NOT NULL,
+                    email  TEXT NOT NULL UNIQUE,
+                    pin_hash TEXT NOT NULL,
+                    cert_p12 BLOB,
+                    created_at TEXT DEFAULT (datetime('now')))'''
+    )
+    con.commit()
+    con.close()
+
+init_users_db()
+
+import hashlib
+
+def hash_pin(pin):
+    return hashlib.sha256(pin.encode()).hexdigest()
+
+def generate_user_cert(nombre, email):
+    """Genera certificado PKI personal para un usuario."""
+    import datetime
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives.serialization.pkcs12 import serialize_key_and_certificates
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
+    subject = issuer = x509.Name([
+        x509.NameAttribute(NameOID.COUNTRY_NAME, "MX"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "AD-PACK"),
+        x509.NameAttribute(NameOID.COMMON_NAME, nombre),
+        x509.NameAttribute(NameOID.EMAIL_ADDRESS, email),
+    ])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject).issuer_name(subject)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.datetime.utcnow())
+        .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=3650))
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .sign(key, hashes.SHA256(), default_backend())
+    )
+    passphrase = email.encode()
+    p12 = serialize_key_and_certificates(
+        name=nombre.encode(), key=key, cert=cert, cas=None,
+        encryption_algorithm=serialization.BestAvailableEncryption(passphrase)
+    )
+    return p12
+
+@app.route('/api/users/register', methods=['POST'])
+def register_user():
+    d = request.json
+    nombre = d.get('nombre','').strip()
+    email  = d.get('email','').strip().lower()
+    pin    = d.get('pin','').strip()
+    if not nombre or not email or not pin or len(pin) < 4:
+        return jsonify({'error': 'Nombre, email y PIN (mínimo 4 caracteres) requeridos'}), 400
+    try:
+        cert_p12 = generate_user_cert(nombre, email)
+        con = get_db()
+        con.execute('INSERT INTO users (nombre, email, pin_hash, cert_p12) VALUES (?,?,?,?)',
+                    (nombre, email, hash_pin(pin), cert_p12))
+        con.commit()
+        con.close()
+        return jsonify({'ok': True, 'nombre': nombre, 'email': email})
+    except Exception as e:
+        if 'UNIQUE' in str(e):
+            return jsonify({'error': 'Este email ya está registrado'}), 409
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/users/login', methods=['POST'])
+def login_user():
+    d = request.json
+    email = d.get('email','').strip().lower()
+    pin   = d.get('pin','').strip()
+    con = get_db()
+    row = con.execute('SELECT id, nombre, email FROM users WHERE email=? AND pin_hash=?',
+                      (email, hash_pin(pin))).fetchone()
+    con.close()
+    if not row:
+        return jsonify({'error': 'Email o PIN incorrecto'}), 401
+    return jsonify({'ok': True, 'id': row['id'], 'nombre': row['nombre'], 'email': row['email']})
+
+@app.route('/api/users', methods=['GET'])
+def list_users():
+    con = get_db()
+    rows = con.execute('SELECT id, nombre, email, created_at FROM users ORDER BY nombre').fetchall()
+    con.close()
+    return jsonify([dict(r) for r in rows])
+
+
 try:
     import openpyxl
     from openpyxl.drawing.image import Image as XLImage
@@ -75,7 +171,7 @@ def ensure_certificate():
     except Exception as e:
         print(f"[WARN] No se pudo generar certificado: {e}")
 
-def sign_pdf(pdf_bytes, signer_name='AD-PACK', reason='Mantenimiento Preventivo'):
+def sign_pdf(pdf_bytes, signer_name='AD-PACK', reason='Mantenimiento Preventivo', user_email=None, user_cert_p12=None):
     """Firma un PDF con el certificado PKI de la app. Retorna bytes del PDF firmado."""
     try:
         from pyhanko.sign import signers, fields
@@ -88,7 +184,12 @@ def sign_pdf(pdf_bytes, signer_name='AD-PACK', reason='Mantenimiento Preventivo'
         if not os.path.exists(CERT_PATH):
             return pdf_bytes  # Sin certificado, devolver sin firmar
 
-        signer = signers.SimpleSigner.load_pkcs12(CERT_PATH, passphrase=CERT_PASS)
+        if user_cert_p12 and user_email:
+            signer = signers.SimpleSigner.load_pkcs12(
+                io.BytesIO(user_cert_p12), passphrase=user_email.encode()
+            )
+        else:
+            signer = signers.SimpleSigner.load_pkcs12(CERT_PATH, passphrase=CERT_PASS)
         pdf_in = io.BytesIO(pdf_bytes)
         w = IncrementalPdfFileWriter(pdf_in)
         fields.append_signature_field(w, SigFieldSpec('FirmaDigital', on_page=0, box=(30, 15, 280, 55)))
@@ -275,8 +376,18 @@ def generar_pdf():
         with open(pdf_path, 'rb') as f:
             pdf_bytes = f.read()
 
+        # Cargar certificado personal del firmante
+        user_email = data.get('userEmail')
+        user_cert_p12 = None
+        if user_email:
+            con = get_db()
+            row = con.execute('SELECT cert_p12 FROM users WHERE email=?', (user_email,)).fetchone()
+            con.close()
+            if row:
+                user_cert_p12 = bytes(row['cert_p12'])
+
         # Firmar el PDF con certificado digital PKI
-        pdf_bytes = sign_pdf(pdf_bytes, reason=f"Mantenimiento Preventivo - {data.get('machineName', data.get('machineId', ''))}")
+        pdf_bytes = sign_pdf(pdf_bytes, reason=f"Mantenimiento Preventivo - {data.get('machineName', data.get('machineId', ''))}", user_email=user_email, user_cert_p12=user_cert_p12)
 
         fname = f"REPORTE_{data.get('machineId', 'EQ')}_{data.get('fecha', '').replace('/', '-')}.pdf"
         return send_file(io.BytesIO(pdf_bytes), as_attachment=True, download_name=fname, mimetype='application/pdf')
