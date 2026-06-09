@@ -142,7 +142,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <body>
 
 <div id="page-home" class="page active">
-  <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
+  <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button class="back" onclick="showPage('reports')" style="font-size:20px;margin-right:6px" title="Reportes">&#128196;</button><button class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
   <div class="home-c" id="home-c"></div>
 </div>
 
@@ -917,6 +917,32 @@ function generatePDFClient(){
     <div class="sig-box"><b>Supervisor:</b> ${sup}<br>${supImg}<small>Firma</small></div>
   </div>
   
+
+<!-- PÁGINA REPORTES ─────────────────────────────────────────────── -->
+<div id="page-reports" class="page" style="background:#f5f5f5;padding-bottom:20px">
+  <div class="hdr">
+    <button class="back" onclick="showPage('home')">&#8249;</button>
+    <div style="flex:1"><h1>&#128196; Historial de Reportes</h1></div>
+    <button onclick="loadReportsPage()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px">&#128260; Actualizar</button>
+  </div>
+
+  <!-- Filtros -->
+  <div style="padding:12px 12px 4px;display:flex;gap:8px;flex-wrap:wrap">
+    <input id="rpt-search" type="text" placeholder="&#128269; Buscar por equipo, técnico..." oninput="filterReports()"
+      style="flex:1;min-width:180px;padding:9px 12px;border:1px solid #c8e6c9;border-radius:8px;font-size:13px">
+    <select id="rpt-machine" onchange="filterReports()"
+      style="padding:9px 10px;border:1px solid #c8e6c9;border-radius:8px;font-size:13px;background:#fff">
+      <option value="">Todos los equipos</option>
+    </select>
+  </div>
+
+  <!-- Stats -->
+  <div style="padding:4px 12px 8px;display:flex;gap:8px;flex-wrap:wrap" id="rpt-stats"></div>
+
+  <!-- Lista -->
+  <div id="rpt-list" style="padding:0 12px"></div>
+</div>
+
 <!-- MODAL LOGIN / REGISTRO ─────────────────────────────────────── -->
 <div id="auth-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:12px;padding:28px 32px;width:340px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.3)">
@@ -953,6 +979,157 @@ function generatePDFClient(){
 </div>
 
 <script>
+
+// ── Historial de Reportes ─────────────────────────────────────────
+let allReports = [];
+
+async function loadReportsPage() {
+  document.getElementById('rpt-list').innerHTML = '<div style="text-align:center;padding:30px;color:#888">⏳ Cargando reportes...</div>';
+  try {
+    const res = await fetch('/api/reports');
+    allReports = await res.json();
+  } catch(e) {
+    allReports = JSON.parse(localStorage.getItem('mtto_v1') || '[]');
+  }
+  populateMachineFilter();
+  renderReports(allReports);
+  renderStats(allReports);
+}
+
+function populateMachineFilter() {
+  const sel = document.getElementById('rpt-machine');
+  const machines = [...new Set(allReports.map(r => r.machineName || r.machineId || 'Sin nombre'))].sort();
+  sel.innerHTML = '<option value="">Todos los equipos</option>' +
+    machines.map(m => `<option value="${m}">${m}</option>`).join('');
+}
+
+function filterReports() {
+  const q = document.getElementById('rpt-search').value.toLowerCase();
+  const machine = document.getElementById('rpt-machine').value;
+  const filtered = allReports.filter(r => {
+    const text = `${r.machineName||''} ${r.machineId||''} ${r.tecnico||''} ${r.supervisor||''} ${r.fecha||''}`.toLowerCase();
+    const matchQ = !q || text.includes(q);
+    const matchM = !machine || (r.machineName||r.machineId||'') === machine;
+    return matchQ && matchM;
+  });
+  renderReports(filtered);
+  renderStats(filtered);
+}
+
+function renderStats(reports) {
+  const el = document.getElementById('rpt-stats');
+  const machines = new Set(reports.map(r => r.machineId));
+  el.innerHTML = `
+    <span style="background:#e8f5e9;color:#2e7d32;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:bold">📋 ${reports.length} reportes</span>
+    <span style="background:#e3f2fd;color:#1565c0;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:bold">🔧 ${machines.size} equipos</span>
+  `;
+}
+
+function renderReports(reports) {
+  const el = document.getElementById('rpt-list');
+  if (!reports.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa">Sin reportes guardados</div>';
+    return;
+  }
+  // Agrupar por mes
+  const byMonth = {};
+  reports.forEach(r => {
+    const m = (r.fecha||'').substring(0,7) || 'Sin fecha';
+    if (!byMonth[m]) byMonth[m] = [];
+    byMonth[m].push(r);
+  });
+  const months = Object.keys(byMonth).sort().reverse();
+  el.innerHTML = months.map(month => `
+    <div style="font-size:12px;font-weight:bold;color:#888;text-transform:uppercase;padding:10px 4px 4px;letter-spacing:1px">${month}</div>
+    ${byMonth[month].map(r => reportCard(r)).join('')}
+  `).join('');
+}
+
+function reportCard(r) {
+  const okCount  = (r.items||[]).filter(i => i.status==='ok').length;
+  const ngCount  = (r.items||[]).filter(i => i.status==='ng').length;
+  const total    = (r.items||[]).length;
+  const pct      = total ? Math.round(okCount/total*100) : 0;
+  const pctColor = pct>=90?'#2e7d32':pct>=70?'#f57f17':'#c62828';
+  const months   = (r.month||[]).join(', ') || '—';
+  return `
+  <div style="background:#fff;border-radius:10px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden">
+    <div style="background:#1a5c2a;color:#fff;padding:10px 14px;display:flex;align-items:center;gap:8px">
+      <span style="font-weight:bold;font-size:14px;flex:1">🔧 ${r.machineName||r.machineId||'Equipo'}</span>
+      <span style="font-size:12px;opacity:.85">📅 ${r.fecha||'—'}</span>
+    </div>
+    <div style="padding:10px 14px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;font-size:12px;color:#555">
+        <span>👤 <b>${r.tecnico||'—'}</b></span>
+        <span>🧑‍💼 ${r.supervisor||'—'}</span>
+        <span>📆 Meses: ${months}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="flex:1;background:#e8f5e9;border-radius:4px;height:8px">
+          <div style="background:${pctColor};width:${pct}%;height:8px;border-radius:4px"></div>
+        </div>
+        <span style="font-size:12px;font-weight:bold;color:${pctColor}">${pct}% OK</span>
+        <span style="font-size:11px;color:#888">${okCount}✓ ${ngCount}✗ / ${total}</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="downloadReportExcel(${JSON.stringify(r).replace(/"/g,'&quot;')})"
+          style="flex:1;background:#e8f5e9;color:#1a5c2a;border:1px solid #c8e6c9;border-radius:6px;padding:7px;font-size:12px;cursor:pointer">
+          📊 Excel
+        </button>
+        <button onclick="downloadReportPDF(${JSON.stringify(r).replace(/"/g,'&quot;')})"
+          style="flex:1;background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb;border-radius:6px;padding:7px;font-size:12px;cursor:pointer">
+          📄 PDF
+        </button>
+        <button onclick="deleteReport(${r.id})"
+          style="background:#fff5f5;color:#c62828;border:1px solid #ffcdd2;border-radius:6px;padding:7px 10px;font-size:12px;cursor:pointer">
+          🗑
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function downloadReportExcel(r) {
+  const ovl=document.getElementById('overlay'); ovl.classList.add('show');
+  fetch('/generar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)})
+    .then(res=>res.blob()).then(blob=>{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`REPORTE_${r.machineId}_${(r.fecha||'').replace(/\//g,'-')}.xlsx`;
+      a.click(); ovl.classList.remove('show');
+    }).catch(()=>ovl.classList.remove('show'));
+}
+
+function downloadReportPDF(r) {
+  const ovl=document.getElementById('overlay'); ovl.classList.add('show');
+  const payload = {...r, userEmail: currentUser ? currentUser.email : null};
+  fetch('/generar_pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(res=>res.blob()).then(blob=>{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`REPORTE_${r.machineId}_${(r.fecha||'').replace(/\//g,'-')}.pdf`;
+      a.click(); ovl.classList.remove('show');
+    }).catch(()=>ovl.classList.remove('show'));
+}
+
+async function deleteReport(id) {
+  if(!confirm('¿Eliminar este reporte?')) return;
+  await fetch('/api/reports/'+id, {method:'DELETE'});
+  loadReportsPage();
+}
+
+// Cargar al mostrar la página
+const _origShowPage = window.showPage;
+window.showPage = function(p) {
+  if(p === 'reports') loadReportsPage();
+  if(_origShowPage) _origShowPage(p);
+  else {
+    document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
+    const pg = document.getElementById('page-'+p);
+    if(pg) pg.classList.add('active');
+  }
+};
+
 // ── Auth ──────────────────────────────────────────────────────────
 let currentUser = JSON.parse(localStorage.getItem('mantos_user') || 'null');
 
@@ -1472,6 +1649,32 @@ loadReportsFromServer().then(()=>renderHome());
 checkURLHash();
 </script>
 
+
+<!-- PÁGINA REPORTES ─────────────────────────────────────────────── -->
+<div id="page-reports" class="page" style="background:#f5f5f5;padding-bottom:20px">
+  <div class="hdr">
+    <button class="back" onclick="showPage('home')">&#8249;</button>
+    <div style="flex:1"><h1>&#128196; Historial de Reportes</h1></div>
+    <button onclick="loadReportsPage()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px">&#128260; Actualizar</button>
+  </div>
+
+  <!-- Filtros -->
+  <div style="padding:12px 12px 4px;display:flex;gap:8px;flex-wrap:wrap">
+    <input id="rpt-search" type="text" placeholder="&#128269; Buscar por equipo, técnico..." oninput="filterReports()"
+      style="flex:1;min-width:180px;padding:9px 12px;border:1px solid #c8e6c9;border-radius:8px;font-size:13px">
+    <select id="rpt-machine" onchange="filterReports()"
+      style="padding:9px 10px;border:1px solid #c8e6c9;border-radius:8px;font-size:13px;background:#fff">
+      <option value="">Todos los equipos</option>
+    </select>
+  </div>
+
+  <!-- Stats -->
+  <div style="padding:4px 12px 8px;display:flex;gap:8px;flex-wrap:wrap" id="rpt-stats"></div>
+
+  <!-- Lista -->
+  <div id="rpt-list" style="padding:0 12px"></div>
+</div>
+
 <!-- MODAL LOGIN / REGISTRO ─────────────────────────────────────── -->
 <div id="auth-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:12px;padding:28px 32px;width:340px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.3)">
@@ -1508,6 +1711,157 @@ checkURLHash();
 </div>
 
 <script>
+
+// ── Historial de Reportes ─────────────────────────────────────────
+let allReports = [];
+
+async function loadReportsPage() {
+  document.getElementById('rpt-list').innerHTML = '<div style="text-align:center;padding:30px;color:#888">⏳ Cargando reportes...</div>';
+  try {
+    const res = await fetch('/api/reports');
+    allReports = await res.json();
+  } catch(e) {
+    allReports = JSON.parse(localStorage.getItem('mtto_v1') || '[]');
+  }
+  populateMachineFilter();
+  renderReports(allReports);
+  renderStats(allReports);
+}
+
+function populateMachineFilter() {
+  const sel = document.getElementById('rpt-machine');
+  const machines = [...new Set(allReports.map(r => r.machineName || r.machineId || 'Sin nombre'))].sort();
+  sel.innerHTML = '<option value="">Todos los equipos</option>' +
+    machines.map(m => `<option value="${m}">${m}</option>`).join('');
+}
+
+function filterReports() {
+  const q = document.getElementById('rpt-search').value.toLowerCase();
+  const machine = document.getElementById('rpt-machine').value;
+  const filtered = allReports.filter(r => {
+    const text = `${r.machineName||''} ${r.machineId||''} ${r.tecnico||''} ${r.supervisor||''} ${r.fecha||''}`.toLowerCase();
+    const matchQ = !q || text.includes(q);
+    const matchM = !machine || (r.machineName||r.machineId||'') === machine;
+    return matchQ && matchM;
+  });
+  renderReports(filtered);
+  renderStats(filtered);
+}
+
+function renderStats(reports) {
+  const el = document.getElementById('rpt-stats');
+  const machines = new Set(reports.map(r => r.machineId));
+  el.innerHTML = `
+    <span style="background:#e8f5e9;color:#2e7d32;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:bold">📋 ${reports.length} reportes</span>
+    <span style="background:#e3f2fd;color:#1565c0;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:bold">🔧 ${machines.size} equipos</span>
+  `;
+}
+
+function renderReports(reports) {
+  const el = document.getElementById('rpt-list');
+  if (!reports.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa">Sin reportes guardados</div>';
+    return;
+  }
+  // Agrupar por mes
+  const byMonth = {};
+  reports.forEach(r => {
+    const m = (r.fecha||'').substring(0,7) || 'Sin fecha';
+    if (!byMonth[m]) byMonth[m] = [];
+    byMonth[m].push(r);
+  });
+  const months = Object.keys(byMonth).sort().reverse();
+  el.innerHTML = months.map(month => `
+    <div style="font-size:12px;font-weight:bold;color:#888;text-transform:uppercase;padding:10px 4px 4px;letter-spacing:1px">${month}</div>
+    ${byMonth[month].map(r => reportCard(r)).join('')}
+  `).join('');
+}
+
+function reportCard(r) {
+  const okCount  = (r.items||[]).filter(i => i.status==='ok').length;
+  const ngCount  = (r.items||[]).filter(i => i.status==='ng').length;
+  const total    = (r.items||[]).length;
+  const pct      = total ? Math.round(okCount/total*100) : 0;
+  const pctColor = pct>=90?'#2e7d32':pct>=70?'#f57f17':'#c62828';
+  const months   = (r.month||[]).join(', ') || '—';
+  return `
+  <div style="background:#fff;border-radius:10px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden">
+    <div style="background:#1a5c2a;color:#fff;padding:10px 14px;display:flex;align-items:center;gap:8px">
+      <span style="font-weight:bold;font-size:14px;flex:1">🔧 ${r.machineName||r.machineId||'Equipo'}</span>
+      <span style="font-size:12px;opacity:.85">📅 ${r.fecha||'—'}</span>
+    </div>
+    <div style="padding:10px 14px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;font-size:12px;color:#555">
+        <span>👤 <b>${r.tecnico||'—'}</b></span>
+        <span>🧑‍💼 ${r.supervisor||'—'}</span>
+        <span>📆 Meses: ${months}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="flex:1;background:#e8f5e9;border-radius:4px;height:8px">
+          <div style="background:${pctColor};width:${pct}%;height:8px;border-radius:4px"></div>
+        </div>
+        <span style="font-size:12px;font-weight:bold;color:${pctColor}">${pct}% OK</span>
+        <span style="font-size:11px;color:#888">${okCount}✓ ${ngCount}✗ / ${total}</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="downloadReportExcel(${JSON.stringify(r).replace(/"/g,'&quot;')})"
+          style="flex:1;background:#e8f5e9;color:#1a5c2a;border:1px solid #c8e6c9;border-radius:6px;padding:7px;font-size:12px;cursor:pointer">
+          📊 Excel
+        </button>
+        <button onclick="downloadReportPDF(${JSON.stringify(r).replace(/"/g,'&quot;')})"
+          style="flex:1;background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb;border-radius:6px;padding:7px;font-size:12px;cursor:pointer">
+          📄 PDF
+        </button>
+        <button onclick="deleteReport(${r.id})"
+          style="background:#fff5f5;color:#c62828;border:1px solid #ffcdd2;border-radius:6px;padding:7px 10px;font-size:12px;cursor:pointer">
+          🗑
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function downloadReportExcel(r) {
+  const ovl=document.getElementById('overlay'); ovl.classList.add('show');
+  fetch('/generar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)})
+    .then(res=>res.blob()).then(blob=>{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`REPORTE_${r.machineId}_${(r.fecha||'').replace(/\//g,'-')}.xlsx`;
+      a.click(); ovl.classList.remove('show');
+    }).catch(()=>ovl.classList.remove('show'));
+}
+
+function downloadReportPDF(r) {
+  const ovl=document.getElementById('overlay'); ovl.classList.add('show');
+  const payload = {...r, userEmail: currentUser ? currentUser.email : null};
+  fetch('/generar_pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(res=>res.blob()).then(blob=>{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`REPORTE_${r.machineId}_${(r.fecha||'').replace(/\//g,'-')}.pdf`;
+      a.click(); ovl.classList.remove('show');
+    }).catch(()=>ovl.classList.remove('show'));
+}
+
+async function deleteReport(id) {
+  if(!confirm('¿Eliminar este reporte?')) return;
+  await fetch('/api/reports/'+id, {method:'DELETE'});
+  loadReportsPage();
+}
+
+// Cargar al mostrar la página
+const _origShowPage = window.showPage;
+window.showPage = function(p) {
+  if(p === 'reports') loadReportsPage();
+  if(_origShowPage) _origShowPage(p);
+  else {
+    document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
+    const pg = document.getElementById('page-'+p);
+    if(pg) pg.classList.add('active');
+  }
+};
+
 // ── Auth ──────────────────────────────────────────────────────────
 let currentUser = JSON.parse(localStorage.getItem('mantos_user') || 'null');
 
