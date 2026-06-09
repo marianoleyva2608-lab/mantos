@@ -1555,6 +1555,45 @@ window.fetch = function(url, opts) {
   if (!sp) return;
   const sec = document.createElement('div');
   sec.innerHTML = `
+
+    <!-- ══ e.firma SAT → CSD interno ══ -->
+    <div style="background:#fff;margin:12px 12px 0;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.12);overflow:hidden">
+      <div style="background:#c62828;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">
+        ⚖️ Crear CSD con e.firma SAT
+      </div>
+      <div style="padding:14px;display:flex;flex-direction:column;gap:8px">
+        <div style="background:#fff3e0;border-radius:8px;padding:10px;font-size:12px;color:#e65100;line-height:1.6">
+          Autentica con tu <b>e.firma SAT</b> para generar los certificados internos AD-PACK.<br>
+          Tu llave privada <b>nunca se guarda</b> — solo se usa en este momento.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;font-weight:700;color:#555">Archivo .cer (certificado SAT)</label>
+          <input type="file" id="sat-cer" accept=".cer"
+            style="padding:8px;border:1.5px solid #ffccbc;border-radius:8px;font-size:13px">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;font-weight:700;color:#555">Archivo .key (llave privada SAT)</label>
+          <input type="file" id="sat-key" accept=".key"
+            style="padding:8px;border:1.5px solid #ffccbc;border-radius:8px;font-size:13px">
+        </div>
+        <input id="sat-pwd" type="password" placeholder="Contraseña de la e.firma"
+          style="padding:10px;border:1.5px solid #ffccbc;border-radius:8px;font-size:14px">
+
+        <div style="font-size:11px;font-weight:700;color:#555;margin-top:4px">
+          Usuarios a crear (separados por línea: Nombre | correo | rol | PIN)
+        </div>
+        <textarea id="sat-users" rows="4"
+          placeholder="Juan Leyva | juan@adpack.com | tecnico | pin123&#10;Ana Lopez | ana@adpack.com | supervisor | pin456"
+          style="padding:10px;border:1.5px solid #ffccbc;border-radius:8px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+
+        <button onclick="efirmaCreateCSD()"
+          style="padding:13px;background:#c62828;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
+          ⚖️ Validar e.firma y Crear CSD
+        </button>
+        <div id="sat-result" style="display:none;background:#e8f5e9;border-radius:8px;padding:12px;font-size:12px;color:#1b5e20;line-height:1.7"></div>
+      </div>
+    </div>
+
     <div style="background:#fff;margin:0 12px 12px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.12);overflow:hidden">
       <div style="background:#1a5c2a;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">
         &#128100; Crear Usuario con Certificado X.509
@@ -1624,6 +1663,75 @@ async function pkiLoadUsers() {
     </div>`).join('');
   } catch(e) { listEl.innerHTML = '<p style="color:red">' + e.message + '</p>'; }
 }
+
+async function efirmaCreateCSD() {
+  const cerFile  = document.getElementById('sat-cer')?.files[0];
+  const keyFile  = document.getElementById('sat-key')?.files[0];
+  const pwd      = document.getElementById('sat-pwd')?.value;
+  const usersRaw = document.getElementById('sat-users')?.value || '';
+  const result   = document.getElementById('sat-result');
+
+  if (!cerFile || !keyFile || !pwd) {
+    showToast('⚠️ Selecciona .cer, .key y contraseña'); return;
+  }
+
+  // Parsear usuarios del textarea: Nombre | email | rol | pin
+  const users = usersRaw.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const [name, email, role, pin] = l.split('|').map(s => s.trim());
+    return { name, email, role: role || 'tecnico', pin };
+  }).filter(u => u.name && u.email && u.pin);
+
+  const form = new FormData();
+  form.append('cer', cerFile);
+  form.append('key', keyFile);
+  form.append('password', pwd);
+  form.append('users', JSON.stringify(users));
+
+  showOverlay('Validando e.firma SAT y creando CSD...');
+  try {
+    const res  = await fetch('/api/efirma/create-csd', { method: 'POST', body: form });
+    const data = await res.json();
+    hideOverlay();
+
+    if (!res.ok || data.error) {
+      showToast('❌ ' + data.error); return;
+    }
+
+    const auth = data.autorizado_por || {};
+    const satBadge = auth.es_sat
+      ? '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px">✔ Emitido por SAT</span>'
+      : '<span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-size:11px">⚠ No verificado SAT</span>';
+
+    const usersHtml = (data.usuarios_creados || []).map(u =>
+      `<div style="border-top:1px solid #c8e6c9;padding-top:4px;margin-top:4px">
+        ✔ <b>${u.name}</b> (${u.role}) — ${u.email}<br>
+        <span style="font-size:10px;color:#555">Serie: ${u.cert.serial} | Hasta: ${u.cert.valid_to}</span>
+       </div>`
+    ).join('');
+
+    result.style.display = 'block';
+    result.innerHTML = `
+      <b>✅ CSD generado correctamente</b><br><br>
+      <b>Autorizado por:</b> ${auth.nombre} ${satBadge}<br>
+      <b>RFC:</b> ${auth.rfc}<br>
+      <b>No. Serie e.firma:</b> ${auth.serial}<br>
+      <b>Emisor:</b> ${auth.emisor}<br>
+      <b>CA interna:</b> ${data.ca_serial}<br>
+      <br><b>Certificados creados:</b>
+      ${usersHtml || '<div style="color:#777">Ningún usuario válido en la lista</div>'}
+      <br>
+      <a href="/api/pki/ca-cert" style="color:#1565c0">⬇ Descargar CA certificate</a>
+    `;
+    showToast('✅ CSD creado — ' + (data.usuarios_creados?.length || 0) + ' usuario(s)');
+
+    // Limpiar campos sensibles
+    document.getElementById('sat-pwd').value = '';
+
+  } catch(e) {
+    hideOverlay(); showToast('❌ ' + e.message);
+  }
+}
+
 // ══ FIN PKI X.509 ══
 
 </script>

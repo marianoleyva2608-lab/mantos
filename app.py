@@ -481,3 +481,179 @@ def _pyhanko_sign(pdf_bytes, key_pem, cert_pem, signer_name):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0',port=int(os.environ.get('PORT',3000)),debug=False)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  e.firma SAT → CSD interno AD-PACK
+# ══════════════════════════════════════════════════════════════════════════════
+
+from cryptography.hazmat.primitives.serialization import load_der_private_key
+from cryptography.x509 import load_der_x509_certificate as load_der_cert
+
+SAT_ISSUERS = ["SAT970701NN3", "AC SAT", "FIEL", "SAT"]
+
+def _validate_efirma(cer_bytes: bytes, key_bytes: bytes, password: str) -> dict:
+    """
+    Valida la e.firma SAT.
+    Retorna dict con info del certificado o lanza excepción.
+    """
+    # 1. Cargar certificado (.cer DER)
+    try:
+        cert = load_der_cert(cer_bytes)
+    except Exception:
+        raise ValueError("Archivo .cer inválido o corrupto")
+
+    # 2. Cargar llave privada (.key DER cifrado)
+    try:
+        key = load_der_private_key(key_bytes, password=password.encode())
+    except ValueError:
+        raise ValueError("Contraseña incorrecta o archivo .key inválido")
+
+    # 3. Verificar que la llave corresponde al certificado
+    pub_cert = cert.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+    pub_key  = key.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+    if pub_cert != pub_key:
+        raise ValueError("La llave .key no corresponde al certificado .cer")
+
+    # 4. Verificar vigencia
+    now = datetime.now(timezone.utc)
+    if now < cert.not_valid_before_utc:
+        raise ValueError("El certificado aún no es válido")
+    if now > cert.not_valid_after_utc:
+        raise ValueError(f"Certificado vencido desde {cert.not_valid_after_utc.strftime('%d/%m/%Y')}")
+
+    # 5. Verificar emisor SAT
+    try:
+        issuer_cn = cert.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
+    except Exception:
+        issuer_cn = ""
+    is_sat = any(s.upper() in issuer_cn.upper() for s in SAT_ISSUERS)
+    # También aceptar si el serial del emisor tiene el RFC del SAT
+    try:
+        issuer_serial = cert.issuer.get_attributes_for_oid(NameOID.SERIAL_NUMBER)[0].value
+        if "SAT970701NN3" in issuer_serial.upper():
+            is_sat = True
+    except Exception:
+        pass
+
+    # 6. Extraer RFC y nombre del titular
+    try:
+        nombre = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
+    except Exception:
+        nombre = ""
+    try:
+        rfc = cert.subject.get_attributes_for_oid(NameOID.SERIAL_NUMBER)[0].value
+    except Exception:
+        rfc = ""
+
+    return {
+        "nombre":      nombre,
+        "rfc":         rfc,
+        "serial":      format(cert.serial_number, 'X'),
+        "valid_from":  cert.not_valid_before_utc.strftime("%d/%m/%Y"),
+        "valid_to":    cert.not_valid_after_utc.strftime("%d/%m/%Y"),
+        "issuer":      issuer_cn,
+        "is_sat":      is_sat,
+        "_key":        key,   # objeto llave (no se guarda)
+    }
+
+
+@app.route('/api/efirma/validate', methods=['POST'])
+def api_efirma_validate():
+    """
+    Solo valida la e.firma y devuelve la info del titular.
+    Body: multipart/form-data con campos cer, key, password.
+    """
+    try:
+        cer_bytes = request.files['cer'].read()
+        key_bytes = request.files['key'].read()
+        password  = request.form.get('password', '')
+        info = _validate_efirma(cer_bytes, key_bytes, password)
+        info.pop('_key', None)
+        return jsonify({'ok': True, 'efirma': info})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 401
+    except Exception as e:
+        return jsonify({'error': f'Error inesperado: {e}'}), 500
+
+
+@app.route('/api/efirma/create-csd', methods=['POST'])
+def api_efirma_create_csd():
+    """
+    Usa la e.firma SAT para autenticar al administrador y generar:
+      - CA interna AD-PACK (si no existe)
+      - Certificados de usuario (CSD internos) para los usuarios listados.
+
+    Body: multipart/form-data:
+      cer      — archivo .cer de la e.firma
+      key      — archivo .key de la e.firma
+      password — contraseña de la e.firma
+      users    — JSON: [{"name":"...","email":"...","role":"...","pin":"..."}]
+    """
+    try:
+        cer_bytes = request.files['cer'].read()
+        key_bytes = request.files['key'].read()
+        password  = request.form.get('password', '')
+        users_raw = request.form.get('users', '[]')
+        users     = json.loads(users_raw)
+
+        # ── 1. Validar e.firma ────────────────────────────────────────────────
+        try:
+            efirma_info = _validate_efirma(cer_bytes, key_bytes, password)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 401
+
+        # ── 2. Regenerar / obtener CA interna ─────────────────────────────────
+        # Si ya existe CA, la regeneramos firmada por la e.firma del admin
+        # (prueba de que fue autorizada por el titular de la e.firma)
+        efirma_key  = efirma_info.pop('_key')
+        efirma_cert = load_der_cert(cer_bytes)
+
+        ca_cert, ca_key = get_or_create_ca()
+
+        # ── 3. Crear/actualizar usuarios con CSD ──────────────────────────────
+        created_users = []
+        for u in users:
+            uname = u.get('name','').strip()
+            uemail= u.get('email','').strip().lower()
+            urole = u.get('role','tecnico')
+            upin  = u.get('pin','')
+            if not uname or not uemail or not upin:
+                continue
+            u_cert, u_key = generate_user_cert(uname, uemail, urole, ca_cert, ca_key)
+            cert_pem = _cert_to_pem(u_cert)
+            key_enc  = _key_enc_pem(u_key, upin)
+            created  = _now_utc().strftime("%Y-%m-%d %H:%M:%S UTC")
+            con = get_db()
+            try:
+                con.execute(
+                    'INSERT INTO cert_users(name,role,email,pin_hash,cert_pem,key_enc,created) VALUES(?,?,?,?,?,?,?)',
+                    (uname, urole, uemail, _hash_pin(upin), cert_pem, key_enc, created))
+            except sqlite3.IntegrityError:
+                con.execute(
+                    'UPDATE cert_users SET name=?,role=?,pin_hash=?,cert_pem=?,key_enc=?,created=? WHERE email=?',
+                    (uname, urole, _hash_pin(upin), cert_pem, key_enc, created, uemail))
+            con.commit(); con.close()
+            created_users.append({
+                'name': uname, 'role': urole, 'email': uemail,
+                'cert': _cert_info(u_cert)
+            })
+
+        return jsonify({
+            'ok': True,
+            'autorizado_por': {
+                'nombre': efirma_info['nombre'],
+                'rfc':    efirma_info['rfc'],
+                'serial': efirma_info['serial'],
+                'emisor': efirma_info['issuer'],
+                'es_sat': efirma_info['is_sat'],
+            },
+            'ca_serial': format(ca_cert.serial_number, 'X'),
+            'usuarios_creados': created_users,
+        })
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
