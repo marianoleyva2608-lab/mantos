@@ -29,6 +29,17 @@ try:
 except ImportError:
     PYHANKO_AVAILABLE = False
 
+from openpyxl.cell.cell import MergedCell as _MergedCell
+
+def safe_write(ws, row, col, value):
+    """Write to cell only if it is the master of a merged range (not a read-only slave)."""
+    try:
+        cell = ws.cell(row=row, column=col)
+        if not isinstance(cell, _MergedCell):
+            cell.value = value
+    except Exception:
+        pass
+
 DB_PATH  = os.path.join(os.path.dirname(__file__), 'reports.db')
 ORG_NAME = "AD-PACK"
 CA_CN    = "AD-PACK Mantenimiento CA"
