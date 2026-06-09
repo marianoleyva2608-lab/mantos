@@ -397,7 +397,7 @@ def _adobe_stamp_html(cert_data, label):
 @app.route('/generar_pdf', methods=['POST'])
 def generar_pdf():
     try:
-        import weasyprint
+        from xhtml2pdf import pisa
         data = request.json; _, ws = _build_wb(data)
 
         # Build HTML table from worksheet
@@ -470,7 +470,11 @@ def generar_pdf():
             f'<body><table>{col_css}<tbody>{rows_html}</tbody></table>{sigs_html}</body></html>'
         )
 
-        pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+        pdf_buf = io.BytesIO()
+        pisa_status = pisa.CreatePDF(html, dest=pdf_buf)
+        if pisa_status.err:
+            return jsonify({'error': 'Error generando PDF'}), 500
+        pdf_bytes = pdf_buf.getvalue()
 
         # pyhanko cryptographic signing (if available + session exists)
         if PYHANKO_AVAILABLE:
