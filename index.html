@@ -1449,6 +1449,9 @@ async function pkiSign(id) {
 
     // Guardar datos del certificado
     pkiCertData[id] = data;
+    // Store signing session token for PDF signing
+    if (!window._signSessions) window._signSessions = {};
+    window._signSessions[id] = data.sign_session || null;
     sigData[id] = {
       timestamp: data.signed_at,
       nombre:    data.name,
@@ -1536,6 +1539,8 @@ window.fetch = function(url, opts) {
       const body = JSON.parse(opts.body);
       if (pkiCertData.tecnico)    body.certTecnico    = pkiCertData.tecnico;
       if (pkiCertData.supervisor) body.certSupervisor = pkiCertData.supervisor;
+      if (window._signSessions?.tecnico)    body.signSessionTec = window._signSessions.tecnico;
+      if (window._signSessions?.supervisor) body.signSessionSup = window._signSessions.supervisor;
       if (pkiCertData.tecnico)    body.tecnico        = pkiCertData.tecnico.name;
       if (pkiCertData.supervisor) body.supervisor     = pkiCertData.supervisor.name;
       opts = { ...opts, body: JSON.stringify(body) };
