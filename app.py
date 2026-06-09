@@ -407,100 +407,49 @@ def _adobe_stamp_html(cert_data, label):
 
 @app.route('/generar_pdf', methods=['POST'])
 def generar_pdf():
+    """Genera PDF usando LibreOffice (convierte Excel -> PDF).
+    LibreOffice ya está instalado en el contenedor Docker."""
+    import subprocess, tempfile, shutil
     try:
-        from xhtml2pdf import pisa
-        data = request.json; _, ws = _build_wb(data)
+        data = request.json
+        wb, _ = _build_wb(data)
 
-        # Build HTML table from worksheet
-        merged_map = {}
-        for mc in ws.merged_cells.ranges:
-            for r in range(mc.min_row,mc.max_row+1):
-                for c in range(mc.min_col,mc.max_col+1):
-                    merged_map[(r,c)] = (mc.max_row-mc.min_row+1,mc.max_col-mc.min_col+1) if (r==mc.min_row and c==mc.min_col) else None
-
-        def hx(color):
-            if not color or color.type=='theme': return None
-            rgb=color.rgb
-            return '#'+rgb[2:] if rgb and rgb!='00000000' and len(rgb)==8 else None
-
-        col_widths = {i: max(int((ws.column_dimensions[get_column_letter(i)].width or 8)*7),20)
-                      for i in range(ws.min_column,ws.max_column+1)}
-
-        rows_html = ''
-        for ri in range(ws.min_row,ws.max_row+1):
-            rh = max(int((ws.row_dimensions[ri].height or 15)*1.33),14)
-            ch = ''
-            for ci in range(ws.min_column,ws.max_column+1):
-                if merged_map.get((ri,ci)) is None: continue
-                cell = ws.cell(row=ri,column=ci)
-                sa   = ''
-                if merged_map.get((ri,ci)):
-                    rs2,cs2 = merged_map[(ri,ci)]
-                    if rs2>1: sa+=f' rowspan="{rs2}"'
-                    if cs2>1: sa+=f' colspan="{cs2}"'
-                st = f'height:{rh}px;'
-                if cell.fill and cell.fill.fgColor:
-                    bg=hx(cell.fill.fgColor)
-                    if bg: st+=f'background:{bg};'
-                if cell.font:
-                    if cell.font.bold: st+='font-weight:bold;'
-                    if cell.font.size: st+=f'font-size:{max(int(cell.font.size),7)}px;'
-                    if cell.font.color:
-                        fc=hx(cell.font.color)
-                        if fc: st+=f'color:{fc};'
-                al = cell.alignment.horizontal if cell.alignment else 'left'
-                if al in ('center','right'): st+=f'text-align:{al};'
-                val = cell.value or ''
-                if isinstance(val,str): val=val.replace('\n','<br>').replace('  ','&nbsp;&nbsp;')
-                ch += f'<td{sa} style="{st}padding:2px 4px;border:1px solid #ddd;overflow:hidden;">{val}</td>'
-            rows_html += f'<tr>{ch}</tr>'
-
-        col_css = ''.join(f'<col style="width:{col_widths.get(i,60)}px">' for i in range(ws.min_column,ws.max_column+1))
-
+        # --- Sellos digitales: agregar hoja extra con los stamps ---
         tec_cert = data.get('certTecnico')
         sup_cert = data.get('certSupervisor')
-        sigs_html = ''
-        if tec_cert or sup_cert:
-            sigs_html = (
-                '<div style="margin:10px 0 2px;border-top:1px solid #e0e0e0;padding-top:8px;'
-                'display:flex;align-items:flex-start;flex-wrap:wrap;gap:4px">'
-                '<div style="font-size:8px;font-weight:bold;color:#546e7a;width:100%;margin-bottom:4px">'
-                'FIRMAS DIGITALES &mdash; Certificados X.509 AD-PACK</div>'
-                + _adobe_stamp_html(tec_cert,'Tecnico')
-                + _adobe_stamp_html(sup_cert,'Supervisor')
-                + '</div>'
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            xlsx_path = os.path.join(tmpdir, 'reporte.xlsx')
+            wb.save(xlsx_path)
+
+            # Convertir a PDF con LibreOffice
+            result = subprocess.run(
+                ['soffice', '--headless', '--convert-to', 'pdf',
+                 '--outdir', tmpdir, xlsx_path],
+                capture_output=True, text=True, timeout=60
             )
+            pdf_path = os.path.join(tmpdir, 'reporte.pdf')
+            if not os.path.exists(pdf_path):
+                return jsonify({'error': f'LibreOffice error: {result.stderr}'}), 500
 
-        html = (
-            '<!DOCTYPE html><html><head><meta charset="UTF-8">'
-            '<style>@page{size:A4 landscape;margin:8mm}'
-            'body{font-family:Calibri,Arial,sans-serif;font-size:9px;margin:0}'
-            'table{border-collapse:collapse;width:100%;table-layout:fixed}'
-            'td{overflow:hidden;vertical-align:middle}'
-            '</style></head>'
-            f'<body><table>{col_css}<tbody>{rows_html}</tbody></table>{sigs_html}</body></html>'
-        )
+            with open(pdf_path, 'rb') as f:
+                pdf_bytes = f.read()
 
-        pdf_buf = io.BytesIO()
-        pisa_status = pisa.CreatePDF(html, dest=pdf_buf)
-        if pisa_status.err:
-            return jsonify({'error': 'Error generando PDF'}), 500
-        pdf_bytes = pdf_buf.getvalue()
-
-        # pyhanko cryptographic signing (if available + session exists)
+        # pyhanko cryptographic signing
         if PYHANKO_AVAILABLE:
             sess_tok = data.get('signSessionTec') or data.get('signSessionSup')
             if sess_tok:
                 sess = get_signing_session(sess_tok)
                 if sess:
-                    try: pdf_bytes = _pyhanko_sign(pdf_bytes,sess['key_pem'],sess['cert_pem'],sess['name'])
+                    try: pdf_bytes = _pyhanko_sign(pdf_bytes, sess['key_pem'], sess['cert_pem'], sess['name'])
                     except Exception as e: print(f"[pyhanko] skipped: {e}")
 
         fname = f"REPORTE_{data.get('machineId','EQ')}_{data.get('fecha','').replace('/','-')}.pdf"
-        return send_file(io.BytesIO(pdf_bytes),as_attachment=True,download_name=fname,mimetype='application/pdf')
+        return send_file(io.BytesIO(pdf_bytes), as_attachment=True,
+                         download_name=fname, mimetype='application/pdf')
     except Exception as e:
         import traceback; traceback.print_exc()
-        return jsonify({'error':str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 
 def _pyhanko_sign(pdf_bytes, key_pem, cert_pem, signer_name):

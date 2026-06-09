@@ -1,7 +1,6 @@
 flask
 openpyxl
 Pillow
-xhtml2pdf
 cryptography
 pyhanko
 pyhanko-certvalidator
