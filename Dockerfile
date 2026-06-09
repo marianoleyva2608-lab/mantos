@@ -3,6 +3,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice \
     fonts-liberation \
+    gcc \
+    libcairo2-dev \
+    pkg-config \
+    python3-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install -r requirements.txt
