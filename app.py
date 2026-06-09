@@ -149,6 +149,9 @@ def generar():
         ws = wb[data['sheet']]
         apply_checklist_data(ws, data)
 
+        # Solo guardar la hoja activa
+        for s in [n for n in wb.sheetnames if n != ws.title]:
+            del wb[s]
         buf = io.BytesIO()
         wb.save(buf)
         buf.seek(0)
