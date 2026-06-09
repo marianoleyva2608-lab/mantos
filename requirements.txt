@@ -1,8 +1,5 @@
 flask
 openpyxl
 Pillow
-reportlab
 weasyprint
 cryptography
-pyhanko
-pyhanko-certvalidator
