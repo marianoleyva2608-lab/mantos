@@ -243,3 +243,7 @@ def generar_pdf():
         import traceback; traceback.print_exc()
         return jsonify({'error': str(e)}), 500
     finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
