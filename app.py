@@ -418,6 +418,12 @@ def generar_pdf():
         tec_cert = data.get('certTecnico')
         sup_cert = data.get('certSupervisor')
 
+        # Eliminar todas las hojas excepto la del reporte actual
+        target_sheet = data.get('sheet', '')
+        sheets_to_remove = [s for s in wb.sheetnames if s != target_sheet]
+        for s in sheets_to_remove:
+            del wb[s]
+
         with tempfile.TemporaryDirectory() as tmpdir:
             xlsx_path = os.path.join(tmpdir, 'reporte.xlsx')
             wb.save(xlsx_path)
