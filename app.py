@@ -214,7 +214,10 @@ def generar_pdf():
         if sup_comments and sig_row:
             ws.cell(row=sig_row + 2, column=2).value = f"Comentarios: {sup_comments}"
 
-        # — guardar Excel temporal y convertir con LibreOffice —
+        # — eliminar todas las hojas excepto la activa para que LibreOffice solo convierta esa —
+        sheets_to_delete = [s for s in wb.sheetnames if s != ws.title]
+        for s in sheets_to_delete:
+            del wb[s]
         xlsx_path = os.path.join(tmp_dir, 'reporte.xlsx')
         wb.save(xlsx_path)
 
@@ -240,7 +243,3 @@ def generar_pdf():
         import traceback; traceback.print_exc()
         return jsonify({'error': str(e)}), 500
     finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT',3000)), debug=False)
