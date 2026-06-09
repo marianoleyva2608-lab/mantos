@@ -295,29 +295,29 @@ def _build_wb(data):
     wb = openpyxl.load_workbook(template); ws = wb[data['sheet']]
     for item in data.get('items',[]):
         row,st,cm = item['row'],item.get('status',''),item.get('comment','')
-        ws.cell(row=row,column=11).value = '( v )' if st=='ok' else '(   )'
-        ws.cell(row=row,column=12).value = '( v )' if st=='ng' else '(   )'
-        if cm: ws.cell(row=row,column=13).value = cm
+        safe_write(ws, row, 11, '( v )' if st=='ok' else '(   )')
+        safe_write(ws, row, 12, '( v )' if st=='ng' else '(   )')
+        if cm: safe_write(ws, row, 13, cm)
     cal_row = data.get('cal_data_row'); months = set(data.get('month',[]))
     if cal_row:
         for m,col in MONTH_COLS.items():
-            ws.cell(row=cal_row,column=ord(col)-ord('A')+1).value = '( v )' if m in months else '(   )'
+            safe_write(ws, cal_row, ord(col)-ord('A')+1, '( v )' if m in months else '(   )')
         v = data.get('voltaje',{})
         for col_n,key in [(14,'l1'),(15,'l2'),(16,'l3'),(17,'vac')]:
-            if v.get(key): ws.cell(row=cal_row,column=col_n).value = v[key]
+            if v.get(key): safe_write(ws, cal_row, col_n, v[key])
     sig_row = data.get('sig_row')
     if sig_row:
-        ws.cell(row=sig_row,column=2).value  = f"Realizo: {data.get('tecnico','_______________')}"
-        ws.cell(row=sig_row,column=8).value  = f"Fecha: {data.get('fecha','_______________')}"
-        ws.cell(row=sig_row,column=11).value = f"Supervisor: {data.get('supervisor','_______________')}"
+        safe_write(ws, sig_row, 2, f"Realizo: {data.get('tecnico','_______________')}")
+        safe_write(ws, sig_row, 8, f"Fecha: {data.get('fecha','_______________')}")
+        safe_write(ws, sig_row, 11, f"Supervisor: {data.get('supervisor','_______________')}")
         for cert_data, col in [(data.get('certTecnico'),2),(data.get('certSupervisor'),11)]:
             if cert_data:
                 ci = cert_data.get('cert_info',{})
-                ws.cell(row=sig_row+1,column=col).value = (
+                safe_write(ws, sig_row+1, col, (
                     f"FIRMA DIGITAL X.509 | {ci.get('cn','')} | Serie: {ci.get('serial','')} | "
-                    f"Emitido por: {ci.get('issuer','')} | Fecha: {cert_data.get('signed_at','')}")
+                    f"Emitido por: {ci.get('issuer','')} | Fecha: {cert_data.get('signed_at','')}"))
     if data.get('supComments') and sig_row:
-        ws.cell(row=sig_row+2,column=2).value = f"Comentarios: {data['supComments']}"
+        safe_write(ws, sig_row+2, 2, f"Comentarios: {data['supComments']}")
     return wb, ws
 
 @app.route('/generar', methods=['POST'])
