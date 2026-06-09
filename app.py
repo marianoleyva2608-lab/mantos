@@ -32,6 +32,83 @@ except ImportError:
 app = Flask(__name__)
 EMU = 9525
 
+# ── Firma digital PKI ─────────────────────────────────────────────────────────
+CERT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'adpack_cert.p12')
+CERT_PASS = b'adpack2026'
+
+def ensure_certificate():
+    """Genera un certificado auto-firmado si no existe."""
+    if os.path.exists(CERT_PATH):
+        return
+    try:
+        import datetime
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        from cryptography.hazmat.backends import default_backend
+        from cryptography.hazmat.primitives.serialization.pkcs12 import serialize_key_and_certificates
+
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
+        subject = issuer = x509.Name([
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "MX"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "AD-PACK"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "AD-PACK Mantenimiento Preventivo"),
+        ])
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(subject).issuer_name(issuer)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime.utcnow())
+            .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=3650))
+            .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+            .sign(key, hashes.SHA256(), default_backend())
+        )
+        p12 = serialize_key_and_certificates(
+            name=b"AD-PACK", key=key, cert=cert, cas=None,
+            encryption_algorithm=serialization.BestAvailableEncryption(CERT_PASS)
+        )
+        with open(CERT_PATH, 'wb') as f:
+            f.write(p12)
+        print("Certificado digital generado:", CERT_PATH)
+    except Exception as e:
+        print(f"[WARN] No se pudo generar certificado: {e}")
+
+def sign_pdf(pdf_bytes, signer_name='AD-PACK', reason='Mantenimiento Preventivo'):
+    """Firma un PDF con el certificado PKI de la app. Retorna bytes del PDF firmado."""
+    try:
+        from pyhanko.sign import signers, fields
+        from pyhanko.sign.fields import SigFieldSpec
+        from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
+        from pyhanko.sign.signers.pdf_signer import PdfSignatureMetadata
+        import pyhanko.sign.signers as pdf_signers
+
+        ensure_certificate()
+        if not os.path.exists(CERT_PATH):
+            return pdf_bytes  # Sin certificado, devolver sin firmar
+
+        signer = signers.SimpleSigner.load_pkcs12(CERT_PATH, passphrase=CERT_PASS)
+        pdf_in = io.BytesIO(pdf_bytes)
+        w = IncrementalPdfFileWriter(pdf_in)
+        fields.append_signature_field(w, SigFieldSpec('FirmaDigital', on_page=0, box=(30, 15, 280, 55)))
+        meta = PdfSignatureMetadata(
+            field_name='FirmaDigital',
+            reason=reason,
+            location='AD-PACK México',
+            signer_serial_number=None,
+            certify=True,
+        )
+        out = io.BytesIO()
+        pdf_signers.sign_pdf(w, signature_meta=meta, signer=signer, output=out)
+        return out.getvalue()
+    except Exception as e:
+        print(f"[WARN] Error al firmar PDF: {e}")
+        return pdf_bytes  # Si falla la firma, devolver el PDF sin firmar
+
+ensure_certificate()
+# ─────────────────────────────────────────────────────────────────────────────
+
 MONTH_COLS = {"ENE":"B","FEB":"C","MAR":"D","ABR":"E","MAY":"F","JUN":"G",
               "JUL":"H","AGO":"I","SEP":"J","OCT":"K","NOV":"L","DIC":"M"}
 
@@ -197,6 +274,9 @@ def generar_pdf():
 
         with open(pdf_path, 'rb') as f:
             pdf_bytes = f.read()
+
+        # Firmar el PDF con certificado digital PKI
+        pdf_bytes = sign_pdf(pdf_bytes, reason=f"Mantenimiento Preventivo - {data.get('machineName', data.get('machineId', ''))}")
 
         fname = f"REPORTE_{data.get('machineId', 'EQ')}_{data.get('fecha', '').replace('/', '-')}.pdf"
         return send_file(io.BytesIO(pdf_bytes), as_attachment=True, download_name=fname, mimetype='application/pdf')

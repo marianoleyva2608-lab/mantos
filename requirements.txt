@@ -2,5 +2,7 @@ flask
 openpyxl
 Pillow
 reportlab
-# rebuild Mon Jun  8 22:43:52 UTC 2026
 weasyprint
+cryptography
+pyhanko
+pyhanko-certvalidator
