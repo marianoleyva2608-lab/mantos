@@ -1628,6 +1628,17 @@ window.fetch = function(url, opts) {
   sp.appendChild(sec);
 })();
 
+function showOverlay(msg) {
+  const ovl = document.getElementById('overlay');
+  const txt = document.getElementById('sptxt');
+  if (txt) txt.textContent = msg || 'Procesando...';
+  if (ovl) ovl.classList.add('show');
+}
+function hideOverlay() {
+  const ovl = document.getElementById('overlay');
+  if (ovl) ovl.classList.remove('show');
+}
+
 async function pkiCreateUser() {
   const name  = document.getElementById('set-uname')?.value?.trim();
   const email = document.getElementById('set-uemail')?.value?.trim();
