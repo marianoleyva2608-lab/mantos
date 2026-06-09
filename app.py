@@ -307,17 +307,42 @@ def _build_wb(data):
             if v.get(key): safe_write(ws, cal_row, col_n, v[key])
     sig_row = data.get('sig_row')
     if sig_row:
-        safe_write(ws, sig_row, 2, f"Realizo: {data.get('tecnico','_______________')}")
+        # Técnico — col 2 (B) — celda fusionada master, incluir firma en mismo bloque
+        tec_name = data.get('tecnico', '_______________')
+        tec_cert  = data.get('certTecnico')
+        if tec_cert:
+            ci = tec_cert.get('cert_info', {})
+            tec_text = (f"Realizó: {tec_name}\n\n"
+                        f"Firma Digital X.509:\n"
+                        f"{ci.get('cn','')}\n"
+                        f"Serie: {ci.get('serial','')}\n"
+                        f"Válido: {ci.get('valid_from','')} – {ci.get('valid_to','')}\n"
+                        f"Fecha firma: {tec_cert.get('signed_at','')}")
+        else:
+            tec_text = f"Realizó: {tec_name}\n\nFirma: ___________________________"
+        safe_write(ws, sig_row, 2, tec_text)
+
         safe_write(ws, sig_row, 8, f"Fecha: {data.get('fecha','_______________')}")
-        safe_write(ws, sig_row, 11, f"Supervisor: {data.get('supervisor','_______________')}")
-        for cert_data, col in [(data.get('certTecnico'),2),(data.get('certSupervisor'),11)]:
-            if cert_data:
-                ci = cert_data.get('cert_info',{})
-                safe_write(ws, sig_row+1, col, (
-                    f"FIRMA DIGITAL X.509 | {ci.get('cn','')} | Serie: {ci.get('serial','')} | "
-                    f"Emitido por: {ci.get('issuer','')} | Fecha: {cert_data.get('signed_at','')}"))
+
+        # Supervisor — col 11 (K) — celda fusionada master
+        sup_name = data.get('supervisor', '_______________')
+        sup_cert  = data.get('certSupervisor')
+        if sup_cert:
+            ci = sup_cert.get('cert_info', {})
+            sup_text = (f"Supervisor de Producción: {sup_name}\n\n"
+                        f"Firma Digital X.509:\n"
+                        f"{ci.get('cn','')}\n"
+                        f"Serie: {ci.get('serial','')}\n"
+                        f"Válido: {ci.get('valid_from','')} – {ci.get('valid_to','')}\n"
+                        f"Fecha firma: {sup_cert.get('signed_at','')}")
+        else:
+            sup_text = f"Supervisor de Producción: {sup_name}\n\nFirma: _____________________"
+        safe_write(ws, sig_row, 11, sup_text)
+
     if data.get('supComments') and sig_row:
-        safe_write(ws, sig_row+2, 2, f"Comentarios: {data['supComments']}")
+        # Buscar primera fila libre después del bloque de firma (evitar celdas esclavas)
+        comment_row = sig_row + 3
+        safe_write(ws, comment_row, 2, f"Comentarios: {data['supComments']}")
     return wb, ws
 
 @app.route('/generar', methods=['POST'])
