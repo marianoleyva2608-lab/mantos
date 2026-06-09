@@ -1,7 +1,9 @@
 import os, io, base64, sqlite3, json
 from flask import Flask, request, send_file, jsonify
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'reports.db')
+DATA_DIR = os.environ.get('DATA_DIR', '/app/data')
+os.makedirs(DATA_DIR, exist_ok=True)
+DB_PATH = os.path.join(DATA_DIR, 'reports.db')
 
 def get_db():
     con = sqlite3.connect(DB_PATH)
