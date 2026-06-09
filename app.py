@@ -274,13 +274,13 @@ def apply_checklist_data(ws, data):
         ws.cell(row=sig_row, column=8).value  = f"Fecha: {fec}"
         ws.cell(row=sig_row, column=11).value = f"Supervisor de Producción: {sup}"
 
-        tec_sig = data.get('sigTecnicoImg')
-        if tec_sig:
-            add_sig_anchored(ws, tec_sig, col_idx=1, row_idx=firma_row - 1, width_px=560, height_px=60)
+        tec_name = data.get('sigTecnicoName')
+        if tec_name:
+            ws.cell(row=firma_row, column=1).value = f"Firmado digitalmente por: {tec_name}"
 
-        sup_sig = data.get('sigSupervisorImg')
-        if sup_sig:
-            add_sig_anchored(ws, sup_sig, col_idx=10, row_idx=firma_row - 1, width_px=660, height_px=60)
+        sup_name = data.get('sigSupervisorName')
+        if sup_name:
+            ws.cell(row=firma_row, column=10).value = f"Firmado digitalmente por: {sup_name}"
 
     sup_comments = data.get('supComments', '')
     if sup_comments and sig_row:
