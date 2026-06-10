@@ -1609,18 +1609,19 @@ function doRegister() {
   if (!nombre || !email || !pin) { err.textContent='Completa todos los campos'; return; }
   if (pin !== pin2) { err.textContent='Los PIN no coinciden'; return; }
   if (pin.length < 4) { err.textContent='El PIN debe tener al menos 4 caracteres'; return; }
-  err.textContent = '⏳ Generando certificado digital...';
+  err.textContent = '⏳ Creando cuenta...';
   fetch('/api/users/register', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre,email,pin})})
     .then(r => r.json())
     .then(d => {
-      if (d.error) { err.textContent = d.error; return; }
+      if (d.error) { err.style.color='#c62828'; err.textContent = d.error; return; }
       err.style.color = '#2e7d32';
       err.textContent = '✅ Cuenta creada. Inicia sesión.';
       setTimeout(() => {
         showLogin();
         document.getElementById('au-email').value = email;
       }, 1500);
-    });
+    })
+    .catch(() => { err.style.color='#c62828'; err.textContent = '❌ Error de conexión. Intenta de nuevo.'; });
 }
 
 function doLogout() {
