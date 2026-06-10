@@ -123,13 +123,29 @@ def apply_checklist_data(ws, data):
         ws.cell(row=sig_row, column=8).value  = f"Fecha: {fec}"
         ws.cell(row=sig_row, column=11).value = f"Supervisor de Producción: {sup}"
 
-        tec_name = data.get('sigTecnicoName')
-        if tec_name:
-            ws.cell(row=firma_row, column=1).value = f"Firmado digitalmente por: {tec_name}"
+        tec_sig = data.get('sigTecnico') or {}
+        if isinstance(tec_sig, dict) and tec_sig.get('nombre'):
+            ws.cell(row=firma_row, column=1).value = (
+                f"FIRMA DIGITAL PKI X.509\n"
+                f"Firmante: {tec_sig.get('nombre','')}\n"
+                f"Correo:   {tec_sig.get('email','')}\n"
+                f"Fecha:    {tec_sig.get('fecha','')}\n"
+                f"Serie:    {tec_sig.get('serie','')}\n"
+                f"Emisor:   AD-PACK México"
+            )
+            ws.cell(row=firma_row, column=1).alignment = __import__('openpyxl').styles.Alignment(wrap_text=True, vertical='top')
 
-        sup_name = data.get('sigSupervisorName')
-        if sup_name:
-            ws.cell(row=firma_row, column=10).value = f"Firmado digitalmente por: {sup_name}"
+        sup_sig = data.get('sigSupervisor') or {}
+        if isinstance(sup_sig, dict) and sup_sig.get('nombre'):
+            ws.cell(row=firma_row, column=10).value = (
+                f"FIRMA DIGITAL PKI X.509\n"
+                f"Firmante: {sup_sig.get('nombre','')}\n"
+                f"Correo:   {sup_sig.get('email','')}\n"
+                f"Fecha:    {sup_sig.get('fecha','')}\n"
+                f"Serie:    {sup_sig.get('serie','')}\n"
+                f"Emisor:   AD-PACK México"
+            )
+            ws.cell(row=firma_row, column=10).alignment = __import__('openpyxl').styles.Alignment(wrap_text=True, vertical='top')
 
     sup_comments = data.get('supComments', '')
     if sup_comments and sig_row:
@@ -211,27 +227,4 @@ def generar_pdf():
 
         result = subprocess.run(
             ['libreoffice', '--headless', '--convert-to', 'pdf',
-             '--outdir', tmp_dir, xlsx_path],
-            capture_output=True, text=True, timeout=60
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"LibreOffice error: {result.stderr}")
-
-        pdf_path = os.path.join(tmp_dir, 'reporte.pdf')
-        if not os.path.exists(pdf_path):
-            raise RuntimeError("PDF no generado por LibreOffice")
-
-        with open(pdf_path, 'rb') as f:
-            pdf_bytes = f.read()
-
-        fname = f"REPORTE_{data.get('machineId', 'EQ')}_{data.get('fecha', '').replace('/', '-')}.pdf"
-        return send_file(io.BytesIO(pdf_bytes), as_attachment=True, download_name=fname, mimetype='application/pdf')
-
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
+             '--outdir', tmp_dir, 

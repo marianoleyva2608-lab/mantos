@@ -802,8 +802,18 @@ function generateExcel(){
     cal_data_row:si.cal_data_row, sig_row:si.sig_row,
     items:items,
     supComments: (LOAD_DATA&&LOAD_DATA.supComments)||"",
-    sigTecnicoName: sigData.tecnico ? sigData.tecnico.nombre||null : null,
-    sigSupervisorName: sigData.supervisor ? sigData.supervisor.nombre||null : null
+    sigTecnico: {
+      nombre: sigData.tecnico?.nombre||null,
+      email:  sigData.tecnico?.email||null,
+      fecha:  sigData.tecnico?.timestamp||null,
+      serie:  sigData.tecnico ? genCertCode(sigData.tecnico.email||'', sigData.tecnico.timestamp||'') : null
+    },
+    sigSupervisor: {
+      nombre: sigData.supervisor?.nombre||null,
+      email:  sigData.supervisor?.email||null,
+      fecha:  sigData.supervisor?.timestamp||null,
+      serie:  sigData.supervisor ? genCertCode(sigData.supervisor.email||'', sigData.supervisor.timestamp||'') : null
+    }
   };
 
   fetch('/generar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
@@ -854,8 +864,18 @@ function generatePDF(){
     cal_data_row:si.cal_data_row, sig_row:si.sig_row,
     items:items,
     supComments: (LOAD_DATA && LOAD_DATA.supComments) || "",
-    sigTecnicoImg: sigData.tecnico ? sigData.tecnico.img||null : null,
-    sigSupervisorImg: sigData.supervisor ? sigData.supervisor.img||null : null
+    sigTecnico: {
+      nombre: sigData.tecnico?.nombre||null,
+      email:  sigData.tecnico?.email||null,
+      fecha:  sigData.tecnico?.timestamp||null,
+      serie:  sigData.tecnico ? genCertCode(sigData.tecnico.email||'', sigData.tecnico.timestamp||'') : null
+    },
+    sigSupervisor: {
+      nombre: sigData.supervisor?.nombre||null,
+      email:  sigData.supervisor?.email||null,
+      fecha:  sigData.supervisor?.timestamp||null,
+      serie:  sigData.supervisor ? genCertCode(sigData.supervisor.email||'', sigData.supervisor.timestamp||'') : null
+    }
   };
 
   fetch('/generar_pdf', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
