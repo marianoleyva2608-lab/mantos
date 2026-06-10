@@ -117,14 +117,9 @@ def apply_checklist_data(ws, data):
 
         if has_tec or has_sup:
             ws.row_dimensions[firma_row].height = 90
-            # Ampliar columnas para que el texto PKI sea legible
-            if ws.column_dimensions['A'].width < 35:
-                ws.column_dimensions['A'].width = 35
-            if ws.column_dimensions['J'].width < 35:
-                ws.column_dimensions['J'].width = 35
 
         if has_tec:
-            cell = ws.cell(row=firma_row, column=1)
+            cell = ws.cell(row=firma_row, column=2)
             cell.value = ("FIRMA DIGITAL PKI X.509\n"
                 "Firmante: " + tec_sig.get('nombre','') + "\n"
                 "Correo:   " + tec_sig.get('email','') + "\n"
@@ -134,7 +129,7 @@ def apply_checklist_data(ws, data):
             cell.alignment = Alignment(wrap_text=True, vertical='top')
 
         if has_sup:
-            cell = ws.cell(row=firma_row, column=10)
+            cell = ws.cell(row=firma_row, column=11)
             cell.value = ("FIRMA DIGITAL PKI X.509\n"
                 "Firmante: " + sup_sig.get('nombre','') + "\n"
                 "Correo:   " + sup_sig.get('email','') + "\n"
