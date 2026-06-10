@@ -83,11 +83,13 @@ def list_users():
 try:
     import openpyxl
     from openpyxl.utils import get_column_letter
+    from openpyxl.styles import Alignment
     from PIL import Image as PILImage
 except ImportError:
     os.system("pip install openpyxl Pillow -q")
     import openpyxl
     from openpyxl.utils import get_column_letter
+    from openpyxl.styles import Alignment
     from PIL import Image as PILImage
 
 MONTH_COLS = {"ENE":"B","FEB":"C","MAR":"D","ABR":"E","MAY":"F","JUN":"G",
@@ -133,7 +135,7 @@ def apply_checklist_data(ws, data):
                 f"Serie:    {tec_sig.get('serie','')}\n"
                 f"Emisor:   AD-PACK México"
             )
-            ws.cell(row=firma_row, column=1).alignment = __import__('openpyxl').styles.Alignment(wrap_text=True, vertical='top')
+            ws.cell(row=firma_row, column=1).alignment = Alignment(wrap_text=True, vertical='top')
 
         sup_sig = data.get('sigSupervisor') or {}
         if isinstance(sup_sig, dict) and sup_sig.get('nombre'):
@@ -145,7 +147,7 @@ def apply_checklist_data(ws, data):
                 f"Serie:    {sup_sig.get('serie','')}\n"
                 f"Emisor:   AD-PACK México"
             )
-            ws.cell(row=firma_row, column=10).alignment = __import__('openpyxl').styles.Alignment(wrap_text=True, vertical='top')
+            ws.cell(row=firma_row, column=10).alignment = Alignment(wrap_text=True, vertical='top')
 
     sup_comments = data.get('supComments', '')
     if sup_comments and sig_row:
@@ -227,4 +229,4 @@ def generar_pdf():
 
         result = subprocess.run(
             ['libreoffice', '--headless', '--convert-to', 'pdf',
-             '--outdir', tmp_dir, 
+          
