@@ -117,6 +117,11 @@ def apply_checklist_data(ws, data):
 
         if has_tec or has_sup:
             ws.row_dimensions[firma_row].height = 90
+            # Ampliar columnas para que el texto PKI sea legible
+            if ws.column_dimensions['A'].width < 35:
+                ws.column_dimensions['A'].width = 35
+            if ws.column_dimensions['J'].width < 35:
+                ws.column_dimensions['J'].width = 35
 
         if has_tec:
             cell = ws.cell(row=firma_row, column=1)
