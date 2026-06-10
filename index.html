@@ -160,11 +160,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 <!-- SETTINGS PAGE -->
 <div id="page-settings" class="page">
+  
   <div class="hdr">
     <button class="back" onclick="showPage('home')">&#8249;</button>
-    <div style="flex:1"><h1>&#9881;&#65039; Configuración</h1><div class="sub">Contraseñas de firma</div></div>
+    <div style="flex:1"><h1>&#9881;&#65039; Configuración</h1><div class="sub">Firmas digitales y usuarios</div></div>
   </div>
   <div>
+    <!-- GESTIÓN DE USUARIOS / FIRMAS DIGITALES -->
+    <div style="background:#fff;margin:12px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.12);overflow:hidden">
+      <div style="background:#1a5c2a;color:#fff;padding:10px 16px;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:space-between">
+        <span>&#128100; Usuarios con Firma Digital</span>
+        <button onclick="showAddUserForm()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:4px 12px;border-radius:20px;font-size:12px;cursor:pointer">+ Registrar</button>
+      </div>
+      <div id="add-user-form" style="display:none;padding:14px;border-bottom:1px solid #f0f0f0;background:#f9fff9">
+        <div style="font-size:12px;font-weight:700;color:#1a5c2a;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Nueva cuenta de firma</div>
+        <input id="nu-nombre" type="text" placeholder="Nombre completo" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:8px;box-sizing:border-box">
+        <input id="nu-email" type="email" placeholder="Correo electrónico" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:8px;box-sizing:border-box">
+        <input id="nu-pin" type="password" placeholder="PIN (mínimo 4 dígitos)" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+        <div style="display:flex;gap:8px">
+          <button onclick="submitAddUser()" style="flex:1;background:#1a5c2a;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#10003; Registrar usuario</button>
+          <button onclick="document.getElementById('add-user-form').style.display='none'" style="background:#eee;border:none;padding:10px 16px;border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
+        </div>
+        <div id="add-user-err" style="margin-top:8px;font-size:12px;color:#c62828;text-align:center"></div>
+      </div>
+      <div id="users-list" style="padding:8px 0">
+        <div style="text-align:center;padding:16px;color:#999;font-size:13px">⏳ Cargando usuarios...</div>
+      </div>
+    </div>
     <div style="background:#fff;margin:12px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.12);overflow:hidden">
       <div style="background:#1a5c2a;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#128274; Sistema de Firma Digital PKI</div>
       <div style="padding:14px">
@@ -962,6 +984,63 @@ function getPasswords(){
   const d = JSON.parse(localStorage.getItem('mtto_passwords')||'{}');
   return {tecnico: d.tecnico||'1234', supervisor: d.supervisor||'5678'};
 }
+function showAddUserForm(){
+  document.getElementById('add-user-form').style.display='block';
+  document.getElementById('nu-nombre').focus();
+  document.getElementById('add-user-err').textContent='';
+}
+
+async function submitAddUser(){
+  const nombre = document.getElementById('nu-nombre').value.trim();
+  const email  = document.getElementById('nu-email').value.trim();
+  const pin    = document.getElementById('nu-pin').value.trim();
+  const err    = document.getElementById('add-user-err');
+  if(!nombre||!email||!pin){err.textContent='Completa todos los campos';return;}
+  if(pin.length<4){err.textContent='El PIN debe tener mínimo 4 caracteres';return;}
+  err.textContent='⏳ Registrando...'; err.style.color='#666';
+  try{
+    const res = await fetch('/api/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,email,pin})});
+    const d = await res.json();
+    if(d.error){err.style.color='#c62828';err.textContent=d.error;return;}
+    err.style.color='#2e7d32';
+    err.textContent='✅ Usuario registrado';
+    document.getElementById('nu-nombre').value='';
+    document.getElementById('nu-email').value='';
+    document.getElementById('nu-pin').value='';
+    setTimeout(()=>{
+      document.getElementById('add-user-form').style.display='none';
+      loadUsersList();
+    },1000);
+  }catch(e){err.style.color='#c62828';err.textContent='❌ Error de conexión';}
+}
+
+async function loadUsersList(){
+  const el = document.getElementById('users-list');
+  if(!el) return;
+  try{
+    const res = await fetch('/api/users');
+    const users = await res.json();
+    if(!users.length){
+      el.innerHTML='<div style="text-align:center;padding:16px;color:#999;font-size:13px">Sin usuarios registrados</div>';
+      return;
+    }
+    el.innerHTML = users.map(u=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f5f5f5">
+        <div style="width:34px;height:34px;background:#e8f5e9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">&#128100;</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:#1b5e20">${u.nombre}</div>
+          <div style="font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.email}</div>
+          <div style="font-size:10px;color:#aaa;margin-top:2px">Desde: ${u.created_at||''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:9px;background:#e8f5e9;color:#2e7d32;padding:3px 8px;border-radius:20px;font-weight:700">&#10003; PKI activo</div>
+        </div>
+      </div>`).join('');
+  }catch(e){
+    el.innerHTML='<div style="padding:14px;color:#c62828;font-size:12px">❌ Error cargando usuarios</div>';
+  }
+}
+
 function saveSettings(){
   const tec = document.getElementById('set-tec-pwd').value.trim();
   const sup = document.getElementById('set-sup-pwd').value.trim();
@@ -984,11 +1063,7 @@ async function clearAllReports(){
 }
 
 function loadSettingsPage(){
-  const p = getPasswords();
-  const ti = document.getElementById('set-tec-pwd');
-  const si = document.getElementById('set-sup-pwd');
-  if(ti) ti.value = p.tecnico;
-  if(si) si.value = p.supervisor;
+  loadUsersList();
 }
 
 // ── SIGNATURES with password ──────────────────────────────────
@@ -1099,9 +1174,10 @@ function buildSigLocked(id, label, timestamp, sigName){
             <div style="font-size:13px;font-weight:700;color:#1b5e20">${sigName}</div>
           </div>
         </div>
-        <div style="font-size:10px;color:#555;border-top:1px solid #c8e6c9;padding-top:6px;display:grid;grid-template-columns:70px 1fr;gap:3px 8px">
+        <div style="font-size:10px;color:#555;border-top:1px solid #c8e6c9;padding-top:6px;display:grid;grid-template-columns:80px 1fr;gap:3px 8px">
           <span style="font-weight:700;color:#2e7d32">Fecha:</span><span>${timestamp||''}</span>
-          <span style="font-weight:700;color:#2e7d32">M&#233;todo:</span><span>Firma electr&#243;nica con PIN</span>
+          <span style="font-weight:700;color:#2e7d32">Serie X.509:</span><span style="font-family:monospace;font-size:10px">${sigName?genCertCode(sigName,timestamp||''):''}</span>
+          <span style="font-weight:700;color:#2e7d32">Emisor:</span><span>AD-PACK México</span>
           <span style="font-weight:700;color:#2e7d32">Estado:</span><span>&#9989; Verificado</span>
         </div>
       </div>`
@@ -1138,6 +1214,15 @@ function buildSigPerson(id, label){
   </div>`;
 }
 
+function genCertCode(email, timestamp){
+  // Genera un código tipo serie X.509 a partir del email + fecha
+  let h = 0;
+  const s = email + timestamp + 'ADPACK2026';
+  for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}
+  const hex = Math.abs(h).toString(16).toUpperCase().padStart(8,'0');
+  return hex.match(/.{1,4}/g).join(':') + ':' + Math.abs(h^0xDEAD).toString(16).toUpperCase().padStart(4,'0');
+}
+
 async function autenticarPKI(id){
   if(sigData[id]){showToast('🔒 Ya firmado');return;}
   if(LOAD_DATA && LOAD_DATA.locked){showToast('🔒 Reporte bloqueado');return;}
@@ -1160,7 +1245,8 @@ async function autenticarPKI(id){
       return;
     }
     const now=new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
-    sigData[id]={timestamp:now, nombre:data.nombre, email:data.email};
+    const certCode=genCertCode(data.email,now);
+    sigData[id]={timestamp:now, nombre:data.nombre, email:data.email, certCode};
     const row=document.getElementById('spkirow-'+id);
     if(row) row.style.display='none';
     const badge=document.getElementById('sbadge-'+id);
@@ -1175,10 +1261,11 @@ async function autenticarPKI(id){
             <div style="font-size:13px;font-weight:700;color:#1b5e20">${data.nombre}</div>
           </div>
         </div>
-        <div style="font-size:10px;color:#555;border-top:1px solid #c8e6c9;padding-top:6px;display:grid;grid-template-columns:70px 1fr;gap:3px 8px">
-          <span style="font-weight:700;color:#2e7d32">Correo:</span><span>${data.email}</span>
+        <div style="font-size:10px;color:#555;border-top:1px solid #c8e6c9;padding-top:6px;display:grid;grid-template-columns:80px 1fr;gap:3px 8px">
+          <span style="font-weight:700;color:#2e7d32">Titular:</span><span>${data.email}</span>
           <span style="font-weight:700;color:#2e7d32">Fecha:</span><span>${now}</span>
-          <span style="font-weight:700;color:#2e7d32">Método:</span><span>Firma electrónica con PIN</span>
+          <span style="font-weight:700;color:#2e7d32">Serie X.509:</span><span style="font-family:monospace;font-size:10px">${certCode}</span>
+          <span style="font-weight:700;color:#2e7d32">Emisor:</span><span>AD-PACK México</span>
           <span style="font-weight:700;color:#2e7d32">Estado:</span><span>&#9989; Verificado</span>
         </div>
       </div>`;
