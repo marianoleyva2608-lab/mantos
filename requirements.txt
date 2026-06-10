@@ -1,6 +1,3 @@
 flask
 openpyxl
 Pillow
-cryptography
-pyhanko
-pyhanko-certvalidator

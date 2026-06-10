@@ -137,37 +137,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .sup-title{font-size:18px;font-weight:700;color:var(--gd);margin-bottom:8px}
 .sup-detail{font-size:13px;color:var(--ts);margin-bottom:4px}
 .sup-stat{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin:4px 4px 4px 0}
-
-/* ══ PKI DIGITAL SIGNATURE — CSS ══ */
-.sig-canvas-area{display:none!important}
-.sig-done-box{display:none!important}
-.pki-auth-box{background:#f9fff9;border:1.5px solid #c8e6c9;border-radius:10px;padding:12px;margin-top:10px}
-.pki-auth-box .pki-row{display:flex;gap:8px;margin-bottom:8px}
-.pki-auth-box input{flex:1;padding:10px 12px;border:1.5px solid #c8e6c9;border-radius:8px;font-size:14px;background:#fff}
-.pki-auth-box input:focus{outline:none;border-color:#1a5c2a}
-.btn-pki-sign{padding:10px 18px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
-.btn-pki-sign:active{background:#2d8a45}
-.pki-stamp{background:#e8f5e9;border:2px solid #1a5c2a;border-radius:10px;padding:12px 14px;margin-top:10px;display:none}
-.pki-stamp.show{display:block}
-.pki-stamp-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.pki-stamp-icon{width:32px;height:32px;background:#1a5c2a;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
-.pki-stamp-title{font-size:13px;font-weight:700;color:#1b5e20}
-.pki-stamp-sub{font-size:11px;color:#388e3c}
-.pki-stamp-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:11px;color:#2e7d32;margin-top:4px}
-.pki-stamp-grid b{color:#1b5e20}
-.pki-stamp-hash{margin-top:8px;font-size:10px;color:#4caf50;word-break:break-all;font-family:monospace;background:#f1f8e9;padding:4px 6px;border-radius:4px}
-.btn-pki-revoke{margin-top:8px;background:#fff;color:#b71c1c;border:1px solid #ef9a9a;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer}
-
 </style>
 </head>
 <body>
 
 <div id="page-home" class="page active">
-  <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div></div>
-  <div style="background:#2e7d32;display:flex;gap:8px;padding:8px 16px;border-bottom:2px solid #1a5c2a;">
-    <button onclick="showPage('reports')" style="background:#fff;color:#1a5c2a;border:none;padding:8px 18px;border-radius:20px;font-size:13px;cursor:pointer;font-weight:700;display:flex;align-items:center;gap:6px;">&#128196; Reportes</button>
-    <button onclick="showPage('settings')" style="background:#fff;color:#1a5c2a;border:none;padding:8px 18px;border-radius:20px;font-size:13px;cursor:pointer;font-weight:700;display:flex;align-items:center;gap:6px;">&#9881;&#65039; Configuración</button>
-  </div>
+  <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button class="back" onclick="showPage('reports')" style="font-size:20px;margin-right:6px" title="Reportes">&#128196;</button><button class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
   <div class="home-c" id="home-c"></div>
 </div>
 
@@ -1114,131 +1089,111 @@ async function saveSupComment(){
   }
 }
 
-function buildSigLocked(id, label, timestamp, imgSrc){
-  const imgHtml = imgSrc
-    ? `<div style="margin-top:8px;padding:8px;background:#f9fff9;border:1px solid #c8e6c9;border-radius:8px;">
-        <div style="font-size:10px;color:#666;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Firma</div>
-        <img src="${imgSrc}" style="max-height:60px;max-width:100%;display:block;border-radius:4px;">
-       </div>`
-    : `<div style="font-size:11px;color:#999;margin-top:4px;font-style:italic">Sin imagen de firma</div>`;
+function buildSigLocked(id, label, timestamp, sigName){
+  const sigHtml = sigName
+    ? `<div style="margin-top:8px;padding:10px 12px;background:#e8f5e9;border:2px solid #43a047;border-radius:8px;border-left:4px solid #2e7d32">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+          <div style="width:30px;height:30px;background:#2e7d32;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0">&#10003;</div>
+          <div>
+            <div style="font-size:9px;color:#2e7d32;font-weight:700;text-transform:uppercase;letter-spacing:.6px">Firma Digital V&#225;lida</div>
+            <div style="font-size:13px;font-weight:700;color:#1b5e20">${sigName}</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#555;border-top:1px solid #c8e6c9;padding-top:6px;display:grid;grid-template-columns:70px 1fr;gap:3px 8px">
+          <span style="font-weight:700;color:#2e7d32">Fecha:</span><span>${timestamp||''}</span>
+          <span style="font-weight:700;color:#2e7d32">M&#233;todo:</span><span>Firma electr&#243;nica con PIN</span>
+          <span style="font-weight:700;color:#2e7d32">Estado:</span><span>&#9989; Verificado</span>
+        </div>
+      </div>`
+    : `<div style="font-size:11px;color:#999;margin-top:4px;font-style:italic">Sin firma registrada</div>`;
   return `<div class="sig-person">
     <div class="sig-status">
       <div class="sig-lbl">&#9997;&#65039; ${label}</div>
       <div class="sig-badge ok">&#10003; Firmado ${timestamp||''}</div>
     </div>
-    ${imgHtml}
+    ${sigHtml}
   </div>`;
 }
 
 function buildSigPerson(id, label){
+  const isAutoFill = (id === 'tecnico' && currentUser);
+  const emailField = isAutoFill
+    ? `<div style="padding:8px 10px;background:#f1f8e9;border:1px solid #c5e1a5;border-radius:8px;margin-bottom:6px">
+        <div style="font-size:10px;color:#558b2f;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Usuario registrado</div>
+        <div style="font-size:13px;font-weight:700;color:#1b5e20;margin-top:2px">${currentUser.nombre}</div>
+        <div style="font-size:11px;color:#666">${currentUser.email}</div>
+       </div>`
+    : `<input class="sig-pin-input" type="email" id="semail-${id}" placeholder="Correo electrónico PKI" style="margin-bottom:6px;width:100%;box-sizing:border-box">`;
   return `<div class="sig-person" id="sperson-${id}">
     <div class="sig-status">
       <div class="sig-lbl">&#9997;&#65039; ${label}</div>
       <div class="sig-badge" id="sbadge-${id}">Sin firmar</div>
     </div>
-    <div class="sig-pin-row">
-      <input class="sig-pin-input" type="password" id="spin-${id}" placeholder="Contraseña" maxlength="20">
-      <button class="btn-sign" id="sbtn-${id}" onclick="autenticar('${id}')">Autenticar</button>
-    </div>
-    <div class="sig-canvas-area" id="sarea-${id}" style="display:none">
-      <div class="sig-canvas-hint">Dibuja tu firma con el dedo &#8595;</div>
-      <canvas class="sig-canvas-el" id="sc-${id}"></canvas>
-      <div class="sig-confirm-row">
-        <button class="btn-sig-clear" onclick="clearCanvas('${id}')">Borrar</button>
-        <button class="btn-sig-confirm" onclick="confirmarFirma('${id}')">&#10003; Confirmar Firma</button>
-      </div>
+    <div id="spkirow-${id}" style="display:flex;flex-direction:column;gap:6px;padding:10px 0 4px">
+      ${emailField}
+      <input class="sig-pin-input" type="password" id="spin-${id}" placeholder="PIN personal" maxlength="20">
+      <button class="btn-sign" id="sbtn-${id}" onclick="autenticarPKI('${id}')" style="background:#1a5c2a;border-radius:8px;padding:10px;font-size:13px">&#128274;&nbsp; Firmar Digitalmente</button>
     </div>
     <div class="sig-done-box" id="sdone-${id}"></div>
   </div>`;
 }
 
-function autenticar(id){
+async function autenticarPKI(id){
   if(sigData[id]){showToast('🔒 Ya firmado');return;}
   if(LOAD_DATA && LOAD_DATA.locked){showToast('🔒 Reporte bloqueado');return;}
-  const input = document.getElementById('spin-'+id);
-  const pwd = input ? input.value.trim() : '';
-  if(!pwd){showToast('⚠️ Escribe la contraseña');input&&input.focus();return;}
-  const passwords = getPasswords();
-  if(pwd !== passwords[id]){
-    input.style.borderColor='#f44336';
-    input.value='';
-    showToast('❌ Contraseña incorrecta');
-    setTimeout(()=>input.style.borderColor='',1500);
-    return;
+  const pinEl = document.getElementById('spin-'+id);
+  const emailEl = document.getElementById('semail-'+id);
+  const pin = pinEl ? pinEl.value.trim() : '';
+  const email = emailEl ? emailEl.value.trim() : (currentUser ? currentUser.email : '');
+  if(!email){showToast('⚠️ Ingresa tu correo');emailEl&&emailEl.focus();return;}
+  if(!pin){showToast('⚠️ Ingresa tu PIN');pinEl&&pinEl.focus();return;}
+  const btn = document.getElementById('sbtn-'+id);
+  if(btn){btn.disabled=true;btn.textContent='Verificando...';}
+  try{
+    const res = await fetch('/api/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,pin})});
+    const data = await res.json();
+    if(!res.ok||!data.ok){
+      if(pinEl){pinEl.style.borderColor='#f44336';pinEl.value='';}
+      showToast('❌ '+(data.error||'Credenciales incorrectas'));
+      if(btn){btn.disabled=false;btn.innerHTML='&#128274;&nbsp; Firmar Digitalmente';}
+      setTimeout(()=>{ if(pinEl) pinEl.style.borderColor=''; },1500);
+      return;
+    }
+    const now=new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+    sigData[id]={timestamp:now, nombre:data.nombre, email:data.email};
+    const row=document.getElementById('spkirow-'+id);
+    if(row) row.style.display='none';
+    const badge=document.getElementById('sbadge-'+id);
+    if(badge){badge.textContent='✓ Firmado';badge.className='sig-badge ok';}
+    const done=document.getElementById('sdone-'+id);
+    if(done){
+      done.innerHTML=`<div style="margin-top:8px;padding:10px 12px;background:#e8f5e9;border:2px solid #43a047;border-radius:8px;border-left:4px solid #2e7d32">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+          <div style="width:30px;height:30px;background:#2e7d32;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0">&#10003;</div>
+          <div>
+            <div style="font-size:9px;color:#2e7d32;font-weight:700;text-transform:uppercase;letter-spacing:.6px">Firma Electrónica Válida</div>
+            <div style="font-size:13px;font-weight:700;color:#1b5e20">${data.nombre}</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#555;border-top:1px solid #c8e6c9;padding-top:6px;display:grid;grid-template-columns:70px 1fr;gap:3px 8px">
+          <span style="font-weight:700;color:#2e7d32">Correo:</span><span>${data.email}</span>
+          <span style="font-weight:700;color:#2e7d32">Fecha:</span><span>${now}</span>
+          <span style="font-weight:700;color:#2e7d32">Método:</span><span>Firma electrónica con PIN</span>
+          <span style="font-weight:700;color:#2e7d32">Estado:</span><span>&#9989; Verificado</span>
+        </div>
+      </div>`;
+      done.classList.add('show');
+    }
+    showToast('✅ Firmado — '+data.nombre);
+    setTimeout(checkBothSigned, 300);
+  }catch(e){
+    showToast('❌ Error de conexión');
+    if(btn){btn.disabled=false;btn.innerHTML='&#128274;&nbsp; Firmar Digitalmente';}
   }
-  // Correct password — show canvas
-  input.disabled=true;
-  const btn=document.getElementById('sbtn-'+id);
-  if(btn) btn.style.display='none';
-  const badge=document.getElementById('sbadge-'+id);
-  if(badge){badge.textContent='Autenticado ✓';badge.style.cssText='background:#fff9c4;color:#e65100;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px';}
-  const area=document.getElementById('sarea-'+id);
-  if(area) area.style.display='block';
-  // Init canvas AFTER it's visible
-  requestAnimationFrame(()=>requestAnimationFrame(()=>initCanvas(id)));
-  showToast('✅ Autenticado — dibuja tu firma abajo');
 }
 
-function initCanvas(id){
-  const canvas=document.getElementById('sc-'+id);
-  if(!canvas)return;
-  const rect=canvas.getBoundingClientRect();
-  canvas.width=rect.width||canvas.parentElement.offsetWidth||320;
-  canvas.height=130;
-  const ctx=canvas.getContext('2d');
-  ctx.strokeStyle='#1a5c2a';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.lineJoin='round';
-  // Draw placeholder hint
-  ctx.fillStyle='#e0e0e0';ctx.font='13px sans-serif';ctx.textAlign='center';
-  ctx.fillText('✍️ Dibuja tu firma aquí',canvas.width/2,canvas.height/2);
-  let drawing=false,last=null,hasDraw=false;
-  function getP(e){
-    const r=canvas.getBoundingClientRect();
-    const s=e.touches?e.touches[0]:e;
-    return{x:(s.clientX-r.left)*(canvas.width/r.width),y:(s.clientY-r.top)*(canvas.height/r.height)};
-  }
-  function down(e){
-    e.preventDefault();
-    if(!hasDraw){ctx.clearRect(0,0,canvas.width,canvas.height);hasDraw=true;}
-    drawing=true;last=getP(e);
-    ctx.beginPath();ctx.moveTo(last.x,last.y);
-  }
-  function mve(e){e.preventDefault();if(!drawing)return;const p=getP(e);ctx.lineTo(p.x,p.y);ctx.stroke();last=p;}
-  function up(){drawing=false;}
-  canvas.addEventListener('touchstart',down,{passive:false});
-  canvas.addEventListener('touchmove',mve,{passive:false});
-  canvas.addEventListener('touchend',up);
-  canvas.addEventListener('mousedown',down);
-  canvas.addEventListener('mousemove',mve);
-  canvas.addEventListener('mouseup',up);
-}
 
-function clearCanvas(id){
-  const c=document.getElementById('sc-'+id);
-  if(!c)return;
-  const ctx=c.getContext('2d');
-  ctx.clearRect(0,0,c.width,c.height);
-  ctx.fillStyle='#e0e0e0';ctx.font='13px sans-serif';ctx.textAlign='center';
-  ctx.fillText('✍️ Dibuja tu firma aquí',c.width/2,c.height/2);
-}
 
-function confirmarFirma(id){
-  const canvas=document.getElementById('sc-'+id);
-  const blank=document.createElement('canvas');blank.width=canvas.width;blank.height=canvas.height;
-  if(canvas.toDataURL()===blank.toDataURL()){showToast('⚠️ Dibuja tu firma primero');return;}
-  const imgData=canvas.toDataURL('image/png',0.6);
-  const now=new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
-  sigData[id]={timestamp:now, img:imgData};
-  // Update UI
-  document.getElementById('sarea-'+id).classList.remove('open');
-  const badge=document.getElementById('sbadge-'+id);
-  badge.textContent='✓ Firmado '+now;
-  badge.className='sig-badge ok';
-  const done=document.getElementById('sdone-'+id);
-  done.innerHTML=`<img src="${imgData}" style="max-height:45px;border:1px solid #ccc;border-radius:4px;display:block;margin:0 auto 4px"> Firmado el ${now}`;
-  done.classList.add('show');
-  showToast('✅ Firma registrada');
-  setTimeout(checkBothSigned, 200);
-}
 
 function restoreSigInForm(id){
   const data = sigData[id];
@@ -1388,367 +1343,6 @@ function checkURLHash(){
 
 loadReportsFromServer().then(()=>renderHome());
 checkURLHash();
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  PKI X.509 — FIRMA DIGITAL (reemplaza canvas de dedo)
-// ══════════════════════════════════════════════════════════════════════════════
-
-const pkiCertData = { tecnico: null, supervisor: null };
-
-// Override buildSigPerson — muestra form de correo+PIN en vez de canvas
-buildSigPerson = function(id, label) {
-  return `<div class="sig-person" id="sperson-${id}">
-    <div class="sig-status">
-      <div class="sig-lbl">&#9997;&#65039; ${label}</div>
-      <div class="sig-badge" id="sbadge-${id}">Sin firmar</div>
-    </div>
-    <div class="pki-auth-box" id="pki-box-${id}">
-      <div style="font-size:12px;font-weight:700;color:#1a5c2a;margin-bottom:8px">
-        &#128272; Firmar con Certificado Digital X.509
-      </div>
-      <div class="pki-row">
-        <input type="email" id="pki-email-${id}" placeholder="Correo electrónico" autocomplete="off">
-      </div>
-      <div class="pki-row">
-        <input type="password" id="pki-pin-${id}" placeholder="PIN del certificado" autocomplete="off"
-          onkeydown="if(event.key==='Enter')pkiSign('${id}')">
-        <button class="btn-pki-sign" onclick="pkiSign('${id}')">&#10004; Firmar</button>
-      </div>
-    </div>
-    <div class="pki-stamp" id="pki-stamp-${id}"></div>
-    <div class="sig-done-box" id="sdone-${id}"></div>
-  </div>`;
-};
-
-// Override autenticar — ahora llama pkiSign
-autenticar = function(id) { pkiSign(id); };
-
-// Firma con PKI
-async function pkiSign(id) {
-  const emailEl = document.getElementById('pki-email-' + id);
-  const pinEl   = document.getElementById('pki-pin-'   + id);
-  if (!emailEl || !pinEl) return;
-  const email = emailEl.value.trim();
-  const pin   = pinEl.value;
-  if (!email || !pin) { showToast('⚠️ Ingresa correo y PIN'); return; }
-
-  // Payload firmado = resumen del reporte actual
-  const payload = JSON.stringify({
-    machine: CM ? CM.id : '',
-    fecha:   document.getElementById('finput-fecha') ? document.getElementById('finput-fecha').value : '',
-    items_count: Object.keys(IS).length,
-    ts: new Date().toISOString()
-  });
-
-  showOverlay('Firmando con certificado digital…');
-  try {
-    const res = await fetch('/api/pki/sign', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, pin, report_id: CM ? String(CM.id) : '', payload_json: payload })
-    });
-    const data = await res.json();
-    hideOverlay();
-    if (!res.ok || data.error) { showToast('❌ ' + (data.error || 'Error de autenticación')); return; }
-
-    // Guardar datos del certificado
-    pkiCertData[id] = data;
-    // Store signing session token for PDF signing
-    if (!window._signSessions) window._signSessions = {};
-    window._signSessions[id] = data.sign_session || null;
-    sigData[id] = {
-      timestamp: data.signed_at,
-      nombre:    data.name,
-      img:       null   // sin imagen de canvas
-    };
-
-    // Actualizar badge
-    const badge = document.getElementById('sbadge-' + id);
-    if (badge) { badge.textContent = 'Firmado ✓'; badge.className = 'sig-badge ok'; }
-
-    // Mostrar sello
-    pkiShowStamp(id, data);
-
-    // Ocultar form auth
-    const box = document.getElementById('pki-box-' + id);
-    if (box) box.style.display = 'none';
-
-    showToast('✅ Firmado por ' + data.name);
-
-    // Auto-guardar si ambos firmaron
-    if (sigData.tecnico && sigData.supervisor) {
-      const idx = reportCache.findIndex(r => r.id === (CM && CM.id));
-      if (idx >= 0) {
-        reportCache[idx].sigTecnico = sigData.tecnico.timestamp;
-        reportCache[idx].sigSupervisor = sigData.supervisor.timestamp;
-        reportCache[idx].sigTecnicoName = sigData.tecnico.nombre;
-        reportCache[idx].sigSupervisorName = sigData.supervisor.nombre;
-        saveReportToServer(reportCache[idx]);
-        showToast('💾 Reporte guardado con firmas digitales');
-      }
-    }
-  } catch(e) {
-    hideOverlay();
-    showToast('❌ Error: ' + e.message);
-  }
-}
-
-function pkiShowStamp(id, data) {
-  const stamp = document.getElementById('pki-stamp-' + id);
-  if (!stamp) return;
-  const ci = data.cert_info || {};
-  const shortSig = data.sig_b64 ? data.sig_b64.substring(0,32) + '…' : '';
-  stamp.innerHTML = `
-    <div class="pki-stamp-header">
-      <div class="pki-stamp-icon">&#128272;</div>
-      <div>
-        <div class="pki-stamp-title">Firmado digitalmente — X.509</div>
-        <div class="pki-stamp-sub">${data.signed_at || ''}</div>
-      </div>
-    </div>
-    <div class="pki-stamp-grid">
-      <div><b>Firmado por:</b> ${ci.cn || data.name}</div>
-      <div><b>Organización:</b> ${ci.org || 'AD-PACK'}</div>
-      <div><b>No. Serie:</b> ${ci.serial || ''}</div>
-      <div><b>Emitido por:</b> ${ci.issuer || ''}</div>
-      <div><b>Válido:</b> ${ci.valid_from || ''} – ${ci.valid_to || ''}</div>
-      <div><b>Huella:</b> ${ci.fingerprint || ''}</div>
-    </div>
-    <div class="pki-stamp-hash"><b>Firma:</b> ${shortSig}</div>
-    <button class="btn-pki-revoke" onclick="pkiRevoke('${id}')">✖ Quitar firma</button>
-  `;
-  stamp.classList.add('show');
-}
-
-function pkiRevoke(id) {
-  pkiCertData[id] = null;
-  sigData[id] = null;
-  const stamp = document.getElementById('pki-stamp-' + id);
-  if (stamp) { stamp.classList.remove('show'); stamp.innerHTML = ''; }
-  const box = document.getElementById('pki-box-' + id);
-  if (box) { box.style.display = ''; }
-  const badge = document.getElementById('sbadge-' + id);
-  if (badge) { badge.textContent = 'Sin firmar'; badge.className = 'sig-badge'; }
-  const emailEl = document.getElementById('pki-email-' + id);
-  const pinEl   = document.getElementById('pki-pin-'   + id);
-  if (emailEl) emailEl.value = '';
-  if (pinEl)   pinEl.value   = '';
-}
-
-// Parchar payload de /generar y /generar_pdf para incluir datos del certificado
-const _pkiOrigFetch = window.fetch;
-window.fetch = function(url, opts) {
-  if ((url === '/generar' || url === '/generar_pdf') && opts && opts.body) {
-    try {
-      const body = JSON.parse(opts.body);
-      if (pkiCertData.tecnico)    body.certTecnico    = pkiCertData.tecnico;
-      if (pkiCertData.supervisor) body.certSupervisor = pkiCertData.supervisor;
-      if (window._signSessions?.tecnico)    body.signSessionTec = window._signSessions.tecnico;
-      if (window._signSessions?.supervisor) body.signSessionSup = window._signSessions.supervisor;
-      if (pkiCertData.tecnico)    body.tecnico        = pkiCertData.tecnico.name;
-      if (pkiCertData.supervisor) body.supervisor     = pkiCertData.supervisor.name;
-      opts = { ...opts, body: JSON.stringify(body) };
-    } catch(e) {}
-  }
-  return _pkiOrigFetch.call(this, url, opts);
-};
-
-// Sección de gestión PKI en Settings
-(function addPKISettingsSection() {
-  const sp = document.getElementById('page-settings');
-  if (!sp) return;
-  const sec = document.createElement('div');
-  sec.innerHTML = `
-
-    <!-- ══ e.firma SAT → CSD interno ══ -->
-    <div style="background:#fff;margin:12px 12px 0;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.12);overflow:hidden">
-      <div style="background:#c62828;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">
-        ⚖️ Crear CSD con e.firma SAT
-      </div>
-      <div style="padding:14px;display:flex;flex-direction:column;gap:8px">
-        <div style="background:#fff3e0;border-radius:8px;padding:10px;font-size:12px;color:#e65100;line-height:1.6">
-          Autentica con tu <b>e.firma SAT</b> para generar los certificados internos AD-PACK.<br>
-          Tu llave privada <b>nunca se guarda</b> — solo se usa en este momento.
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <label style="font-size:11px;font-weight:700;color:#555">Archivo .cer (certificado SAT)</label>
-          <input type="file" id="sat-cer" accept=".cer"
-            style="padding:8px;border:1.5px solid #ffccbc;border-radius:8px;font-size:13px">
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <label style="font-size:11px;font-weight:700;color:#555">Archivo .key (llave privada SAT)</label>
-          <input type="file" id="sat-key" accept=".key"
-            style="padding:8px;border:1.5px solid #ffccbc;border-radius:8px;font-size:13px">
-        </div>
-        <input id="sat-pwd" type="password" placeholder="Contraseña de la e.firma"
-          style="padding:10px;border:1.5px solid #ffccbc;border-radius:8px;font-size:14px">
-
-        <div style="font-size:11px;font-weight:700;color:#555;margin-top:4px">
-          Usuarios a crear (separados por línea: Nombre | correo | rol | PIN)
-        </div>
-        <textarea id="sat-users" rows="4"
-          placeholder="Juan Leyva | juan@adpack.com | tecnico | pin123&#10;Ana Lopez | ana@adpack.com | supervisor | pin456"
-          style="padding:10px;border:1.5px solid #ffccbc;border-radius:8px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
-
-        <button onclick="efirmaCreateCSD()"
-          style="padding:13px;background:#c62828;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
-          ⚖️ Validar e.firma y Crear CSD
-        </button>
-        <div id="sat-result" style="display:none;background:#e8f5e9;border-radius:8px;padding:12px;font-size:12px;color:#1b5e20;line-height:1.7"></div>
-      </div>
-    </div>
-
-    <div style="background:#fff;margin:0 12px 12px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.12);overflow:hidden">
-      <div style="background:#1a5c2a;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">
-        &#128100; Crear Usuario con Certificado X.509
-      </div>
-      <div style="padding:14px;display:flex;flex-direction:column;gap:8px">
-        <input id="set-uname"  placeholder="Nombre completo" style="padding:10px;border:1.5px solid #c8e6c9;border-radius:8px;font-size:14px">
-        <input id="set-uemail" placeholder="Correo electrónico" type="email" style="padding:10px;border:1.5px solid #c8e6c9;border-radius:8px;font-size:14px">
-        <select id="set-urole" style="padding:10px;border:1.5px solid #c8e6c9;border-radius:8px;font-size:14px">
-          <option value="tecnico">Técnico</option>
-          <option value="supervisor">Supervisor</option>
-        </select>
-        <input id="set-upin" placeholder="PIN (mín. 6 caracteres)" type="password" style="padding:10px;border:1.5px solid #c8e6c9;border-radius:8px;font-size:14px">
-        <button onclick="pkiCreateUser()" style="padding:13px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
-          &#128272; Generar Certificado
-        </button>
-        <div id="set-ucert-result" style="display:none;background:#e8f5e9;border-radius:8px;padding:10px;font-size:12px;color:#1b5e20;line-height:1.6"></div>
-      </div>
-    </div>
-    <div style="background:#fff;margin:0 12px 12px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.12);overflow:hidden">
-      <div style="background:#1565c0;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">
-        &#128203; Usuarios con Certificado
-      </div>
-      <div id="set-users-list" style="padding:14px;font-size:12px;color:#616161">
-        <button onclick="pkiLoadUsers()" style="width:100%;padding:10px;background:#e3f2fd;color:#1565c0;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">
-          &#128260; Cargar usuarios
-        </button>
-      </div>
-    </div>
-    <div style="text-align:center;padding:0 16px 12px">
-      <a href="/api/pki/ca-cert" style="font-size:12px;color:#1565c0">&#11015; Descargar Certificado CA (instalar en navegador)</a>
-    </div>`;
-  sp.appendChild(sec);
-})();
-
-function showOverlay(msg) {
-  const ovl = document.getElementById('overlay');
-  const txt = document.getElementById('sptxt');
-  if (txt) txt.textContent = msg || 'Procesando...';
-  if (ovl) ovl.classList.add('show');
-}
-function hideOverlay() {
-  const ovl = document.getElementById('overlay');
-  if (ovl) ovl.classList.remove('show');
-}
-
-async function pkiCreateUser() {
-  const name  = document.getElementById('set-uname')?.value?.trim();
-  const email = document.getElementById('set-uemail')?.value?.trim();
-  const role  = document.getElementById('set-urole')?.value;
-  const pin   = document.getElementById('set-upin')?.value;
-  const result = document.getElementById('set-ucert-result');
-  if (!name || !email || !pin || pin.length < 6) { showToast('⚠️ Completa todos los campos. PIN mín. 6 chars'); return; }
-  showOverlay('Generando certificado X.509…');
-  try {
-    const res  = await fetch('/api/pki/create-user', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name,email,role,pin}) });
-    const data = await res.json();
-    hideOverlay();
-    if (data.error) { showToast('❌ ' + data.error); return; }
-    const ci = data.cert || {};
-    result.style.display = 'block';
-    result.innerHTML = `✅ Certificado generado<br><b>CN:</b> ${ci.cn}<br><b>No. Serie:</b> ${ci.serial}<br><b>Válido:</b> ${ci.valid_from} – ${ci.valid_to}<br>
-      <a href="/api/pki/user-cert/${encodeURIComponent(email)}" style="color:#1565c0">&#11015; Descargar .crt</a>`;
-    showToast('✅ Certificado creado para ' + name);
-  } catch(e) { hideOverlay(); showToast('❌ ' + e.message); }
-}
-
-async function pkiLoadUsers() {
-  const listEl = document.getElementById('set-users-list');
-  try {
-    const users = await (await fetch('/api/pki/users')).json();
-    if (!users.length) { listEl.innerHTML = '<p style="text-align:center;color:#9e9e9e">Sin usuarios registrados</p>'; return; }
-    listEl.innerHTML = users.map(u => `<div style="border-bottom:1px solid #f0f0f0;padding:8px 0">
-      <b style="color:#1a5c2a">${u.name}</b>
-      <span style="background:#e8f5e9;color:#2e7d32;font-size:10px;padding:2px 8px;border-radius:10px;margin-left:6px">${u.role}</span><br>
-      <span style="color:#616161">${u.email}</span><br>
-      <span style="font-size:10px;color:#999">Serie: ${u.cert.serial} | Hasta: ${u.cert.valid_to}
-      &nbsp;<a href="/api/pki/user-cert/${encodeURIComponent(u.email)}" style="color:#1565c0">&#11015; .crt</a></span>
-    </div>`).join('');
-  } catch(e) { listEl.innerHTML = '<p style="color:red">' + e.message + '</p>'; }
-}
-
-async function efirmaCreateCSD() {
-  const cerFile  = document.getElementById('sat-cer')?.files[0];
-  const keyFile  = document.getElementById('sat-key')?.files[0];
-  const pwd      = document.getElementById('sat-pwd')?.value;
-  const usersRaw = document.getElementById('sat-users')?.value || '';
-  const result   = document.getElementById('sat-result');
-
-  if (!cerFile || !keyFile || !pwd) {
-    showToast('⚠️ Selecciona .cer, .key y contraseña'); return;
-  }
-
-  // Parsear usuarios del textarea: Nombre | email | rol | pin
-  const users = usersRaw.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
-    const [name, email, role, pin] = l.split('|').map(s => s.trim());
-    return { name, email, role: role || 'tecnico', pin };
-  }).filter(u => u.name && u.email && u.pin);
-
-  const form = new FormData();
-  form.append('cer', cerFile);
-  form.append('key', keyFile);
-  form.append('password', pwd);
-  form.append('users', JSON.stringify(users));
-
-  showOverlay('Validando e.firma SAT y creando CSD...');
-  try {
-    const res  = await fetch('/api/efirma/create-csd', { method: 'POST', body: form });
-    const data = await res.json();
-    hideOverlay();
-
-    if (!res.ok || data.error) {
-      showToast('❌ ' + data.error); return;
-    }
-
-    const auth = data.autorizado_por || {};
-    const satBadge = auth.es_sat
-      ? '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px">✔ Emitido por SAT</span>'
-      : '<span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-size:11px">⚠ No verificado SAT</span>';
-
-    const usersHtml = (data.usuarios_creados || []).map(u =>
-      `<div style="border-top:1px solid #c8e6c9;padding-top:4px;margin-top:4px">
-        ✔ <b>${u.name}</b> (${u.role}) — ${u.email}<br>
-        <span style="font-size:10px;color:#555">Serie: ${u.cert.serial} | Hasta: ${u.cert.valid_to}</span>
-       </div>`
-    ).join('');
-
-    result.style.display = 'block';
-    result.innerHTML = `
-      <b>✅ CSD generado correctamente</b><br><br>
-      <b>Autorizado por:</b> ${auth.nombre} ${satBadge}<br>
-      <b>RFC:</b> ${auth.rfc}<br>
-      <b>No. Serie e.firma:</b> ${auth.serial}<br>
-      <b>Emisor:</b> ${auth.emisor}<br>
-      <b>CA interna:</b> ${data.ca_serial}<br>
-      <br><b>Certificados creados:</b>
-      ${usersHtml || '<div style="color:#777">Ningún usuario válido en la lista</div>'}
-      <br>
-      <a href="/api/pki/ca-cert" style="color:#1565c0">⬇ Descargar CA certificate</a>
-    `;
-    showToast('✅ CSD creado — ' + (data.usuarios_creados?.length || 0) + ' usuario(s)');
-
-    // Limpiar campos sensibles
-    document.getElementById('sat-pwd').value = '';
-
-  } catch(e) {
-    hideOverlay(); showToast('❌ ' + e.message);
-  }
-}
-
-// ══ FIN PKI X.509 ══
-
 </script>
 
 
