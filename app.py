@@ -111,7 +111,14 @@ def apply_checklist_data(ws, data):
         ws.cell(row=sig_row, column=11).value = "Supervisor de Produccion: " + sup
 
         tec_sig = data.get('sigTecnico') or {}
-        if isinstance(tec_sig, dict) and tec_sig.get('nombre'):
+        sup_sig = data.get('sigSupervisor') or {}
+        has_tec = isinstance(tec_sig, dict) and tec_sig.get('nombre')
+        has_sup = isinstance(sup_sig, dict) and sup_sig.get('nombre')
+
+        if has_tec or has_sup:
+            ws.row_dimensions[firma_row].height = 90
+
+        if has_tec:
             cell = ws.cell(row=firma_row, column=1)
             cell.value = ("FIRMA DIGITAL PKI X.509\n"
                 "Firmante: " + tec_sig.get('nombre','') + "\n"
@@ -121,8 +128,7 @@ def apply_checklist_data(ws, data):
                 "Emisor:   AD-PACK Mexico")
             cell.alignment = Alignment(wrap_text=True, vertical='top')
 
-        sup_sig = data.get('sigSupervisor') or {}
-        if isinstance(sup_sig, dict) and sup_sig.get('nombre'):
+        if has_sup:
             cell = ws.cell(row=firma_row, column=10)
             cell.value = ("FIRMA DIGITAL PKI X.509\n"
                 "Firmante: " + sup_sig.get('nombre','') + "\n"
