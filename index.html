@@ -729,13 +729,7 @@ function validateReport(){
     showToast("⚠️ Escribe el nombre del técnico");
     return false;
   }
-  // Check technician signature (required)
-  if(!sigData.tecnico || !sigData.tecnico.timestamp){
-    const sigSection = document.getElementById('sig-section-form');
-    if(sigSection) sigSection.scrollIntoView({behavior:'smooth', block:'center'});
-    showToast("⚠️ Falta la firma del Técnico");
-    return false;
-  }
+  // Signature optional for Excel download — required only for PDF
   // Check voltaje >= 110V (if filled)
   const voltFields = [{id:'vl1',label:'L1'},{id:'vl2',label:'L2'},{id:'vl3',label:'L3'},{id:'vvac',label:'VAC'}];
   for(const f of voltFields){
@@ -808,6 +802,12 @@ function generateExcel(){
 
 function generatePDF(){
   if(!validateReport()) return;
+  if(!sigData.tecnico || !sigData.tecnico.timestamp){
+    const sigSection = document.getElementById('sig-section-form');
+    if(sigSection) sigSection.scrollIntoView({behavior:'smooth', block:'center'});
+    showToast("⚠️ Falta la firma del Técnico para generar el PDF");
+    return;
+  }
   const tec = document.getElementById("ft").value || "_______________";
   const fec = document.getElementById("ff").value || "_______________";
   const sup = document.getElementById("fs").value || "_______________";
