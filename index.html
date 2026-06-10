@@ -431,8 +431,10 @@ async function saveReport(){
     statuses:{...IS}, comments:{...IC},
     sigTecnico:sigData.tecnico?.timestamp||null,
     sigTecnicoName:sigData.tecnico?.nombre||null,
+    sigTecnicoEmail:sigData.tecnico?.email||null,
     sigSupervisor:sigData.supervisor?.timestamp||null,
-    sigSupervisorName:sigData.supervisor?.nombre||null
+    sigSupervisorName:sigData.supervisor?.nombre||null,
+    sigSupervisorEmail:sigData.supervisor?.email||null
   };
   try{
     await fetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});
@@ -463,7 +465,7 @@ function loadReport(id){
   showPage("form");
 }
 
-function restoreForm(r){sigData.tecnico=r.sigTecnico?{timestamp:r.sigTecnico,img:r.sigTecnicoImg||null}:null;sigData.supervisor=r.sigSupervisor?{timestamp:r.sigSupervisor,img:r.sigSupervisorImg||null}:null;
+function restoreForm(r){sigData.tecnico=r.sigTecnico?{timestamp:r.sigTecnico,nombre:r.sigTecnicoName||null,email:r.sigTecnicoEmail||null,img:r.sigTecnicoImg||null}:null;sigData.supervisor=r.sigSupervisor?{timestamp:r.sigSupervisor,nombre:r.sigSupervisorName||null,email:r.sigSupervisorEmail||null,img:r.sigSupervisorImg||null}:null;
   if(document.getElementById("ft"))document.getElementById("ft").value=r.tecnico||"";
   if(document.getElementById("ff"))document.getElementById("ff").value=r.fecha||"";
   if(document.getElementById("fs"))document.getElementById("fs").value=r.supervisor||"";
@@ -1337,7 +1339,9 @@ async function checkBothSigned(){
       reportCache[idx].sigTecnico=sigData.tecnico.timestamp;
       reportCache[idx].sigSupervisor=sigData.supervisor.timestamp;
       reportCache[idx].sigTecnicoName=sigData.tecnico.nombre||null;
+      reportCache[idx].sigTecnicoEmail=sigData.tecnico.email||null;
       reportCache[idx].sigSupervisorName=sigData.supervisor.nombre||null;
+      reportCache[idx].sigSupervisorEmail=sigData.supervisor.email||null;
       reportCache[idx].locked=true;
       fetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(reportCache[idx])}).catch(()=>{});
     }
