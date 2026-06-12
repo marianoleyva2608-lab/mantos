@@ -83,17 +83,15 @@ MONTH_COLS = {"ENE":"B","FEB":"C","MAR":"D","ABR":"E","MAY":"F","JUN":"G",
               "JUL":"H","AGO":"I","SEP":"J","OCT":"K","NOV":"L","DIC":"M"}
 
 def _wc(ws, row, col, value, alignment=None):
-    """Escribe en celda solo si es top-left (no MergedCell)."""
     cell = ws.cell(row=row, column=col)
     try:
         cell.value = value
     except AttributeError:
-        return  # MergedCell de solo lectura — saltar
+        return
     if alignment:
         cell.alignment = alignment
 
 def apply_checklist_data(ws, data):
-    # Row limits from known templates — override any stale value in saved reports
     SHEET_SIG = {
         'TF 1':45,'TF 2':45,'TF 3':45,'TF 4':45,'TF 5':45,'TF 6':45,'TF 7':45,
         'prensa 1':40,'Prensa 2':40,
@@ -104,14 +102,13 @@ def apply_checklist_data(ws, data):
     }
     sheet_name = data.get('sheet', '')
     sig_row = SHEET_SIG.get(sheet_name) or data.get('sig_row')
-    cal_row  = data.get('cal_data_row')
-    # Guard: don't write items into calendar/firma rows
+    cal_row = data.get('cal_data_row')
     max_item_row = (sig_row - 1) if sig_row else 9999
 
     for item in data.get('items', []):
         row, st, cm = item['row'], item.get('status',''), item.get('comment','')
         if row > max_item_row:
-            continue  # skip stale items from old checklists
+            continue
         _wc(ws, row, 11, '( v )' if st == 'ok' else '(   )')
         _wc(ws, row, 12, '( v )' if st == 'ng' else '(   )')
         if cm:
@@ -138,10 +135,9 @@ def apply_checklist_data(ws, data):
         tec_sig = data.get('sigTecnico') or {}
         sup_sig = data.get('sigSupervisor') or {}
 
-        # Fallback: use plain tecnico/supervisor name if PKI nombre is missing
-        if isinstance(tec_sig, dict) and not tec_sig.get('nombre') and tec:
+        if isinstance(tec_sig, dict) and not tec_sig.get('nombre') and tec and tec != '_______________':
             tec_sig = dict(tec_sig); tec_sig['nombre'] = tec
-        if isinstance(sup_sig, dict) and not sup_sig.get('nombre') and sup:
+        if isinstance(sup_sig, dict) and not sup_sig.get('nombre') and sup and sup != '_______________':
             sup_sig = dict(sup_sig); sup_sig['nombre'] = sup
 
         has_tec = isinstance(tec_sig, dict) and bool(tec_sig.get('nombre')) and bool(tec_sig.get('fecha'))
@@ -232,4 +228,27 @@ def generar_pdf():
             del wb[s]
         xlsx_path = os.path.join(tmp_dir, 'reporte.xlsx')
         wb.save(xlsx_path)
-        result = subproce
+        result = subprocess.run(
+            ['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', tmp_dir, xlsx_path],
+            capture_output=True, text=True, timeout=60)
+        if result.returncode != 0:
+            raise RuntimeError("LibreOffice error: " + result.stderr)
+        pdf_path = os.path.join(tmp_dir, 'reporte.pdf')
+        if not os.path.exists(pdf_path):
+            raise RuntimeError("PDF no generado por LibreOffice")
+        with open(pdf_path, 'rb') as f:
+            pdf_bytes = f.read()
+        fname = "REPORTE_" + data.get('machineId','EQ') + "_" + data.get('fecha','').replace('/','-') + ".pdf"
+        return send_file(io.BytesIO(pdf_bytes), as_attachment=True, download_name=fname, mimetype='application/pdf')
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+@app.route('/version')
+def version():
+    return jsonify({'commit': 'b3e7f21', 'fix': 'sig_row_guard+pki_fallback'})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
