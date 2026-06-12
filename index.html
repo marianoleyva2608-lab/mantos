@@ -1630,7 +1630,21 @@ function reportCard(r) {
 
 function downloadReportExcel(r) {
   const ovl=document.getElementById('overlay'); ovl.classList.add('show');
-  fetch('/generar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)})
+  const payload = {...r,
+    sigTecnico: r.sigTecnico ? {
+      nombre: r.sigTecnicoName||'',
+      email:  r.sigTecnicoEmail||'',
+      fecha:  r.sigTecnico,
+      serie:  genCertCode(r.sigTecnicoEmail||'', r.sigTecnico)
+    } : null,
+    sigSupervisor: r.sigSupervisor ? {
+      nombre: r.sigSupervisorName||'',
+      email:  r.sigSupervisorEmail||'',
+      fecha:  r.sigSupervisor,
+      serie:  genCertCode(r.sigSupervisorEmail||'', r.sigSupervisor)
+    } : null
+  };
+  fetch('/generar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(res=>res.blob()).then(blob=>{
       const a=document.createElement('a');
       a.href=URL.createObjectURL(blob);
