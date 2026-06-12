@@ -132,7 +132,9 @@ def apply_checklist_data(ws, data):
         has_sup = isinstance(sup_sig, dict) and sup_sig.get('nombre')
 
         if has_tec or has_sup:
-            ws.row_dimensions[firma_row].height = 90
+            # La celda fusionada abarca 2 filas — dar altura a ambas
+            ws.row_dimensions[firma_row].height = 80
+            ws.row_dimensions[firma_row + 1].height = 80
 
         if has_tec:
             write_cell(ws, firma_row, 2,
@@ -143,6 +145,9 @@ def apply_checklist_data(ws, data):
                 "Serie:    " + tec_sig.get('serie','') + "\n"
                 "Emisor:   AD-PACK Mexico",
                 Alignment(wrap_text=True, vertical='top'))
+            # Ampliar col B para que el texto sea legible tras desmergear
+            if ws.column_dimensions['B'].width < 38:
+                ws.column_dimensions['B'].width = 38
 
         if has_sup:
             write_cell(ws, firma_row, 11,
@@ -153,6 +158,9 @@ def apply_checklist_data(ws, data):
                 "Serie:    " + sup_sig.get('serie','') + "\n"
                 "Emisor:   AD-PACK Mexico",
                 Alignment(wrap_text=True, vertical='top'))
+            # Ampliar col K para supervisor
+            if ws.column_dimensions['K'].width < 38:
+                ws.column_dimensions['K'].width = 38
 
     sup_comments = data.get('supComments','')
     if sup_comments and sig_row:
