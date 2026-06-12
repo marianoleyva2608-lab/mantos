@@ -72,12 +72,12 @@ def list_users():
 try:
     import openpyxl
     from openpyxl.utils import get_column_letter
-    from openpyxl.styles import Alignment
+    from openpyxl.styles import Alignment, Font
 except ImportError:
     os.system("pip install openpyxl -q")
     import openpyxl
     from openpyxl.utils import get_column_letter
-    from openpyxl.styles import Alignment
+    from openpyxl.styles import Alignment, Font
 
 MONTH_COLS = {"ENE":"B","FEB":"C","MAR":"D","ABR":"E","MAY":"F","JUN":"G",
               "JUL":"H","AGO":"I","SEP":"J","OCT":"K","NOV":"L","DIC":"M"}
@@ -126,28 +126,32 @@ def apply_checklist_data(ws, data):
         has_sup = isinstance(sup_sig, dict) and sup_sig.get('nombre')
 
         if has_tec or has_sup:
-            ws.row_dimensions[firma_row].height = 75
-            ws.row_dimensions[firma_row + 1].height = 75
+            ws.row_dimensions[firma_row].height = 110
+            ws.row_dimensions[firma_row + 1].height = 10
+
+        pki_font = Font(name='Calibri', size=9, bold=False)
 
         if has_tec:
-            _wc(ws, firma_row, 2,
-                "FIRMA DIGITAL PKI X.509\n"
+            cell = ws.cell(row=firma_row, column=2)
+            cell.value = ("FIRMA DIGITAL PKI X.509\n"
                 "Firmante: " + tec_sig.get('nombre','') + "\n"
                 "Correo:   " + tec_sig.get('email','') + "\n"
                 "Fecha:    " + tec_sig.get('fecha','') + "\n"
                 "Serie:    " + tec_sig.get('serie','') + "\n"
-                "Emisor:   AD-PACK Mexico",
-                Alignment(wrap_text=True, vertical='top'))
+                "Emisor:   AD-PACK Mexico")
+            cell.alignment = Alignment(wrap_text=True, vertical='top')
+            cell.font = pki_font
 
         if has_sup:
-            _wc(ws, firma_row, 11,
-                "FIRMA DIGITAL PKI X.509\n"
+            cell = ws.cell(row=firma_row, column=11)
+            cell.value = ("FIRMA DIGITAL PKI X.509\n"
                 "Firmante: " + sup_sig.get('nombre','') + "\n"
                 "Correo:   " + sup_sig.get('email','') + "\n"
                 "Fecha:    " + sup_sig.get('fecha','') + "\n"
                 "Serie:    " + sup_sig.get('serie','') + "\n"
-                "Emisor:   AD-PACK Mexico",
-                Alignment(wrap_text=True, vertical='top'))
+                "Emisor:   AD-PACK Mexico")
+            cell.alignment = Alignment(wrap_text=True, vertical='top')
+            cell.font = pki_font
 
 @app.route('/api/reports', methods=['GET'])
 def api_get_reports():
