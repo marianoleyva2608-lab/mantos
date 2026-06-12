@@ -18,10 +18,12 @@ def init_db():
 
 def init_users_db():
     con = get_db()
-    con.execute('''CREATE TABLE IF NOT EXISTS users
+    con.execute(
+        """CREATE TABLE IF NOT EXISTS users
         (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL,
          email TEXT NOT NULL UNIQUE, pin_hash TEXT NOT NULL,
-         created_at TEXT DEFAULT (datetime('now')))''')
+         created_at TEXT DEFAULT (datetime('now')))"""
+    )
     con.commit(); con.close()
 
 init_db()
@@ -73,11 +75,13 @@ try:
     import openpyxl
     from openpyxl.utils import get_column_letter
     from openpyxl.styles import Alignment, Font
+    from openpyxl.worksheet.page import PageMargins
 except ImportError:
     os.system("pip install openpyxl -q")
     import openpyxl
     from openpyxl.utils import get_column_letter
     from openpyxl.styles import Alignment, Font
+    from openpyxl.worksheet.page import PageMargins
 
 MONTH_COLS = {"ENE":"B","FEB":"C","MAR":"D","ABR":"E","MAY":"F","JUN":"G",
               "JUL":"H","AGO":"I","SEP":"J","OCT":"K","NOV":"L","DIC":"M"}
@@ -165,6 +169,17 @@ def apply_checklist_data(ws, data):
         if has_sup:
             write_pki(11, sup_sig)
 
+        # --- UNIFICAR PAGE SETUP en todos los formatos ---
+        last_print_row = firma_row + 1
+        start_print_row = 2 if sheet_name.startswith('TF') else 1
+        ws.print_area = '$B${}:$Q${}'.format(start_print_row, last_print_row)
+        ws.page_setup.orientation = 'portrait'
+        ws.page_setup.scale = 44
+        ws.page_margins = PageMargins(
+            left=0.70, right=0.70, top=0.75, bottom=0.75,
+            header=0.3, footer=0.3
+        )
+
 @app.route('/api/reports', methods=['GET'])
 def api_get_reports():
     con = get_db()
@@ -248,7 +263,7 @@ def generar_pdf():
 
 @app.route('/version')
 def version():
-    return jsonify({'commit': 'b3e7f21', 'fix': 'sig_row_guard+pki_fallback'})
+    return jsonify({'commit': 'a1f9c33', 'fix': 'unified_page_setup_all_formats'})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
