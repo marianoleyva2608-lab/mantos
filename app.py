@@ -132,9 +132,7 @@ def apply_checklist_data(ws, data):
         pki_font = Font(name='Calibri', size=9, bold=False)
 
         def write_pki(col, sig):
-            pki_text = ("FIRMA DIGITAL PKI X.509\n"
-                "Firmante: " + sig.get('nombre','') + "\n"
-                "Correo:   " + sig.get('email','') + "\n"
+            pki_text = (sig.get('nombre','') + "\n"
                 "Fecha:    " + sig.get('fecha','') + "\n"
                 "Serie:    " + sig.get('serie','') + "\n"
                 "Emisor:   AD-PACK Mexico")
