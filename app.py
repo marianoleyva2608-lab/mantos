@@ -142,9 +142,8 @@ def apply_checklist_data(ws, data):
                 "Emisor:   AD-PACK Mexico")
             cell.alignment = Alignment(wrap_text=True, vertical='top')
 
-    sup_comments = data.get('supComments','')
-    if sup_comments and sig_row:
-        ws.cell(row=sig_row+2, column=2).value = "Comentarios: " + sup_comments
+    # sup_comments omitido: sig_row+2 cae dentro de la celda fusionada B46:G47 (MergedCell)
+    # sup_comments = data.get('supComments','')
 
 @app.route('/api/reports', methods=['GET'])
 def api_get_reports():
