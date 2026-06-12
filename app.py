@@ -131,27 +131,25 @@ def apply_checklist_data(ws, data):
 
         pki_font = Font(name='Calibri', size=9, bold=False)
 
-        if has_tec:
-            cell = ws.cell(row=firma_row, column=2)
-            cell.value = ("FIRMA DIGITAL PKI X.509\n"
-                "Firmante: " + tec_sig.get('nombre','') + "\n"
-                "Correo:   " + tec_sig.get('email','') + "\n"
-                "Fecha:    " + tec_sig.get('fecha','') + "\n"
-                "Serie:    " + tec_sig.get('serie','') + "\n"
+        def write_pki(col, sig):
+            pki_text = ("FIRMA DIGITAL PKI X.509\n"
+                "Firmante: " + sig.get('nombre','') + "\n"
+                "Correo:   " + sig.get('email','') + "\n"
+                "Fecha:    " + sig.get('fecha','') + "\n"
+                "Serie:    " + sig.get('serie','') + "\n"
                 "Emisor:   AD-PACK Mexico")
-            cell.alignment = Alignment(wrap_text=True, vertical='top')
-            cell.font = pki_font
+            cell = ws.cell(row=firma_row, column=col)
+            try:
+                cell.value = pki_text
+                cell.alignment = Alignment(wrap_text=True, vertical='top')
+                cell.font = Font(name='Calibri', size=9, bold=False)
+            except AttributeError:
+                pass
 
+        if has_tec:
+            write_pki(2, tec_sig)
         if has_sup:
-            cell = ws.cell(row=firma_row, column=11)
-            cell.value = ("FIRMA DIGITAL PKI X.509\n"
-                "Firmante: " + sup_sig.get('nombre','') + "\n"
-                "Correo:   " + sup_sig.get('email','') + "\n"
-                "Fecha:    " + sup_sig.get('fecha','') + "\n"
-                "Serie:    " + sup_sig.get('serie','') + "\n"
-                "Emisor:   AD-PACK Mexico")
-            cell.alignment = Alignment(wrap_text=True, vertical='top')
-            cell.font = pki_font
+            write_pki(11, sup_sig)
 
 @app.route('/api/reports', methods=['GET'])
 def api_get_reports():
