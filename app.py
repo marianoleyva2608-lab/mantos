@@ -230,5 +230,9 @@ def generar_pdf():
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
+@app.route('/version')
+def version():
+    return jsonify({'commit': '8f04af1', 'fix': '_wc_helper'})
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
