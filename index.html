@@ -1655,7 +1655,21 @@ function downloadReportExcel(r) {
 
 function downloadReportPDF(r) {
   const ovl=document.getElementById('overlay'); ovl.classList.add('show');
-  const payload = {...r, userEmail: currentUser ? currentUser.email : null};
+  const payload = {...r,
+    userEmail: currentUser ? currentUser.email : null,
+    sigTecnico: r.sigTecnico ? {
+      nombre: r.sigTecnicoName||'',
+      email:  r.sigTecnicoEmail||'',
+      fecha:  r.sigTecnico,
+      serie:  genCertCode(r.sigTecnicoEmail||'', r.sigTecnico)
+    } : null,
+    sigSupervisor: r.sigSupervisor ? {
+      nombre: r.sigSupervisorName||'',
+      email:  r.sigSupervisorEmail||'',
+      fecha:  r.sigSupervisor,
+      serie:  genCertCode(r.sigSupervisorEmail||'', r.sigSupervisor)
+    } : null
+  };
   fetch('/generar_pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(res=>res.blob()).then(blob=>{
       const a=document.createElement('a');
