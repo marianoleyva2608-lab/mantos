@@ -142,7 +142,7 @@ def apply_checklist_data(ws, data):
             try:
                 cell.value = pki_text
                 cell.alignment = Alignment(wrap_text=True, vertical='top')
-                cell.font = Font(name='Calibri', size=9, bold=False)
+                cell.font = Font(name='Calibri', size=10, bold=False, color='FF000000')
             except AttributeError:
                 pass
 
