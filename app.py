@@ -82,23 +82,33 @@ except ImportError:
 MONTH_COLS = {"ENE":"B","FEB":"C","MAR":"D","ABR":"E","MAY":"F","JUN":"G",
               "JUL":"H","AGO":"I","SEP":"J","OCT":"K","NOV":"L","DIC":"M"}
 
+def _wc(ws, row, col, value, alignment=None):
+    """Escribe en celda solo si es top-left (no MergedCell)."""
+    cell = ws.cell(row=row, column=col)
+    try:
+        cell.value = value
+    except AttributeError:
+        return  # MergedCell de solo lectura — saltar
+    if alignment:
+        cell.alignment = alignment
+
 def apply_checklist_data(ws, data):
     for item in data.get('items', []):
         row, st, cm = item['row'], item.get('status',''), item.get('comment','')
-        ws.cell(row=row, column=11).value = '( v )' if st == 'ok' else '(   )'
-        ws.cell(row=row, column=12).value = '( v )' if st == 'ng' else '(   )'
+        _wc(ws, row, 11, '( v )' if st == 'ok' else '(   )')
+        _wc(ws, row, 12, '( v )' if st == 'ng' else '(   )')
         if cm:
-            ws.cell(row=row, column=13).value = cm
+            _wc(ws, row, 13, cm)
 
     cal_row = data.get('cal_data_row')
     months = set(data.get('month', []))
     if cal_row:
         for m, col in MONTH_COLS.items():
-            ws.cell(row=cal_row, column=ord(col)-ord('A')+1).value = '( v )' if m in months else '(   )'
+            _wc(ws, cal_row, ord(col)-ord('A')+1, '( v )' if m in months else '(   )')
         v = data.get('voltaje', {})
         for col_n, key in [(14,'l1'),(15,'l2'),(16,'l3'),(17,'vac')]:
             if v.get(key):
-                ws.cell(row=cal_row, column=col_n).value = v[key]
+                _wc(ws, cal_row, col_n, v[key])
 
     sig_row = data.get('sig_row')
     if sig_row:
@@ -106,9 +116,9 @@ def apply_checklist_data(ws, data):
         fec = data.get('fecha','_______________')
         sup = data.get('supervisor','_______________')
         firma_row = sig_row + 1
-        ws.cell(row=sig_row, column=2).value  = "Realizo: " + tec
-        ws.cell(row=sig_row, column=8).value  = "Fecha: " + fec
-        ws.cell(row=sig_row, column=11).value = "Supervisor de Produccion: " + sup
+        _wc(ws, sig_row, 2,  "Realizo: " + tec)
+        _wc(ws, sig_row, 8,  "Fecha: " + fec)
+        _wc(ws, sig_row, 11, "Supervisor de Produccion: " + sup)
 
         tec_sig = data.get('sigTecnico') or {}
         sup_sig = data.get('sigSupervisor') or {}
@@ -116,34 +126,28 @@ def apply_checklist_data(ws, data):
         has_sup = isinstance(sup_sig, dict) and sup_sig.get('nombre')
 
         if has_tec or has_sup:
-            # Dar altura a las 2 filas que abarca la celda fusionada B46:G47 / K46:Q47
             ws.row_dimensions[firma_row].height = 75
             ws.row_dimensions[firma_row + 1].height = 75
 
         if has_tec:
-            # B46 es top-left de la celda fusionada B46:G47 — escribir directamente
-            cell = ws.cell(row=firma_row, column=2)
-            cell.value = ("FIRMA DIGITAL PKI X.509\n"
+            _wc(ws, firma_row, 2,
+                "FIRMA DIGITAL PKI X.509\n"
                 "Firmante: " + tec_sig.get('nombre','') + "\n"
                 "Correo:   " + tec_sig.get('email','') + "\n"
                 "Fecha:    " + tec_sig.get('fecha','') + "\n"
                 "Serie:    " + tec_sig.get('serie','') + "\n"
-                "Emisor:   AD-PACK Mexico")
-            cell.alignment = Alignment(wrap_text=True, vertical='top')
+                "Emisor:   AD-PACK Mexico",
+                Alignment(wrap_text=True, vertical='top'))
 
         if has_sup:
-            # K46 es top-left de la celda fusionada K46:Q47 — escribir directamente
-            cell = ws.cell(row=firma_row, column=11)
-            cell.value = ("FIRMA DIGITAL PKI X.509\n"
+            _wc(ws, firma_row, 11,
+                "FIRMA DIGITAL PKI X.509\n"
                 "Firmante: " + sup_sig.get('nombre','') + "\n"
                 "Correo:   " + sup_sig.get('email','') + "\n"
                 "Fecha:    " + sup_sig.get('fecha','') + "\n"
                 "Serie:    " + sup_sig.get('serie','') + "\n"
-                "Emisor:   AD-PACK Mexico")
-            cell.alignment = Alignment(wrap_text=True, vertical='top')
-
-    # sup_comments omitido: sig_row+2 cae dentro de la celda fusionada B46:G47 (MergedCell)
-    # sup_comments = data.get('supComments','')
+                "Emisor:   AD-PACK Mexico",
+                Alignment(wrap_text=True, vertical='top'))
 
 @app.route('/api/reports', methods=['GET'])
 def api_get_reports():
