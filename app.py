@@ -126,8 +126,8 @@ def apply_checklist_data(ws, data):
         has_sup = isinstance(sup_sig, dict) and sup_sig.get('nombre')
 
         if has_tec or has_sup:
-            ws.row_dimensions[firma_row].height = 110
-            ws.row_dimensions[firma_row + 1].height = 10
+            ws.row_dimensions[firma_row].height = 130
+            ws.row_dimensions[firma_row + 1].height = 20
 
         pki_font = Font(name='Calibri', size=9, bold=False)
 
@@ -141,7 +141,7 @@ def apply_checklist_data(ws, data):
             cell = ws.cell(row=firma_row, column=col)
             try:
                 cell.value = pki_text
-                cell.alignment = Alignment(wrap_text=True, vertical='center', horizontal='center')
+                cell.alignment = Alignment(wrap_text=True, vertical='top', horizontal='center')
                 cell.font = Font(name='Calibri', size=10, bold=True, color='FF000000')
             except AttributeError:
                 pass
