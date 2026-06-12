@@ -82,22 +82,6 @@ except ImportError:
 MONTH_COLS = {"ENE":"B","FEB":"C","MAR":"D","ABR":"E","MAY":"F","JUN":"G",
               "JUL":"H","AGO":"I","SEP":"J","OCT":"K","NOV":"L","DIC":"M"}
 
-def write_cell(ws, row, col, value, alignment=None):
-    """Escribe en una celda, desmergeando si es necesario."""
-    from openpyxl.utils import get_column_letter
-    col_letter = get_column_letter(col)
-    # Buscar si esta celda es parte de un rango fusionado
-    to_remove = []
-    for mc in list(ws.merged_cells.ranges):
-        if mc.min_row <= row <= mc.max_row and mc.min_col <= col <= mc.max_col:
-            to_remove.append(str(mc))
-    for r in to_remove:
-        ws.unmerge_cells(r)
-    cell = ws.cell(row=row, column=col)
-    cell.value = value
-    if alignment:
-        cell.alignment = alignment
-
 def apply_checklist_data(ws, data):
     for item in data.get('items', []):
         row, st, cm = item['row'], item.get('status',''), item.get('comment','')
@@ -132,35 +116,31 @@ def apply_checklist_data(ws, data):
         has_sup = isinstance(sup_sig, dict) and sup_sig.get('nombre')
 
         if has_tec or has_sup:
-            # La celda fusionada abarca 2 filas — dar altura a ambas
-            ws.row_dimensions[firma_row].height = 80
-            ws.row_dimensions[firma_row + 1].height = 80
+            # Dar altura a las 2 filas que abarca la celda fusionada B46:G47 / K46:Q47
+            ws.row_dimensions[firma_row].height = 75
+            ws.row_dimensions[firma_row + 1].height = 75
 
         if has_tec:
-            write_cell(ws, firma_row, 2,
-                "FIRMA DIGITAL PKI X.509\n"
+            # B46 es top-left de la celda fusionada B46:G47 — escribir directamente
+            cell = ws.cell(row=firma_row, column=2)
+            cell.value = ("FIRMA DIGITAL PKI X.509\n"
                 "Firmante: " + tec_sig.get('nombre','') + "\n"
                 "Correo:   " + tec_sig.get('email','') + "\n"
                 "Fecha:    " + tec_sig.get('fecha','') + "\n"
                 "Serie:    " + tec_sig.get('serie','') + "\n"
-                "Emisor:   AD-PACK Mexico",
-                Alignment(wrap_text=True, vertical='top'))
-            # Ampliar col B para que el texto sea legible tras desmergear
-            if ws.column_dimensions['B'].width < 38:
-                ws.column_dimensions['B'].width = 38
+                "Emisor:   AD-PACK Mexico")
+            cell.alignment = Alignment(wrap_text=True, vertical='top')
 
         if has_sup:
-            write_cell(ws, firma_row, 11,
-                "FIRMA DIGITAL PKI X.509\n"
+            # K46 es top-left de la celda fusionada K46:Q47 — escribir directamente
+            cell = ws.cell(row=firma_row, column=11)
+            cell.value = ("FIRMA DIGITAL PKI X.509\n"
                 "Firmante: " + sup_sig.get('nombre','') + "\n"
                 "Correo:   " + sup_sig.get('email','') + "\n"
                 "Fecha:    " + sup_sig.get('fecha','') + "\n"
                 "Serie:    " + sup_sig.get('serie','') + "\n"
-                "Emisor:   AD-PACK Mexico",
-                Alignment(wrap_text=True, vertical='top'))
-            # Ampliar col K para supervisor
-            if ws.column_dimensions['K'].width < 38:
-                ws.column_dimensions['K'].width = 38
+                "Emisor:   AD-PACK Mexico")
+            cell.alignment = Alignment(wrap_text=True, vertical='top')
 
     sup_comments = data.get('supComments','')
     if sup_comments and sig_row:
