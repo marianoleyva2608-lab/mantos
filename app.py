@@ -216,7 +216,8 @@ def api_delete_report(report_id):
 
 @app.route('/')
 def index():
-    return open('index.html', encoding='utf-8').read(), 200, {'Content-Type':'text/html; charset=utf-8'}
+    html = open('index.html', encoding='utf-8').read()
+    return html, 200, {'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store, no-cache, must-revalidate', 'Pragma':'no-cache'}
 
 @app.route('/generar', methods=['POST'])
 def generar():
