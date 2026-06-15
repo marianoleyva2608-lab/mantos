@@ -123,9 +123,13 @@ def apply_checklist_data(ws, data):
         for m, col in MONTH_COLS.items():
             _wc(ws, cal_row, ord(col)-ord('A')+1, '( v )' if m in months else '(   )')
         v = data.get('voltaje', {})
-        for col_n, key in [(14,'l1'),(15,'l2'),(16,'l3'),(17,'vac')]:
-            if v.get(key):
-                _wc(ws, cal_row, col_n, v[key])
+        if sheet_name == 'Rotary Press':
+            if v.get('l1'):  _wc(ws, cal_row, 14, v['l1'])
+            if v.get('vac'): _wc(ws, cal_row, 15, v['vac'])
+        else:
+            for col_n, key in [(14,'l1'),(15,'l2'),(16,'l3'),(17,'vac')]:
+                if v.get(key):
+                    _wc(ws, cal_row, col_n, v[key])
 
     if sig_row:
         tec = data.get('tecnico','_______________')
