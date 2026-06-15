@@ -2056,6 +2056,7 @@ function loadOrdenNueva(){
   ['inicio','termino'].forEach(function(t){var d=document.getElementById('clock-'+t);if(d)d.style.display='none';var b=document.getElementById('btn-clock-'+t);if(b)b.textContent='🕐 --:--';});
 
   var pd=document.getElementById('or-paro-display');if(pd)pd.textContent='-- min';
+  startParoWatch();
   // Attach time change listeners each time form loads
   setTimeout(function(){
     ['or-h-inicio','or-h-termino'].forEach(function(id){
@@ -2246,16 +2247,26 @@ showPage=function(id){
 var _clk={inicio:{H:8,M:0,mode:'h'},termino:{H:8,M:0,mode:'h'}};
 var _fotosB64=[];
 
+var _paroTimer=null;
 function calcularTiempoParo(){
-  var ini=document.getElementById('or-h-inicio').value;
-  var ter=document.getElementById('or-h-termino').value;
-  if(!ini||!ter)return;
+  var iniEl=document.getElementById('or-h-inicio');
+  var terEl=document.getElementById('or-h-termino');
+  if(!iniEl||!terEl)return;
+  var ini=iniEl.value, ter=terEl.value;
+  var disp=document.getElementById('or-paro-display');
+  var hid=document.getElementById('or-paro');
+  if(!ini||!ter){if(disp)disp.textContent='-- min';return;}
   var p1=ini.split(':'),p2=ter.split(':');
   var tot=(parseInt(p2[0])*60+parseInt(p2[1]))-(parseInt(p1[0])*60+parseInt(p1[1]));
   if(tot<0)tot+=1440;
   var h=Math.floor(tot/60),m=tot%60;
-  document.getElementById('or-paro').value=(h>0?h+' h ':'')+m+' min';
-  document.getElementById('or-paro-display').textContent=(h>0?h+' h ':'')+m+' min';
+  var txt=(h>0?h+' h ':'')+m+' min';
+  if(hid)hid.value=txt;
+  if(disp)disp.textContent=txt;
+}
+function startParoWatch(){
+  if(_paroTimer)clearInterval(_paroTimer);
+  _paroTimer=setInterval(calcularTiempoParo,500);
 }
 
 function clkDraw(t){
