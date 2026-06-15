@@ -14,6 +14,7 @@ def get_db():
 def init_db():
     con = get_db()
     con.execute('CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY, machine_id TEXT, fecha TEXT, data TEXT)')
+    con.execute('CREATE TABLE IF NOT EXISTS work_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, numero TEXT NOT NULL, solicitante TEXT, fecha TEXT, equipo TEXT, planta TEXT, tipo TEXT, estatus TEXT, hora_inicio TEXT, hora_termino TEXT, tiempo_paro TEXT, descripcion_falla TEXT, actividad_realizada TEXT, refaccion TEXT, observaciones TEXT, firma_solicitante TEXT, firma_recibe TEXT, firma_liberacion TEXT, created_at TEXT DEFAULT (datetime(\'now\')))')
     con.commit(); con.close()
 
 def init_users_db():
@@ -269,6 +270,52 @@ def generar_pdf():
         return jsonify({'error': str(e)}), 500
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@app.route('/api/work-orders', methods=['GET'])
+def api_get_work_orders():
+    con = get_db()
+    rows = con.execute('SELECT * FROM work_orders ORDER BY id DESC').fetchall()
+    con.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/work-orders', methods=['POST'])
+def api_save_work_order():
+    data = request.json
+    con = get_db()
+    last = con.execute('SELECT MAX(CAST(numero AS INTEGER)) as mx FROM work_orders').fetchone()
+    next_num = (last['mx'] or 257) + 1
+    numero = str(next_num).zfill(4)
+    con.execute(
+        'INSERT INTO work_orders (numero,solicitante,fecha,equipo,planta,tipo,estatus,hora_inicio,hora_termino,'
+        'tiempo_paro,descripcion_falla,actividad_realizada,refaccion,observaciones,'
+        'firma_solicitante,firma_recibe,firma_liberacion) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        (numero, data.get('solicitante',''), data.get('fecha',''), data.get('equipo',''),
+         data.get('planta',''), data.get('tipo',''), data.get('estatus',''),
+         data.get('hora_inicio',''), data.get('hora_termino',''), data.get('tiempo_paro',''),
+         data.get('descripcion_falla',''), data.get('actividad_realizada',''),
+         data.get('refaccion',''), data.get('observaciones',''),
+         data.get('firma_solicitante',''), data.get('firma_recibe',''), data.get('firma_liberacion',''))
+    )
+    con.commit()
+    new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0]
+    con.close()
+    return jsonify({'ok': True, 'id': new_id, 'numero': numero})
+
+@app.route('/api/work-orders/<int:order_id>', methods=['DELETE'])
+def api_delete_work_order(order_id):
+    con = get_db()
+    con.execute('DELETE FROM work_orders WHERE id=?', (order_id,))
+    con.commit(); con.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/work-orders/next-number', methods=['GET'])
+def api_next_order_number():
+    con = get_db()
+    last = con.execute('SELECT MAX(CAST(numero AS INTEGER)) as mx FROM work_orders').fetchone()
+    next_num = (last['mx'] or 257) + 1
+    con.close()
+    return jsonify({'numero': str(next_num).zfill(4)})
 
 @app.route('/version')
 def version():

@@ -142,7 +142,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <body>
 
 <div id="page-home" class="page active">
-  <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button class="back" onclick="showPage('reports')" style="font-size:20px;margin-right:6px" title="Reportes">&#128196;</button><button class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
+  <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button class="back" onclick="showPage('orden')" style="font-size:20px;margin-right:6px" title="Órdenes de Trabajo">&#128203;</button><button class="back" onclick="showPage('reports')" style="font-size:20px;margin-right:6px" title="Reportes">&#128196;</button><button class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
   <div class="home-c" id="home-c"></div>
 </div>
 
@@ -1778,6 +1778,339 @@ function doLogout() {
 
 
 authInit();
+</script>
+
+
+<!-- ORDEN DE TRABAJO PAGE -->
+<div id="page-orden" class="page" style="background:#f5f5f5;padding-bottom:30px">
+  <div class="hdr">
+    <button class="back" onclick="showPage('home')">&#8249;</button>
+    <div style="flex:1"><h1>&#128203; Órdenes de Trabajo</h1></div>
+    <button onclick="showPage('orden-nueva')" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
+  </div>
+  <div id="orden-list" style="padding:12px"></div>
+</div>
+
+<!-- NUEVA ORDEN PAGE -->
+<div id="page-orden-nueva" class="page" style="background:#f5f5f5;padding-bottom:40px">
+  <div class="hdr">
+    <button class="back" onclick="showPage('orden')">&#8249;</button>
+    <div style="flex:1"><h1>&#128203; Nueva Orden</h1><div class="sub" id="orden-num-sub">Cargando número...</div></div>
+  </div>
+  <div style="padding:12px">
+
+    <!-- Número de orden -->
+    <div style="background:#1b5e20;color:#fff;border-radius:10px;padding:10px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:13px;font-weight:600">ORDEN DE TRABAJO PARA MANTENIMIENTO</span>
+      <span style="font-size:22px;font-weight:700;color:#ffcc02" id="orden-num-display">0258</span>
+    </div>
+
+    <!-- Solicitante / Fecha / Equipo -->
+    <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Solicitante</label>
+        <input id="or-solicitante" type="text" placeholder="Nombre del solicitante" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:3px">
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Fecha</label>
+          <input id="or-fecha" type="date" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:3px">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Equipo</label>
+          <input id="or-equipo" type="text" placeholder="Nombre del equipo" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:3px">
+        </div>
+      </div>
+    </div>
+
+    <!-- Planta -->
+    <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:8px">Planta</label>
+      <div style="display:flex;gap:10px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;flex:1;background:#f0f4f0;border-radius:8px;padding:10px;border:2px solid transparent" id="lbl-planta-t">
+          <input type="radio" name="or-planta" value="TERMOFORMADO" onchange="selectRadioStyle('planta',this)"> Termoformado
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;flex:1;background:#f0f4f0;border-radius:8px;padding:10px;border:2px solid transparent" id="lbl-planta-c">
+          <input type="radio" name="or-planta" value="CONVERSIÓN" onchange="selectRadioStyle('planta',this)"> Conversión
+        </label>
+      </div>
+    </div>
+
+    <!-- Tipo de mantenimiento -->
+    <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:8px">Tipo de Mantenimiento</label>
+      <div style="display:flex;gap:10px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;flex:1;background:#f0f4f0;border-radius:8px;padding:10px;border:2px solid transparent" id="lbl-tipo-p">
+          <input type="radio" name="or-tipo" value="PREVENTIVO" onchange="selectRadioStyle('tipo',this)"> Preventivo
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;flex:1;background:#f0f4f0;border-radius:8px;padding:10px;border:2px solid transparent" id="lbl-tipo-c">
+          <input type="radio" name="or-tipo" value="CORRECTIVO" onchange="selectRadioStyle('tipo',this)"> Correctivo
+        </label>
+      </div>
+    </div>
+
+    <!-- Estatus -->
+    <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:8px">Estatus de la Orden</label>
+      <div style="display:flex;gap:10px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;flex:1;background:#f0f4f0;border-radius:8px;padding:10px;border:2px solid transparent" id="lbl-est-a">
+          <input type="radio" name="or-estatus" value="ABIERTA" onchange="selectRadioStyle('est',this)"> Abierta
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;flex:1;background:#f0f4f0;border-radius:8px;padding:10px;border:2px solid transparent" id="lbl-est-c">
+          <input type="radio" name="or-estatus" value="CERRADA" onchange="selectRadioStyle('est',this)"> Cerrada
+        </label>
+      </div>
+    </div>
+
+    <!-- Horas -->
+    <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Hora de Inicio</label>
+          <input id="or-h-inicio" type="time" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:3px">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Hora de Término</label>
+          <input id="or-h-termino" type="time" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:3px">
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Tiempo de Paro</label>
+        <input id="or-paro" type="text" placeholder="Ej: 17 min" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:3px">
+      </div>
+    </div>
+
+    <!-- Descripción de la falla -->
+    <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Descripción de la Falla</label>
+      <textarea id="or-falla" rows="4" placeholder="Describe la falla o trabajo a realizar..." style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;resize:vertical"></textarea>
+    </div>
+
+    <!-- Actividad realizada -->
+    <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Actividad Realizada</label>
+      <textarea id="or-actividad" rows="4" placeholder="Describe la actividad realizada..." style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;resize:vertical"></textarea>
+    </div>
+
+    <!-- Refacción utilizada -->
+    <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Refacción Utilizada</label>
+      <textarea id="or-refaccion" rows="3" placeholder="N/A si no se utilizaron refacciones..." style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;resize:vertical"></textarea>
+    </div>
+
+    <!-- Observaciones -->
+    <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Observaciones</label>
+      <textarea id="or-obs" rows="3" placeholder="Observaciones adicionales..." style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;resize:vertical"></textarea>
+    </div>
+
+    <!-- Firmas -->
+    <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:10px">Firmas</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px;text-align:center">
+          <canvas id="or-sig-sol" width="200" height="80" style="border:1px solid #ccc;border-radius:6px;width:100%;touch-action:none;background:#fafafa"></canvas>
+          <div style="font-size:10px;color:#777;margin-top:3px">SOLICITANTE</div>
+          <button onclick="clearOrdenSig('or-sig-sol')" style="font-size:10px;color:#c62828;background:none;border:none;cursor:pointer;padding:2px">✕ Borrar</button>
+        </div>
+        <div style="flex:1;min-width:140px;text-align:center">
+          <canvas id="or-sig-rec" width="200" height="80" style="border:1px solid #ccc;border-radius:6px;width:100%;touch-action:none;background:#fafafa"></canvas>
+          <div style="font-size:10px;color:#777;margin-top:3px">RECIBE ORDEN</div>
+          <button onclick="clearOrdenSig('or-sig-rec')" style="font-size:10px;color:#c62828;background:none;border:none;cursor:pointer;padding:2px">✕ Borrar</button>
+        </div>
+        <div style="flex:1;min-width:140px;text-align:center">
+          <canvas id="or-sig-lib" width="200" height="80" style="border:1px solid #ccc;border-radius:6px;width:100%;touch-action:none;background:#fafafa"></canvas>
+          <div style="font-size:10px;color:#777;margin-top:3px">LIBERACIÓN PROD.</div>
+          <button onclick="clearOrdenSig('or-sig-lib')" style="font-size:10px;color:#c62828;background:none;border:none;cursor:pointer;padding:2px">✕ Borrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guardar -->
+    <button onclick="guardarOrden()" style="width:100%;padding:14px;background:#1b5e20;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer">
+      &#128190; Guardar Orden de Trabajo
+    </button>
+
+  </div>
+</div>
+
+<!-- VER ORDEN PAGE -->
+<div id="page-orden-ver" class="page" style="background:#f5f5f5;padding-bottom:40px">
+  <div class="hdr">
+    <button class="back" onclick="showPage('orden')">&#8249;</button>
+    <div style="flex:1"><h1 id="orden-ver-titulo">Orden #0000</h1></div>
+  </div>
+  <div id="orden-ver-body" style="padding:12px"></div>
+</div>
+
+<script>
+// ── ÓRDENES DE TRABAJO ──────────────────────────────────────────
+
+function initOrdenSig(canvasId){
+  var c=document.getElementById(canvasId);
+  if(!c||c._sigInit)return; c._sigInit=true;
+  var ctx=c.getContext('2d'); var drawing=false;
+  function pos(e){var r=c.getBoundingClientRect();var t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)*(c.width/r.width),y:(t.clientY-r.top)*(c.height/r.height)};}
+  function start(e){drawing=true;var p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);e.preventDefault();}
+  function move(e){if(!drawing)return;var p=pos(e);ctx.lineTo(p.x,p.y);ctx.strokeStyle='#1b5e20';ctx.lineWidth=2;ctx.lineCap='round';ctx.stroke();e.preventDefault();}
+  function end(){drawing=false;}
+  c.addEventListener('mousedown',start); c.addEventListener('mousemove',move); c.addEventListener('mouseup',end);
+  c.addEventListener('touchstart',start,{passive:false}); c.addEventListener('touchmove',move,{passive:false}); c.addEventListener('touchend',end);
+}
+
+function clearOrdenSig(id){var c=document.getElementById(id);if(c){c.getContext('2d').clearRect(0,0,c.width,c.height);}}
+
+function getSigData(id){
+  var c=document.getElementById(id);if(!c)return'';
+  var ctx=c.getContext('2d');
+  var d=ctx.getImageData(0,0,c.width,c.height).data;
+  var hasData=false;
+  for(var i=3;i<d.length;i+=4){if(d[i]>0){hasData=true;break;}}
+  return hasData?c.toDataURL('image/png'):'';
+}
+
+function selectRadioStyle(group,input){
+  var maps={
+    'planta':{'TERMOFORMADO':'lbl-planta-t','CONVERSIÓN':'lbl-planta-c'},
+    'tipo':{'PREVENTIVO':'lbl-tipo-p','CORRECTIVO':'lbl-tipo-c'},
+    'est':{'ABIERTA':'lbl-est-a','CERRADA':'lbl-est-c'}
+  };
+  var m=maps[group]; if(!m)return;
+  Object.values(m).forEach(id=>{var el=document.getElementById(id);if(el)el.style.border='2px solid transparent';});
+  var sel=m[input.value]; if(sel){var el=document.getElementById(sel);if(el)el.style.border='2px solid #1b5e20';el.style.background='#e8f5e9';}
+}
+
+function loadOrdenNueva(){
+  // Set today's date
+  var d=new Date(); var dd=String(d.getDate()).padStart(2,'0'); var mm=String(d.getMonth()+1).padStart(2,'0');
+  document.getElementById('or-fecha').value=d.getFullYear()+'-'+mm+'-'+dd;
+  // Load next number
+  fetch('/api/work-orders/next-number').then(r=>r.json()).then(data=>{
+    var n=data.numero||'0258';
+    document.getElementById('orden-num-display').textContent=n;
+    document.getElementById('orden-num-sub').textContent='Orden #'+n;
+  });
+  // Reset form
+  ['or-solicitante','or-equipo','or-paro','or-falla','or-actividad','or-refaccion','or-obs','or-h-inicio','or-h-termino'].forEach(id=>{var el=document.getElementById(id);if(el)el.value='';});
+  document.querySelectorAll('input[name="or-planta"],input[name="or-tipo"],input[name="or-estatus"]').forEach(r=>r.checked=false);
+  ['lbl-planta-t','lbl-planta-c','lbl-tipo-p','lbl-tipo-c','lbl-est-a','lbl-est-c'].forEach(id=>{var el=document.getElementById(id);if(el){el.style.border='2px solid transparent';el.style.background='#f0f4f0';}});
+  ['or-sig-sol','or-sig-rec','or-sig-lib'].forEach(id=>{clearOrdenSig(id);initOrdenSig(id);});
+}
+
+function guardarOrden(){
+  var sol=document.getElementById('or-solicitante').value.trim();
+  var equipo=document.getElementById('or-equipo').value.trim();
+  if(!sol||!equipo){showToast('⚠️ Completa Solicitante y Equipo'); return;}
+  var planta=(document.querySelector('input[name="or-planta"]:checked')||{}).value||'';
+  var tipo=(document.querySelector('input[name="or-tipo"]:checked')||{}).value||'';
+  var estatus=(document.querySelector('input[name="or-estatus"]:checked')||{}).value||'ABIERTA';
+  var payload={
+    solicitante:sol,
+    fecha:document.getElementById('or-fecha').value,
+    equipo:equipo,
+    planta:planta,
+    tipo:tipo,
+    estatus:estatus,
+    hora_inicio:document.getElementById('or-h-inicio').value,
+    hora_termino:document.getElementById('or-h-termino').value,
+    tiempo_paro:document.getElementById('or-paro').value,
+    descripcion_falla:document.getElementById('or-falla').value,
+    actividad_realizada:document.getElementById('or-actividad').value,
+    refaccion:document.getElementById('or-refaccion').value,
+    observaciones:document.getElementById('or-obs').value,
+    firma_solicitante:getSigData('or-sig-sol'),
+    firma_recibe:getSigData('or-sig-rec'),
+    firma_liberacion:getSigData('or-sig-lib')
+  };
+  fetch('/api/work-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.ok){showToast('✅ Orden #'+d.numero+' guardada');showPage('orden');loadOrdenList();}
+      else{showToast('❌ Error al guardar');}
+    }).catch(()=>showToast('❌ Error de conexión'));
+}
+
+function loadOrdenList(){
+  var listEl=document.getElementById('orden-list');
+  if(!listEl)return;
+  listEl.innerHTML='<div style="text-align:center;padding:20px;color:#888">Cargando...</div>';
+  fetch('/api/work-orders').then(r=>r.json()).then(orders=>{
+    if(!orders.length){listEl.innerHTML='<div style="text-align:center;padding:40px;color:#888">No hay órdenes de trabajo.<br><br>Presiona <b>+ Nueva</b> para crear una.</div>';return;}
+    var html='';
+    orders.forEach(o=>{
+      var tipoColor=o.tipo==='CORRECTIVO'?'#c62828':'#1b5e20';
+      var estatusBg=o.estatus==='CERRADA'?'#e8f5e9':'#fff3e0';
+      var estatusColor=o.estatus==='CERRADA'?'#2e7d32':'#e65100';
+      html+=`<div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);cursor:pointer" onclick="verOrden(${o.id})">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <span style="font-size:11px;font-weight:700;color:#888">OT #${o.numero}</span>
+            <div style="font-size:15px;font-weight:700;color:#1b2e1b;margin-top:2px">${o.equipo||'—'}</div>
+            <div style="font-size:12px;color:#555;margin-top:2px">👤 ${o.solicitante||'—'} · 📅 ${o.fecha||'—'}</div>
+            <div style="font-size:11px;color:#777;margin-top:2px">${o.planta||''} ${o.planta&&o.tipo?'·':''} <span style="color:${tipoColor};font-weight:600">${o.tipo||''}</span></div>
+          </div>
+          <span style="background:${estatusBg};color:${estatusColor};font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap">${o.estatus||'ABIERTA'}</span>
+        </div>
+      </div>`;
+    });
+    listEl.innerHTML=html;
+  }).catch(()=>{listEl.innerHTML='<div style="color:#c62828;padding:20px">Error al cargar órdenes.</div>';});
+}
+
+function verOrden(id){
+  fetch('/api/work-orders').then(r=>r.json()).then(orders=>{
+    var o=orders.find(x=>x.id===id);
+    if(!o)return;
+    document.getElementById('orden-ver-titulo').textContent='Orden #'+o.numero;
+    var tipoColor=o.tipo==='CORRECTIVO'?'#c62828':'#1b5e20';
+    var estatusBg=o.estatus==='CERRADA'?'#e8f5e9':'#fff3e0';
+    var estatusColor=o.estatus==='CERRADA'?'#2e7d32':'#e65100';
+    function row(label,val){return val?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">${label}</div><div style="font-size:14px;color:#222;margin-top:2px">${val}</div></div>`:''}
+    function sig(label,data){return data?`<div style="text-align:center;flex:1;min-width:120px"><img src="${data}" style="width:100%;max-height:70px;object-fit:contain;border:1px solid #ddd;border-radius:6px"><div style="font-size:10px;color:#777;margin-top:3px">${label}</div></div>`:`<div style="text-align:center;flex:1;min-width:120px"><div style="height:70px;border:1px dashed #ccc;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:11px">Sin firma</div><div style="font-size:10px;color:#777;margin-top:3px">${label}</div></div>`}
+    var html=`
+      <div style="background:#1b5e20;color:#fff;border-radius:10px;padding:10px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:600">ORDEN DE TRABAJO PARA MANTENIMIENTO</span>
+        <span style="font-size:22px;font-weight:700;color:#ffcc02">#${o.numero}</span>
+      </div>
+      <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+        ${row('Solicitante',o.solicitante)}${row('Fecha',o.fecha)}${row('Equipo',o.equipo)}
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+          <span style="background:#e8f5e9;color:#1b5e20;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">${o.planta||'—'}</span>
+          <span style="background:#e3f2fd;color:${tipoColor};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">${o.tipo||'—'}</span>
+          <span style="background:${estatusBg};color:${estatusColor};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">${o.estatus||'—'}</span>
+        </div>
+      </div>
+      <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+        ${row('Hora de Inicio',o.hora_inicio)}${row('Hora de Término',o.hora_termino)}${row('Tiempo de Paro',o.tiempo_paro)}
+      </div>`;
+    if(o.descripcion_falla)html+=`<div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">${row('Descripción de la Falla',o.descripcion_falla)}</div>`;
+    if(o.actividad_realizada)html+=`<div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">${row('Actividad Realizada',o.actividad_realizada)}</div>`;
+    if(o.refaccion)html+=`<div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">${row('Refacción Utilizada',o.refaccion)}</div>`;
+    if(o.observaciones)html+=`<div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">${row('Observaciones',o.observaciones)}</div>`;
+    html+=`<div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:10px">Firmas</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${sig('SOLICITANTE',o.firma_solicitante)}${sig('RECIBE ORDEN',o.firma_recibe)}${sig('LIBERACIÓN PROD.',o.firma_liberacion)}</div>
+    </div>
+    <button onclick="eliminarOrden(${o.id})" style="width:100%;padding:12px;background:#c62828;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">🗑️ Eliminar Orden</button>`;
+    document.getElementById('orden-ver-body').innerHTML=html;
+    showPage('orden-ver');
+  });
+}
+
+function eliminarOrden(id){
+  if(!confirm('¿Eliminar esta orden de trabajo?'))return;
+  fetch('/api/work-orders/'+id,{method:'DELETE'}).then(r=>r.json()).then(d=>{
+    if(d.ok){showToast('Orden eliminada');showPage('orden');loadOrdenList();}
+  });
+}
+
+// Patch showPage to load lists on navigation
+var _origShowPage=showPage;
+showPage=function(id){
+  _origShowPage(id);
+  if(id==='orden')loadOrdenList();
+  if(id==='orden-nueva')loadOrdenNueva();
+};
 </script>
 
 </body>
