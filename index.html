@@ -2117,42 +2117,44 @@ function onEquipoChange(sel){
 
 window.guardarOrden = function guardarOrden(){
   calcularTiempoParo();
-  var sol=document.getElementById('or-solicitante').value.trim();
-  var equipo=document.getElementById('or-equipo').value.trim();
-  showToast('⏳ Guardando...');
-  if(!sol){showToast('⚠️ Escribe el nombre del Solicitante'); return;}
-  if(!equipo){showToast('⚠️ Selecciona el Equipo de la lista'); return;}
-  var planta=(document.querySelector('input[name="or-planta"]:checked')||{}).value||'';
-  var tipo='CORRECTIVO';
-  var estatus=(document.querySelector('input[name="or-estatus"]:checked')||{}).value||'ABIERTA';
+  var solEl=document.getElementById('or-solicitante');
+  var eqEl=document.getElementById('or-equipo');
+  var sol=solEl?solEl.value.trim():'';
+  var equipo=eqEl?eqEl.value.trim():'';
+  if(!sol){showToast('⚠️ Falta: nombre del Solicitante'); return;}
+  if(!equipo){showToast('⚠️ Falta: selecciona el Equipo'); return;}
   var payload={
     solicitante:sol,
-    fecha:document.getElementById('or-fecha').value,
+    fecha:(document.getElementById('or-fecha')||{value:''}).value,
     equipo:equipo,
-    planta:planta,
-    tipo:tipo,
-    estatus:estatus,
-    hora_inicio:document.getElementById('or-h-inicio').value,
-    hora_termino:document.getElementById('or-h-termino').value,
-    tiempo_paro:document.getElementById('or-paro').value,
-    descripcion_falla:document.getElementById('or-falla').value,
-    actividad_realizada:document.getElementById('or-actividad').value,
-    refaccion:document.getElementById('or-refaccion').value,
-    observaciones:document.getElementById('or-obs').value,
-    firma_solicitante:sigDataOrden.sol ? JSON.stringify(sigDataOrden.sol) : '',
-    firma_recibe:sigDataOrden.rec ? JSON.stringify(sigDataOrden.rec) : '',
-    firma_liberacion:sigDataOrden.lib ? JSON.stringify(sigDataOrden.lib) : '',
-    fotos: JSON.stringify(_fotosB64||[])
+    planta:((document.querySelector('input[name="or-planta"]:checked')||{}).value||''),
+    tipo:'CORRECTIVO',
+    estatus:((document.querySelector('input[name="or-estatus"]:checked')||{}).value||'ABIERTA'),
+    hora_inicio:(document.getElementById('or-h-inicio')||{value:''}).value,
+    hora_termino:(document.getElementById('or-h-termino')||{value:''}).value,
+    tiempo_paro:(document.getElementById('or-paro')||{value:''}).value,
+    descripcion_falla:(document.getElementById('or-falla')||{value:''}).value,
+    actividad_realizada:(document.getElementById('or-actividad')||{value:''}).value,
+    refaccion:(document.getElementById('or-refaccion')||{value:''}).value,
+    observaciones:(document.getElementById('or-obs')||{value:''}).value,
+    firma_solicitante:(sigDataOrden&&sigDataOrden.sol)?JSON.stringify(sigDataOrden.sol):'',
+    firma_recibe:(sigDataOrden&&sigDataOrden.rec)?JSON.stringify(sigDataOrden.rec):'',
+    firma_liberacion:(sigDataOrden&&sigDataOrden.lib)?JSON.stringify(sigDataOrden.lib):'',
+    fotos:JSON.stringify(_fotosB64||[])
   };
+  showToast('⏳ Enviando...');
   fetch('/api/work-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
-    .then(r=>r.json())
-    .then(r=>r.json())
-    .then(d=>{
-      if(d.ok){showToast('✅ Orden #'+d.numero+' guardada');showPage('orden');loadOrdenList();}
-      else{showToast('❌ '+(d.error||'Error al guardar'));}
-    }).catch(e=>showToast('❌ Error: '+e));
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.ok){
+        showToast('✅ Orden #'+d.numero+' guardada');
+        setTimeout(function(){showPage('orden');loadOrdenList();},1000);
+      }else{
+        showToast('❌ Error: '+(d.error||JSON.stringify(d)));
+      }
+    })
+    .catch(function(err){showToast('❌ Fallo: '+(err.message||err));});
 }
-
 function loadOrdenList(){
   var listEl=document.getElementById('orden-list');
   if(!listEl)return;
