@@ -1892,11 +1892,11 @@ authInit();
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:130px">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">&#128336; Hora de Inicio</label>
-          <input id="or-h-inicio" type="time" onchange="calcularTiempoParo()" style="width:100%;padding:12px;border:2px solid #1b5e20;border-radius:8px;font-size:22px;font-weight:700;color:#1b5e20;background:#f9fff9;box-sizing:border-box;text-align:center">
+          <input id="or-h-inicio" type="time" oninput="calcularTiempoParo()" onchange="calcularTiempoParo()" style="width:100%;padding:12px;border:2px solid #1b5e20;border-radius:8px;font-size:22px;font-weight:700;color:#1b5e20;background:#f9fff9;box-sizing:border-box;text-align:center">
         </div>
         <div style="flex:1;min-width:130px">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">&#128336; Hora de Término</label>
-          <input id="or-h-termino" type="time" onchange="calcularTiempoParo()" style="width:100%;padding:12px;border:2px solid #1b5e20;border-radius:8px;font-size:22px;font-weight:700;color:#1b5e20;background:#f9fff9;box-sizing:border-box;text-align:center">
+          <input id="or-h-termino" type="time" oninput="calcularTiempoParo()" onchange="calcularTiempoParo()" style="width:100%;padding:12px;border:2px solid #1b5e20;border-radius:8px;font-size:22px;font-weight:700;color:#1b5e20;background:#f9fff9;box-sizing:border-box;text-align:center">
         </div>
       </div>
       <div style="margin-top:10px;background:#f0f4f0;border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px">
@@ -2202,6 +2202,7 @@ function verOrden(id){
     if(o.actividad_realizada)html+=`<div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">${row('Actividad Realizada',o.actividad_realizada)}</div>`;
     if(o.refaccion)html+=`<div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">${row('Refacción Utilizada',o.refaccion)}</div>`;
     if(o.observaciones)html+=`<div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">${row('Observaciones',o.observaciones)}</div>`;
+    if(o.fotos){try{var imgs=JSON.parse(o.fotos);if(imgs&&imgs.length){html+=`<div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)"><div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:8px">&#128247; Evidencia Fotográfica (${imgs.length})</div><div style="display:flex;flex-wrap:wrap;gap:8px">${imgs.map(src=>`<img src="${src}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:2px solid #1b5e20">`).join('')}</div></div>`;}}catch(e){}}
     html+=`<div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:10px">Firmas</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">${sig('SOLICITANTE',o.firma_solicitante)}${sig('RECIBE ORDEN',o.firma_recibe)}${sig('LIBERACIÓN PROD.',o.firma_liberacion)}</div>
