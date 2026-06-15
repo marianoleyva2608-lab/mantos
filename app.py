@@ -15,6 +15,12 @@ def init_db():
     con = get_db()
     con.execute('CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY, machine_id TEXT, fecha TEXT, data TEXT)')
     con.execute('CREATE TABLE IF NOT EXISTS work_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, numero TEXT NOT NULL, solicitante TEXT, fecha TEXT, equipo TEXT, planta TEXT, tipo TEXT, estatus TEXT, hora_inicio TEXT, hora_termino TEXT, tiempo_paro TEXT, descripcion_falla TEXT, actividad_realizada TEXT, refaccion TEXT, observaciones TEXT, firma_solicitante TEXT, firma_recibe TEXT, firma_liberacion TEXT, fotos TEXT, created_at TEXT DEFAULT (datetime(\'now\')))')
+    # Migrate: add fotos column if missing
+    try:
+        con.execute('ALTER TABLE work_orders ADD COLUMN fotos TEXT DEFAULT "[]"')
+        con.commit()
+    except Exception:
+        pass  # column already exists
     con.commit(); con.close()
 
 def init_users_db():
