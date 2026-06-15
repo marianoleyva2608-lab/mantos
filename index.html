@@ -448,9 +448,10 @@ async function saveReport(){
 }
 
 function loadReport(id){
+  try{
   const arr=getSaved();
   const r=arr.find(x=>x.id===id);
-  if(!r)return;
+  if(!r){alert('Reporte no encontrado en caché (id='+id+')');return;}
   // Find area and machine
   let area=null,machine=null;
   for(const a of AREAS){const m=a.machines.find(x=>x.id===r.machineId);if(m){area=a;machine=m;break;}}
@@ -463,6 +464,7 @@ function loadReport(id){
   renderForm();
   restoreForm(r);
   showPage("form");
+  }catch(e){alert('Error al cargar reporte: '+e.message);}
 }
 
 function restoreForm(r){sigData.tecnico=r.sigTecnico?{timestamp:r.sigTecnico,nombre:r.sigTecnicoName||null,email:r.sigTecnicoEmail||null,img:r.sigTecnicoImg||null}:null;sigData.supervisor=r.sigSupervisor?{timestamp:r.sigSupervisor,nombre:r.sigSupervisorName||null,email:r.sigSupervisorEmail||null,img:r.sigSupervisorImg||null}:null;
@@ -556,11 +558,13 @@ function renderHome(){
 }
 
 function sel(aid,mid){
-  const a=AREAS.find(x=>x.id===aid),m=a.machines.find(x=>x.id===mid);
-  CM={...m,area:a.name};IS={};IC={};SM=new Set();LOAD_DATA=null;sigData={tecnico:null,supervisor:null};
-  document.getElementById("ftitle").textContent=m.name;
-  document.getElementById("fsub").textContent=`No. ${m.num} · ${a.name}`;
-  renderForm();showPage("form");
+  try{
+    const a=AREAS.find(x=>x.id===aid),m=a.machines.find(x=>x.id===mid);
+    CM={...m,area:a.name};IS={};IC={};SM=new Set();LOAD_DATA=null;sigData={tecnico:null,supervisor:null};
+    document.getElementById("ftitle").textContent=m.name;
+    document.getElementById("fsub").textContent=`No. ${m.num} · ${a.name}`;
+    renderForm();showPage("form");
+  }catch(e){alert('Error al abrir: '+e.message);}
 }
 
 function renderForm(){
@@ -1753,9 +1757,4 @@ function doRegister() {
       if (d.error) { err.style.color='#c62828'; err.textContent = d.error; return; }
       err.style.color = '#2e7d32';
       err.textContent = '✅ Cuenta creada. Inicia sesión.';
-      setTimeout(() => {
-        showLogin();
-        document.getElementById('au-email').value = email;
-      }, 1500);
-    })
-    .catch(() => { err.style.color='#c62828'; err.textContent = '❌ Error 
+      setTimeou
