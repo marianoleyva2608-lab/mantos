@@ -1890,55 +1890,13 @@ authInit();
     <!-- Horas -->
     <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;min-width:140px">
-          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:4px">&#128336; Hora de Inicio</label>
-          <input id="or-h-inicio" type="hidden" value="">
-          <div id="btn-clock-inicio" style="padding:12px;border:2px solid #1b5e20;border-radius:8px;font-size:18px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;text-align:center;width:100%;box-sizing:border-box">&#128336; --:--</div>
-          <div id="clock-inicio" style="display:none;margin-top:6px;background:#1b5e20;border-radius:12px;overflow:hidden">
-            <div style="padding:10px 14px 6px;display:flex;align-items:center;justify-content:space-between">
-              <div>
-                <span id="clk-h-inicio" style="font-size:34px;font-weight:900;color:#fff;cursor:pointer">--</span>
-                <span style="font-size:26px;color:rgba(255,255,255,.5)">:</span>
-                <span id="clk-m-inicio" style="font-size:34px;font-weight:400;color:rgba(255,255,255,.5);cursor:pointer">--</span>
-              </div>
-              <div>
-                <div id="clk-am-inicio" style="background:rgba(255,255,255,.25);color:#fff;font-size:13px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;text-align:center;margin-bottom:4px">AM</div>
-                <div id="clk-pm-inicio" style="color:rgba(255,255,255,.4);font-size:13px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;text-align:center">PM</div>
-              </div>
-            </div>
-            <div style="display:flex;justify-content:center;padding:0 10px 6px">
-              <canvas id="clk-canvas-inicio" width="200" height="200" style="display:block;cursor:crosshair;background:#fff;border-radius:50%"></canvas>
-            </div>
-            <div style="padding:0 12px 10px;display:flex;gap:8px;justify-content:flex-end">
-              <div id="clk-cancel-inicio" style="padding:8px 16px;background:rgba(255,255,255,.15);color:#fff;border-radius:8px;font-size:13px;cursor:pointer">Cancelar</div>
-              <div id="clk-ok-inicio" style="padding:8px 16px;background:#fff;color:#1b5e20;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">OK &#10003;</div>
-            </div>
-          </div>
+        <div style="flex:1;min-width:130px">
+          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">&#128336; Hora de Inicio</label>
+          <input id="or-h-inicio" type="time" onchange="calcularTiempoParo()" style="width:100%;padding:12px;border:2px solid #1b5e20;border-radius:8px;font-size:22px;font-weight:700;color:#1b5e20;background:#f9fff9;box-sizing:border-box;text-align:center">
         </div>
-        <div style="flex:1;min-width:140px">
-          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:4px">&#128336; Hora de Término</label>
-          <input id="or-h-termino" type="hidden" value="">
-          <div id="btn-clock-termino" style="padding:12px;border:2px solid #1b5e20;border-radius:8px;font-size:18px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;text-align:center;width:100%;box-sizing:border-box">&#128336; --:--</div>
-          <div id="clock-termino" style="display:none;margin-top:6px;background:#1b5e20;border-radius:12px;overflow:hidden">
-            <div style="padding:10px 14px 6px;display:flex;align-items:center;justify-content:space-between">
-              <div>
-                <span id="clk-h-termino" style="font-size:34px;font-weight:900;color:#fff;cursor:pointer">--</span>
-                <span style="font-size:26px;color:rgba(255,255,255,.5)">:</span>
-                <span id="clk-m-termino" style="font-size:34px;font-weight:400;color:rgba(255,255,255,.5);cursor:pointer">--</span>
-              </div>
-              <div>
-                <div id="clk-am-termino" style="background:rgba(255,255,255,.25);color:#fff;font-size:13px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;text-align:center;margin-bottom:4px">AM</div>
-                <div id="clk-pm-termino" style="color:rgba(255,255,255,.4);font-size:13px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;text-align:center">PM</div>
-              </div>
-            </div>
-            <div style="display:flex;justify-content:center;padding:0 10px 6px">
-              <canvas id="clk-canvas-termino" width="200" height="200" style="display:block;cursor:crosshair;background:#fff;border-radius:50%"></canvas>
-            </div>
-            <div style="padding:0 12px 10px;display:flex;gap:8px;justify-content:flex-end">
-              <div id="clk-cancel-termino" style="padding:8px 16px;background:rgba(255,255,255,.15);color:#fff;border-radius:8px;font-size:13px;cursor:pointer">Cancelar</div>
-              <div id="clk-ok-termino" style="padding:8px 16px;background:#fff;color:#1b5e20;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">OK &#10003;</div>
-            </div>
-          </div>
+        <div style="flex:1;min-width:130px">
+          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">&#128336; Hora de Término</label>
+          <input id="or-h-termino" type="time" onchange="calcularTiempoParo()" style="width:100%;padding:12px;border:2px solid #1b5e20;border-radius:8px;font-size:22px;font-weight:700;color:#1b5e20;background:#f9fff9;box-sizing:border-box;text-align:center">
         </div>
       </div>
       <div style="margin-top:10px;background:#f0f4f0;border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px">
