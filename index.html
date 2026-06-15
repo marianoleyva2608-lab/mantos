@@ -1929,7 +1929,7 @@ authInit();
     </div>
 
     <!-- Guardar -->
-    <button onclick="guardarOrden()" style="width:100%;padding:14px;background:#1b5e20;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer">
+    <button id="btn-guardar-orden" style="width:100%;padding:14px;background:#1b5e20;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer">
       &#128190; Guardar Orden de Trabajo
     </button>
 
@@ -2060,6 +2060,9 @@ function loadOrdenNueva(){
 
   var pd=document.getElementById('or-paro-display');if(pd)pd.textContent='-- min';
   startParoWatch();
+  // Attach guardar button
+  var btnG=document.getElementById('btn-guardar-orden');
+  if(btnG){btnG.onclick=null; btnG.addEventListener('click',guardarOrden);}
   // Attach time change listeners each time form loads
   setTimeout(function(){
     ['or-h-inicio','or-h-termino'].forEach(function(id){
