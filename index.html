@@ -1758,4 +1758,19 @@ function doRegister() {
         document.getElementById('au-email').value = email;
       }, 1500);
     })
-    .catch(() => { err.style.color='#c62828'; err.textContent = '❌ Error 
+    .catch(() => { err.style.color='#c62828'; err.textContent = '❌ Error de conexión. Intenta de nuevo.'; });
+}
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('mantos_user');
+  authInit();
+}
+
+
+
+authInit();
+</script>
+
+</body>
+</html>
