@@ -2040,6 +2040,9 @@ function loadOrdenNueva(){
   // Set today's date
   var d=new Date(); var dd=String(d.getDate()).padStart(2,'0'); var mm=String(d.getMonth()+1).padStart(2,'0');
   document.getElementById('or-fecha').value=d.getFullYear()+'-'+mm+'-'+dd;
+  // Auto-fill solicitante from logged-in user
+  var solEl=document.getElementById('or-solicitante');
+  if(solEl && currentUser && currentUser.nombre) solEl.value=currentUser.nombre;
   // Reset equipo
   document.getElementById('or-equipo-nuevo').style.display='none';
   document.getElementById('or-equipo-sel').value='';
@@ -2112,7 +2115,8 @@ function guardarOrden(){
   calcularTiempoParo();
   var sol=document.getElementById('or-solicitante').value.trim();
   var equipo=document.getElementById('or-equipo').value.trim();
-  if(!sol||!equipo){showToast('⚠️ Completa Solicitante y Equipo'); return;}
+  if(!sol){showToast('⚠️ Escribe el nombre del Solicitante'); return;}
+  if(!equipo){showToast('⚠️ Selecciona el Equipo de la lista'); return;}
   var planta=(document.querySelector('input[name="or-planta"]:checked')||{}).value||'';
   var tipo='CORRECTIVO';
   var estatus=(document.querySelector('input[name="or-estatus"]:checked')||{}).value||'ABIERTA';
@@ -2139,7 +2143,7 @@ function guardarOrden(){
     .then(r=>r.json())
     .then(d=>{
       if(d.ok){showToast('✅ Orden #'+d.numero+' guardada');showPage('orden');loadOrdenList();}
-      else{showToast('❌ Error al guardar');}
+      else{showToast('❌ Error al guardar: '+(d.error||'revisa los campos'));}
     }).catch(()=>showToast('❌ Error de conexión'));
 }
 
