@@ -1818,7 +1818,11 @@ authInit();
         </div>
         <div style="flex:1">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Equipo</label>
-          <input id="or-equipo" type="text" placeholder="Nombre del equipo" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:3px">
+          <input id="or-equipo" type="hidden" value="">
+          <select id="or-equipo-sel" onchange="onEquipoChange(this)" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:3px;background:#fff">
+            <option value="">-- Selecciona equipo --</option>
+          </select>
+          <input id="or-equipo-nuevo" type="text" placeholder="Nombre del nuevo equipo" style="display:none;width:100%;padding:8px 10px;border:1px solid #1b5e20;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:6px" oninput="document.getElementById('or-equipo').value=this.value">
         </div>
       </div>
     </div>
@@ -2031,6 +2035,9 @@ function loadOrdenNueva(){
   // Set today's date
   var d=new Date(); var dd=String(d.getDate()).padStart(2,'0'); var mm=String(d.getMonth()+1).padStart(2,'0');
   document.getElementById('or-fecha').value=d.getFullYear()+'-'+mm+'-'+dd;
+  // Populate machine list
+  loadEquipoSelect();
+  document.getElementById('or-equipo-nuevo').style.display='none';
   // Load next number
   fetch('/api/work-orders/next-number').then(r=>r.json()).then(data=>{
     var n=data.numero||'0258';
@@ -2039,6 +2046,7 @@ function loadOrdenNueva(){
   });
   // Reset form
   ['or-solicitante','or-equipo','or-falla','or-actividad','or-refaccion','or-obs'].forEach(id=>{var el=document.getElementById(id);if(el)el.value='';});
+  var osel=document.getElementById('or-equipo-sel');if(osel)osel.value='';
   ['or-h-inicio','or-h-termino','or-paro'].forEach(id=>{var el=document.getElementById(id);if(el)el.value='';});
   var ib=document.getElementById('or-h-inicio-btn');if(ib)ib.textContent='🕐 --:--';
   var tb=document.getElementById('or-h-termino-btn');if(tb)tb.textContent='🕐 --:--';
@@ -2050,6 +2058,31 @@ function loadOrdenNueva(){
   document.getElementById('or-sig-sol-container').innerHTML=buildSigPersonOrden('sol','Solicitante');
   document.getElementById('or-sig-rec-container').innerHTML=buildSigPersonOrden('rec','Recibe Orden de Trabajo');
   document.getElementById('or-sig-lib-container').innerHTML=buildSigPersonOrden('lib','Liberación de Producción');
+}
+
+function loadEquipoSelect(){
+  var sel=document.getElementById('or-equipo-sel');
+  if(!sel)return;
+  var opts='<option value="">-- Selecciona equipo --</option>';
+  AREAS.forEach(function(area){
+    opts+='<optgroup label="'+area.name+'">';
+    area.machines.forEach(function(m){
+      opts+='<option value="'+m.name+'">'+m.name+'</option>';
+    });
+    opts+='</optgroup>';
+  });
+  opts+='<option value="__nuevo__">➕ Agregar nuevo equipo...</option>';
+  sel.innerHTML=opts;
+}
+
+function onEquipoChange(sel){
+  var nv=document.getElementById('or-equipo-nuevo');
+  var hv=document.getElementById('or-equipo');
+  if(sel.value==='__nuevo__'){
+    nv.style.display='block'; nv.value=''; hv.value=''; nv.focus();
+  } else {
+    nv.style.display='none'; hv.value=sel.value;
+  }
 }
 
 function guardarOrden(){
