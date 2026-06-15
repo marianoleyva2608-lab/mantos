@@ -328,9 +328,6 @@ def api_next_order_number():
 def version():
     return jsonify({'commit': 'a1f9c33', 'fix': 'unified_page_setup_all_formats'})
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
-
 
 # ── PDF ORDEN DE TRABAJO ──────────────────────────────────────────
 @app.route('/api/work-orders/<int:order_id>/pdf')
@@ -505,3 +502,6 @@ def api_orden_pdf(order_id):
     return send_file(buf, mimetype='application/pdf',
                      download_name=f'OT-{o["numero"]}.pdf',
                      as_attachment=False)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
