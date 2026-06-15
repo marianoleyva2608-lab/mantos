@@ -289,7 +289,7 @@ def api_save_work_order():
     con.execute(
         'INSERT INTO work_orders (numero,solicitante,fecha,equipo,planta,tipo,estatus,hora_inicio,hora_termino,'
         'tiempo_paro,descripcion_falla,actividad_realizada,refaccion,observaciones,'
-        'firma_solicitante,firma_recibe,firma_liberacion) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'firma_solicitante,firma_recibe,firma_liberacion,fotos) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         (numero, data.get('solicitante',''), data.get('fecha',''), data.get('equipo',''),
          data.get('planta',''), data.get('tipo',''), data.get('estatus',''),
          data.get('hora_inicio',''), data.get('hora_termino',''), data.get('tiempo_paro',''),
