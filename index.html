@@ -1889,11 +1889,11 @@ authInit();
 
     <!-- Horas -->
     <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
-      <div style="display:flex;gap:10px">
-        <div style="flex:1">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:4px">&#128336; Hora de Inicio</label>
           <input id="or-h-inicio" type="hidden" value="">
-          <div id="btn-clock-inicio" style="padding:10px;border:2px solid #1b5e20;border-radius:8px;font-size:18px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;text-align:center">&#128336; --:--</div>
+          <div id="btn-clock-inicio" style="padding:12px;border:2px solid #1b5e20;border-radius:8px;font-size:18px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;text-align:center;width:100%;box-sizing:border-box">&#128336; --:--</div>
           <div id="clock-inicio" style="display:none;margin-top:6px;background:#1b5e20;border-radius:12px;overflow:hidden">
             <div style="padding:10px 14px 6px;display:flex;align-items:center;justify-content:space-between">
               <div>
@@ -1915,10 +1915,10 @@ authInit();
             </div>
           </div>
         </div>
-        <div style="flex:1">
+        <div style="flex:1;min-width:140px">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:4px">&#128336; Hora de Término</label>
           <input id="or-h-termino" type="hidden" value="">
-          <div id="btn-clock-termino" style="padding:10px;border:2px solid #1b5e20;border-radius:8px;font-size:18px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;text-align:center">&#128336; --:--</div>
+          <div id="btn-clock-termino" style="padding:12px;border:2px solid #1b5e20;border-radius:8px;font-size:18px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;text-align:center;width:100%;box-sizing:border-box">&#128336; --:--</div>
           <div id="clock-termino" style="display:none;margin-top:6px;background:#1b5e20;border-radius:12px;overflow:hidden">
             <div style="padding:10px 14px 6px;display:flex;align-items:center;justify-content:space-between">
               <div>
@@ -1939,8 +1939,17 @@ authInit();
               <div id="clk-ok-termino" style="padding:8px 16px;background:#fff;color:#1b5e20;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">OK &#10003;</div>
             </div>
           </div>
+        </div>
+      </div>
+      <div style="margin-top:10px;background:#f0f4f0;border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:22px">&#9201;&#65039;</span>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase">Tiempo de Paro</div>
+          <div id="or-paro-display" style="font-size:20px;font-weight:700;color:#c62828">-- min</div>
+          <input id="or-paro" type="hidden" value="">
+        </div>
+      </div>
     </div>
-
     <!-- Fotos -->
     <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:8px">&#128247; Evidencia Fotográfica</label>
@@ -2263,6 +2272,7 @@ showPage=function(id){
 // ── RELOJ ANALÓGICO + TIEMPO DE PARO ────────────────────────────
 
 var _clk={inicio:{H:8,M:0,mode:'h'},termino:{H:8,M:0,mode:'h'}};
+var _fotosB64=[];
 
 function calcularTiempoParo(){
   var ini=document.getElementById('or-h-inicio').value;
@@ -2344,6 +2354,52 @@ function clkConfirm(t){
   document.getElementById('btn-clock-'+t).textContent='🕐 '+String(h12).padStart(2,'0')+':'+String(s.M).padStart(2,'0')+' '+(pm?'PM':'AM');
   document.getElementById('clock-'+t).style.display='none';
   calcularTiempoParo();
+}
+
+function previewFotos(input){
+  var files=Array.from(input.files);
+  files.forEach(function(f){
+    if(_fotosB64.length>=10)return;
+    var fr=new FileReader();
+    fr.onload=function(e){
+      _fotosB64.push(e.target.result);
+      var prev=document.getElementById('or-fotos-preview');
+      if(prev){
+        var img=document.createElement('div');
+        img.style.cssText='position:relative;width:80px;height:80px;';
+        img.innerHTML='<img src="'+e.target.result+'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid #1b5e20">'
+          +'<div onclick="removeFoto('+(_fotosB64.length-1)+')" style="position:absolute;top:-5px;right:-5px;background:#c62828;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;font-weight:700">×</div>';
+        prev.appendChild(img);
+      }
+      var fc=document.getElementById('or-fotos-count');
+      if(fc){
+        fc.textContent=_fotosB64.length+' foto(s) seleccionada(s)';
+        fc.style.color=_fotosB64.length>=3?'#2e7d32':'#e65100';
+      }
+    };
+    fr.readAsDataURL(f);
+  });
+  input.value='';
+}
+
+function removeFoto(idx){
+  _fotosB64.splice(idx,1);
+  var prev=document.getElementById('or-fotos-preview');
+  if(prev){
+    var imgs=prev.querySelectorAll('div');
+    if(imgs[idx])prev.removeChild(imgs[idx]);
+    // re-render all thumbnails
+    prev.innerHTML='';
+    _fotosB64.forEach(function(b64,i){
+      var img=document.createElement('div');
+      img.style.cssText='position:relative;width:80px;height:80px;';
+      img.innerHTML='<img src="'+b64+'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid #1b5e20">'
+        +'<div onclick="removeFoto('+i+')" style="position:absolute;top:-5px;right:-5px;background:#c62828;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;font-weight:700">×</div>';
+      prev.appendChild(img);
+    });
+  }
+  var fc=document.getElementById('or-fotos-count');
+  if(fc){fc.textContent=_fotosB64.length+' foto(s) seleccionada(s)';fc.style.color=_fotosB64.length>=3?'#2e7d32':'#e65100';}
 }
 
 function initClocks(){
