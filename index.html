@@ -1793,7 +1793,6 @@ authInit();
 
 <!-- NUEVA ORDEN PAGE -->
 <div id="page-orden-nueva" class="page" style="background:#f5f5f5;padding-bottom:40px">
-  <div style="background:#e65100;color:#fff;font-size:11px;font-weight:700;text-align:center;padding:4px">v15-JUN-2026-B</div>
   <div class="hdr">
     <button class="back" onclick="showPage('orden')">&#8249;</button>
     <div style="flex:1">
@@ -2209,17 +2208,21 @@ function verOrden(id){
       return `<div style="text-align:center;flex:1;min-width:120px"><div style="height:70px;border:1px dashed #ccc;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:11px">Sin firma</div><div style="font-size:10px;color:#777;margin-top:3px">${label}</div></div>`;
     }
     var html=`
-      <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);color:#fff;border-radius:12px;padding:0;margin-bottom:14px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.2)">
-        <div style="padding:10px 16px;background:rgba(0,0,0,.15);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;opacity:.9">&#128295; AD-PACK · Mantenimiento</div>
-        <div style="padding:12px 16px 16px;display:flex;justify-content:space-between;align-items:flex-end">
+      <div style="background:#fff;border-radius:12px;margin-bottom:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)">
+        <div style="background:#1b5e20;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
           <div>
-            <div style="font-size:13px;font-weight:600;opacity:.85;margin-bottom:4px">Orden de Trabajo para Mantenimiento</div>
-            <div style="font-size:11px;opacity:.65">${o.fecha||''} · ${o.planta||''}</div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:2px;color:rgba(255,255,255,.65);text-transform:uppercase;margin-bottom:3px">AD-PACK · Orden de Trabajo</div>
+            <div style="font-size:15px;font-weight:700;color:#fff">Mantenimiento Correctivo</div>
           </div>
-          <div style="text-align:right">
-            <div style="font-size:11px;opacity:.65;margin-bottom:2px">No. OT</div>
-            <div style="font-size:36px;font-weight:900;color:#ffcc02;line-height:1">#${o.numero}</div>
+          <div style="background:#ffcc02;border-radius:8px;padding:6px 12px;text-align:center">
+            <div style="font-size:9px;font-weight:700;color:#1b5e20;letter-spacing:1px">OT No.</div>
+            <div style="font-size:22px;font-weight:900;color:#1b5e20;line-height:1">${o.numero}</div>
           </div>
+        </div>
+        <div style="padding:12px 16px;display:flex;gap:16px;flex-wrap:wrap">
+          <div><div style="font-size:9px;font-weight:700;color:#888;text-transform:uppercase">Fecha</div><div style="font-size:13px;color:#222;font-weight:600">${o.fecha||'—'}</div></div>
+          <div><div style="font-size:9px;font-weight:700;color:#888;text-transform:uppercase">Planta</div><div style="font-size:13px;color:#1b5e20;font-weight:700">${o.planta||'—'}</div></div>
+          <div><div style="font-size:9px;font-weight:700;color:#888;text-transform:uppercase">Estatus</div><div style="font-size:13px;font-weight:700;color:${estatusColor}">${o.estatus||'—'}</div></div>
         </div>
       </div>
       <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
