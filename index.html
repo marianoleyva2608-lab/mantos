@@ -2255,4 +2255,17 @@ showPage=function(id){
 };
 
 // ── TIEMPO DE PARO + FOTOS ──────────────────────────────────────
+
+function calcularTiempoParo(){
+  var ini=document.getElementById('or-h-inicio').value;
+  var ter=document.getElementById('or-h-termino').value;
+  if(!ini||!ter)return;
+  var p1=ini.split(':'); var p2=ter.split(':');
+  var totalMin=(parseInt(p2[0])*60+parseInt(p2[1]))-(parseInt(p1[0])*60+parseInt(p1[1]));
+  if(totalMin<0)totalMin+=24*60;
+  var h=Math.floor(totalMin/60), m=totalMin%60;
+  var txt=h>0?h+'h '+m+' min':m+' min';
+  document.getElementById('or-paro').value=txt;
+  document.getElementById('or-paro-display').textContent=txt;
+}
 >
