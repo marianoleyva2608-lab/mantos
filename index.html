@@ -2075,13 +2075,12 @@ function loadOrdenNueva(){
     ['or-h-inicio','or-h-termino'].forEach(function(id){
       var el=document.getElementById(id);
       if(el){
-        el.removeEventListener('change',calcularTiempoParo);
-        el.removeEventListener('input',calcularTiempoParo);
-        el.addEventListener('change',calcularTiempoParo);
-        el.addEventListener('input',calcularTiempoParo);
+        el.oninput=calcularTiempoParo;
+        el.onchange=calcularTiempoParo;
       }
     });
-  },100);
+    calcularTiempoParo();
+  },200);
   // Reset fotos
   _fotosB64=[];
   var fp=document.getElementById('or-fotos-preview');if(fp)fp.innerHTML='';
@@ -2376,20 +2375,21 @@ var _fotosB64=[];
 
 var _paroTimer=null;
 function calcularTiempoParo(){
-  var iniEl=document.getElementById('or-h-inicio');
-  var terEl=document.getElementById('or-h-termino');
-  if(!iniEl||!terEl)return;
-  var ini=iniEl.value, ter=terEl.value;
+  var ini=document.getElementById('or-h-inicio');
+  var ter=document.getElementById('or-h-termino');
   var disp=document.getElementById('or-paro-display');
   var hid=document.getElementById('or-paro');
-  if(!ini||!ter){if(disp)disp.textContent='-- min';return;}
-  var p1=ini.split(':'),p2=ter.split(':');
-  var tot=(parseInt(p2[0])*60+parseInt(p2[1]))-(parseInt(p1[0])*60+parseInt(p1[1]));
-  if(tot<0)tot+=1440;
-  var h=Math.floor(tot/60),m=tot%60;
-  var txt=(h>0?h+' h ':'')+m+' min';
+  if(!ini||!ter||!disp)return;
+  var v1=ini.value||'', v2=ter.value||'';
+  if(!v1||!v2){disp.textContent='-- min';if(hid)hid.value='';return;}
+  // HH:MM format from native time input
+  var a=v1.split(':'), b=v2.split(':');
+  if(a.length<2||b.length<2){disp.textContent='-- min';return;}
+  var mins=(parseInt(b[0],10)*60+parseInt(b[1],10))-(parseInt(a[0],10)*60+parseInt(a[1],10));
+  if(mins<0)mins+=1440;
+  var txt=mins>=60?(Math.floor(mins/60)+' h '+(mins%60)+' min'):(mins+' min');
+  disp.textContent=txt;
   if(hid)hid.value=txt;
-  if(disp)disp.textContent=txt;
 }
 function startParoWatch(){
   if(_paroTimer)clearInterval(_paroTimer);
@@ -2523,4 +2523,4 @@ function initClocks(){
     if(canvas){canvas.addEventListener('click',function(e){clkTap(t,e);});canvas.addEventListener('touchend',function(e){e.preventDefault();clkTap(t,e);},{passive:false});}
     if(amBtn)amBtn.addEventListener('click',function(){if(_clk[t].H>=12)_clk[t].H-=12;clkDraw(t);});
     if(pmBtn)pmBtn.addEventListener('click',function(){if(_clk[t].H<12)_clk[t].H+=12;clkDraw(t);});
-    if(hSpan)hSpan.addEv
+    if(hSpan)hSpan.addEventListene
