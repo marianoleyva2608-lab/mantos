@@ -611,7 +611,7 @@ function renderForm(){
   if(CM.sheet==="Rotary Press"){
     h+=`<div class="bcard"><div class="bttl">&#9889; VOLTAJE ALIMENTACIÓN</div><div class="vgrid">
       <div class="vf"><label>Entrada 220VAC</label><input type="number" id="vl1" placeholder="V"></div>
-      <div class="vf"><label>Salida 24VDC</label><input type="number" id="vvac" placeholder="V"></div>
+      <div class="vf"><label>Salida 24VDC</label><input type="number" id="vvac" placeholder="V" min="20" max="30"></div>
     </div></div>`;
   } else {
     h+=`<div class="bcard"><div class="bttl">&#9889; VOLTAJE ALIMENTACIÓN</div><div class="vgrid">
@@ -768,15 +768,17 @@ function validateReport(){
     return false;
   }
   // Check voltaje >= 110V (if filled)
-  const voltFields = CM.sheet==="Rotary Press" ? [{id:'vl1',label:'Entrada 220VAC'},{id:'vvac',label:'Salida 24VDC'}] : [{id:'vl1',label:'L1'},{id:'vl2',label:'L2'},{id:'vl3',label:'L3'},{id:'vvac',label:'VAC'}];
+  const voltFields = CM.sheet==="Rotary Press" ? [{id:'vl1',label:'Entrada 220VAC',min:110,max:999},{id:'vvac',label:'Salida 24VDC',min:20,max:30}] : [{id:'vl1',label:'L1'},{id:'vl2',label:'L2'},{id:'vl3',label:'L3'},{id:'vvac',label:'VAC'}];
   for(const f of voltFields){
     const el = document.getElementById(f.id);
     if(el && el.value.trim() !== ''){
       const val = parseFloat(el.value);
-      if(isNaN(val) || val < 110){
+      const fMin = f.min !== undefined ? f.min : 110;
+      const fMax = f.max !== undefined ? f.max : 9999;
+      if(isNaN(val) || val < fMin || val > fMax){
         el.style.border = '2px solid #f44336';
         el.focus();
-        showToast(`⚠️ Voltaje ${f.label} debe ser mínimo 110V`);
+        showToast(`⚠️ Voltaje ${f.label}: valor debe estar entre ${fMin}V y ${fMax}V`);
         setTimeout(()=>el.style.border='',2000);
         return false;
       }
