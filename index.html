@@ -2056,6 +2056,18 @@ function loadOrdenNueva(){
   ['inicio','termino'].forEach(function(t){var d=document.getElementById('clock-'+t);if(d)d.style.display='none';var b=document.getElementById('btn-clock-'+t);if(b)b.textContent='🕐 --:--';});
 
   var pd=document.getElementById('or-paro-display');if(pd)pd.textContent='-- min';
+  // Attach time change listeners each time form loads
+  setTimeout(function(){
+    ['or-h-inicio','or-h-termino'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el){
+        el.removeEventListener('change',calcularTiempoParo);
+        el.removeEventListener('input',calcularTiempoParo);
+        el.addEventListener('change',calcularTiempoParo);
+        el.addEventListener('input',calcularTiempoParo);
+      }
+    });
+  },100);
   // Reset fotos
   _fotosB64=[];
   var fp=document.getElementById('or-fotos-preview');if(fp)fp.innerHTML='';
@@ -2096,6 +2108,7 @@ function onEquipoChange(sel){
 }
 
 function guardarOrden(){
+  calcularTiempoParo();
   var sol=document.getElementById('or-solicitante').value.trim();
   var equipo=document.getElementById('or-equipo').value.trim();
   if(!sol||!equipo){showToast('⚠️ Completa Solicitante y Equipo'); return;}
