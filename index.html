@@ -1821,6 +1821,34 @@ authInit();
           <input id="or-equipo" type="hidden" value="">
           <select id="or-equipo-sel" onchange="onEquipoChange(this)" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:3px;background:#fff">
             <option value="">-- Selecciona equipo --</option>
+            <optgroup label="🏭 Termoformado">
+              <option>Termoformadora 1</option>
+              <option>Termoformadora 2</option>
+              <option>Termoformadora 3</option>
+              <option>Termoformadora 4</option>
+              <option>Termoformadora 5</option>
+              <option>Termoformadora 6</option>
+              <option>Termoformadora 7</option>
+              <option>Prensa 1</option>
+              <option>Prensa 2</option>
+              <option>Suajadora 1</option>
+              <option>Suajadora 2</option>
+              <option>Suajadora 5</option>
+              <option>TCU</option>
+              <option>Chiller</option>
+            </optgroup>
+            <optgroup label="⚙️ Conversión">
+              <option>Laminator – Laminadora</option>
+              <option>Slitter Rewinder</option>
+              <option>Komatsu OBS45</option>
+              <option>Rotary Press</option>
+              <option>Prensa PL</option>
+              <option>IMESA – Cortadora</option>
+              <option>Single Knife</option>
+              <option>Hojeadora Robust</option>
+              <option>Gapcutter</option>
+            </optgroup>
+            <option value="__nuevo__">➕ Agregar nuevo equipo...</option>
           </select>
           <input id="or-equipo-nuevo" type="text" placeholder="Nombre del nuevo equipo" style="display:none;width:100%;padding:8px 10px;border:1px solid #1b5e20;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:6px" oninput="document.getElementById('or-equipo').value=this.value">
         </div>
@@ -1862,22 +1890,66 @@ authInit();
       </div>
     </div>
 
-    <!-- Horas con reloj gráfico -->
+    <!-- Horas con picker inline -->
     <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <div style="display:flex;gap:10px">
         <div style="flex:1">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Hora de Inicio</label>
+          <button type="button" id="or-h-inicio-btn" onclick="togglePicker('inicio')" style="width:100%;padding:10px;border:2px solid #1b5e20;border-radius:7px;font-size:20px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;margin-top:3px;text-align:center">🕐 --:--</button>
           <input id="or-h-inicio" type="hidden" value="">
-          <button type="button" id="or-h-inicio-btn" onclick="abrirReloj('inicio')" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:7px;font-size:18px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;margin-top:3px;text-align:center">
-            🕐 --:--
-          </button>
+          <div id="picker-inicio" style="display:none;margin-top:6px;background:#1b5e20;border-radius:10px;padding:12px;text-align:center">
+            <div style="color:rgba(255,255,255,.7);font-size:11px;font-weight:700;margin-bottom:8px">HORA DE INICIO</div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+              <div style="text-align:center">
+                <button onclick="adjH('inicio',1)" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:8px;cursor:pointer">▲</button>
+                <div id="ph-inicio" style="font-size:42px;font-weight:900;color:#fff;line-height:1.1;margin:4px 0">00</div>
+                <button onclick="adjH('inicio',-1)" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:8px;cursor:pointer">▼</button>
+              </div>
+              <div style="font-size:36px;font-weight:900;color:#fff;margin-bottom:4px">:</div>
+              <div style="text-align:center">
+                <button onclick="adjM('inicio',5)" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:8px;cursor:pointer">▲</button>
+                <div id="pm-inicio" style="font-size:42px;font-weight:900;color:#fff;line-height:1.1;margin:4px 0">00</div>
+                <button onclick="adjM('inicio',-5)" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:8px;cursor:pointer">▼</button>
+              </div>
+              <div style="text-align:center;margin-left:4px">
+                <button onclick="adjM('inicio',1)" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:12px;width:36px;height:36px;border-radius:6px;cursor:pointer;display:block;margin-bottom:4px">+1</button>
+                <button onclick="adjM('inicio',-1)" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:12px;width:36px;height:36px;border-radius:6px;cursor:pointer;display:block">-1</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button onclick="toggleAMPMInline('inicio')" id="ampm-inicio" style="flex:1;padding:8px;background:rgba(255,255,255,.2);border:none;color:#fff;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer">AM</button>
+              <button onclick="confirmarPicker('inicio')" style="flex:2;padding:8px;background:#fff;border:none;color:#1b5e20;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer">✓ OK</button>
+            </div>
+          </div>
         </div>
         <div style="flex:1">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Hora de Término</label>
+          <button type="button" id="or-h-termino-btn" onclick="togglePicker('termino')" style="width:100%;padding:10px;border:2px solid #1b5e20;border-radius:7px;font-size:20px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;margin-top:3px;text-align:center">🕐 --:--</button>
           <input id="or-h-termino" type="hidden" value="">
-          <button type="button" id="or-h-termino-btn" onclick="abrirReloj('termino')" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:7px;font-size:18px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;margin-top:3px;text-align:center">
-            🕐 --:--
-          </button>
+          <div id="picker-termino" style="display:none;margin-top:6px;background:#1b5e20;border-radius:10px;padding:12px;text-align:center">
+            <div style="color:rgba(255,255,255,.7);font-size:11px;font-weight:700;margin-bottom:8px">HORA DE TÉRMINO</div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+              <div style="text-align:center">
+                <button onclick="adjH('termino',1)" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:8px;cursor:pointer">▲</button>
+                <div id="ph-termino" style="font-size:42px;font-weight:900;color:#fff;line-height:1.1;margin:4px 0">00</div>
+                <button onclick="adjH('termino',-1)" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:8px;cursor:pointer">▼</button>
+              </div>
+              <div style="font-size:36px;font-weight:900;color:#fff;margin-bottom:4px">:</div>
+              <div style="text-align:center">
+                <button onclick="adjM('termino',5)" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:8px;cursor:pointer">▲</button>
+                <div id="pm-termino" style="font-size:42px;font-weight:900;color:#fff;line-height:1.1;margin:4px 0">00</div>
+                <button onclick="adjM('termino',-5)" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:8px;cursor:pointer">▼</button>
+              </div>
+              <div style="text-align:center;margin-left:4px">
+                <button onclick="adjM('termino',1)" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:12px;width:36px;height:36px;border-radius:6px;cursor:pointer;display:block;margin-bottom:4px">+1</button>
+                <button onclick="adjM('termino',-1)" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:12px;width:36px;height:36px;border-radius:6px;cursor:pointer;display:block">-1</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button onclick="toggleAMPMInline('termino')" id="ampm-termino" style="flex:1;padding:8px;background:rgba(255,255,255,.2);border:none;color:#fff;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer">AM</button>
+              <button onclick="confirmarPicker('termino')" style="flex:2;padding:8px;background:#fff;border:none;color:#1b5e20;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer">✓ OK</button>
+            </div>
+          </div>
         </div>
       </div>
       <div style="margin-top:10px;background:#f0f4f0;border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px">
@@ -2035,9 +2107,9 @@ function loadOrdenNueva(){
   // Set today's date
   var d=new Date(); var dd=String(d.getDate()).padStart(2,'0'); var mm=String(d.getMonth()+1).padStart(2,'0');
   document.getElementById('or-fecha').value=d.getFullYear()+'-'+mm+'-'+dd;
-  // Populate machine list
-  loadEquipoSelect();
+  // Reset equipo
   document.getElementById('or-equipo-nuevo').style.display='none';
+  document.getElementById('or-equipo-sel').value='';
   // Load next number
   fetch('/api/work-orders/next-number').then(r=>r.json()).then(data=>{
     var n=data.numero||'0258';
@@ -2051,6 +2123,7 @@ function loadOrdenNueva(){
   var ib=document.getElementById('or-h-inicio-btn');if(ib)ib.textContent='🕐 --:--';
   var tb=document.getElementById('or-h-termino-btn');if(tb)tb.textContent='🕐 --:--';
   var pd=document.getElementById('or-paro-display');if(pd)pd.textContent='-- min';
+  ['picker-inicio','picker-termino'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
   document.querySelectorAll('input[name="or-planta"],input[name="or-tipo"],input[name="or-estatus"]').forEach(r=>r.checked=false);
   ['lbl-planta-t','lbl-planta-c','lbl-est-a','lbl-est-c'].forEach(id=>{var el=document.getElementById(id);if(el){el.style.border='2px solid transparent';el.style.background='#f0f4f0';}});
   // Reset PKI signatures for orden
@@ -2216,174 +2289,76 @@ showPage=function(id){
   if(id==='orden-nueva')loadOrdenNueva();
 };
 
-// ── RELOJ GRÁFICO ──────────────────────────────────────────────
-var _relojTarget=null, _relojMode='h', _relojH=0, _relojM=0;
+// ── PICKER INLINE ──────────────────────────────────────────────
+var _pickerState = {
+  inicio: {h:8, m:0, pm:false},
+  termino: {h:8, m:0, pm:false}
+};
 
-function abrirReloj(target){
-  _relojTarget=target;
-  _relojMode='h';
-  var now=new Date();
-  _relojH=now.getHours(); _relojM=now.getMinutes();
-  // Pre-load existing value
-  var existing=document.getElementById('or-h-'+target).value;
-  if(existing){var p=existing.split(':');_relojH=parseInt(p[0]);_relojM=parseInt(p[1]);}
-  document.getElementById('reloj-modal').style.display='flex';
-  dibujarReloj();
-}
-
-function cerrarReloj(){document.getElementById('reloj-modal').style.display='none';}
-
-function dibujarReloj(){
-  var canvas=document.getElementById('reloj-canvas');
-  var ctx=canvas.getContext('2d');
-  var W=canvas.width, H=canvas.height, cx=W/2, cy=H/2, r=Math.min(W,H)/2-10;
-  ctx.clearRect(0,0,W,H);
-  // Face
-  ctx.beginPath();ctx.arc(cx,cy,r,0,2*Math.PI);ctx.fillStyle='#f9fff9';ctx.fill();
-  ctx.strokeStyle='#1b5e20';ctx.lineWidth=3;ctx.stroke();
-  // Center dot
-  ctx.beginPath();ctx.arc(cx,cy,5,0,2*Math.PI);ctx.fillStyle='#1b5e20';ctx.fill();
-  // Numbers & ticks
-  if(_relojMode==='h'){
-    for(var i=0;i<12;i++){
-      var ang=(i/12)*2*Math.PI - Math.PI/2;
-      var numR=r-22, tickR=r-8;
-      // Tick
-      ctx.beginPath();ctx.moveTo(cx+Math.cos(ang)*tickR,cy+Math.sin(ang)*tickR);
-      ctx.lineTo(cx+Math.cos(ang)*(r-4),cy+Math.sin(ang)*(r-4));
-      ctx.strokeStyle='#aaa';ctx.lineWidth=1.5;ctx.stroke();
-      // Number
-      var num=i===0?12:i;
-      ctx.font='bold 16px Arial';ctx.fillStyle='#333';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText(num, cx+Math.cos(ang)*numR, cy+Math.sin(ang)*numR);
+function togglePicker(id){
+  var p = document.getElementById('picker-'+id);
+  var other = id==='inicio'?'termino':'inicio';
+  document.getElementById('picker-'+other).style.display='none';
+  if(p.style.display==='none'){
+    // Init with current time if no value
+    var existing = document.getElementById('or-h-'+id).value;
+    if(existing){
+      var parts=existing.split(':');
+      _pickerState[id].h=parseInt(parts[0]);
+      _pickerState[id].m=parseInt(parts[1]);
+      _pickerState[id].pm=_pickerState[id].h>=12;
+    } else {
+      var now=new Date();
+      _pickerState[id].h=now.getHours();
+      _pickerState[id].m=now.getMinutes();
+      _pickerState[id].pm=now.getHours()>=12;
     }
-    // Hour hand
-    var hVal=_relojH%12;
-    var hAng=(hVal/12)*2*Math.PI - Math.PI/2 + (_relojM/60)*(2*Math.PI/12);
-    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(hAng)*(r*0.55),cy+Math.sin(hAng)*(r*0.55));
-    ctx.strokeStyle='#1b5e20';ctx.lineWidth=6;ctx.lineCap='round';ctx.stroke();
-    // Selected hour highlight
-    var selAng=(hVal/12)*2*Math.PI - Math.PI/2;
-    ctx.beginPath();ctx.arc(cx+Math.cos(selAng)*(r-22),cy+Math.sin(selAng)*(r-22),16,0,2*Math.PI);
-    ctx.fillStyle='#1b5e20';ctx.fill();
-    ctx.font='bold 13px Arial';ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(hVal===0?12:hVal, cx+Math.cos(selAng)*(r-22), cy+Math.sin(selAng)*(r-22));
+    updatePickerDisplay(id);
+    p.style.display='block';
   } else {
-    for(var i=0;i<60;i++){
-      var ang=(i/60)*2*Math.PI - Math.PI/2;
-      if(i%5===0){
-        var num=i; var numR=r-22;
-        ctx.beginPath();ctx.moveTo(cx+Math.cos(ang)*(r-8),cy+Math.sin(ang)*(r-8));
-        ctx.lineTo(cx+Math.cos(ang)*(r-4),cy+Math.sin(ang)*(r-4));
-        ctx.strokeStyle='#bbb';ctx.lineWidth=1;ctx.stroke();
-        ctx.font='bold 14px Arial';ctx.fillStyle='#333';ctx.textAlign='center';ctx.textBaseline='middle';
-        ctx.fillText(String(num).padStart(2,'0'), cx+Math.cos(ang)*numR, cy+Math.sin(ang)*numR);
-      } else {
-        ctx.beginPath();ctx.moveTo(cx+Math.cos(ang)*(r-6),cy+Math.sin(ang)*(r-6));
-        ctx.lineTo(cx+Math.cos(ang)*(r-4),cy+Math.sin(ang)*(r-4));
-        ctx.strokeStyle='#ddd';ctx.lineWidth=1;ctx.stroke();
-      }
-    }
-    // Minute hand
-    var mAng=(_relojM/60)*2*Math.PI - Math.PI/2;
-    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(mAng)*(r*0.72),cy+Math.sin(mAng)*(r*0.72));
-    ctx.strokeStyle='#1b5e20';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke();
-    // Selected minute highlight
-    ctx.beginPath();ctx.arc(cx+Math.cos(mAng)*(r-22),cy+Math.sin(mAng)*(r-22),14,0,2*Math.PI);
-    ctx.fillStyle='#1b5e20';ctx.fill();
-    ctx.font='bold 12px Arial';ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(String(_relojM).padStart(2,'0'), cx+Math.cos(mAng)*(r-22), cy+Math.sin(mAng)*(r-22));
+    p.style.display='none';
   }
-  // AM/PM
-  var isPM=_relojH>=12;
-  document.getElementById('reloj-ampm').textContent=isPM?'PM':'AM';
-  document.getElementById('reloj-display').textContent=
-    String(_relojH).padStart(2,'0')+':'+String(_relojM).padStart(2,'0');
-  document.getElementById('reloj-mode-h').style.fontWeight=_relojMode==='h'?'900':'400';
-  document.getElementById('reloj-mode-m').style.fontWeight=_relojMode==='m'?'900':'400';
-  document.getElementById('reloj-mode-h').style.color=_relojMode==='h'?'#fff':'rgba(255,255,255,.5)';
-  document.getElementById('reloj-mode-m').style.color=_relojMode==='m'?'#fff':'rgba(255,255,255,.5)';
 }
 
-function relojClick(e){
-  var canvas=document.getElementById('reloj-canvas');
-  var rect=canvas.getBoundingClientRect();
-  var t=e.touches?e.touches[0]:e;
-  var x=(t.clientX-rect.left)*(canvas.width/rect.width);
-  var y=(t.clientY-rect.top)*(canvas.height/rect.height);
-  var cx=canvas.width/2, cy=canvas.height/2;
-  var ang=Math.atan2(y-cy, x-cx);
-  var deg=(ang+Math.PI/2+2*Math.PI)%(2*Math.PI);
-  if(_relojMode==='h'){
-    var h=Math.round(deg/(2*Math.PI)*12)%12;
-    if(_relojH>=12) h+=12;
-    _relojH=h;
-    _relojMode='m';
-  } else {
-    _relojM=Math.round(deg/(2*Math.PI)*60)%60;
-  }
-  dibujarReloj();
+function updatePickerDisplay(id){
+  var s=_pickerState[id];
+  var h12=s.h%12||12;
+  document.getElementById('ph-'+id).textContent=String(h12).padStart(2,'0');
+  document.getElementById('pm-'+id).textContent=String(s.m).padStart(2,'0');
+  document.getElementById('ampm-'+id).textContent=s.pm?'PM':'AM';
 }
 
-function toggleAMPM(){
-  _relojH=(_relojH+12)%24;
-  dibujarReloj();
+function adjH(id, delta){
+  var s=_pickerState[id];
+  s.h=(s.h+delta+24)%24;
+  s.pm=s.h>=12;
+  updatePickerDisplay(id);
 }
 
-function confirmarReloj(){
-  var val=String(_relojH).padStart(2,'0')+':'+String(_relojM).padStart(2,'0');
-  document.getElementById('or-h-'+_relojTarget).value=val;
-  var isPM=_relojH>=12;
-  var h12=_relojH%12||12;
-  var label='🕐 '+String(h12).padStart(2,'0')+':'+String(_relojM).padStart(2,'0')+' '+(isPM?'PM':'AM');
-  var btn=document.getElementById('or-h-'+_relojTarget+'-btn');
-  if(btn)btn.textContent=label;
-  cerrarReloj();
+function adjM(id, delta){
+  var s=_pickerState[id];
+  s.m=(s.m+delta+60)%60;
+  updatePickerDisplay(id);
+}
+
+function toggleAMPMInline(id){
+  var s=_pickerState[id];
+  s.pm=!s.pm;
+  s.h=s.pm?(s.h%12)+12:(s.h%12);
+  updatePickerDisplay(id);
+}
+
+function confirmarPicker(id){
+  var s=_pickerState[id];
+  var val=String(s.h).padStart(2,'0')+':'+String(s.m).padStart(2,'0');
+  document.getElementById('or-h-'+id).value=val;
+  var h12=s.h%12||12;
+  var label='🕐 '+String(h12).padStart(2,'0')+':'+String(s.m).padStart(2,'0')+' '+(s.pm?'PM':'AM');
+  document.getElementById('or-h-'+id+'-btn').textContent=label;
+  document.getElementById('picker-'+id).style.display='none';
   calcularTiempoParo();
-}
+}</script>
 
-function calcularTiempoParo(){
-  var ini=document.getElementById('or-h-inicio').value;
-  var ter=document.getElementById('or-h-termino').value;
-  if(!ini||!ter)return;
-  var [ih,im]=ini.split(':').map(Number);
-  var [th,tm]=ter.split(':').map(Number);
-  var totalMin=(th*60+tm)-(ih*60+im);
-  if(totalMin<0)totalMin+=24*60;
-  var h=Math.floor(totalMin/60), m=totalMin%60;
-  var txt=h>0?h+'h '+m+' min':m+' min';
-  document.getElementById('or-paro').value=txt;
-  document.getElementById('or-paro-display').textContent=txt;
-}
-</script>
-
-<!-- MODAL RELOJ GRÁFICO -->
-<div id="reloj-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;overflow:hidden;width:min(340px,92vw);box-shadow:0 8px 32px rgba(0,0,0,.3)">
-    <!-- Header con hora -->
-    <div style="background:#1b5e20;padding:16px 20px">
-      <div style="font-size:11px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Seleccionar hora</div>
-      <div style="display:flex;align-items:baseline;gap:4px">
-        <span id="reloj-mode-h" style="font-size:42px;font-weight:900;color:#fff;cursor:pointer" onclick="_relojMode='h';dibujarReloj()">00</span>
-        <span style="font-size:36px;color:rgba(255,255,255,.7)">:</span>
-        <span id="reloj-mode-m" style="font-size:42px;font-weight:400;color:rgba(255,255,255,.5);cursor:pointer" onclick="_relojMode='m';dibujarReloj()">00</span>
-        <span id="reloj-ampm" onclick="toggleAMPM()" style="font-size:18px;font-weight:700;color:rgba(255,255,255,.8);cursor:pointer;margin-left:6px;background:rgba(255,255,255,.15);padding:4px 8px;border-radius:6px">AM</span>
-        <input type="hidden" id="reloj-display">
-      </div>
-    </div>
-    <!-- Clock face -->
-    <div style="padding:16px;display:flex;justify-content:center">
-      <canvas id="reloj-canvas" width="260" height="260" style="cursor:pointer;touch-action:none"
-        onclick="relojClick(event)"
-        ontouchend="relojClick(event);event.preventDefault()"></canvas>
-    </div>
-    <!-- Buttons -->
-    <div style="display:flex;justify-content:flex-end;gap:10px;padding:0 16px 16px">
-      <button onclick="cerrarReloj()" style="padding:10px 20px;background:#f5f5f5;border:none;border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
-      <button onclick="confirmarReloj()" style="padding:10px 20px;background:#1b5e20;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">OK</button>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>
