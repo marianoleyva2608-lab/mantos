@@ -1887,16 +1887,26 @@ authInit();
       </div>
     </div>
 
-    <!-- Horas -->
+    <!-- Horas con reloj analógico -->
     <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <div style="display:flex;gap:10px">
         <div style="flex:1">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:4px">&#128336; Hora de Inicio</label>
-          <input id="or-h-inicio" type="time" onchange="calcularTiempoParo()" style="width:100%;padding:10px;border:2px solid #1b5e20;border-radius:8px;font-size:22px;font-weight:700;color:#1b5e20;background:#f9fff9;box-sizing:border-box;cursor:pointer">
+          <input id="or-h-inicio" type="hidden" value="">
+          <button type="button" id="btn-clock-inicio" onclick="abrirRelojAnalogo('inicio')"
+            style="width:100%;padding:10px;border:2px solid #1b5e20;border-radius:8px;font-size:20px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;text-align:center">
+            &#128336; --:--
+          </button>
+          <div id="clock-inicio" style="display:none;margin-top:6px"></div>
         </div>
         <div style="flex:1">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:4px">&#128336; Hora de Término</label>
-          <input id="or-h-termino" type="time" onchange="calcularTiempoParo()" style="width:100%;padding:10px;border:2px solid #1b5e20;border-radius:8px;font-size:22px;font-weight:700;color:#1b5e20;background:#f9fff9;box-sizing:border-box;cursor:pointer">
+          <input id="or-h-termino" type="hidden" value="">
+          <button type="button" id="btn-clock-termino" onclick="abrirRelojAnalogo('termino')"
+            style="width:100%;padding:10px;border:2px solid #1b5e20;border-radius:8px;font-size:20px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;text-align:center">
+            &#128336; --:--
+          </button>
+          <div id="clock-termino" style="display:none;margin-top:6px"></div>
         </div>
       </div>
       <div style="margin-top:10px;background:#f0f4f0;border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px">
@@ -2081,6 +2091,10 @@ function loadOrdenNueva(){
   ['or-solicitante','or-equipo','or-falla','or-actividad','or-refaccion','or-obs'].forEach(id=>{var el=document.getElementById(id);if(el)el.value='';});
   var osel=document.getElementById('or-equipo-sel');if(osel)osel.value='';
   ['or-h-inicio','or-h-termino','or-paro'].forEach(id=>{var el=document.getElementById(id);if(el)el.value='';});
+  ['inicio','termino'].forEach(function(t){
+    var d=document.getElementById('clock-'+t);if(d)d.style.display='none';
+    var b=document.getElementById('btn-clock-'+t);if(b)b.textContent='🕐 --:--';
+  });
 
   var pd=document.getElementById('or-paro-display');if(pd)pd.textContent='-- min';
   // Reset fotos
@@ -2254,7 +2268,7 @@ showPage=function(id){
   if(id==='orden-nueva')loadOrdenNueva();
 };
 
-// ── TIEMPO DE PARO + FOTOS ──────────────────────────────────────
+// ── RELOJ ANALÓGICO + TIEMPO DE PARO ────────────────────────────
 
 function calcularTiempoParo(){
   var ini=document.getElementById('or-h-inicio').value;
@@ -2264,8 +2278,198 @@ function calcularTiempoParo(){
   var totalMin=(parseInt(p2[0])*60+parseInt(p2[1]))-(parseInt(p1[0])*60+parseInt(p1[1]));
   if(totalMin<0)totalMin+=24*60;
   var h=Math.floor(totalMin/60), m=totalMin%60;
-  var txt=h>0?h+'h '+m+' min':m+' min';
+  var txt=h>0?h+' h '+m+' min':m+' min';
   document.getElementById('or-paro').value=txt;
   document.getElementById('or-paro-display').textContent=txt;
+}
+
+// Analog clock state per target
+var _clkState = {};
+
+function abrirRelojAnalogo(target){
+  var otherTarget = target==='inicio'?'termino':'inicio';
+  var otherDiv = document.getElementById('clock-'+otherTarget);
+  if(otherDiv) otherDiv.style.display='none';
+
+  var div = document.getElementById('clock-'+target);
+  if(div.style.display !== 'none'){ div.style.display='none'; return; }
+
+  // Init state
+  var existing = document.getElementById('or-h-'+target).value;
+  var now = new Date();
+  var H = existing ? parseInt(existing.split(':')[0]) : now.getHours();
+  var M = existing ? parseInt(existing.split(':')[1]) : now.getMinutes();
+  _clkState[target] = { H:H, M:M, mode:'h' };
+
+  div.innerHTML = buildClockHTML(target);
+  div.style.display = 'block';
+  dibujarRelojAnalogo(target);
+  bindClockEvents(target);
+}
+
+function buildClockHTML(t){
+  return '<div style="background:#1b5e20;border-radius:12px;overflow:hidden;user-select:none">'
+    +'<div style="padding:12px 16px 8px;display:flex;align-items:center;justify-content:space-between">'
+    +'<div style="display:flex;align-items:baseline;gap:2px">'
+    +'<span id="clk-h-'+t+'" onclick="switchClkMode(''+t+'','h')" style="font-size:36px;font-weight:900;color:#fff;cursor:pointer;line-height:1">00</span>'
+    +'<span style="font-size:28px;color:rgba(255,255,255,.6);font-weight:300">:</span>'
+    +'<span id="clk-m-'+t+'" onclick="switchClkMode(''+t+'','m')" style="font-size:36px;font-weight:900;color:rgba(255,255,255,.5);cursor:pointer;line-height:1">00</span>'
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:4px">'
+    +'<button onclick="toggleClkAMPM(''+t+'')" id="clk-am-'+t+'" style="background:rgba(255,255,255,.25);border:none;color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer">AM</button>'
+    +'<button onclick="toggleClkAMPM(''+t+'')" id="clk-pm-'+t+'" style="background:transparent;border:none;color:rgba(255,255,255,.5);font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer">PM</button>'
+    +'</div></div>'
+    +'<div style="background:#fff;border-radius:50%;margin:0 auto 10px;display:block;position:relative;width:220px;height:220px">'
+    +'<canvas id="clk-canvas-'+t+'" width="220" height="220" style="display:block;cursor:crosshair;touch-action:none"></canvas>'
+    +'</div>'
+    +'<div style="padding:0 12px 12px;display:flex;justify-content:flex-end;gap:8px">'
+    +'<button onclick="cerrarRelojAnalogo(''+t+'')" style="padding:8px 18px;background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;font-size:13px;cursor:pointer">Cancelar</button>'
+    +'<button onclick="confirmarRelojAnalogo(''+t+'')" style="padding:8px 18px;background:#fff;border:none;color:#1b5e20;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">OK ✓</button>'
+    +'</div></div>';
+}
+
+function cerrarRelojAnalogo(t){
+  var d=document.getElementById('clock-'+t);
+  if(d)d.style.display='none';
+}
+
+function confirmarRelojAnalogo(t){
+  var s=_clkState[t];
+  var val=String(s.H).padStart(2,'0')+':'+String(s.M).padStart(2,'0');
+  document.getElementById('or-h-'+t).value=val;
+  var h12=s.H%12||12;
+  var pm=s.H>=12;
+  document.getElementById('btn-clock-'+t).textContent='🕐 '+String(h12).padStart(2,'0')+':'+String(s.M).padStart(2,'0')+' '+(pm?'PM':'AM');
+  cerrarRelojAnalogo(t);
+  calcularTiempoParo();
+}
+
+function switchClkMode(t,mode){
+  _clkState[t].mode=mode;
+  var s=_clkState[t];
+  var hEl=document.getElementById('clk-h-'+t), mEl=document.getElementById('clk-m-'+t);
+  if(hEl) hEl.style.color=mode==='h'?'#fff':'rgba(255,255,255,.5)';
+  if(mEl) mEl.style.color=mode==='m'?'#fff':'rgba(255,255,255,.5)';
+  dibujarRelojAnalogo(t);
+}
+
+function toggleClkAMPM(t){
+  var s=_clkState[t];
+  s.H=(s.H+12)%24;
+  updateClkDisplay(t);
+  dibujarRelojAnalogo(t);
+}
+
+function updateClkDisplay(t){
+  var s=_clkState[t];
+  var h12=s.H%12||12;
+  var pm=s.H>=12;
+  var hEl=document.getElementById('clk-h-'+t);
+  var mEl=document.getElementById('clk-m-'+t);
+  var amEl=document.getElementById('clk-am-'+t);
+  var pmEl=document.getElementById('clk-pm-'+t);
+  if(hEl)hEl.textContent=String(h12).padStart(2,'0');
+  if(mEl)mEl.textContent=String(s.M).padStart(2,'0');
+  if(amEl){amEl.style.background=pm?'transparent':'rgba(255,255,255,.25)';amEl.style.color=pm?'rgba(255,255,255,.5)':'#fff';}
+  if(pmEl){pmEl.style.background=pm?'rgba(255,255,255,.25)':'transparent';pmEl.style.color=pm?'#fff':'rgba(255,255,255,.5)';}
+}
+
+function dibujarRelojAnalogo(t){
+  var canvas=document.getElementById('clk-canvas-'+t);
+  if(!canvas)return;
+  var ctx=canvas.getContext('2d');
+  var W=canvas.width, H=canvas.height, cx=W/2, cy=H/2, R=cx-4;
+  ctx.clearRect(0,0,W,H);
+  var s=_clkState[t];
+
+  // Face
+  ctx.beginPath();ctx.arc(cx,cy,R,0,2*Math.PI);
+  ctx.fillStyle='#fff';ctx.fill();
+
+  // Selection circle (highlight arc)
+  var selAngle;
+  if(s.mode==='h'){
+    var h12=s.H%12;
+    selAngle=(h12/12)*2*Math.PI-Math.PI/2;
+  } else {
+    selAngle=(s.M/60)*2*Math.PI-Math.PI/2;
+  }
+  // Hand
+  var handLen=s.mode==='h'?R*0.55:R*0.7;
+  ctx.beginPath();ctx.moveTo(cx,cy);
+  ctx.lineTo(cx+Math.cos(selAngle)*handLen,cy+Math.sin(selAngle)*handLen);
+  ctx.strokeStyle='#1b5e20';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke();
+
+  // Dot at end of hand
+  ctx.beginPath();ctx.arc(cx+Math.cos(selAngle)*handLen,cy+Math.sin(selAngle)*handLen,12,0,2*Math.PI);
+  ctx.fillStyle='#1b5e20';ctx.fill();
+
+  // Center dot
+  ctx.beginPath();ctx.arc(cx,cy,5,0,2*Math.PI);ctx.fillStyle='#1b5e20';ctx.fill();
+
+  // Numbers
+  if(s.mode==='h'){
+    for(var i=1;i<=12;i++){
+      var ang=(i/12)*2*Math.PI-Math.PI/2;
+      var nr=R-22;
+      var isSelected=(s.H%12||12)===i;
+      if(isSelected){
+        ctx.beginPath();ctx.arc(cx+Math.cos(ang)*nr,cy+Math.sin(ang)*nr,14,0,2*Math.PI);
+        ctx.fillStyle='#1b5e20';ctx.fill();
+      }
+      ctx.font='bold 14px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle=isSelected?'#fff':'#333';
+      ctx.fillText(i,cx+Math.cos(ang)*nr,cy+Math.sin(ang)*nr);
+    }
+  } else {
+    for(var i=0;i<60;i++){
+      var ang=(i/60)*2*Math.PI-Math.PI/2;
+      var nr=R-16;
+      if(i%5===0){
+        var isSelected=s.M===i;
+        if(isSelected){
+          ctx.beginPath();ctx.arc(cx+Math.cos(ang)*nr,cy+Math.sin(ang)*nr,13,0,2*Math.PI);
+          ctx.fillStyle='#1b5e20';ctx.fill();
+        }
+        ctx.font='bold 13px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillStyle=isSelected?'#fff':'#333';
+        ctx.fillText(String(i).padStart(2,'0'),cx+Math.cos(ang)*nr,cy+Math.sin(ang)*nr);
+      } else {
+        ctx.beginPath();ctx.arc(cx+Math.cos(ang)*(R-8),cy+Math.sin(ang)*(R-8),2,0,2*Math.PI);
+        ctx.fillStyle='#ccc';ctx.fill();
+      }
+    }
+  }
+  updateClkDisplay(t);
+}
+
+function bindClockEvents(t){
+  var canvas=document.getElementById('clk-canvas-'+t);
+  if(!canvas||canvas._bound)return;
+  canvas._bound=true;
+  function handleClick(e){
+    var rect=canvas.getBoundingClientRect();
+    var touch=e.touches?e.touches[0]:e;
+    var x=(touch.clientX-rect.left)*(canvas.width/rect.width);
+    var y=(touch.clientY-rect.top)*(canvas.height/rect.height);
+    var cx=canvas.width/2,cy=canvas.height/2;
+    var ang=Math.atan2(y-cy,x-cx);
+    var deg=(ang+Math.PI/2+2*Math.PI)%(2*Math.PI);
+    var s=_clkState[t];
+    if(s.mode==='h'){
+      var h12=Math.round(deg/(2*Math.PI)*12)%12||12;
+      s.H=s.H>=12?h12+12:h12;
+      if(s.H===24)s.H=12;
+      if(s.H===12&&s.H<12)s.H=0;
+      s.mode='m';
+      switchClkMode(t,'m');
+    } else {
+      s.M=Math.round(deg/(2*Math.PI)*60)%60;
+    }
+    dibujarRelojAnalogo(t);
+    e.preventDefault();
+  }
+  canvas.addEventListener('click',handleClick);
+  canvas.addEventListener('touchend',function(e){handleClick(e);},false);
 }
 >
