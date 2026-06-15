@@ -2209,9 +2209,9 @@ function verOrden(id){
       return `<div style="text-align:center;flex:1;min-width:120px"><div style="height:70px;border:1px dashed #ccc;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:11px">Sin firma</div><div style="font-size:10px;color:#777;margin-top:3px">${label}</div></div>`;
     }
     var html=`
-      <div style="background:#1b5e20;color:#fff;border-radius:10px;padding:10px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:13px;font-weight:600">ORDEN DE TRABAJO PARA MANTENIMIENTO</span>
-        <span style="font-size:22px;font-weight:700;color:#ffcc02">#${o.numero}</span>
+      <div style="background:#1b5e20;color:#fff;border-radius:10px;padding:16px 16px 14px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;letter-spacing:1px;opacity:.8;margin-bottom:6px">ORDEN DE TRABAJO PARA MANTENIMIENTO</div>
+        <div style="font-size:28px;font-weight:900;color:#ffcc02">#${o.numero}</div>
       </div>
       <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
         ${row('Solicitante',o.solicitante)}${row('Fecha',o.fecha)}${row('Equipo',o.equipo)}
