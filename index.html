@@ -329,7 +329,7 @@ const SHEET_MAPPING = {
     },
     "Rotary Press": {
       item_rows: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33],
-      items: [{"row": 8, "desc": "Inspección visual: ruidos, vibraciones y fugas"}, {"row": 9, "desc": "Lubricación de engranajes de gusano (worm gears) del sistema de transmisión"}, {"row": 10, "desc": "Revisión del eje de transmisión en línea (in-line drive shaft)"}, {"row": 11, "desc": "Revisión de estaciones de desenrollado (unwind) y reembobinado (rewind)"}, {"row": 12, "desc": "Inspección de rodillos de silicona anti-adherente (laminación y outboard)"}, {"row": 13, "desc": "Revisión del sistema de corte y troquel rotativo (desgaste y presión de corte)"}, {"row": 14, "desc": "Verificación de tensión del sustrato / material (web tension)"}, {"row": 15, "desc": "Revisión del sistema de slitting (cuchillas de navaja, tijera o presión)"}, {"row": 16, "desc": "Verificación de pines de localización fija de estaciones modulares"}, {"row": 17, "desc": "Revisión de embrague/freno de resorte del desenrollador (spring clutch)"}, {"row": 18, "desc": "Revisión del sistema de guía de material (web guide electrónico)"}, {"row": 19, "desc": "Limpieza general de la máquina y estaciones"}, {"row": 20, "desc": "Overhaul – desmontaje y mantenimiento mayor"}, {"row": 22, "desc": "Verificación visual del tablero (alarmas e indicadores)"}, {"row": 23, "desc": "Limpieza de tableros eléctricos y revisión de cableado"}, {"row": 24, "desc": "Reapriete de terminales en tablero eléctrico"}, {"row": 25, "desc": "Verificación de fusibles, contactores y relés térmicos"}, {"row": 26, "desc": "Revisión de motores (temperatura, ruido y vibración)"}, {"row": 27, "desc": "Revisión del servo motor brushless principal"}, {"row": 28, "desc": "Revisión de variadores de frecuencia"}, {"row": 29, "desc": "Prueba funcional de paros de emergencia"}, {"row": 30, "desc": "Verificación de tierras físicas y continuidad"}, {"row": 31, "desc": "Termografía de tableros y conexiones"}, {"row": 32, "desc": "Revisión del sensor ultrasónico/sonar de tensión de material"}, {"row": 33, "desc": "Verificación de pantalla táctil (PLC 4\") y respaldo de trabajos guardados"}],
+      items: [{"row": 8, "desc": "Inspección visual: ruidos, vibraciones y fugas en mecanismos"}, {"row": 9, "desc": "Lubricación de engranajes helicoidales del eje de transmisión principal"}, {"row": 10, "desc": "Revisión de rodillos de transporte y presión (desgaste, ajuste y limpieza)"}, {"row": 11, "desc": "Inspección y limpieza de rodillos de arrastre de material (knurled)"}, {"row": 12, "desc": "Revisión del sistema de troquel rotativo (desgaste de cuchillas y presión de corte)"}, {"row": 13, "desc": "Verificación de rodamientos del eje principal (temperatura y ruido)"}, {"row": 14, "desc": "Verificación de alineación y tensión del material en sistema de guía"}, {"row": 15, "desc": "Revisión de la transmisión por engranajes helicoidales (holgura y lubricación)"}, {"row": 16, "desc": "Revisión de la estación de corte: ajuste y alineación de rodillos"}, {"row": 17, "desc": "Limpieza de residuos de material en zonas de corte y transporte"}, {"row": 18, "desc": "Verificación de tornillos y sujetadores de estaciones modulares"}, {"row": 19, "desc": "Revisión de sellos y protecciones mecánicas"}, {"row": 20, "desc": "Limpieza general de la máquina y estaciones"}, {"row": 22, "desc": "Verificación voltaje bifásico 220-240VAC (L1-L2) en alimentación principal"}, {"row": 23, "desc": "Revisión variador Schneider ATV12HU22M2 (A1): temperatura, parámetros y alarmas"}, {"row": 24, "desc": "Revisión protección de motor Schneider GV2ME14 (QF1): ajuste 4-8A"}, {"row": 25, "desc": "Medición fuente 24VDC Omron S8VK-C06024 (GD1) con multímetro (nominal: 24V ±5%)"}, {"row": 26, "desc": "Revisión módulos I/O Phoenix Contact (A2): estado de LEDs y conexiones"}, {"row": 27, "desc": "Revisión interruptores termomagnéticos Poll Weber 32A 600V"}, {"row": 28, "desc": "Limpieza y revisión de tablero eléctrico y cableado"}, {"row": 29, "desc": "Reapriete de terminales en tablero eléctrico"}, {"row": 30, "desc": "Prueba funcional pantalla táctil HMI Guidolin Girotto (Software v.1.02)"}, {"row": 31, "desc": "Prueba de ciclo START/STOP desde panel de operador HMI"}, {"row": 32, "desc": "Verificación de tierras físicas y continuidad"}, {"row": 33, "desc": "Prueba funcional de paros de emergencia y dispositivos de seguridad"}],
       cal_data_row: 36,
       sig_row: 37
     },
@@ -1758,19 +1758,4 @@ function doRegister() {
         document.getElementById('au-email').value = email;
       }, 1500);
     })
-    .catch(() => { err.style.color='#c62828'; err.textContent = '❌ Error de conexión. Intenta de nuevo.'; });
-}
-
-function doLogout() {
-  currentUser = null;
-  localStorage.removeItem('mantos_user');
-  authInit();
-}
-
-
-
-authInit();
-</script>
-
-</body>
-</html>
+    .catch(() => { err.style.color='#c62828'; err.textContent = '❌ Error 
