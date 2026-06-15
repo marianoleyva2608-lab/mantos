@@ -101,7 +101,7 @@ def apply_checklist_data(ws, data):
         'prensa 1':40,'Prensa 2':40,
         'Suajadora 1':26,'Suajadora 2':26,'Suajadora 5':26,'TCU':26,'Chiller':27,
         'Laminator':37,'Slitter Rewinder':37,'Komatsu OBS45':32,
-        'Rotary Press':38,'Prensa PL':32,'IMESA':31,'Single Knife':31,
+        'Rotary Press':37,'Prensa PL':32,'IMESA':31,'Single Knife':31,
         'Hojeadora Robust':31,'Gapcutter':30,
     }
     sheet_name = data.get('sheet', '')
