@@ -1839,13 +1839,9 @@ authInit();
     <!-- Tipo de mantenimiento -->
     <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:8px">Tipo de Mantenimiento</label>
-      <div style="display:flex;gap:10px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;flex:1;background:#f0f4f0;border-radius:8px;padding:10px;border:2px solid transparent" id="lbl-tipo-p">
-          <input type="radio" name="or-tipo" value="PREVENTIVO" onchange="selectRadioStyle('tipo',this)"> Preventivo
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;flex:1;background:#f0f4f0;border-radius:8px;padding:10px;border:2px solid transparent" id="lbl-tipo-c">
-          <input type="radio" name="or-tipo" value="CORRECTIVO" onchange="selectRadioStyle('tipo',this)"> Correctivo
-        </label>
+      <input type="hidden" name="or-tipo" id="or-tipo-hidden" value="CORRECTIVO">
+      <div style="display:inline-flex;align-items:center;gap:8px;background:#fde8e8;border:2px solid #c62828;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:700;color:#c62828">
+        &#9889; CORRECTIVO
       </div>
     </div>
 
@@ -1862,21 +1858,31 @@ authInit();
       </div>
     </div>
 
-    <!-- Horas -->
+    <!-- Horas con reloj gráfico -->
     <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <div style="display:flex;gap:10px">
         <div style="flex:1">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Hora de Inicio</label>
-          <input id="or-h-inicio" type="time" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:3px">
+          <input id="or-h-inicio" type="hidden" value="">
+          <button type="button" id="or-h-inicio-btn" onclick="abrirReloj('inicio')" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:7px;font-size:18px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;margin-top:3px;text-align:center">
+            🕐 --:--
+          </button>
         </div>
         <div style="flex:1">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Hora de Término</label>
-          <input id="or-h-termino" type="time" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:3px">
+          <input id="or-h-termino" type="hidden" value="">
+          <button type="button" id="or-h-termino-btn" onclick="abrirReloj('termino')" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:7px;font-size:18px;font-weight:700;color:#1b5e20;background:#f9fff9;cursor:pointer;margin-top:3px;text-align:center">
+            🕐 --:--
+          </button>
         </div>
       </div>
-      <div style="margin-top:10px">
-        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Tiempo de Paro</label>
-        <input id="or-paro" type="text" placeholder="Ej: 17 min" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:3px">
+      <div style="margin-top:10px;background:#f0f4f0;border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">⏱️</span>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase">Tiempo de Paro</div>
+          <div id="or-paro-display" style="font-size:18px;font-weight:700;color:#c62828">-- min</div>
+          <input id="or-paro" type="hidden" value="">
+        </div>
       </div>
     </div>
 
@@ -1904,25 +1910,12 @@ authInit();
       <textarea id="or-obs" rows="3" placeholder="Observaciones adicionales..." style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;resize:vertical"></textarea>
     </div>
 
-    <!-- Firmas -->
+    <!-- Firmas PKI -->
     <div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
-      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:10px">Firmas</label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <div style="flex:1;min-width:140px;text-align:center">
-          <canvas id="or-sig-sol" width="200" height="80" style="border:1px solid #ccc;border-radius:6px;width:100%;touch-action:none;background:#fafafa"></canvas>
-          <div style="font-size:10px;color:#777;margin-top:3px">SOLICITANTE</div>
-          <button onclick="clearOrdenSig('or-sig-sol')" style="font-size:10px;color:#c62828;background:none;border:none;cursor:pointer;padding:2px">✕ Borrar</button>
-        </div>
-        <div style="flex:1;min-width:140px;text-align:center">
-          <canvas id="or-sig-rec" width="200" height="80" style="border:1px solid #ccc;border-radius:6px;width:100%;touch-action:none;background:#fafafa"></canvas>
-          <div style="font-size:10px;color:#777;margin-top:3px">RECIBE ORDEN</div>
-          <button onclick="clearOrdenSig('or-sig-rec')" style="font-size:10px;color:#c62828;background:none;border:none;cursor:pointer;padding:2px">✕ Borrar</button>
-        </div>
-        <div style="flex:1;min-width:140px;text-align:center">
-          <canvas id="or-sig-lib" width="200" height="80" style="border:1px solid #ccc;border-radius:6px;width:100%;touch-action:none;background:#fafafa"></canvas>
-          <div style="font-size:10px;color:#777;margin-top:3px">LIBERACIÓN PROD.</div>
-          <button onclick="clearOrdenSig('or-sig-lib')" style="font-size:10px;color:#c62828;background:none;border:none;cursor:pointer;padding:2px">✕ Borrar</button>
-        </div>
+      <div class="sig-section" style="margin:0;box-shadow:none">
+        <div id="or-sig-sol-container"></div>
+        <div id="or-sig-rec-container"></div>
+        <div id="or-sig-lib-container"></div>
       </div>
     </div>
 
@@ -1946,27 +1939,81 @@ authInit();
 <script>
 // ── ÓRDENES DE TRABAJO ──────────────────────────────────────────
 
-function initOrdenSig(canvasId){
-  var c=document.getElementById(canvasId);
-  if(!c||c._sigInit)return; c._sigInit=true;
-  var ctx=c.getContext('2d'); var drawing=false;
-  function pos(e){var r=c.getBoundingClientRect();var t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)*(c.width/r.width),y:(t.clientY-r.top)*(c.height/r.height)};}
-  function start(e){drawing=true;var p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);e.preventDefault();}
-  function move(e){if(!drawing)return;var p=pos(e);ctx.lineTo(p.x,p.y);ctx.strokeStyle='#1b5e20';ctx.lineWidth=2;ctx.lineCap='round';ctx.stroke();e.preventDefault();}
-  function end(){drawing=false;}
-  c.addEventListener('mousedown',start); c.addEventListener('mousemove',move); c.addEventListener('mouseup',end);
-  c.addEventListener('touchstart',start,{passive:false}); c.addEventListener('touchmove',move,{passive:false}); c.addEventListener('touchend',end);
+// sigDataOrden: separate from maintenance sigData
+var sigDataOrden = {sol: null, rec: null, lib: null};
+
+function buildSigPersonOrden(id, label){
+  const isMe = (currentUser != null);
+  const emailField = isMe
+    ? `<div style="padding:8px 10px;background:#f1f8e9;border:1px solid #c5e1a5;border-radius:8px;margin-bottom:6px">
+        <div style="font-size:10px;color:#558b2f;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Usuario registrado</div>
+        <div style="font-size:13px;font-weight:700;color:#1b5e20;margin-top:2px">${currentUser.nombre}</div>
+        <div style="font-size:11px;color:#666">${currentUser.email}</div>
+       </div>`
+    : `<input class="sig-pin-input" type="email" id="osemail-${id}" placeholder="Correo electrónico" style="margin-bottom:6px;width:100%;box-sizing:border-box">`;
+  return `<div class="sig-person" id="osperson-${id}">
+    <div class="sig-status">
+      <div class="sig-lbl">✍️ ${label}</div>
+      <div class="sig-badge" id="osbadge-${id}">Sin firmar</div>
+    </div>
+    <div id="ospkirow-${id}" style="display:flex;flex-direction:column;gap:6px;padding:10px 0 4px">
+      ${emailField}
+      <input class="sig-pin-input" type="password" id="ospin-${id}" placeholder="PIN personal" maxlength="20">
+      <button class="btn-sign" id="osbtn-${id}" onclick="autenticarPKIOrden('${id}')" style="background:#1a5c2a;border-radius:8px;padding:10px;font-size:13px">🔒 Firmar Digitalmente</button>
+    </div>
+    <div class="sig-done-box" id="osdone-${id}"></div>
+  </div>`;
 }
 
-function clearOrdenSig(id){var c=document.getElementById(id);if(c){c.getContext('2d').clearRect(0,0,c.width,c.height);}}
-
-function getSigData(id){
-  var c=document.getElementById(id);if(!c)return'';
-  var ctx=c.getContext('2d');
-  var d=ctx.getImageData(0,0,c.width,c.height).data;
-  var hasData=false;
-  for(var i=3;i<d.length;i+=4){if(d[i]>0){hasData=true;break;}}
-  return hasData?c.toDataURL('image/png'):'';
+async function autenticarPKIOrden(id){
+  if(sigDataOrden[id]){showToast('🔒 Ya firmado');return;}
+  const pinEl = document.getElementById('ospin-'+id);
+  const emailEl = document.getElementById('osemail-'+id);
+  const pin = pinEl ? pinEl.value.trim() : '';
+  const email = emailEl ? emailEl.value.trim() : (currentUser ? currentUser.email : '');
+  if(!email){showToast('⚠️ Ingresa tu correo');emailEl&&emailEl.focus();return;}
+  if(!pin){showToast('⚠️ Ingresa tu PIN');pinEl&&pinEl.focus();return;}
+  const btn = document.getElementById('osbtn-'+id);
+  if(btn){btn.disabled=true;btn.textContent='Verificando...';}
+  try{
+    const res = await fetch('/api/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,pin})});
+    const data = await res.json();
+    if(!res.ok||!data.ok){
+      if(pinEl){pinEl.style.borderColor='#f44336';pinEl.value='';}
+      showToast('❌ '+(data.error||'Credenciales incorrectas'));
+      if(btn){btn.disabled=false;btn.innerHTML='🔒 Firmar Digitalmente';}
+      setTimeout(()=>{ if(pinEl) pinEl.style.borderColor=''; },1500);
+      return;
+    }
+    const now=new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+    const certCode=genCertCode(data.email,now);
+    sigDataOrden[id]={timestamp:now, nombre:data.nombre, email:data.email, certCode};
+    const row=document.getElementById('ospkirow-'+id);
+    if(row) row.style.display='none';
+    const badge=document.getElementById('osbadge-'+id);
+    if(badge){badge.textContent='✓ Firmado';badge.className='sig-badge ok';}
+    const done=document.getElementById('osdone-'+id);
+    if(done){
+      done.innerHTML=`<div style="margin-top:8px;padding:10px 12px;background:#e8f5e9;border:2px solid #43a047;border-radius:8px;border-left:4px solid #2e7d32">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+          <div style="width:30px;height:30px;background:#2e7d32;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0">✓</div>
+          <div>
+            <div style="font-size:9px;color:#2e7d32;font-weight:700;text-transform:uppercase;letter-spacing:.6px">Firma Electrónica Válida</div>
+            <div style="font-size:13px;font-weight:700;color:#1b2e1b">${data.nombre}</div>
+            <div style="font-size:11px;color:#555">${data.email}</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#555;font-family:monospace;background:#f1f8e9;padding:6px 8px;border-radius:5px;word-break:break-all">
+          <span style="color:#2e7d32;font-weight:700">CERT: </span>${certCode}
+        </div>
+        <div style="font-size:10px;color:#777;margin-top:4px">Firmado: ${now}</div>
+      </div>`;
+      done.classList.add('show');
+    }
+  }catch(e){
+    showToast('❌ Error de conexión');
+    if(btn){btn.disabled=false;btn.innerHTML='🔒 Firmar Digitalmente';}
+  }
 }
 
 function selectRadioStyle(group,input){
@@ -1991,10 +2038,18 @@ function loadOrdenNueva(){
     document.getElementById('orden-num-sub').textContent='Orden #'+n;
   });
   // Reset form
-  ['or-solicitante','or-equipo','or-paro','or-falla','or-actividad','or-refaccion','or-obs','or-h-inicio','or-h-termino'].forEach(id=>{var el=document.getElementById(id);if(el)el.value='';});
+  ['or-solicitante','or-equipo','or-falla','or-actividad','or-refaccion','or-obs'].forEach(id=>{var el=document.getElementById(id);if(el)el.value='';});
+  ['or-h-inicio','or-h-termino','or-paro'].forEach(id=>{var el=document.getElementById(id);if(el)el.value='';});
+  var ib=document.getElementById('or-h-inicio-btn');if(ib)ib.textContent='🕐 --:--';
+  var tb=document.getElementById('or-h-termino-btn');if(tb)tb.textContent='🕐 --:--';
+  var pd=document.getElementById('or-paro-display');if(pd)pd.textContent='-- min';
   document.querySelectorAll('input[name="or-planta"],input[name="or-tipo"],input[name="or-estatus"]').forEach(r=>r.checked=false);
-  ['lbl-planta-t','lbl-planta-c','lbl-tipo-p','lbl-tipo-c','lbl-est-a','lbl-est-c'].forEach(id=>{var el=document.getElementById(id);if(el){el.style.border='2px solid transparent';el.style.background='#f0f4f0';}});
-  ['or-sig-sol','or-sig-rec','or-sig-lib'].forEach(id=>{clearOrdenSig(id);initOrdenSig(id);});
+  ['lbl-planta-t','lbl-planta-c','lbl-est-a','lbl-est-c'].forEach(id=>{var el=document.getElementById(id);if(el){el.style.border='2px solid transparent';el.style.background='#f0f4f0';}});
+  // Reset PKI signatures for orden
+  sigDataOrden={sol:null,rec:null,lib:null};
+  document.getElementById('or-sig-sol-container').innerHTML=buildSigPersonOrden('sol','Solicitante');
+  document.getElementById('or-sig-rec-container').innerHTML=buildSigPersonOrden('rec','Recibe Orden de Trabajo');
+  document.getElementById('or-sig-lib-container').innerHTML=buildSigPersonOrden('lib','Liberación de Producción');
 }
 
 function guardarOrden(){
@@ -2002,7 +2057,7 @@ function guardarOrden(){
   var equipo=document.getElementById('or-equipo').value.trim();
   if(!sol||!equipo){showToast('⚠️ Completa Solicitante y Equipo'); return;}
   var planta=(document.querySelector('input[name="or-planta"]:checked')||{}).value||'';
-  var tipo=(document.querySelector('input[name="or-tipo"]:checked')||{}).value||'';
+  var tipo='CORRECTIVO';
   var estatus=(document.querySelector('input[name="or-estatus"]:checked')||{}).value||'ABIERTA';
   var payload={
     solicitante:sol,
@@ -2018,9 +2073,9 @@ function guardarOrden(){
     actividad_realizada:document.getElementById('or-actividad').value,
     refaccion:document.getElementById('or-refaccion').value,
     observaciones:document.getElementById('or-obs').value,
-    firma_solicitante:getSigData('or-sig-sol'),
-    firma_recibe:getSigData('or-sig-rec'),
-    firma_liberacion:getSigData('or-sig-lib')
+    firma_solicitante:sigDataOrden.sol ? JSON.stringify(sigDataOrden.sol) : '',
+    firma_recibe:sigDataOrden.rec ? JSON.stringify(sigDataOrden.rec) : '',
+    firma_liberacion:sigDataOrden.lib ? JSON.stringify(sigDataOrden.lib) : ''
   };
   fetch('/api/work-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(r=>r.json())
@@ -2066,7 +2121,23 @@ function verOrden(id){
     var estatusBg=o.estatus==='CERRADA'?'#e8f5e9':'#fff3e0';
     var estatusColor=o.estatus==='CERRADA'?'#2e7d32':'#e65100';
     function row(label,val){return val?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">${label}</div><div style="font-size:14px;color:#222;margin-top:2px">${val}</div></div>`:''}
-    function sig(label,data){return data?`<div style="text-align:center;flex:1;min-width:120px"><img src="${data}" style="width:100%;max-height:70px;object-fit:contain;border:1px solid #ddd;border-radius:6px"><div style="font-size:10px;color:#777;margin-top:3px">${label}</div></div>`:`<div style="text-align:center;flex:1;min-width:120px"><div style="height:70px;border:1px dashed #ccc;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:11px">Sin firma</div><div style="font-size:10px;color:#777;margin-top:3px">${label}</div></div>`}
+    function sig(label,data){
+      if(data){
+        var sd;try{sd=JSON.parse(data);}catch(e){sd=null;}
+        if(sd&&sd.nombre){
+          return `<div style="flex:1;min-width:140px;background:#e8f5e9;border:1px solid #81c784;border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:18px">✅</div>
+            <div style="font-size:11px;font-weight:700;color:#1b5e20">${sd.nombre}</div>
+            <div style="font-size:10px;color:#555">${sd.email||''}</div>
+            <div style="font-size:10px;color:#2e7d32;font-weight:700;margin-top:2px">Firma Electrónica Válida</div>
+            <div style="font-size:9px;color:#777;margin-top:2px">${sd.timestamp||''}</div>
+            <div style="font-size:10px;color:#555;font-family:monospace;margin-top:2px;word-break:break-all">${sd.certCode||''}</div>
+            <div style="font-size:9px;color:#888;margin-top:4px;font-weight:700">${label}</div>
+          </div>`;
+        }
+      }
+      return `<div style="text-align:center;flex:1;min-width:120px"><div style="height:70px;border:1px dashed #ccc;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:11px">Sin firma</div><div style="font-size:10px;color:#777;margin-top:3px">${label}</div></div>`;
+    }
     var html=`
       <div style="background:#1b5e20;color:#fff;border-radius:10px;padding:10px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:13px;font-weight:600">ORDEN DE TRABAJO PARA MANTENIMIENTO</span>
@@ -2111,7 +2182,175 @@ showPage=function(id){
   if(id==='orden')loadOrdenList();
   if(id==='orden-nueva')loadOrdenNueva();
 };
+
+// ── RELOJ GRÁFICO ──────────────────────────────────────────────
+var _relojTarget=null, _relojMode='h', _relojH=0, _relojM=0;
+
+function abrirReloj(target){
+  _relojTarget=target;
+  _relojMode='h';
+  var now=new Date();
+  _relojH=now.getHours(); _relojM=now.getMinutes();
+  // Pre-load existing value
+  var existing=document.getElementById('or-h-'+target).value;
+  if(existing){var p=existing.split(':');_relojH=parseInt(p[0]);_relojM=parseInt(p[1]);}
+  document.getElementById('reloj-modal').style.display='flex';
+  dibujarReloj();
+}
+
+function cerrarReloj(){document.getElementById('reloj-modal').style.display='none';}
+
+function dibujarReloj(){
+  var canvas=document.getElementById('reloj-canvas');
+  var ctx=canvas.getContext('2d');
+  var W=canvas.width, H=canvas.height, cx=W/2, cy=H/2, r=Math.min(W,H)/2-10;
+  ctx.clearRect(0,0,W,H);
+  // Face
+  ctx.beginPath();ctx.arc(cx,cy,r,0,2*Math.PI);ctx.fillStyle='#f9fff9';ctx.fill();
+  ctx.strokeStyle='#1b5e20';ctx.lineWidth=3;ctx.stroke();
+  // Center dot
+  ctx.beginPath();ctx.arc(cx,cy,5,0,2*Math.PI);ctx.fillStyle='#1b5e20';ctx.fill();
+  // Numbers & ticks
+  if(_relojMode==='h'){
+    for(var i=0;i<12;i++){
+      var ang=(i/12)*2*Math.PI - Math.PI/2;
+      var numR=r-22, tickR=r-8;
+      // Tick
+      ctx.beginPath();ctx.moveTo(cx+Math.cos(ang)*tickR,cy+Math.sin(ang)*tickR);
+      ctx.lineTo(cx+Math.cos(ang)*(r-4),cy+Math.sin(ang)*(r-4));
+      ctx.strokeStyle='#aaa';ctx.lineWidth=1.5;ctx.stroke();
+      // Number
+      var num=i===0?12:i;
+      ctx.font='bold 16px Arial';ctx.fillStyle='#333';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(num, cx+Math.cos(ang)*numR, cy+Math.sin(ang)*numR);
+    }
+    // Hour hand
+    var hVal=_relojH%12;
+    var hAng=(hVal/12)*2*Math.PI - Math.PI/2 + (_relojM/60)*(2*Math.PI/12);
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(hAng)*(r*0.55),cy+Math.sin(hAng)*(r*0.55));
+    ctx.strokeStyle='#1b5e20';ctx.lineWidth=6;ctx.lineCap='round';ctx.stroke();
+    // Selected hour highlight
+    var selAng=(hVal/12)*2*Math.PI - Math.PI/2;
+    ctx.beginPath();ctx.arc(cx+Math.cos(selAng)*(r-22),cy+Math.sin(selAng)*(r-22),16,0,2*Math.PI);
+    ctx.fillStyle='#1b5e20';ctx.fill();
+    ctx.font='bold 13px Arial';ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(hVal===0?12:hVal, cx+Math.cos(selAng)*(r-22), cy+Math.sin(selAng)*(r-22));
+  } else {
+    for(var i=0;i<60;i++){
+      var ang=(i/60)*2*Math.PI - Math.PI/2;
+      if(i%5===0){
+        var num=i; var numR=r-22;
+        ctx.beginPath();ctx.moveTo(cx+Math.cos(ang)*(r-8),cy+Math.sin(ang)*(r-8));
+        ctx.lineTo(cx+Math.cos(ang)*(r-4),cy+Math.sin(ang)*(r-4));
+        ctx.strokeStyle='#bbb';ctx.lineWidth=1;ctx.stroke();
+        ctx.font='bold 14px Arial';ctx.fillStyle='#333';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(String(num).padStart(2,'0'), cx+Math.cos(ang)*numR, cy+Math.sin(ang)*numR);
+      } else {
+        ctx.beginPath();ctx.moveTo(cx+Math.cos(ang)*(r-6),cy+Math.sin(ang)*(r-6));
+        ctx.lineTo(cx+Math.cos(ang)*(r-4),cy+Math.sin(ang)*(r-4));
+        ctx.strokeStyle='#ddd';ctx.lineWidth=1;ctx.stroke();
+      }
+    }
+    // Minute hand
+    var mAng=(_relojM/60)*2*Math.PI - Math.PI/2;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(mAng)*(r*0.72),cy+Math.sin(mAng)*(r*0.72));
+    ctx.strokeStyle='#1b5e20';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke();
+    // Selected minute highlight
+    ctx.beginPath();ctx.arc(cx+Math.cos(mAng)*(r-22),cy+Math.sin(mAng)*(r-22),14,0,2*Math.PI);
+    ctx.fillStyle='#1b5e20';ctx.fill();
+    ctx.font='bold 12px Arial';ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(String(_relojM).padStart(2,'0'), cx+Math.cos(mAng)*(r-22), cy+Math.sin(mAng)*(r-22));
+  }
+  // AM/PM
+  var isPM=_relojH>=12;
+  document.getElementById('reloj-ampm').textContent=isPM?'PM':'AM';
+  document.getElementById('reloj-display').textContent=
+    String(_relojH).padStart(2,'0')+':'+String(_relojM).padStart(2,'0');
+  document.getElementById('reloj-mode-h').style.fontWeight=_relojMode==='h'?'900':'400';
+  document.getElementById('reloj-mode-m').style.fontWeight=_relojMode==='m'?'900':'400';
+  document.getElementById('reloj-mode-h').style.color=_relojMode==='h'?'#fff':'rgba(255,255,255,.5)';
+  document.getElementById('reloj-mode-m').style.color=_relojMode==='m'?'#fff':'rgba(255,255,255,.5)';
+}
+
+function relojClick(e){
+  var canvas=document.getElementById('reloj-canvas');
+  var rect=canvas.getBoundingClientRect();
+  var t=e.touches?e.touches[0]:e;
+  var x=(t.clientX-rect.left)*(canvas.width/rect.width);
+  var y=(t.clientY-rect.top)*(canvas.height/rect.height);
+  var cx=canvas.width/2, cy=canvas.height/2;
+  var ang=Math.atan2(y-cy, x-cx);
+  var deg=(ang+Math.PI/2+2*Math.PI)%(2*Math.PI);
+  if(_relojMode==='h'){
+    var h=Math.round(deg/(2*Math.PI)*12)%12;
+    if(_relojH>=12) h+=12;
+    _relojH=h;
+    _relojMode='m';
+  } else {
+    _relojM=Math.round(deg/(2*Math.PI)*60)%60;
+  }
+  dibujarReloj();
+}
+
+function toggleAMPM(){
+  _relojH=(_relojH+12)%24;
+  dibujarReloj();
+}
+
+function confirmarReloj(){
+  var val=String(_relojH).padStart(2,'0')+':'+String(_relojM).padStart(2,'0');
+  document.getElementById('or-h-'+_relojTarget).value=val;
+  var isPM=_relojH>=12;
+  var h12=_relojH%12||12;
+  var label='🕐 '+String(h12).padStart(2,'0')+':'+String(_relojM).padStart(2,'0')+' '+(isPM?'PM':'AM');
+  var btn=document.getElementById('or-h-'+_relojTarget+'-btn');
+  if(btn)btn.textContent=label;
+  cerrarReloj();
+  calcularTiempoParo();
+}
+
+function calcularTiempoParo(){
+  var ini=document.getElementById('or-h-inicio').value;
+  var ter=document.getElementById('or-h-termino').value;
+  if(!ini||!ter)return;
+  var [ih,im]=ini.split(':').map(Number);
+  var [th,tm]=ter.split(':').map(Number);
+  var totalMin=(th*60+tm)-(ih*60+im);
+  if(totalMin<0)totalMin+=24*60;
+  var h=Math.floor(totalMin/60), m=totalMin%60;
+  var txt=h>0?h+'h '+m+' min':m+' min';
+  document.getElementById('or-paro').value=txt;
+  document.getElementById('or-paro-display').textContent=txt;
+}
 </script>
+
+<!-- MODAL RELOJ GRÁFICO -->
+<div id="reloj-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;overflow:hidden;width:min(340px,92vw);box-shadow:0 8px 32px rgba(0,0,0,.3)">
+    <!-- Header con hora -->
+    <div style="background:#1b5e20;padding:16px 20px">
+      <div style="font-size:11px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Seleccionar hora</div>
+      <div style="display:flex;align-items:baseline;gap:4px">
+        <span id="reloj-mode-h" style="font-size:42px;font-weight:900;color:#fff;cursor:pointer" onclick="_relojMode='h';dibujarReloj()">00</span>
+        <span style="font-size:36px;color:rgba(255,255,255,.7)">:</span>
+        <span id="reloj-mode-m" style="font-size:42px;font-weight:400;color:rgba(255,255,255,.5);cursor:pointer" onclick="_relojMode='m';dibujarReloj()">00</span>
+        <span id="reloj-ampm" onclick="toggleAMPM()" style="font-size:18px;font-weight:700;color:rgba(255,255,255,.8);cursor:pointer;margin-left:6px;background:rgba(255,255,255,.15);padding:4px 8px;border-radius:6px">AM</span>
+        <input type="hidden" id="reloj-display">
+      </div>
+    </div>
+    <!-- Clock face -->
+    <div style="padding:16px;display:flex;justify-content:center">
+      <canvas id="reloj-canvas" width="260" height="260" style="cursor:pointer;touch-action:none"
+        onclick="relojClick(event)"
+        ontouchend="relojClick(event);event.preventDefault()"></canvas>
+    </div>
+    <!-- Buttons -->
+    <div style="display:flex;justify-content:flex-end;gap:10px;padding:0 16px 16px">
+      <button onclick="cerrarReloj()" style="padding:10px 20px;background:#f5f5f5;border:none;border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
+      <button onclick="confirmarReloj()" style="padding:10px 20px;background:#1b5e20;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">OK</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
