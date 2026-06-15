@@ -2253,7 +2253,8 @@ function verOrden(id){
       <div style="display:flex;gap:8px;flex-wrap:wrap">${sig('SOLICITANTE',o.firma_solicitante)}${sig('RECIBE ORDEN',o.firma_recibe)}${sig('LIBERACIÓN PROD.',o.firma_liberacion)}</div>
     </div>
     <div style="display:flex;gap:10px;margin-top:0">
-      <button onclick="imprimirOrden()" style="flex:1;padding:12px;background:#1565c0;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">🖨️ Imprimir / PDF</button>
+      <button onclick="imprimirOrden()" style="flex:1;padding:12px;background:#1565c0;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">🖨️ Imprimir</button>
+      <button onclick="descargarPDF(${o.id})" style="flex:1;padding:12px;background:#1b5e20;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">📄 Descargar PDF</button>
       <button onclick="eliminarOrden(${o.id})" style="flex:1;padding:12px;background:#c62828;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">🗑️ Eliminar</button>
     </div>`;
     document.getElementById('orden-ver-body').innerHTML=html;
@@ -2339,6 +2340,13 @@ function imprimirOrden(){
     w.document.close();
     setTimeout(function(){w.print();},500);
   });
+}
+
+function descargarPDF(id){
+  var a=document.createElement('a');
+  a.href='/api/work-orders/'+id+'/pdf';
+  a.target='_blank';
+  a.click();
 }
 
 function eliminarOrden(id){
@@ -2513,12 +2521,4 @@ function initClocks(){
     if(amBtn)amBtn.addEventListener('click',function(){if(_clk[t].H>=12)_clk[t].H-=12;clkDraw(t);});
     if(pmBtn)pmBtn.addEventListener('click',function(){if(_clk[t].H<12)_clk[t].H+=12;clkDraw(t);});
     if(hSpan)hSpan.addEventListener('click',function(){_clk[t].mode='h';clkDraw(t);});
-    if(mSpan)mSpan.addEventListener('click',function(){_clk[t].mode='m';clkDraw(t);});
-    if(cancelBtn)cancelBtn.addEventListener('click',function(){document.getElementById('clock-'+t).style.display='none';});
-    if(okBtn)okBtn.addEventListener('click',function(){clkConfirm(t);});
-  });
-}
-document.addEventListener('DOMContentLoaded',initClocks);
-</script>
-</body>
-</html>
+    if(mSpan)mSpan.addEventListe

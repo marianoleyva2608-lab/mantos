@@ -330,3 +330,178 @@ def version():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
+
+
+# ── PDF ORDEN DE TRABAJO ──────────────────────────────────────────
+@app.route('/api/work-orders/<int:order_id>/pdf')
+def api_orden_pdf(order_id):
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.lib.units import cm, mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.pdfgen import canvas as pdfcanvas
+    import io, json, base64
+
+    con = get_db()
+    o = con.execute('SELECT * FROM work_orders WHERE id=?',(order_id,)).fetchone()
+    con.close()
+    if not o: return jsonify({'error':'not found'}),404
+    o = dict(o)
+
+    buf = io.BytesIO()
+    W, H = letter  # 612 x 792 pts
+    c = pdfcanvas.Canvas(buf, pagesize=letter)
+
+    GREEN = colors.HexColor('#1b5e20')
+    RED   = colors.HexColor('#c62828')
+    LGRAY = colors.HexColor('#f5f5f5')
+    BLACK = colors.black
+
+    margin = 1.5*cm
+    w = W - 2*margin
+    y = H - margin
+
+    def line(y): c.setStrokeColor(colors.HexColor('#cccccc')); c.line(margin, y, margin+w, y)
+    def chk(val, opt): return '☑' if val==opt else '☐'
+    def txt(t,x,yy,size=9,bold=False,color=BLACK):
+        c.setFont('Helvetica-Bold' if bold else 'Helvetica', size)
+        c.setFillColor(color)
+        c.drawString(x,yy,str(t or ''))
+
+    # ── BORDER ──
+    c.setStrokeColor(GREEN); c.setLineWidth(2)
+    c.rect(margin-2, margin-2, w+4, H-2*margin+4)
+
+    # ── HEADER ──
+    y -= 0.3*cm
+    # AD-PACK box
+    c.setStrokeColor(GREEN); c.setLineWidth(1.5)
+    c.rect(margin+2, y-1.2*cm, 2.8*cm, 1.4*cm)
+    c.setFont('Helvetica-Bold',14); c.setFillColor(GREEN)
+    c.drawString(margin+8, y-0.5*cm, 'ad')
+    c.setFont('Helvetica-Bold',9)
+    c.drawString(margin+6, y-0.9*cm, 'AD-PACK')
+
+    # Title
+    c.setFont('Helvetica-Bold',14); c.setFillColor(GREEN)
+    c.drawCentredString(W/2, y-0.3*cm, 'ORDEN DE TRABAJO PARA MANTENIMIENTO')
+
+    # OT Number
+    c.setFont('Helvetica-Bold',22); c.setFillColor(RED)
+    c.drawRightString(margin+w-2, y-0.5*cm, str(o['numero']))
+
+    y -= 1.6*cm
+    c.setStrokeColor(GREEN); c.setLineWidth(1.5)
+    c.line(margin, y, margin+w, y)
+    y -= 0.1*cm
+
+    # ── ROW 1: Solicitante / Fecha / Equipo ──
+    y -= 0.55*cm
+    txt('SOLICITANTE:', margin+2, y, 8, True)
+    txt(o['solicitante'] or '', margin+2.5*cm, y, 9)
+    txt('FECHA:', margin+w*0.55, y, 8, True)
+    txt(o['fecha'] or '', margin+w*0.55+1.5*cm, y, 9)
+    txt('EQUIPO:', margin+w*0.75, y, 8, True)
+    txt(o['equipo'] or '', margin+w*0.75+1.5*cm, y, 9)
+    c.setStrokeColor(LGRAY); c.line(margin, y-3, margin+w, y-3)
+
+    # ── ROW 2: Planta / Tipo / Estatus ──
+    y -= 0.7*cm
+    txt('PLANTA:', margin+2, y, 8, True)
+    txt(chk(o['planta'],'TERMOFORMADO')+' TERMOFORMADO', margin+1.8*cm, y, 9)
+    txt(chk(o['planta'],'CONVERSIÓN')+' CONVERSIÓN', margin+5.5*cm, y, 9)
+    txt('TIPO:', margin+w*0.48, y, 8, True)
+    txt(chk(o['tipo'],'CORRECTIVO')+' CORRECTIVO', margin+w*0.48+1*cm, y, 9)
+    txt(chk(o['tipo'],'PREVENTIVO')+' PREVENTIVO', margin+w*0.67, y, 9)
+    txt('ESTATUS:', margin+w*0.83, y, 8, True)
+    txt(chk(o['estatus'],'CERRADA')+' CERRADA', margin+w*0.83+1.5*cm, y, 9)
+    y -= 0.4*cm
+    txt(chk(o['estatus'],'ABIERTA')+' ABIERTA', margin+w*0.83+1.5*cm, y, 9)
+    c.setStrokeColor(LGRAY); c.line(margin, y-3, margin+w, y-3)
+
+    # ── ROW 3: Horas ──
+    y -= 0.7*cm
+    txt('HORA DE INICIO:', margin+2, y, 8, True)
+    txt(o['hora_inicio'] or '_____', margin+3*cm, y, 10, True)
+    txt('HORA DE TÉRMINO:', margin+w*0.35, y, 8, True)
+    txt(o['hora_termino'] or '_____', margin+w*0.35+3.5*cm, y, 10, True)
+    txt('TIEMPO DE PARO:', margin+w*0.67, y, 8, True)
+    txt(o['tiempo_paro'] or '_____', margin+w*0.67+3*cm, y, 10, True, RED)
+    c.setStrokeColor(GREEN); c.setLineWidth(1)
+    y -= 0.3*cm; c.line(margin, y, margin+w, y)
+
+    def text_box(label, value, yy, height=2.2*cm):
+        c.setStrokeColor(BLACK); c.setLineWidth(0.5)
+        c.rect(margin, yy-height, w, height)
+        txt(label+':', margin+4, yy-0.35*cm, 8, True)
+        if value:
+            # wrap text
+            from reportlab.pdfbase.pdfmetrics import stringWidth
+            words = str(value).split()
+            line_txt = ''; line_y = yy-0.7*cm; max_w = w-10
+            for word in words:
+                test = line_txt+(' ' if line_txt else '')+word
+                if stringWidth(test,'Helvetica',9) < max_w:
+                    line_txt = test
+                else:
+                    if line_txt: c.setFont('Helvetica',9); c.setFillColor(BLACK); c.drawString(margin+4, line_y, line_txt)
+                    line_txt = word; line_y -= 0.45*cm
+            if line_txt: c.setFont('Helvetica',9); c.setFillColor(BLACK); c.drawString(margin+4, line_y, line_txt)
+        return yy - height - 0.2*cm
+
+    y -= 0.1*cm
+    y = text_box('DESCRIPCIÓN DE LA FALLA', o.get('descripcion_falla',''), y, 2.5*cm)
+    y = text_box('ACTIVIDAD REALIZADA', o.get('actividad_realizada',''), y, 2.5*cm)
+    y = text_box('REFACCIÓN UTILIZADA', o.get('refaccion',''), y, 1.8*cm)
+    y = text_box('OBSERVACIONES', o.get('observaciones',''), y, 1.6*cm)
+
+    # ── FOTOS ──
+    try:
+        imgs = json.loads(o.get('fotos','[]'))
+        if imgs:
+            y -= 0.2*cm
+            txt('EVIDENCIA FOTOGRÁFICA ('+str(len(imgs))+')', margin+2, y, 8, True, GREEN)
+            y -= 0.2*cm
+            ix = margin
+            for b64 in imgs[:5]:
+                if ',' in b64: b64 = b64.split(',')[1]
+                img_buf = io.BytesIO(base64.b64decode(b64))
+                img = Image(img_buf, width=2.5*cm, height=2.5*cm)
+                img.drawOn(c, ix, y-2.7*cm)
+                ix += 2.7*cm
+            y -= 3*cm
+    except: pass
+
+    # ── FIRMAS ──
+    y -= 0.5*cm
+    sig_w = w/3
+    def draw_sig(label, data, sx):
+        sd = None
+        try:
+            if data: sd = json.loads(data)
+        except: pass
+        c.setStrokeColor(BLACK); c.setLineWidth(0.8)
+        c.line(sx+0.5*cm, y, sx+sig_w-0.5*cm, y)
+        if sd and sd.get('nombre'):
+            txt(sd['nombre'], sx+0.5*cm, y+0.15*cm, 7, True, GREEN)
+            txt('✓ FIRMA ELECTRÓNICA VÁLIDA', sx+0.5*cm, y-0.35*cm, 6, False, GREEN)
+            txt('CERT: '+str(sd.get('certCode','')), sx+0.5*cm, y-0.65*cm, 6)
+            txt(str(sd.get('timestamp','')), sx+0.5*cm, y-0.9*cm, 6)
+        c.setFont('Helvetica-Bold',8); c.setFillColor(BLACK)
+        c.drawCentredString(sx+sig_w/2, y-1.3*cm, label)
+
+    draw_sig('SOLICITANTE', o.get('firma_solicitante'), margin)
+    draw_sig('RECIBE ORDEN DE TRABAJO', o.get('firma_recibe'), margin+sig_w)
+    draw_sig('LIBERACIÓN DE PRODUCCIÓN', o.get('firma_liberacion'), margin+2*sig_w)
+
+    # Footer
+    c.setFont('Helvetica',7); c.setFillColor(colors.HexColor('#999999'))
+    c.drawRightString(margin+w, margin+0.3*cm, 'A9.F4 Rev. 01')
+
+    c.save()
+    buf.seek(0)
+    from flask import send_file
+    return send_file(buf, mimetype='application/pdf',
+                     download_name=f'OT-{o["numero"]}.pdf',
+                     as_attachment=False)
