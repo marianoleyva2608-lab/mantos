@@ -2069,7 +2069,7 @@ function loadOrdenNueva(){
   startParoWatch();
   // Attach guardar button
   var btnG=document.getElementById('btn-guardar-orden');
-  if(btnG){btnG.onclick=null; btnG.addEventListener('click',guardarOrden);}
+  if(btnG){btnG.onclick=function(){guardarOrden();};}
   // Attach time change listeners each time form loads
   setTimeout(function(){
     ['or-h-inicio','or-h-termino'].forEach(function(id){
@@ -2150,7 +2150,10 @@ window.guardarOrden = function guardarOrden(){
   };
   showToast('⏳ Enviando...');
   fetch('/api/work-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
-    .then(function(r){return r.json();})
+    .then(function(r){
+      if(!r.ok){return r.text().then(function(t){throw new Error('HTTP '+r.status+': '+t.substring(0,120));});}
+      return r.json();
+    })
     .then(function(d){
       if(d.ok){
         showToast('✅ Orden #'+d.numero+' guardada');
@@ -2159,7 +2162,7 @@ window.guardarOrden = function guardarOrden(){
         showToast('❌ Error: '+(d.error||JSON.stringify(d)));
       }
     })
-    .catch(function(err){showToast('❌ Fallo: '+(err.message||err));});
+    .catch(function(err){showToast('❌ '+(err.message||err));});
 }
 function loadOrdenList(){
   var listEl=document.getElementById('orden-list');
@@ -2520,5 +2523,4 @@ function initClocks(){
     if(canvas){canvas.addEventListener('click',function(e){clkTap(t,e);});canvas.addEventListener('touchend',function(e){e.preventDefault();clkTap(t,e);},{passive:false});}
     if(amBtn)amBtn.addEventListener('click',function(){if(_clk[t].H>=12)_clk[t].H-=12;clkDraw(t);});
     if(pmBtn)pmBtn.addEventListener('click',function(){if(_clk[t].H<12)_clk[t].H+=12;clkDraw(t);});
-    if(hSpan)hSpan.addEventListener('click',function(){_clk[t].mode='h';clkDraw(t);});
-    if(mSpan)mSpan.addEventListe
+    if(hSpan)hSpan.addEv
