@@ -14,7 +14,7 @@ def get_db():
 def init_db():
     con = get_db()
     con.execute('CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY, machine_id TEXT, fecha TEXT, data TEXT)')
-    con.execute('CREATE TABLE IF NOT EXISTS work_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, numero TEXT NOT NULL, solicitante TEXT, fecha TEXT, equipo TEXT, planta TEXT, tipo TEXT, estatus TEXT, hora_inicio TEXT, hora_termino TEXT, tiempo_paro TEXT, descripcion_falla TEXT, actividad_realizada TEXT, refaccion TEXT, observaciones TEXT, firma_solicitante TEXT, firma_recibe TEXT, firma_liberacion TEXT, created_at TEXT DEFAULT (datetime(\'now\')))')
+    con.execute('CREATE TABLE IF NOT EXISTS work_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, numero TEXT NOT NULL, solicitante TEXT, fecha TEXT, equipo TEXT, planta TEXT, tipo TEXT, estatus TEXT, hora_inicio TEXT, hora_termino TEXT, tiempo_paro TEXT, descripcion_falla TEXT, actividad_realizada TEXT, refaccion TEXT, observaciones TEXT, firma_solicitante TEXT, firma_recibe TEXT, firma_liberacion TEXT, fotos TEXT, created_at TEXT DEFAULT (datetime(\'now\')))')
     con.commit(); con.close()
 
 def init_users_db():
@@ -295,7 +295,7 @@ def api_save_work_order():
          data.get('hora_inicio',''), data.get('hora_termino',''), data.get('tiempo_paro',''),
          data.get('descripcion_falla',''), data.get('actividad_realizada',''),
          data.get('refaccion',''), data.get('observaciones',''),
-         data.get('firma_solicitante',''), data.get('firma_recibe',''), data.get('firma_liberacion',''))
+         data.get('firma_solicitante',''), data.get('firma_recibe',''), data.get('firma_liberacion',''), data.get('fotos','[]'))
     )
     con.commit()
     new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0]
