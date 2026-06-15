@@ -608,12 +608,19 @@ function renderForm(){
     h+=`<button class="mbtn" id="m${m}" onclick="tm('${m}')" ${disabled}>${m}</button>`;
   }
   h+=`</div></div>`;
-  h+=`<div class="bcard"><div class="bttl">&#9889; VOLTAJE ALIMENTACIÓN</div><div class="vgrid">
-    <div class="vf"><label>L1</label><input type="number" id="vl1" placeholder="V"></div>
-    <div class="vf"><label>L2</label><input type="number" id="vl2" placeholder="V"></div>
-    <div class="vf"><label>L3</label><input type="number" id="vl3" placeholder="V"></div>
-    <div class="vf"><label>VAC</label><input type="number" id="vvac" placeholder="V"></div>
-  </div></div>`;
+  if(CM.sheet==="Rotary Press"){
+    h+=`<div class="bcard"><div class="bttl">&#9889; VOLTAJE ALIMENTACIÓN</div><div class="vgrid">
+      <div class="vf"><label>Entrada 220VAC</label><input type="number" id="vl1" placeholder="V"></div>
+      <div class="vf"><label>Salida 24VDC</label><input type="number" id="vvac" placeholder="V"></div>
+    </div></div>`;
+  } else {
+    h+=`<div class="bcard"><div class="bttl">&#9889; VOLTAJE ALIMENTACIÓN</div><div class="vgrid">
+      <div class="vf"><label>L1</label><input type="number" id="vl1" placeholder="V"></div>
+      <div class="vf"><label>L2</label><input type="number" id="vl2" placeholder="V"></div>
+      <div class="vf"><label>L3</label><input type="number" id="vl3" placeholder="V"></div>
+      <div class="vf"><label>VAC</label><input type="number" id="vvac" placeholder="V"></div>
+    </div></div>`;
+  }
   document.getElementById("form-c").innerHTML=h;
   // Inject Compartir + Guardar buttons and signatures into scrollable area
   addSigSections();
@@ -761,7 +768,7 @@ function validateReport(){
     return false;
   }
   // Check voltaje >= 110V (if filled)
-  const voltFields = [{id:'vl1',label:'L1'},{id:'vl2',label:'L2'},{id:'vl3',label:'L3'},{id:'vvac',label:'VAC'}];
+  const voltFields = CM.sheet==="Rotary Press" ? [{id:'vl1',label:'Entrada 220VAC'},{id:'vvac',label:'Salida 24VDC'}] : [{id:'vl1',label:'L1'},{id:'vl2',label:'L2'},{id:'vl3',label:'L3'},{id:'vvac',label:'VAC'}];
   for(const f of voltFields){
     const el = document.getElementById(f.id);
     if(el && el.value.trim() !== ''){
