@@ -947,7 +947,14 @@ function generatePDFClient(){
     .sec-title{background:#1a5c2a;color:#fff;padding:3px 8px;font-size:11px;font-weight:bold;margin:6px 0 2px}
     .sig-area{display:flex;gap:10px;margin-top:6px}
     .sig-box{flex:1;background:#e8f5e9;padding:8px 10px;border:1px solid #c8e6c9}
-  </style></head><body>
+  
+@media print {
+  body * { visibility: hidden; }
+  #print-orden, #print-orden * { visibility: visible; }
+  #print-orden { position: fixed; top: 0; left: 0; width: 100%; padding: 20px; box-sizing: border-box; }
+  .no-print { display: none !important; }
+}
+</style></head><body>
   <div class="hdr"><h2>MANTENIMIENTO PREVENTIVO</h2><span style="font-size:13px">${CM.name}</span></div>
   <div class="info">
     <span><b>Técnico:</b> ${tec}</span>
@@ -2245,9 +2252,92 @@ function verOrden(id){
       <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:10px">Firmas</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">${sig('SOLICITANTE',o.firma_solicitante)}${sig('RECIBE ORDEN',o.firma_recibe)}${sig('LIBERACIÓN PROD.',o.firma_liberacion)}</div>
     </div>
-    <button onclick="eliminarOrden(${o.id})" style="width:100%;padding:12px;background:#c62828;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">🗑️ Eliminar Orden</button>`;
+    <div style="display:flex;gap:10px;margin-top:0">
+      <button onclick="imprimirOrden()" style="flex:1;padding:12px;background:#1565c0;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">🖨️ Imprimir / PDF</button>
+      <button onclick="eliminarOrden(${o.id})" style="flex:1;padding:12px;background:#c62828;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">🗑️ Eliminar</button>
+    </div>`;
     document.getElementById('orden-ver-body').innerHTML=html;
     showPage('orden-ver');
+  });
+}
+
+function imprimirOrden(){
+  fetch('/api/work-orders').then(r=>r.json()).then(orders=>{
+    var titulo = document.getElementById('orden-ver-titulo').textContent;
+    var num = titulo.replace('Orden #','');
+    var o = orders.find(x=>x.numero===num);
+    if(!o){showToast('Error: orden no encontrada');return;}
+    var w = window.open('','_blank','width=900,height=700');
+    var lines = function(n){var s='';for(var i=0;i<n;i++)s+='<div style="border-bottom:1px solid #999;height:22px;margin-bottom:2px"></div>';return s;};
+    var chk = function(val,opt){return val===opt?'☑':'☐';};
+    var sig = function(data,label){
+      var sd=null;
+      try{if(data)sd=JSON.parse(data);}catch(e){}
+      if(sd&&sd.nombre){
+        return '<div style="border-top:1px solid #333;padding-top:4px;text-align:center;min-width:160px"><div style="font-size:9px;font-weight:700">'+sd.nombre+'</div><div style="font-size:8px;color:#555">'+sd.email+'</div><div style="font-size:7px;color:#2e7d32;font-weight:700">✓ FIRMA ELECTRÓNICA VÁLIDA</div><div style="font-size:7px;color:#555">CERT: '+sd.certCode+'</div><div style="font-size:7px">'+sd.timestamp+'</div><div style="font-size:9px;font-weight:700;margin-top:4px">'+label+'</div></div>';
+      }
+      return '<div style="border-top:1px solid #333;padding-top:4px;text-align:center;min-width:160px"><div style="height:30px"></div><div style="font-size:9px;font-weight:700;margin-top:4px">'+label+'</div></div>';
+    };
+    var fotos='';
+    try{
+      var imgs=JSON.parse(o.fotos||'[]');
+      if(imgs.length){fotos='<div style="margin-top:10px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;margin-bottom:4px">Evidencia Fotográfica ('+imgs.length+' foto'+(imgs.length>1?'s':'')+')</div><div style="display:flex;gap:6px;flex-wrap:wrap">';imgs.forEach(function(src){fotos+='<img src="'+src+'" style="width:80px;height:80px;object-fit:cover;border:1px solid #ccc">';});fotos+='</div></div>';}
+    }catch(e){}
+    w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>OT #'+o.numero+'</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}body{padding:15px;font-size:11px}@media print{body{padding:10px}}</style></head><body>'+
+      '<div style="border:2px solid #1b5e20;padding:12px">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #1b5e20;padding-bottom:8px;margin-bottom:8px">'+
+        '<div style="display:flex;align-items:center;gap:10px">'+
+          '<div style="border:2px solid #1b5e20;border-radius:4px;padding:4px 8px;font-size:14px;font-weight:900;color:#1b5e20">ad<br>AD-PACK</div>'+
+          '<div style="font-size:15px;font-weight:900;text-align:center;text-transform:uppercase;color:#1b5e20">ORDEN DE TRABAJO PARA<br>MANTENIMIENTO</div>'+
+        '</div>'+
+        '<div style="font-size:28px;font-weight:900;color:#c62828">'+o.numero+'</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:8px;margin-bottom:6px">'+
+        '<div>SOLICITANTE: <b>'+(o.solicitante||'_____________')+'</b></div>'+
+        '<div style="margin-left:auto">FECHA: <b>'+(o.fecha||'___________')+'</b></div>'+
+        '<div style="margin-left:10px">EQUIPO: <b>'+(o.equipo||'___________')+'</b></div>'+
+      '</div>'+
+      '<div style="display:flex;gap:16px;margin-bottom:6px">'+
+        '<div>PLANTA: '+chk(o.planta,'TERMOFORMADO')+' TERMOFORMADO &nbsp; '+chk(o.planta,'CONVERSIÓN')+' CONVERSIÓN</div>'+
+        '<div>TIPO: '+chk(o.tipo,'CORRECTIVO')+' CORRECTIVO &nbsp; '+chk(o.tipo,'PREVENTIVO')+' PREVENTIVO</div>'+
+        '<div>ESTATUS: '+chk(o.estatus,'CERRADA')+' CERRADA &nbsp; '+chk(o.estatus,'ABIERTA')+' ABIERTA</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:16px;margin-bottom:10px">'+
+        '<div>HORA DE INICIO: <b>'+(o.hora_inicio||'_______')+'</b></div>'+
+        '<div>HORA DE TÉRMINO: <b>'+(o.hora_termino||'_______')+'</b></div>'+
+        '<div>TIEMPO DE PARO: <b>'+(o.tiempo_paro||'_______')+'</b></div>'+
+      '</div>'+
+      '<div style="border:1px solid #333;padding:6px;margin-bottom:8px;min-height:80px">'+
+        '<div style="font-size:10px;font-weight:700;margin-bottom:4px">DESCRIPCIÓN DE LA FALLA:</div>'+
+        '<div style="font-size:11px">'+(o.descripcion_falla||'')+' </div>'+
+        lines(3)+
+      '</div>'+
+      '<div style="border:1px solid #333;padding:6px;margin-bottom:8px;min-height:80px">'+
+        '<div style="font-size:10px;font-weight:700;margin-bottom:4px">ACTIVIDAD REALIZADA:</div>'+
+        '<div style="font-size:11px">'+(o.actividad_realizada||'')+' </div>'+
+        lines(3)+
+      '</div>'+
+      '<div style="border:1px solid #333;padding:6px;margin-bottom:8px;min-height:60px">'+
+        '<div style="font-size:10px;font-weight:700;margin-bottom:4px">REFACCIÓN UTILIZADA:</div>'+
+        '<div style="font-size:11px">'+(o.refaccion||'')+' </div>'+
+        lines(2)+
+      '</div>'+
+      '<div style="border:1px solid #333;padding:6px;margin-bottom:10px;min-height:50px">'+
+        '<div style="font-size:10px;font-weight:700;margin-bottom:4px">OBSERVACIONES:</div>'+
+        '<div style="font-size:11px">'+(o.observaciones||'')+' </div>'+
+        lines(1)+
+      '</div>'+
+      fotos+
+      '<div style="display:flex;justify-content:space-around;margin-top:20px;padding-top:8px">'+
+        sig(o.firma_solicitante,'SOLICITANTE')+
+        sig(o.firma_recibe,'RECIBE ORDEN DE TRABAJO')+
+        sig(o.firma_liberacion,'LIBERACIÓN DE PRODUCCIÓN')+
+      '</div>'+
+      '<div style="text-align:right;font-size:8px;color:#777;margin-top:8px">A9.F4 Rev. 01</div>'+
+      '</div>'+
+    '</body></html>');
+    w.document.close();
+    setTimeout(function(){w.print();},500);
   });
 }
 
