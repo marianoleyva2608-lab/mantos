@@ -417,10 +417,10 @@ async function saveReport(){
   const tec=document.getElementById("ft").value||"";
   const fec=document.getElementById("ff").value||"";
   const sup=document.getElementById("fs").value||"";
-  const l1=document.getElementById("vl1").value||"";
-  const l2=document.getElementById("vl2").value||"";
-  const l3=document.getElementById("vl3").value||"";
-  const vc=document.getElementById("vvac").value||"";
+  const l1=(document.getElementById("vl1")||{}).value||"";
+  const l2=(document.getElementById("vl2")||{}).value||"";
+  const l3=(document.getElementById("vl3")||{}).value||"";
+  const vc=(document.getElementById("vvac")||{}).value||"";
   const report={
     id:Date.now(),
     machineId:CM.id, machineName:CM.name, machineNum:CM.num,
@@ -792,10 +792,10 @@ function generateExcel(){
   const tec = document.getElementById("ft").value || "_______________";
   const fec = document.getElementById("ff").value || "_______________";
   const sup=document.getElementById("fs").value||"_______________";
-  const l1=document.getElementById("vl1").value||"";
-  const l2=document.getElementById("vl2").value||"";
-  const l3=document.getElementById("vl3").value||"";
-  const vc=document.getElementById("vvac").value||"";
+  const l1=(document.getElementById("vl1")||{}).value||"";
+  const l2=(document.getElementById("vl2")||{}).value||"";
+  const l3=(document.getElementById("vl3")||{}).value||"";
+  const vc=(document.getElementById("vvac")||{}).value||"";
 
   const ovl=document.getElementById("overlay");
   const spt=document.getElementById("sptxt");
@@ -855,8 +855,8 @@ function generatePDF(){
   const fec = document.getElementById("ff").value || "_______________";
   const sup = document.getElementById("fs").value || "_______________";
   const l1 = document.getElementById("vl1").value || "";
-  const l2 = document.getElementById("vl2").value || "";
-  const l3 = document.getElementById("vl3").value || "";
+  const l2 = (document.getElementById("vl2")||{}).value || "";
+  const l3 = (document.getElementById("vl3")||{}).value || "";
   const vc = document.getElementById("vvac").value || "";
 
   const ovl = document.getElementById("overlay");
@@ -1129,12 +1129,11 @@ function addSigSections(){
   } else if(alreadySaved){
     // Already saved once: no save button, only supervisor comments
     ab.innerHTML=`<div class="btn-saved-disabled">&#10003; Reporte guardado — no se puede volver a guardar</div>
-      <button class="btn-share-sup" onclick="shareWithSupervisor()">&#128241;&nbsp; Compartir al Supervisor (WhatsApp)</button>
+
       ${buildSupCommentSection(LOAD_DATA)}`;
   } else {
     // New report: show save and share
-    ab.innerHTML=`<button class="btn-share-sup" onclick="shareWithSupervisor()">&#128241;&nbsp; Compartir al Supervisor (WhatsApp)</button>
-      <button class="btn-save" onclick="saveReport()">&#128190;&nbsp; Guardar Reporte</button>`;
+    ab.innerHTML=`      <button class="btn-save" onclick="saveReport()">&#128190;&nbsp; Guardar Reporte</button>`;
   }
   fc.appendChild(ab);
 }
