@@ -2119,8 +2119,9 @@ window.guardarOrden = function guardarOrden(){
   calcularTiempoParo();
   var sol=document.getElementById('or-solicitante').value.trim();
   var equipo=document.getElementById('or-equipo').value.trim();
-  if(!sol){alert('FALTA: Escribe el nombre del Solicitante'); return;}
-  if(!equipo){alert('FALTA: Selecciona el Equipo de la lista'); return;}
+  showToast('⏳ Guardando...');
+  if(!sol){showToast('⚠️ Escribe el nombre del Solicitante'); return;}
+  if(!equipo){showToast('⚠️ Selecciona el Equipo de la lista'); return;}
   var planta=(document.querySelector('input[name="or-planta"]:checked')||{}).value||'';
   var tipo='CORRECTIVO';
   var estatus=(document.querySelector('input[name="or-estatus"]:checked')||{}).value||'ABIERTA';
@@ -2145,12 +2146,11 @@ window.guardarOrden = function guardarOrden(){
   };
   fetch('/api/work-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(r=>r.json())
-    .then(r=>{alert('Respuesta servidor: '+r.status); return r.json();})
+    .then(r=>r.json())
     .then(d=>{
-      alert('JSON: '+JSON.stringify(d));
       if(d.ok){showToast('✅ Orden #'+d.numero+' guardada');showPage('orden');loadOrdenList();}
-      else{alert('ERROR: '+(d.error||JSON.stringify(d)));}
-    }).catch(e=>alert('ERROR conexión: '+e));
+      else{showToast('❌ '+(d.error||'Error al guardar'));}
+    }).catch(e=>showToast('❌ Error: '+e));
 }
 
 function loadOrdenList(){
