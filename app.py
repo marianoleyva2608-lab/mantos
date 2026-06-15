@@ -132,9 +132,9 @@ def apply_checklist_data(ws, data):
         fec = data.get('fecha','_______________')
         sup = data.get('supervisor','_______________')
         firma_row = sig_row + 1
-        _wc(ws, sig_row, 2,  "Realizo: " + tec)
+        _wc(ws, sig_row, 2,  "Realizo:")
         _wc(ws, sig_row, 8,  "Fecha: " + fec)
-        _wc(ws, sig_row, 11, "Supervisor de Produccion: " + sup)
+        _wc(ws, sig_row, 11, "Supervisor de Produccion:")
 
         tec_sig = data.get('sigTecnico') or {}
         sup_sig = data.get('sigSupervisor') or {}
@@ -148,8 +148,8 @@ def apply_checklist_data(ws, data):
         has_sup = isinstance(sup_sig, dict) and bool(sup_sig.get('nombre')) and bool(sup_sig.get('fecha'))
 
         if has_tec or has_sup:
-            ws.row_dimensions[firma_row].height = 130
-            ws.row_dimensions[firma_row + 1].height = 20
+            ws.row_dimensions[firma_row].height = 70
+            ws.row_dimensions[firma_row + 1].height = 0  # ocultar fila extra
 
         def write_pki(col, sig):
             pki_text = (sig.get('nombre','') + "\n"
@@ -170,7 +170,7 @@ def apply_checklist_data(ws, data):
             write_pki(11, sup_sig)
 
         # --- UNIFICAR PAGE SETUP en todos los formatos ---
-        last_print_row = firma_row + 1
+        last_print_row = firma_row  # no incluir fila extra
         start_print_row = 2 if sheet_name.startswith('TF') else 1
         ws.print_area = '$B${}:$Q${}'.format(start_print_row, last_print_row)
         ws.page_setup.orientation = 'portrait'
