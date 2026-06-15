@@ -2234,13 +2234,15 @@ function eliminarOrden(id){
   });
 }
 
-// Patch showPage to load lists on navigation
-var _origShowPage=showPage;
-showPage=function(id){
-  _origShowPage(id);
-  if(id==='orden')loadOrdenList();
-  if(id==='orden-nueva')loadOrdenNueva();
-};
+// Patch showPage to load orden pages
+(function(){
+  var _prev=showPage;
+  showPage=function(id){
+    _prev(id);
+    if(id==='orden')loadOrdenList();
+    if(id==='orden-nueva')loadOrdenNueva();
+  };
+})();
 
 // ── RELOJ ANALÓGICO + TIEMPO DE PARO ────────────────────────────
 
