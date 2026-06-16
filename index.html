@@ -620,6 +620,13 @@ function renderForm(){
       <div class="vf"><label>Entrada 220VAC</label><input type="number" id="vl1" placeholder="V"></div>
       <div class="vf"><label>Salida 24VDC</label><input type="number" id="vvac" placeholder="V" min="20" max="30"></div>
     </div></div>`;
+  } else if(CM.sheet==="Calender K1 Easy"){
+    h+=`<div class="bcard"><div class="bttl">&#9889; VOLTAJE ALIMENTACIÓN</div><div class="vgrid">
+      <div class="vf"><label>L1</label><input type="number" id="vl1" placeholder="V"></div>
+      <div class="vf"><label>L2</label><input type="number" id="vl2" placeholder="V"></div>
+      <div class="vf"><label>L3</label><input type="number" id="vl3" placeholder="V"></div>
+      <div class="vf"><label>Fuente 24VDC</label><input type="number" id="vvac" placeholder="V" min="20" max="25" style="background:#e3f2fd"></div>
+    </div></div>`;
   } else {
     h+=`<div class="bcard"><div class="bttl">&#9889; VOLTAJE ALIMENTACIÓN</div><div class="vgrid">
       <div class="vf"><label>L1</label><input type="number" id="vl1" placeholder="V"></div>
@@ -775,7 +782,7 @@ function validateReport(){
     return false;
   }
   // Check voltaje >= 110V (if filled)
-  const voltFields = CM.sheet==="Rotary Press" ? [{id:'vl1',label:'Entrada 220VAC',min:110,max:999},{id:'vvac',label:'Salida 24VDC',min:20,max:30}] : [{id:'vl1',label:'L1'},{id:'vl2',label:'L2'},{id:'vl3',label:'L3'},{id:'vvac',label:'VAC'}];
+  const voltFields = CM.sheet==="Rotary Press" ? [{id:'vl1',label:'Entrada 220VAC',min:110,max:999},{id:'vvac',label:'Salida 24VDC',min:20,max:30}] : CM.sheet==="Calender K1 Easy" ? [{id:'vl1',label:'L1'},{id:'vl2',label:'L2'},{id:'vl3',label:'L3'},{id:'vvac',label:'Fuente 24VDC',min:20,max:25}] : [{id:'vl1',label:'L1'},{id:'vl2',label:'L2'},{id:'vl3',label:'L3'},{id:'vvac',label:'VAC'}];
   for(const f of voltFields){
     const el = document.getElementById(f.id);
     if(el && el.value.trim() !== ''){
