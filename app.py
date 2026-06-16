@@ -109,7 +109,7 @@ def apply_checklist_data(ws, data):
         'Suajadora 1':26,'Suajadora 2':26,'Suajadora 5':26,'TCU':26,'Chiller':27,
         'Laminator':37,'Slitter Rewinder':37,'Komatsu OBS45':32,
         'Rotary Press':37,'Prensa PL':32,'IMESA':31,'Single Knife':31,
-        'Hojeadora Robust':31,'Gapcutter':30,
+        'Hojeadora Robust':31,'Gapcutter':30,'Calender K1 Easy':41,
     }
     sheet_name = data.get('sheet', '')
     sig_row = SHEET_SIG.get(sheet_name) or data.get('sig_row')
@@ -504,4 +504,4 @@ def api_orden_pdf(order_id):
                      as_attachment=False)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT',
