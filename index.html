@@ -407,14 +407,41 @@ const MCOLS={ENE:"B",FEB:"C",MAR:"D",ABR:"E",MAY:"F",JUN:"G",JUL:"H",AGO:"I",SEP
 
 let CM=null,IS={},IC={},SM=new Set(),LOAD_DATA=null;
 
-// ── SAVE / LOAD — servidor ───────────────────────────────────
+// ── SAVE / LOAD — servidor + localStorage ───────────────────────────────────
 let reportCache = [];
+
+function _lsSave(reports){ try{localStorage.setItem('mtto_reports_v2', JSON.stringify(reports));}catch(e){} }
+function _lsLoad(){ try{return JSON.parse(localStorage.getItem('mtto_reports_v2')||'[]');}catch(e){return[];} }
+
+async function _syncToServer(reports){
+  // Si el servidor está vacío pero localStorage tiene datos, los sube automáticamente
+  try{
+    for(const r of reports){
+      await fetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
+    }
+  }catch(e){}
+}
+
 async function loadReportsFromServer(){
+  const local = _lsLoad();
   try{
     const res=await fetch('/api/reports');
-    reportCache=await res.json();
+    const server=await res.json();
+    if(server.length===0 && local.length>0){
+      // Servidor vacío pero tenemos datos locales → restaurar automáticamente
+      reportCache=local;
+      await _syncToServer(local);
+      showToast('🔄 ' + local.length + ' reportes restaurados automáticamente');
+    } else {
+      // Fusionar: server tiene prioridad, pero agregar locales que falten
+      const serverIds=new Set(server.map(r=>r.id));
+      const extras=local.filter(r=>!serverIds.has(r.id));
+      reportCache=[...server,...extras];
+      if(extras.length>0) await _syncToServer(extras);
+      _lsSave(reportCache);
+    }
   }catch(e){
-    try{reportCache=JSON.parse(localStorage.getItem('mtto_v1')||'[]');}catch(e2){reportCache=[];}
+    reportCache=local;
   }
 }
 function getSaved(){ return reportCache; }
@@ -447,6 +474,7 @@ async function saveReport(){
     await fetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});
     const idx=reportCache.findIndex(r=>r.machineId===CM.id&&r.fecha===fec);
     if(idx>=0)reportCache[idx]=report; else reportCache.unshift(report);
+    _lsSave(reportCache);
     showToast("💾 Reporte guardado");
   }catch(e){
     showToast("⚠️ Error al guardar");
@@ -2570,19 +2598,4 @@ function removeFoto(idx){
     });
   }
   var fc=document.getElementById('or-fotos-count');
-  if(fc){fc.textContent=_fotosB64.length+' foto(s) seleccionada(s)';fc.style.color=_fotosB64.length>=3?'#2e7d32':'#e65100';}
-}
-
-function initClocks(){
-  ['inicio','termino'].forEach(function(t){
-    var btn=document.getElementById('btn-clock-'+t);
-    var canvas=document.getElementById('clk-canvas-'+t);
-    var amBtn=document.getElementById('clk-am-'+t),pmBtn=document.getElementById('clk-pm-'+t);
-    var hSpan=document.getElementById('clk-h-'+t),mSpan=document.getElementById('clk-m-'+t);
-    var cancelBtn=document.getElementById('clk-cancel-'+t),okBtn=document.getElementById('clk-ok-'+t);
-    if(btn)btn.addEventListener('click',function(){clkOpen(t);});
-    if(canvas){canvas.addEventListener('click',function(e){clkTap(t,e);});canvas.addEventListener('touchend',function(e){e.preventDefault();clkTap(t,e);},{passive:false});}
-    if(amBtn)amBtn.addEventListener('click',function(){if(_clk[t].H>=12)_clk[t].H-=12;clkDraw(t);});
-    if(pmBtn)pmBtn.addEventListener('click',function(){if(_clk[t].H<12)_clk[t].H+=12;clkDraw(t);});
-    if(hSpan)hSpan.addEventListener('click',function(){_clk[t].mode='h';clkDraw(t);});
-    if(mSpan)mSpan.addEventListener('click
+  if(fc){fc.textContent=_fotosB64.length+'
