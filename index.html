@@ -2116,11 +2116,13 @@ authInit();
               <th style="padding:6px 4px;text-align:center;border:1px solid #ddd;width:110px">Aplicaci&#243;n o uso</th>
               <th style="padding:6px 4px;text-align:center;border:1px solid #ddd;width:120px">Proveedor Sugerido</th>
               <th style="padding:6px 4px;text-align:center;border:1px solid #ddd;width:120px">Proveedor Alterno</th>
+              <th style="padding:6px 4px;border:1px solid #ddd;width:28px"></th>
             </tr>
           </thead>
           <tbody id="req-items-tbody"></tbody>
         </table>
       </div>
+      <button onclick="reqAgregarFila()" style="width:100%;padding:10px;background:#e8f5e9;color:#1a5c2a;border:2px dashed #1a5c2a;border-radius:0 0 10px 10px;font-size:14px;font-weight:700;cursor:pointer">+ Agregar art&#237;culo</button>
     </div>
     <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Justificaci&#243;n (necesidad de la compra)</label>
@@ -2760,17 +2762,8 @@ function initReqForm(){
   var tbody=document.getElementById('req-items-tbody');
   if(!tbody){console.error('req-items-tbody not found');return;}
   tbody.innerHTML='';
-  for(var i=1;i<=10;i++){
-    tbody.innerHTML+='<tr>'
-      +'<td style="text-align:center;padding:4px 2px;border:1px solid #eee;font-size:12px;color:#888">'+i+'</td>'
-      +'<td style="border:1px solid #eee;padding:2px"><input type="number" min="0" data-req="cantidad" data-row="'+i+'" placeholder="0" style="width:100%;border:none;padding:4px;font-size:13px;text-align:center;outline:none;box-sizing:border-box"></td>'
-      +'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="unidad" data-row="'+i+'" placeholder="pza" style="width:100%;border:none;padding:4px;font-size:13px;text-align:center;outline:none;box-sizing:border-box"></td>'
-      +'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="descripcion" data-row="'+i+'" placeholder="Nombre, modelo, marca..." style="width:100%;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td>'
-      +'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="aplicacion" data-row="'+i+'" placeholder="Aplicación..." style="width:100%;border:none;padding:4px;font-size:12px;outline:none;box-sizing:border-box"></td>'
-      +'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="proveedor" data-row="'+i+'" placeholder="Nombre, tel, correo" style="width:100%;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td>'
-      +'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="proveedor_alt" data-row="'+i+'" placeholder="Nombre, tel, correo" style="width:100%;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td>'
-      +'</tr>';
-  }
+  _reqRowCount=0;
+  for(var i=0;i<3;i++) reqAgregarFila();
   var sc=document.getElementById('req-sigs-container');
   sc.innerHTML='<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:10px">Firmas Digitales</div>';
   [{k:'realizo',l:'Realizó'},{k:'reviso',l:'Revisó'},{k:'aprobo',l:'Aprobó'}].forEach(function(s){
@@ -2800,17 +2793,42 @@ function reqFirmar(key){
 
 function getReqItems(){
   var items=[];
-  for(var i=1;i<=10;i++){
-    items.push({
-      cantidad:(document.querySelector('[data-req="cantidad"][data-row="'+i+'"]')||{}).value||'',
-      unidad:(document.querySelector('[data-req="unidad"][data-row="'+i+'"]')||{}).value||'',
-      descripcion:(document.querySelector('[data-req="descripcion"][data-row="'+i+'"]')||{}).value||'',
-      aplicacion:(document.querySelector('[data-req="aplicacion"][data-row="'+i+'"]')||{}).value||'',
-      proveedor:(document.querySelector('[data-req="proveedor"][data-row="'+i+'"]')||{}).value||'',
-      proveedor_alt:(document.querySelector('[data-req="proveedor_alt"][data-row="'+i+'"]')||{}).value||''
-    });
-  }
+  var tbody=document.getElementById('req-items-tbody');
+  if(!tbody)return items;
+  tbody.querySelectorAll('tr').forEach(function(tr){
+    var g=function(attr){var el=tr.querySelector('[data-req="'+attr+'"]');return el?el.value.trim():'';};
+    var item={cantidad:g('cantidad'),unidad:g('unidad'),descripcion:g('descripcion'),aplicacion:g('aplicacion'),proveedor:g('proveedor'),proveedor_alt:g('proveedor_alt')};
+    if(item.cantidad||item.descripcion) items.push(item);
+  });
   return items;
+}
+
+var _reqRowCount=0;
+
+function reqAgregarFila(){
+  var tbody=document.getElementById('req-items-tbody');
+  if(!tbody)return;
+  _reqRowCount++;
+  var n=_reqRowCount;
+  var tr=document.createElement('tr');
+  tr.id='req-fila-'+n;
+  tr.innerHTML=
+    '<td style="text-align:center;padding:4px 2px;border:1px solid #eee;font-size:12px;color:#888;width:24px">'+n+'</td>'
+    +'<td style="border:1px solid #eee;padding:2px;width:60px"><input type="number" min="0" data-req="cantidad" data-row="'+n+'" placeholder="0" style="width:100%;border:none;padding:4px;font-size:13px;text-align:center;outline:none;box-sizing:border-box"></td>'
+    +'<td style="border:1px solid #eee;padding:2px;width:70px"><input type="text" data-req="unidad" data-row="'+n+'" placeholder="pza" style="width:100%;border:none;padding:4px;font-size:13px;text-align:center;outline:none;box-sizing:border-box"></td>'
+    +'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="descripcion" data-row="'+n+'" placeholder="Nombre, modelo, marca..." style="width:100%;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td>'
+    +'<td style="border:1px solid #eee;padding:2px;width:110px"><input type="text" data-req="aplicacion" data-row="'+n+'" placeholder="Aplicación..." style="width:100%;border:none;padding:4px;font-size:12px;outline:none;box-sizing:border-box"></td>'
+    +'<td style="border:1px solid #eee;padding:2px;width:120px"><input type="text" data-req="proveedor" data-row="'+n+'" placeholder="Nombre, tel, correo" style="width:100%;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td>'
+    +'<td style="border:1px solid #eee;padding:2px;width:120px"><input type="text" data-req="proveedor_alt" data-row="'+n+'" placeholder="Nombre, tel, correo" style="width:100%;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td>'
+    +'<td style="border:1px solid #eee;padding:2px;width:28px;text-align:center">'
+    +'<button onclick="reqEliminarFila('+n+')" style="background:none;border:none;color:#c62828;font-size:16px;cursor:pointer;padding:2px 4px" title="Eliminar">&#215;</button>'
+    +'</td>';
+  tbody.appendChild(tr);
+}
+
+function reqEliminarFila(n){
+  var tr=document.getElementById('req-fila-'+n);
+  if(tr) tr.remove();
 }
 
 async function guardarReq(){
