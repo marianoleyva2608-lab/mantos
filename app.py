@@ -71,6 +71,19 @@ def login_user():
         return jsonify({'error': 'Email o PIN incorrecto'}), 401
     return jsonify({'ok': True, 'id': row['id'], 'nombre': row['nombre'], 'email': row['email']})
 
+@app.route('/api/users/verify', methods=['POST'])
+def verify_user():
+    d = request.json
+    email = d.get('email','').strip().lower()
+    pin   = d.get('pin','').strip()
+    con = get_db()
+    row = con.execute('SELECT id, nombre, email FROM users WHERE email=? AND pin_hash=?',
+                      (email, hash_pin(pin))).fetchone()
+    con.close()
+    if not row:
+        return jsonify({'ok': False, 'error': 'PIN incorrecto'}), 200
+    return jsonify({'ok': True, 'nombre': row['nombre'], 'email': row['email']})
+
 @app.route('/api/users', methods=['GET'])
 def list_users():
     con = get_db()
