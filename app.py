@@ -541,3 +541,253 @@ def api_orden_pdf(order_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
+
+# ══════════════════════════════════════════════════════════
+#  REQUISICIONES DE COMPRA
+# ══════════════════════════════════════════════════════════
+
+def init_req_db():
+    con = get_db()
+    con.execute('''CREATE TABLE IF NOT EXISTS requisiciones
+        (id TEXT PRIMARY KEY,
+         folio INTEGER,
+         fecha TEXT,
+         solicitante TEXT,
+         planta TEXT,
+         departamento TEXT,
+         tipo TEXT,
+         data TEXT,
+         created_at TEXT DEFAULT (datetime('now')))''')
+    con.commit(); con.close()
+
+init_req_db()
+
+@app.route('/api/requisiciones', methods=['GET'])
+def get_requisiciones():
+    con = get_db()
+    rows = con.execute('SELECT data FROM requisiciones ORDER BY folio DESC').fetchall()
+    con.close()
+    return jsonify([json.loads(r['data']) for r in rows])
+
+@app.route('/api/requisiciones', methods=['POST'])
+def save_requisicion():
+    d = request.json
+    con = get_db()
+    if d.get('id'):
+        existing = con.execute('SELECT folio FROM requisiciones WHERE id=?', (d['id'],)).fetchone()
+        folio = existing['folio'] if existing else None
+    else:
+        folio = None
+    if not folio:
+        last = con.execute('SELECT MAX(folio) as m FROM requisiciones').fetchone()
+        folio = (last['m'] or 0) + 1
+        d['id'] = d.get('id') or (str(folio).zfill(4))
+    d['folio'] = folio
+    con.execute('''INSERT OR REPLACE INTO requisiciones
+        (id, folio, fecha, solicitante, planta, departamento, tipo, data)
+        VALUES (?,?,?,?,?,?,?,?)''',
+        (d['id'], folio, d.get('fecha',''), d.get('solicitante',''),
+         d.get('planta',''), d.get('departamento',''), d.get('tipo','Normal'),
+         json.dumps(d, ensure_ascii=False)))
+    con.commit(); con.close()
+    return jsonify({'ok': True, 'id': d['id'], 'folio': folio})
+
+@app.route('/api/requisicion/<rid>/pdf')
+def requisicion_pdf(rid):
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.pdfgen import canvas as pdfcanvas
+
+    con = get_db()
+    row = con.execute('SELECT data FROM requisiciones WHERE id=?', (rid,)).fetchone()
+    con.close()
+    if not row:
+        return jsonify({'error': 'No encontrado'}), 404
+    o = json.loads(row['data'])
+
+    buf = io.BytesIO()
+    W, H = letter
+    c = pdfcanvas.Canvas(buf, pagesize=letter)
+    margin = 1.5*cm
+    w = W - 2*margin
+    GREEN = colors.HexColor('#1a5c2a')
+    BLACK = colors.black
+    GRAY  = colors.HexColor('#888888')
+    LGRAY = colors.HexColor('#cccccc')
+
+    def txt(t, x, yy, size=8, bold=False, color=BLACK, align='left'):
+        c.setFont('Helvetica-Bold' if bold else 'Helvetica', size)
+        c.setFillColor(color)
+        if align == 'center':
+            c.drawCentredString(x, yy, str(t or ''))
+        elif align == 'right':
+            c.drawRightString(x, yy, str(t or ''))
+        else:
+            c.drawString(x, yy, str(t or ''))
+
+    y = H - margin
+
+    # ── LOGO ──
+    c.setStrokeColor(GREEN); c.setLineWidth(1.5)
+    c.rect(margin, y-1.2*cm, 2.5*cm, 1.3*cm)
+    c.setFont('Helvetica-Bold', 14); c.setFillColor(GREEN)
+    c.drawString(margin+4, y-0.5*cm, 'ad')
+    c.setFont('Helvetica-Bold', 8); c.setFillColor(GREEN)
+    c.drawString(margin+4, y-0.9*cm, 'AD-PACK')
+
+    # ── TITLE ──
+    c.setFont('Helvetica-Bold', 13); c.setFillColor(BLACK)
+    c.drawCentredString(W/2, y-0.35*cm, 'Requisición de compra')
+
+    # ── DOC INFO top-right ──
+    folio = str(o.get('folio', '')).zfill(4)
+    bx = margin + w - 4.5*cm
+    c.setStrokeColor(LGRAY); c.setLineWidth(0.5)
+    c.rect(bx, y-1.2*cm, 4.5*cm, 1.3*cm)
+    c.line(bx, y-0.4*cm, bx+4.5*cm, y-0.4*cm)
+    c.line(bx+2.2*cm, y-1.2*cm, bx+2.2*cm, y)
+    txt('No. de Documento', bx+4, y-0.15*cm, 6, True)
+    txt('Revisión', bx+2.2*cm+4, y-0.15*cm, 6, True)
+    txt('REQ-' + folio, bx+4, y-0.75*cm, 9, True, GREEN)
+    txt(o.get('fecha', ''), bx+2.2*cm+4, y-0.75*cm, 7)
+
+    y -= 1.4*cm
+
+    # ── ROW 1: Fecha / Solicitante / Planta / Depto ──
+    c.setStrokeColor(LGRAY); c.setLineWidth(0.5)
+    row_h = 0.55*cm
+    c.rect(margin, y-row_h, w, row_h)
+    cols = [2.5*cm, w*0.35, w*0.55, w*0.75]
+    for cx in cols:
+        c.line(margin+cx, y, margin+cx, y-row_h)
+    txt('FECHA:', margin+4, y-row_h+4, 7, True)
+    txt(o.get('fecha',''), margin+1.2*cm, y-row_h+4, 7)
+    txt('SOLICITANTE:', margin+cols[0]+4, y-row_h+4, 7, True)
+    txt(o.get('solicitante',''), margin+cols[0]+2.3*cm, y-row_h+4, 7)
+    txt('PLANTA:', margin+cols[1]+4, y-row_h+4, 7, True)
+    txt(o.get('planta',''), margin+cols[1]+1.4*cm, y-row_h+4, 7)
+    txt('DEPARTAMENTO:', margin+cols[2]+4, y-row_h+4, 7, True)
+    txt(o.get('departamento',''), margin+cols[2]+2.5*cm, y-row_h+4, 7)
+
+    y -= row_h
+
+    # ── ROW 2: Tipo solicitud ──
+    c.rect(margin, y-row_h, w, row_h)
+    c.line(margin+w*0.55, y, margin+w*0.55, y-row_h)
+    tipo = o.get('tipo', 'Normal')
+    txt('TIPO DE SOLICITUD:', margin+4, y-row_h+4, 7, True)
+    txt('[v]' if tipo=='Normal' else '[ ]', margin+3.8*cm, y-row_h+4, 7)
+    txt('Normal', margin+4.4*cm, y-row_h+4, 7)
+    txt('[v]' if tipo=='Urgente' else '[ ]', margin+5.5*cm, y-row_h+4, 7)
+    txt('Urgente', margin+6.1*cm, y-row_h+4, 7, False, colors.HexColor('#c62828'))
+
+    y -= row_h + 0.1*cm
+
+    # ── TABLE HEADER ──
+    col_widths = [0.55*cm, 1.4*cm, 1.5*cm, 4.5*cm, 3.0*cm, 3.2*cm, 3.3*cm]
+    # adjust last col to fill width
+    col_widths[-1] = w - sum(col_widths[:-1])
+    col_x = [margin]
+    for cw in col_widths[:-1]:
+        col_x.append(col_x[-1] + cw)
+
+    hdr_h = 1.0*cm
+    c.setFillColor(colors.HexColor('#e8f5e9'))
+    c.rect(margin, y-hdr_h, w, hdr_h, fill=1, stroke=1)
+    c.setStrokeColor(LGRAY)
+    for cx in col_x[1:]:
+        c.line(cx, y, cx, y-hdr_h)
+
+    headers = ['#','CANTIDAD','UNIDAD\n(pieza,caja,\nmetros,litros,\nrollos etc.)','DESCRIPCIÓN\n(nombre,modelo,marca,\nNo.catálogo,color,medidas)','APLICACIÓN\nO USO','PROVEEDOR SUGERIDO\n(nombre,contacto,\ntelefono/correo)','PROVEEDOR ALTERNO\n(nombre,contacto,\ntelefono/correo)']
+    c.setFont('Helvetica-Bold', 6); c.setFillColor(BLACK)
+    for i, (htext, cx, cw) in enumerate(zip(headers, col_x, col_widths)):
+        lines = htext.split('\n')
+        ly = y - 0.15*cm
+        for ln in lines:
+            c.drawCentredString(cx + cw/2, ly, ln)
+            ly -= 0.22*cm
+
+    y -= hdr_h
+
+    # ── TABLE ROWS (10 items) ──
+    items = o.get('items', [{}]*10)
+    while len(items) < 10:
+        items.append({})
+
+    row_h_item = 0.7*cm
+    for idx, item in enumerate(items[:10]):
+        ry = y - row_h_item
+        if idx % 2 == 0:
+            c.setFillColor(colors.HexColor('#fafffe'))
+        else:
+            c.setFillColor(colors.white)
+        c.rect(margin, ry, w, row_h_item, fill=1, stroke=0)
+        c.setStrokeColor(LGRAY); c.setLineWidth(0.4)
+        c.rect(margin, ry, w, row_h_item, fill=0, stroke=1)
+        for cx in col_x[1:]:
+            c.line(cx, y, cx, ry)
+
+        c.setFont('Helvetica', 7); c.setFillColor(BLACK)
+        cy = ry + row_h_item*0.35
+        c.drawCentredString(col_x[0]+col_widths[0]/2, cy, str(idx+1))
+        c.drawCentredString(col_x[1]+col_widths[1]/2, cy, str(item.get('cantidad','')))
+        c.drawCentredString(col_x[2]+col_widths[2]/2, cy, str(item.get('unidad','')))
+        c.drawString(col_x[3]+3, cy, str(item.get('descripcion',''))[:55])
+        c.drawString(col_x[4]+3, cy, str(item.get('aplicacion',''))[:30])
+        c.drawString(col_x[5]+3, cy, str(item.get('proveedor',''))[:28])
+        c.drawString(col_x[6]+3, cy, str(item.get('proveedor_alt',''))[:28])
+        y -= row_h_item
+
+    y -= 0.2*cm
+
+    # ── JUSTIFICACIÓN ──
+    c.setStrokeColor(LGRAY); c.setLineWidth(0.5)
+    just_h = 2.0*cm
+    c.rect(margin, y-just_h, w, just_h)
+    txt('JUSTIFICACIÓN (necesidad de la compra del material):', margin+4, y-0.25*cm, 7, True)
+    just_txt = o.get('justificacion', '')
+    c.setFont('Helvetica', 8); c.setFillColor(BLACK)
+    # wrap text
+    words = just_txt.split()
+    line_txt = ''; ly = y - 0.55*cm; max_w = w - 10
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    for word in words:
+        test = line_txt + (' ' if line_txt else '') + word
+        if stringWidth(test, 'Helvetica', 8) < max_w:
+            line_txt = test
+        else:
+            if line_txt: c.drawString(margin+4, ly, line_txt)
+            line_txt = word; ly -= 0.35*cm
+    if line_txt: c.drawString(margin+4, ly, line_txt)
+
+    y -= just_h + 0.5*cm
+
+    # ── FIRMAS ──
+    sig_w = w / 3
+    firmas = o.get('firmas', {})
+    labels = ['Realizó (Nombre y firma)', 'Revisó (Nombre y firma)', 'Aprobó (Nombre y firma)']
+    keys   = ['realizo', 'reviso', 'aprobo']
+    for i, (label, key) in enumerate(zip(labels, keys)):
+        sx = margin + i * sig_w
+        c.setStrokeColor(BLACK); c.setLineWidth(0.8)
+        c.line(sx+0.5*cm, y, sx+sig_w-0.5*cm, y)
+        sig = firmas.get(key, {})
+        if isinstance(sig, dict) and sig.get('nombre'):
+            c.setFont('Helvetica-Bold', 7); c.setFillColor(GREEN)
+            c.drawString(sx+0.5*cm, y+0.15*cm, sig.get('nombre',''))
+            c.setFont('Helvetica', 6); c.setFillColor(GREEN)
+            c.drawString(sx+0.5*cm, y-0.3*cm, '[v] FIRMA ELECTRONICA VALIDA')
+        c.setFont('Helvetica-Bold', 7); c.setFillColor(BLACK)
+        c.drawCentredString(sx+sig_w/2, y-1.1*cm, label)
+
+    # Footer
+    c.setFont('Helvetica', 6); c.setFillColor(GRAY)
+    c.drawRightString(margin+w, margin+0.3*cm, 'A9.F5 Rev. 01')
+
+    c.save(); buf.seek(0)
+    return send_file(buf, mimetype='application/pdf',
+                     download_name=f'REQ-{folio}.pdf',
+                     as_attachment=False)
