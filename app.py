@@ -189,12 +189,9 @@ def apply_checklist_data(ws, data):
         start_print_row = 2 if sheet_name.startswith('TF') else 1
         ws.print_area = '$B${}:$Q${}'.format(start_print_row, last_print_row)
         ws.page_setup.orientation = 'portrait'
-        if sheet_name == 'Rotary Press':
-            ws.page_setup.fitToPage = True
-            ws.page_setup.fitToHeight = 1
-            ws.page_setup.fitToWidth = 1
-        else:
-            ws.page_setup.scale = 44
+        ws.page_setup.fitToPage = True
+        ws.page_setup.fitToHeight = 1
+        ws.page_setup.fitToWidth = 1
         ws.page_margins = PageMargins(
             left=0.70, right=0.70, top=0.75, bottom=0.75,
             header=0.3, footer=0.3
@@ -509,3 +506,4 @@ def api_orden_pdf(order_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
+                                                                                                        
