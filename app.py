@@ -396,7 +396,7 @@ def api_orden_pdf(order_id):
     y = H - margin
 
     def line(y): c.setStrokeColor(colors.HexColor('#cccccc')); c.line(margin, y, margin+w, y)
-    def chk(val, opt): return '☑' if val==opt else '☐'
+    def chk(val, opt): return '[v]' if val==opt else '[ ]'
     def txt(t,x,yy,size=9,bold=False,color=BLACK):
         c.setFont('Helvetica-Bold' if bold else 'Helvetica', size)
         c.setFillColor(color)
