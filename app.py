@@ -107,7 +107,7 @@ def apply_checklist_data(ws, data):
         'TF 1':45,'TF 2':45,'TF 3':45,'TF 4':45,'TF 5':45,'TF 6':45,'TF 7':45,
         'prensa 1':40,'Prensa 2':40,
         'Suajadora 1':26,'Suajadora 2':26,'Suajadora 5':26,'TCU':26,'Chiller':27,
-        'Laminator':37,'Slitter Rewinder':37,'Komatsu OBS45':32,
+        'Laminator':37,'Slitter Rewinder':37,'Komatsu OBS45':35,
         'Rotary Press':37,'Prensa PL':32,'IMESA':31,'Single Knife':31,
         'Hojeadora Robust':31,'Gapcutter':30,'Calender K1 Easy':41,
     }
@@ -148,7 +148,7 @@ def apply_checklist_data(ws, data):
         fecha_cell = ws.cell(row=sig_row, column=8)
         fecha_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
         fecha_cell.font = Font(bold=True, color='FFFFFF', size=11)
-        fecha_cell.fill = PatternFill(fill_type='solid', fgColor='1a5c2a')
+        fecha_cell.fill = PatternFill(fill_type='solid', fgColor='FF1A5C2A')
         _wc(ws, sig_row, 11, "Supervisor de Produccion:")
 
         tec_sig = data.get('sigTecnico') or {}
@@ -540,4 +540,4 @@ def api_orden_pdf(order_id):
                      as_attachment=False)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False
