@@ -107,7 +107,7 @@ def apply_checklist_data(ws, data):
         'TF 1':45,'TF 2':45,'TF 3':45,'TF 4':45,'TF 5':45,'TF 6':45,'TF 7':45,
         'prensa 1':40,'Prensa 2':40,
         'Suajadora 1':26,'Suajadora 2':26,'Suajadora 5':26,'TCU':26,'Chiller':27,
-        'Laminator':37,'Slitter Rewinder':37,'Komatsu OBS45':32,
+        'Laminator':37,'Slitter Rewinder':37,'Komatsu OBS45':35,
         'Rotary Press':37,'Prensa PL':32,'IMESA':31,'Single Knife':31,
         'Hojeadora Robust':31,'Gapcutter':30,'Calender K1 Easy':41,
     }
