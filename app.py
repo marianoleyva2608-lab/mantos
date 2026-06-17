@@ -552,9 +552,6 @@ def api_orden_pdf(order_id):
                      download_name=f'OT-{o["numero"]}.pdf',
                      as_attachment=False)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
-
 # ══════════════════════════════════════════════════════════
 #  REQUISICIONES DE COMPRA
 # ══════════════════════════════════════════════════════════
@@ -808,3 +805,6 @@ def requisicion_pdf(rid):
     return send_file(buf, mimetype='application/pdf',
                      download_name=f'REQ-{folio}.pdf',
                      as_attachment=False)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
