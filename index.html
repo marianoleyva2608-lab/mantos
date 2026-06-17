@@ -2898,7 +2898,7 @@ async function loadReqList(){
         +'<div style="font-size:12px;color:#888;margin-top:2px">'+cnt+' artículo(s) &nbsp;|&nbsp; '+(r.departamento||'')+'</div>'
         +'</div>';
     }).join('');
-  } catch(e){ el.innerHTML='<div style="color:#c62828;padding:20px">Error al cargar</div>'; }
+  } catch(e){ el.innerHTML='<div style="color:#c62828;padding:20px">Error al cargar: '+e.message+'</div>'; }
 }
 
 function verReqEl(el){
