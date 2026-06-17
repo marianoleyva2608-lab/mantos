@@ -2059,7 +2059,7 @@ authInit();
   <div class="hdr">
     <button class="back" onclick="showPage('home')">&#8249;</button>
     <div style="flex:1"><h1>&#128722; Requisiciones de Compra</h1></div>
-    <button onclick="showPage('req-nueva');initReqForm()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
+    <button onclick="showPage('req-nueva')" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
   </div>
   <div id="req-list" style="padding:12px"></div>
 </div>
@@ -2744,15 +2744,21 @@ var _reqCurrentId=null;
 
 function initReqForm(){
   _reqCurrentId=null; _reqSigs={realizo:null,reviso:null,aprobo:null};
-  var d=new Date(),mm=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');
-  document.getElementById('req-fecha').value=d.getFullYear()+'-'+mm+'-'+dd;
-  if(currentUser) document.getElementById('req-solicitante').value=currentUser.nombre||'';
-  else document.getElementById('req-solicitante').value='';
-  document.getElementById('req-departamento').value='Mantenimiento';
-  var norm=document.querySelector('input[name="req-tipo"][value="Normal"]');
-  if(norm) norm.checked=true;
-  document.getElementById('req-justificacion').value='';
+  try{
+    var d=new Date(),mm=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');
+    var fechaEl=document.getElementById('req-fecha');
+    if(fechaEl) fechaEl.value=d.getFullYear()+'-'+mm+'-'+dd;
+    var solEl=document.getElementById('req-solicitante');
+    if(solEl) solEl.value=(currentUser&&currentUser.nombre)||'';
+    var depEl=document.getElementById('req-departamento');
+    if(depEl) depEl.value='Mantenimiento';
+    var norm=document.querySelector('input[name="req-tipo"][value="Normal"]');
+    if(norm) norm.checked=true;
+    var justEl=document.getElementById('req-justificacion');
+    if(justEl) justEl.value='';
+  }catch(e){ console.warn('initReqForm header err:',e); }
   var tbody=document.getElementById('req-items-tbody');
+  if(!tbody){console.error('req-items-tbody not found');return;}
   tbody.innerHTML='';
   for(var i=1;i<=10;i++){
     tbody.innerHTML+='<tr>'
@@ -2896,10 +2902,14 @@ async function verReq(id){
   } catch(e){showToast('Error al cargar');}
 }
 
-// Intercept showPage to auto-load req list
+// Intercept showPage to auto-load req list and init req form
 (function(){
   var _orig=window.showPage;
-  window.showPage=function(p){_orig(p);if(p==='req')loadReqList();};
+  window.showPage=function(p){
+    _orig(p);
+    if(p==='req') loadReqList();
+    if(p==='req-nueva') setTimeout(initReqForm, 50);
+  };
 })();
 
 </script>
