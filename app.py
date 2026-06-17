@@ -221,6 +221,39 @@ def api_delete_report(report_id):
     con.commit(); con.close()
     return jsonify({'ok': True})
 
+@app.route('/api/reports/export', methods=['GET'])
+def api_export_reports():
+    con = get_db()
+    rows = con.execute('SELECT data FROM reports ORDER BY id DESC').fetchall()
+    con.close()
+    data = [json.loads(r['data']) for r in rows]
+    import datetime
+    fname = 'reportes_backup_' + datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '.json'
+    resp = app.response_class(
+        response=json.dumps(data, ensure_ascii=False, indent=2),
+        status=200,
+        mimetype='application/json'
+    )
+    resp.headers['Content-Disposition'] = f'attachment; filename="{fname}"'
+    return resp
+
+@app.route('/api/reports/import', methods=['POST'])
+def api_import_reports():
+    reports = request.json
+    if not isinstance(reports, list):
+        return jsonify({'error': 'Se esperaba una lista de reportes'}), 400
+    con = get_db()
+    imported = 0
+    for r in reports:
+        try:
+            con.execute('INSERT OR IGNORE INTO reports (id, machine_id, fecha, data) VALUES (?,?,?,?)',
+                        (r['id'], r.get('machineId',''), r.get('fecha',''), json.dumps(r)))
+            imported += 1
+        except Exception:
+            pass
+    con.commit(); con.close()
+    return jsonify({'ok': True, 'imported': imported})
+
 @app.route('/')
 def index():
     html = open('index.html', encoding='utf-8').read()
@@ -481,29 +514,4 @@ def api_orden_pdf(order_id):
         except: pass
         c.setStrokeColor(BLACK); c.setLineWidth(0.8)
         c.line(sx+0.5*cm, y, sx+sig_w-0.5*cm, y)
-        if sd and sd.get('nombre'):
-            txt(sd['nombre'], sx+0.5*cm, y+0.15*cm, 7, True, GREEN)
-            txt('✓ FIRMA ELECTRÓNICA VÁLIDA', sx+0.5*cm, y-0.35*cm, 6, False, GREEN)
-            txt('CERT: '+str(sd.get('certCode','')), sx+0.5*cm, y-0.65*cm, 6)
-            txt(str(sd.get('timestamp','')), sx+0.5*cm, y-0.9*cm, 6)
-        c.setFont('Helvetica-Bold',8); c.setFillColor(BLACK)
-        c.drawCentredString(sx+sig_w/2, y-1.3*cm, label)
-
-    draw_sig('SOLICITANTE', o.get('firma_solicitante'), margin)
-    draw_sig('RECIBE ORDEN DE TRABAJO', o.get('firma_recibe'), margin+sig_w)
-    draw_sig('LIBERACIÓN DE PRODUCCIÓN', o.get('firma_liberacion'), margin+2*sig_w)
-
-    # Footer
-    c.setFont('Helvetica',7); c.setFillColor(colors.HexColor('#999999'))
-    c.drawRightString(margin+w, margin+0.3*cm, 'A9.F4 Rev. 01')
-
-    c.save()
-    buf.seek(0)
-    from flask import send_file
-    return send_file(buf, mimetype='application/pdf',
-                     download_name=f'OT-{o["numero"]}.pdf',
-                     as_attachment=False)
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
-                                                                                                        
+        if sd and sd.ge

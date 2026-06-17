@@ -1491,6 +1491,10 @@ checkURLHash();
   <div class="hdr">
     <button class="back" onclick="showPage('home')">&#8249;</button>
     <div style="flex:1"><h1>&#128196; Historial de Reportes</h1></div>
+    <button onclick="exportReports()" style="background:#e65100;border:none;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;margin-right:4px" title="Exportar respaldo">&#128190; Exportar</button>
+    <label style="background:#1565c0;border:none;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;margin-right:4px" title="Importar respaldo">
+      &#128229; Importar<input type="file" accept=".json" onchange="importReports(event)" style="display:none">
+    </label>
     <button onclick="loadReportsPage()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px">&#128260; Actualizar</button>
   </div>
 
@@ -1550,6 +1554,40 @@ checkURLHash();
 
 // ── Historial de Reportes ─────────────────────────────────────────
 let allReports = [];
+
+async function exportReports() {
+  try {
+    const res = await fetch('/api/reports/export');
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    const fname = match ? match[1] : 'reportes_backup.json';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname; a.click();
+    URL.revokeObjectURL(url);
+    showToast('✅ Respaldo descargado: ' + fname);
+  } catch(e) { showToast('❌ Error al exportar: ' + e.message); }
+}
+
+async function importReports(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const reports = JSON.parse(text);
+    if (!Array.isArray(reports)) { showToast('❌ Archivo inválido'); return; }
+    const res = await fetch('/api/reports/import', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(reports)
+    });
+    const d = await res.json();
+    showToast('✅ ' + d.imported + ' reportes importados');
+    await loadReportsPage();
+  } catch(e) { showToast('❌ Error al importar: ' + e.message); }
+  event.target.value = '';
+}
 
 async function loadReportsPage() {
   document.getElementById('rpt-list').innerHTML = '<div style="text-align:center;padding:30px;color:#888">⏳ Cargando reportes...</div>';
@@ -2547,6 +2585,4 @@ function initClocks(){
     if(amBtn)amBtn.addEventListener('click',function(){if(_clk[t].H>=12)_clk[t].H-=12;clkDraw(t);});
     if(pmBtn)pmBtn.addEventListener('click',function(){if(_clk[t].H<12)_clk[t].H+=12;clkDraw(t);});
     if(hSpan)hSpan.addEventListener('click',function(){_clk[t].mode='h';clkDraw(t);});
-    if(mSpan)mSpan.addEventListener('click',function(){_clk[t].mode='m';clkDraw(t);});
-    if(cancelBtn)cancelBtn.addEventListener('click',function(){document.getElementById('clock-'+t).style.display='none';});
-    if(okBtn)okBtn.addEventListener(                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+    if(mSpan)mSpan.addEventListener('click
