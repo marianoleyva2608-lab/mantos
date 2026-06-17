@@ -577,10 +577,14 @@ init_req_db()
 
 @app.route('/api/requisiciones', methods=['GET'])
 def get_requisiciones():
-    con = get_db()
-    rows = con.execute('SELECT data FROM requisiciones ORDER BY folio DESC').fetchall()
-    con.close()
-    return jsonify([json.loads(r['data']) for r in rows])
+    try:
+        init_req_db()
+        con = get_db()
+        rows = con.execute('SELECT data FROM requisiciones ORDER BY folio DESC').fetchall()
+        con.close()
+        return jsonify([json.loads(r['data']) for r in rows])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/requisiciones', methods=['POST'])
 def save_requisicion():
