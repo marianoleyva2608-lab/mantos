@@ -2803,10 +2803,14 @@ function initReqForm(){
       sc.innerHTML+='<div style="border:1px solid #e0e0e0;border-radius:8px;padding:10px;margin-bottom:8px">'
         +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">'+s.l+'</div>'
         +'<div id="req-sig-status-'+s.k+'" style="font-size:12px;color:#888">Sin firma</div>'
-        +'<button onclick="reqFirmar(''+s.k+'')" style="margin-top:6px;padding:6px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">Firmar</button>'
+        +'<button data-sigkey="'+s.k+'" onclick="reqFirmarBtn(this)" style="margin-top:6px;padding:6px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">Firmar</button>'
         +'</div>';
     });
   }
+}
+
+function reqFirmarBtn(btn){
+  reqFirmar(btn.getAttribute('data-sigkey'));
 }
 
 function reqFirmar(key){
@@ -2885,7 +2889,7 @@ async function loadReqList(){
       var folio='REQ-'+String(r.folio||0).padStart(4,'0');
       var urgente=r.tipo==='Urgente';
       var cnt=(r.items||[]).filter(function(i){return i.cantidad||i.descripcion;}).length;
-      return '<div onclick="verReq(''+r.id+'')" style="background:#fff;border-radius:10px;margin-bottom:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);cursor:pointer;border-left:4px solid '+(urgente?'#c62828':'#1a5c2a')+'">'
+      return '<div data-id="'+r.id+'" onclick="verReqEl(this)" style="background:#fff;border-radius:10px;margin-bottom:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);cursor:pointer;border-left:4px solid '+(urgente?'#c62828':'#1a5c2a')+'">'
         +'<div style="display:flex;justify-content:space-between;align-items:center">'
         +'<span style="font-weight:700;font-size:15px;color:#1a5c2a">'+folio+'</span>'
         +(urgente?'<span style="background:#fce4ec;color:#c62828;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px">&#128680; URGENTE</span>':'')
@@ -2895,6 +2899,10 @@ async function loadReqList(){
         +'</div>';
     }).join('');
   } catch(e){ el.innerHTML='<div style="color:#c62828;padding:20px">Error al cargar</div>'; }
+}
+
+function verReqEl(el){
+  verReq(el.getAttribute('data-id'));
 }
 
 async function verReq(id){
