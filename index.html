@@ -2924,6 +2924,49 @@ async function loadReqList(){
   } catch(e){ el.innerHTML='<div style="color:#c62828;padding:20px">Error: '+e.message+'</div>'; }
 }
 
+function verReqFirmar(btn){
+  var reqId=btn.getAttribute('data-reqid');
+  var key=btn.getAttribute('data-sigkey');
+  var emailEl=document.getElementById('ver-sig-email-'+key);
+  var pinEl=document.getElementById('ver-sig-pin-'+key);
+  var email=emailEl?emailEl.value.trim():'';
+  var pin=pinEl?pinEl.value.trim():'';
+  if(!email){if(typeof showToast==='function')showToast('Ingresa tu correo');if(emailEl)emailEl.focus();return;}
+  if(!pin){if(typeof showToast==='function')showToast('Ingresa tu PIN');if(pinEl)pinEl.focus();return;}
+  btn.disabled=true;btn.textContent='Verificando...';
+  fetch('/api/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,pin:pin})})
+    .then(function(r){return r.json();}).then(function(res){
+      if(!res.ok){
+        if(pinEl){pinEl.value='';pinEl.style.borderColor='#f44336';}
+        btn.disabled=false;btn.innerHTML='&#128274; Firmar';
+        setTimeout(function(){if(pinEl)pinEl.style.borderColor='';},1500);
+        if(typeof showToast==='function')showToast('PIN incorrecto');return;
+      }
+      var ts=new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+      var cert='PKI-'+Math.random().toString(36).substr(2,9).toUpperCase()+'-'+Date.now().toString(36).toUpperCase();
+      var sigData={nombre:res.nombre,email:res.email,fecha:ts,serie:cert};
+      fetch('/api/requisicion/'+reqId+'/firmar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,firma:sigData})})
+        .then(function(r2){return r2.json();}).then(function(saved){
+          if(!saved.ok){if(typeof showToast==='function')showToast('Error al guardar');return;}
+          var row=document.getElementById('ver-sig-row-'+key);
+          if(row)row.style.display='none';
+          var block=document.getElementById('ver-sig-block-'+key);
+          if(block){block.style.border='2px solid #43a047';block.style.borderLeft='4px solid #2e7d32';}
+          var done=document.getElementById('ver-sig-done-'+key);
+          if(done)done.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+            +'<div style="width:26px;height:26px;background:#2e7d32;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px">&#10003;</div>'
+            +'<div><div style="font-size:9px;color:#2e7d32;font-weight:700;text-transform:uppercase">Firma Electrónica Válida</div>'
+            +'<div style="font-size:13px;font-weight:700;color:#1b5e20">'+res.nombre+'</div></div></div>'
+            +'<div style="font-size:10px;color:#555;display:grid;grid-template-columns:65px 1fr;gap:2px 8px;border-top:1px solid #c8e6c9;padding-top:6px">'
+            +'<span style="font-weight:700;color:#2e7d32">Titular:</span><span>'+res.email+'</span>'
+            +'<span style="font-weight:700;color:#2e7d32">Fecha:</span><span>'+ts+'</span>'
+            +'<span style="font-weight:700;color:#2e7d32">Serie X.509:</span><span style="font-family:monospace;font-size:9px">'+cert+'</span>'
+            +'<span style="font-weight:700;color:#2e7d32">Estado:</span><span>&#9989; Verificado</span></div>';
+          if(typeof showToast==='function')showToast('Firmado - '+res.nombre);
+        }).catch(function(){if(typeof showToast==='function')showToast('Error de conexion');btn.disabled=false;btn.innerHTML='&#128274; Firmar';});
+    }).catch(function(){if(typeof showToast==='function')showToast('Error de conexion');btn.disabled=false;btn.innerHTML='&#128274; Firmar';});
+}
+
 function verReqEl(el){
   verReq(el.getAttribute('data-id'));
 }
@@ -2992,9 +3035,15 @@ async function verReq(id){
           +'<span style="font-weight:700;color:#2e7d32">Estado:</span><span>&#9989; Verificado</span>'
           +'</div></div>';
       } else {
-        h+='<div style="border:1px solid #eee;border-radius:8px;padding:10px;margin-bottom:8px;opacity:.6">'
-          +'<div style="font-size:11px;font-weight:700;color:#888;margin-bottom:2px">'+label+'</div>'
-          +'<div style="font-size:12px;color:#aaa">Sin firma</div></div>';
+        h+='<div id="ver-sig-block-'+key+'" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-bottom:8px">'
+          +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">'+label+'</div>'
+          +'<div id="ver-sig-done-'+key+'"></div>'
+          +'<div id="ver-sig-row-'+key+'">'
+          +'<input id="ver-sig-email-'+key+'" type="email" placeholder="Tu correo electrónico" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +'<div style="display:flex;gap:6px">'
+          +'<input id="ver-sig-pin-'+key+'" type="password" placeholder="PIN personal" maxlength="20" style="flex:1;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:3px;box-sizing:border-box">'
+          +'<button data-reqid="'+id+'" data-sigkey="'+key+'" onclick="verReqFirmar(this)" style="padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128274; Firmar</button>'
+          +'</div></div></div>';
       }
     });
     h+='</div></div>';

@@ -606,6 +606,26 @@ def save_requisicion():
     con.commit(); con.close()
     return jsonify({'ok': True, 'id': d['id'], 'folio': folio})
 
+@app.route('/api/requisicion/<rid>/firmar', methods=['POST'])
+def firmar_requisicion(rid):
+    d = request.json
+    key = d.get('key')   # 'realizo', 'reviso', 'aprobo'
+    firma = d.get('firma')
+    if key not in ('realizo','reviso','aprobo') or not firma:
+        return jsonify({'ok': False, 'error': 'Datos inválidos'}), 400
+    con = get_db()
+    row = con.execute('SELECT data FROM requisiciones WHERE id=?', (rid,)).fetchone()
+    if not row:
+        con.close()
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    o = json.loads(row['data'])
+    if 'firmas' not in o or not isinstance(o['firmas'], dict):
+        o['firmas'] = {}
+    o['firmas'][key] = firma
+    con.execute('UPDATE requisiciones SET data=? WHERE id=?', (json.dumps(o, ensure_ascii=False), rid))
+    con.commit(); con.close()
+    return jsonify({'ok': True})
+
 @app.route('/api/requisicion/<rid>/pdf')
 def requisicion_pdf(rid):
     from reportlab.lib.pagesizes import letter
