@@ -2089,7 +2089,15 @@ authInit();
       </div>
       <div>
         <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Departamento</label>
-        <input id="req-departamento" type="text" placeholder="Mantenimiento" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box">
+        <select id="req-departamento" onchange="reqDeptoChange(this)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;background:#fff">
+          <option value="Mantenimiento">Mantenimiento</option>
+          <option value="Calidad">Calidad</option>
+          <option value="Ingeniería">Ingeniería</option>
+          <option value="Compras">Compras</option>
+          <option value="Almacén">Almacén</option>
+          <option value="otro">+ Otro departamento...</option>
+        </select>
+        <input id="req-departamento-otro" type="text" placeholder="Escribe el departamento..." style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:6px;display:none">
       </div>
       <div style="grid-column:1/-1">
         <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Tipo de Solicitud</label>
@@ -2747,6 +2755,13 @@ var _reqSigs={realizo:null,reviso:null,aprobo:null};
 var _reqCurrentId=null;
 var _reqRowCount=1;
 
+function reqDeptoChange(sel){
+  var otro=document.getElementById('req-departamento-otro');
+  if(!otro) return;
+  otro.style.display=sel.value==='otro'?'block':'none';
+  if(sel.value==='otro') otro.focus();
+}
+
 function reqAgregarFila(){
   var tbody=document.getElementById('req-items-tbody');
   if(!tbody){alert('Error: tabla no encontrada');return;}
@@ -2784,6 +2799,8 @@ function initReqForm(){
   if(solEl) solEl.value=(window.currentUser&&window.currentUser.nombre)||'';
   var depEl=document.getElementById('req-departamento');
   if(depEl) depEl.value='Mantenimiento';
+  var depOtro=document.getElementById('req-departamento-otro');
+  if(depOtro) depOtro.style.display='none';
   var norm=document.querySelector('input[name="req-tipo"][value="Normal"]');
   if(norm) norm.checked=true;
   var justEl=document.getElementById('req-justificacion');
@@ -2875,7 +2892,7 @@ async function guardarReq(){
     fecha:(document.getElementById('req-fecha')||{}).value||'',
     solicitante:(document.getElementById('req-solicitante')||{}).value||'',
     planta:(document.getElementById('req-planta')||{}).value||'',
-    departamento:(document.getElementById('req-departamento')||{}).value||'',
+    departamento:(function(){var s=document.getElementById('req-departamento');var o=document.getElementById('req-departamento-otro');return(s&&s.value==='otro')?(o?o.value.trim():''):(s?s.value:'');})(),
     tipo:tipoEl?tipoEl.value:'Normal',
     items:getReqItems(),
     justificacion:(document.getElementById('req-justificacion')||{}).value||'',
