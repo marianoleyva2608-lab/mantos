@@ -919,5 +919,129 @@ def api_delete_refaccion(ref_id):
     con.close()
     return jsonify({'ok': True})
 
+
+@app.route('/api/refacciones/export/excel', methods=['GET'])
+def export_refacciones_excel():
+    con = get_db()
+    rows = con.execute('SELECT * FROM refacciones ORDER BY seccion, nombre').fetchall()
+    con.close()
+
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from datetime import date
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Refacciones"
+
+    GREEN_DARK  = PatternFill("solid", fgColor="1F5C2E")
+    GREEN_MED   = PatternFill("solid", fgColor="2E7D32")
+    GREEN_LIGHT = PatternFill("solid", fgColor="C8E6C9")
+    GRAY_LIGHT  = PatternFill("solid", fgColor="F5F5F5")
+    RED_FILL    = PatternFill("solid", fgColor="C62828")
+    ORG_FILL    = PatternFill("solid", fgColor="E65100")
+    GREEN_FILL  = PatternFill("solid", fgColor="2E7D32")
+    thin = Side(style="thin", color="BDBDBD")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    # Title row
+    ws.merge_cells("A1:M1")
+    ws["A1"] = "LISTA DE REFACCIONES  —  ALMACÉN MANTENIMIENTO  |  AD-PACK  Termoformado"
+    ws["A1"].font = Font(bold=True, color="FFFFFF", size=13)
+    ws["A1"].fill = GREEN_DARK
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 28
+
+    # Subtitle row
+    ws.merge_cells("A2:D2"); ws["A2"] = f"Área:  Mantenimiento / Termoformado"
+    ws.merge_cells("E2:H2"); ws["E2"] = "Responsable:  _________________"
+    ws.merge_cells("I2:J2"); ws["I2"] = "Revisión:  00"
+    ws.merge_cells("K2:M2"); ws["K2"] = f"Fecha:  {date.today()}"
+    for cell in ["A2","E2","I2","K2"]:
+        ws[cell].font = Font(bold=True, size=9, color="FFFFFF")
+        ws[cell].fill = GREEN_MED
+        ws[cell].alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    ws.row_dimensions[2].height = 18
+
+    # Header row
+    headers = ["#","REFACCIÓN / DESCRIPCIÓN","MARCA","MODELO","CATEGORÍA","CRITICIDAD","SECCIÓN","CANT.
+MÍN.","STOCK
+ACT.","T. ENTREGA","PROVEEDOR","UBICACIÓN
+ALMACÉN","COSTO
+$ MXN"]
+    col_w   = [5, 38, 18, 16, 14, 12, 20, 7, 7, 12, 22, 18, 10]
+    for i, (h, w) in enumerate(zip(headers, col_w), 1):
+        c = ws.cell(row=3, column=i, value=h)
+        c.font = Font(bold=True, color="FFFFFF", size=9)
+        c.fill = GREEN_MED
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        c.border = border
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.row_dimensions[3].height = 30
+
+    # Group by section
+    sections = {}
+    for r in rows:
+        sec = r["seccion"] or "Sin sección"
+        sections.setdefault(sec, []).append(r)
+
+    row_num = 4
+    num = 1
+    for sec, items in sections.items():
+        # Section header
+        ws.merge_cells(f"A{row_num}:M{row_num}")
+        ws[f"A{row_num}"] = f"  ▌ {sec.upper()}"
+        ws[f"A{row_num}"].font = Font(bold=True, color="FFFFFF", size=10)
+        ws[f"A{row_num}"].fill = GREEN_MED
+        ws[f"A{row_num}"].alignment = Alignment(horizontal="left", vertical="center")
+        ws.row_dimensions[row_num].height = 18
+        row_num += 1
+
+        for r in items:
+            fill = GRAY_LIGHT if num % 2 == 0 else PatternFill("solid", fgColor="FFFFFF")
+            crit = r["criticidad"] or "MEDIA"
+            crit_fill = RED_FILL if crit=="ALTA" else (ORG_FILL if crit=="MEDIA" else GREEN_FILL)
+
+            vals = [num, r["nombre"], r["marca"] or "", r["modelo"] or "",
+                    r["categoria"] or "", crit, r["seccion"] or "",
+                    r["cant_min"], r["stock_actual"],
+                    r["tiempo_entrega"] or "", r["proveedor"] or "",
+                    r["ubicacion"] or "",
+                    f'${r["costo"]:.2f}' if r["costo"] else ""]
+
+            for col, val in enumerate(vals, 1):
+                cell = ws.cell(row=row_num, column=col, value=val)
+                cell.border = border
+                cell.font = Font(size=9)
+                cell.alignment = Alignment(vertical="center", wrap_text=True,
+                                           horizontal="center" if col in [1,8,9] else "left")
+                if col == 6:
+                    cell.fill = crit_fill
+                    cell.font = Font(bold=True, color="FFFFFF", size=9)
+                else:
+                    cell.fill = fill
+
+            # Stock bajo warning
+            if r["stock_actual"] <= r["cant_min"]:
+                ws.cell(row=row_num, column=9).font = Font(bold=True, color="C62828", size=9)
+
+            ws.row_dimensions[row_num].height = 16
+            row_num += 1
+            num += 1
+
+    # Footer
+    ws.merge_cells(f"A{row_num}:M{row_num}")
+    ws[f"A{row_num}"] = "  🔴 ALTA = Paro de producción    |    🟡 MEDIA = Afecta eficiencia    |    🟢 BAJA = Preventivo"
+    ws[f"A{row_num}"].font = Font(italic=True, size=8, color="555555")
+    ws[f"A{row_num}"].fill = GREEN_LIGHT
+
+    ws.freeze_panes = "A4"
+
+    buf = io.BytesIO()
+    wb.save(buf); buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                     download_name=f"Lista_Refacciones_{date.today()}.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
