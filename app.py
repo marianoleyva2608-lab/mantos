@@ -1011,78 +1011,123 @@ def export_refacciones_excel():
 
 @app.route('/api/refacciones/export/pdf', methods=['GET'])
 def export_refacciones_pdf():
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from datetime import date
+
     con = get_db()
     rows = con.execute('SELECT * FROM refacciones ORDER BY seccion, nombre').fetchall()
     con.close()
-    from datetime import date
-    import weasyprint
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                            leftMargin=8*mm, rightMargin=8*mm,
+                            topMargin=8*mm, bottomMargin=8*mm)
+
+    GREEN_DARK  = colors.HexColor('#1F5C2E')
+    GREEN_MED   = colors.HexColor('#2E7D32')
+    GREEN_LIGHT = colors.HexColor('#C8E6C9')
+    RED   = colors.HexColor('#C62828')
+    ORG   = colors.HexColor('#E65100')
+    GRAY  = colors.HexColor('#F5F5F5')
+    WHITE = colors.white
+
+    def ps(size=7, bold=False, color=colors.black, align=TA_LEFT):
+        return ParagraphStyle('x', fontSize=size, leading=size+2,
+                              fontName='Helvetica-Bold' if bold else 'Helvetica',
+                              textColor=color, alignment=align)
+
+    crit_col = {'ALTA': RED, 'MEDIA': ORG, 'BAJA': GREEN_MED}
+    CW = [7*mm,65*mm,22*mm,18*mm,16*mm,16*mm,10*mm,10*mm,14*mm,28*mm,26*mm,13*mm]
 
     sections = {}
     for r in rows:
-        sec = r["seccion"] or "Sin sección"
-        sections.setdefault(sec, []).append(r)
+        sections.setdefault(r['seccion'] or 'Sin seccion', []).append(r)
 
-    crit_color = {"ALTA":"#C62828","MEDIA":"#E65100","BAJA":"#2E7D32"}
+    story = []
 
-    rows_html = ""
+    # ---- Titulo ----
+    t = Table([[Paragraph('LISTA DE REFACCIONES — ALMACÉN MANTENIMIENTO | AD-PACK Termoformado',
+                          ps(12, True, WHITE, TA_CENTER))]],
+              colWidths=[sum(CW)])
+    t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GREEN_DARK),
+                           ('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
+    story.append(t)
+
+    s = Table([[f'Área: Mantenimiento / Termoformado',
+                'Responsable: _________________',
+                f'Revisión: 00   |   Fecha: {date.today()}']],
+              colWidths=[sum(CW)//3, sum(CW)//3, sum(CW)-2*(sum(CW)//3)])
+    s.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GREEN_MED),
+                           ('TEXTCOLOR',(0,0),(-1,-1),WHITE),
+                           ('FONTSIZE',(0,0),(-1,-1),7.5),
+                           ('FONTNAME',(0,0),(-1,-1),'Helvetica-Bold'),
+                           ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3)]))
+    story.append(s)
+    story.append(Spacer(1,2*mm))
+
     num = 1
+    HDRS = ['#','REFACCION / DESCRIPCION','MARCA','MODELO','CATEGORIA','CRITICIDAD',
+            'MIN','STOCK','ENTREGA','PROVEEDOR','UBICACION ALMACEN','COSTO $']
+
     for sec, items in sections.items():
-        rows_html += f'''<tr><td colspan="12" style="background:#2E7D32;color:#fff;font-weight:bold;padding:6px 8px;font-size:10px;letter-spacing:1px">▌ {sec.upper()}</td></tr>'''
-        for r in items:
-            bg = "#f9f9f9" if num % 2 == 0 else "#ffffff"
-            cc = crit_color.get(r["criticidad"] or "MEDIA", "#E65100")
-            stock_style = "color:#C62828;font-weight:bold" if r["stock_actual"] <= r["cant_min"] else ""
-            rows_html += f'''<tr style="background:{bg}">
-                <td style="text-align:center">{num}</td>
-                <td><b>{r["nombre"]}</b></td>
-                <td>{r["marca"] or ""}</td>
-                <td>{r["modelo"] or ""}</td>
-                <td>{r["categoria"] or ""}</td>
-                <td style="text-align:center"><span style="background:{cc};color:#fff;padding:2px 8px;border-radius:10px;font-size:8px;font-weight:bold">{r["criticidad"] or ""}</span></td>
-                <td style="text-align:center">{r["cant_min"]}</td>
-                <td style="text-align:center;{stock_style}">{r["stock_actual"]}</td>
-                <td>{r["tiempo_entrega"] or ""}</td>
-                <td>{r["proveedor"] or ""}</td>
-                <td>{r["ubicacion"] or ""}</td>
-                <td style="text-align:right">${r["costo"]:.2f}</td>
-            </tr>'''
+        sh = Table([[Paragraph(f'  ▌ {sec.upper()}', ps(8, True, WHITE))]], colWidths=[sum(CW)])
+        sh.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GREEN_MED),
+                                ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3)]))
+        story.append(sh)
+
+        tdata = [[Paragraph(h, ps(7,True,WHITE,TA_CENTER)) for h in HDRS]]
+        tstyle = [
+            ('BACKGROUND',(0,0),(-1,0),GREEN_MED),
+            ('GRID',(0,0),(-1,-1),0.3,colors.HexColor('#BDBDBD')),
+            ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+            ('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),
+        ]
+
+        for i, r in enumerate(items, 1):
+            low = r['stock_actual'] <= r['cant_min']
+            cc  = crit_col.get(r['criticidad'] or 'MEDIA', ORG)
+            bg  = GRAY if i % 2 == 0 else WHITE
+            tdata.append([
+                Paragraph(str(num),           ps(7,align=TA_CENTER)),
+                Paragraph(str(r['nombre'] or ''),     ps(7)),
+                Paragraph(str(r['marca'] or ''),      ps(7)),
+                Paragraph(str(r['modelo'] or ''),     ps(7)),
+                Paragraph(str(r['categoria'] or ''),  ps(7)),
+                Paragraph(str(r['criticidad'] or ''), ps(7,True,WHITE,TA_CENTER)),
+                Paragraph(str(r['cant_min']),          ps(7,align=TA_CENTER)),
+                Paragraph(str(r['stock_actual']),      ps(7,bold=low,color=RED if low else colors.black,align=TA_CENTER)),
+                Paragraph(str(r['tiempo_entrega'] or ''), ps(7)),
+                Paragraph(str(r['proveedor'] or ''),   ps(7)),
+                Paragraph(str(r['ubicacion'] or ''),   ps(7)),
+                Paragraph(f"${r['costo']:.0f}" if r['costo'] else '', ps(7,align=TA_RIGHT)),
+            ])
+            tstyle += [('BACKGROUND',(0,i),(-1,i),bg),
+                       ('BACKGROUND',(5,i),(5,i),cc)]
             num += 1
 
-    html = f'''<!DOCTYPE html><html><head><meta charset="UTF-8">
-<style>
-  @page {{ size: A4 landscape; margin: 12mm; }}
-  body {{ font-family: Arial, sans-serif; font-size: 9px; margin: 0; color: #222; }}
-  .title {{ background: #1F5C2E; color: #fff; text-align: center; padding: 10px; font-size: 14px; font-weight: bold; border-radius: 4px 4px 0 0; }}
-  .subtitle {{ background: #2E7D32; color: #fff; padding: 5px 10px; font-size: 8px; display: flex; justify-content: space-between; margin-bottom: 8px; }}
-  table {{ width: 100%; border-collapse: collapse; }}
-  th {{ background: #2E7D32; color: #fff; padding: 5px 4px; text-align: center; font-size: 8px; border: 1px solid #1F5C2E; }}
-  td {{ padding: 4px; border: 1px solid #e0e0e0; vertical-align: middle; font-size: 8px; }}
-  .footer {{ margin-top: 10px; font-size: 7px; color: #777; border-top: 1px solid #C8E6C9; padding-top: 4px; }}
-</style></head><body>
-<div class="title">LISTA DE REFACCIONES — ALMACÉN MANTENIMIENTO | AD-PACK Termoformado</div>
-<div class="subtitle">
-  <span>Área: Mantenimiento / Termoformado</span>
-  <span>Revisión: 00</span>
-  <span>Fecha: {date.today()}</span>
-</div>
-<table>
-  <thead><tr>
-    <th>#</th><th>REFACCIÓN / DESCRIPCIÓN</th><th>MARCA</th><th>MODELO</th>
-    <th>CATEGORÍA</th><th>CRITICIDAD</th><th>MÍN.</th><th>STOCK</th>
-    <th>ENTREGA</th><th>PROVEEDOR</th><th>UBICACIÓN</th><th>COSTO $</th>
-  </tr></thead>
-  <tbody>{rows_html}</tbody>
-</table>
-<div class="footer">
-  🔴 ALTA = Paro de producción &nbsp;|&nbsp; 🟡 MEDIA = Afecta eficiencia &nbsp;|&nbsp; 🟢 BAJA = Preventivo &nbsp;|&nbsp;
-  Stock en rojo = por debajo del mínimo
-</div>
-</body></html>'''
+        dt = Table(tdata, colWidths=CW, repeatRows=1)
+        dt.setStyle(TableStyle(tstyle))
+        story.append(dt)
+        story.append(Spacer(1,2*mm))
 
-    pdf = weasyprint.HTML(string=html).write_pdf()
-    return send_file(io.BytesIO(pdf), as_attachment=True,
+    # Footer
+    ft = Table([[Paragraph('🔴 ALTA = Paro producción  |  🟡 MEDIA = Afecta eficiencia  |  🟢 BAJA = Preventivo  |  Stock rojo = bajo mínimo',
+                            ps(6, color=colors.HexColor('#555555')))]],
+               colWidths=[sum(CW)])
+    ft.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GREEN_LIGHT),
+                            ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3)]))
+    story.append(ft)
+
+    doc.build(story)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
                      download_name=f"Lista_Refacciones_{date.today()}.pdf",
-                     mimetype="application/pdf")
+                     mimetype='application/pdf')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
