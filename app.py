@@ -1043,5 +1043,81 @@ $ MXN"]
                      download_name=f"Lista_Refacciones_{date.today()}.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+
+@app.route('/api/refacciones/export/pdf', methods=['GET'])
+def export_refacciones_pdf():
+    con = get_db()
+    rows = con.execute('SELECT * FROM refacciones ORDER BY seccion, nombre').fetchall()
+    con.close()
+    from datetime import date
+    import weasyprint
+
+    sections = {}
+    for r in rows:
+        sec = r["seccion"] or "Sin sección"
+        sections.setdefault(sec, []).append(r)
+
+    crit_color = {"ALTA":"#C62828","MEDIA":"#E65100","BAJA":"#2E7D32"}
+
+    rows_html = ""
+    num = 1
+    for sec, items in sections.items():
+        rows_html += f'''<tr><td colspan="12" style="background:#2E7D32;color:#fff;font-weight:bold;padding:6px 8px;font-size:10px;letter-spacing:1px">▌ {sec.upper()}</td></tr>'''
+        for r in items:
+            bg = "#f9f9f9" if num % 2 == 0 else "#ffffff"
+            cc = crit_color.get(r["criticidad"] or "MEDIA", "#E65100")
+            stock_style = "color:#C62828;font-weight:bold" if r["stock_actual"] <= r["cant_min"] else ""
+            rows_html += f'''<tr style="background:{bg}">
+                <td style="text-align:center">{num}</td>
+                <td><b>{r["nombre"]}</b></td>
+                <td>{r["marca"] or ""}</td>
+                <td>{r["modelo"] or ""}</td>
+                <td>{r["categoria"] or ""}</td>
+                <td style="text-align:center"><span style="background:{cc};color:#fff;padding:2px 8px;border-radius:10px;font-size:8px;font-weight:bold">{r["criticidad"] or ""}</span></td>
+                <td style="text-align:center">{r["cant_min"]}</td>
+                <td style="text-align:center;{stock_style}">{r["stock_actual"]}</td>
+                <td>{r["tiempo_entrega"] or ""}</td>
+                <td>{r["proveedor"] or ""}</td>
+                <td>{r["ubicacion"] or ""}</td>
+                <td style="text-align:right">${r["costo"]:.2f}</td>
+            </tr>'''
+            num += 1
+
+    html = f'''<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  @page {{ size: A4 landscape; margin: 12mm; }}
+  body {{ font-family: Arial, sans-serif; font-size: 9px; margin: 0; color: #222; }}
+  .title {{ background: #1F5C2E; color: #fff; text-align: center; padding: 10px; font-size: 14px; font-weight: bold; border-radius: 4px 4px 0 0; }}
+  .subtitle {{ background: #2E7D32; color: #fff; padding: 5px 10px; font-size: 8px; display: flex; justify-content: space-between; margin-bottom: 8px; }}
+  table {{ width: 100%; border-collapse: collapse; }}
+  th {{ background: #2E7D32; color: #fff; padding: 5px 4px; text-align: center; font-size: 8px; border: 1px solid #1F5C2E; }}
+  td {{ padding: 4px; border: 1px solid #e0e0e0; vertical-align: middle; font-size: 8px; }}
+  .footer {{ margin-top: 10px; font-size: 7px; color: #777; border-top: 1px solid #C8E6C9; padding-top: 4px; }}
+</style></head><body>
+<div class="title">LISTA DE REFACCIONES — ALMACÉN MANTENIMIENTO | AD-PACK Termoformado</div>
+<div class="subtitle">
+  <span>Área: Mantenimiento / Termoformado</span>
+  <span>Revisión: 00</span>
+  <span>Fecha: {date.today()}</span>
+</div>
+<table>
+  <thead><tr>
+    <th>#</th><th>REFACCIÓN / DESCRIPCIÓN</th><th>MARCA</th><th>MODELO</th>
+    <th>CATEGORÍA</th><th>CRITICIDAD</th><th>MÍN.</th><th>STOCK</th>
+    <th>ENTREGA</th><th>PROVEEDOR</th><th>UBICACIÓN</th><th>COSTO $</th>
+  </tr></thead>
+  <tbody>{rows_html}</tbody>
+</table>
+<div class="footer">
+  🔴 ALTA = Paro de producción &nbsp;|&nbsp; 🟡 MEDIA = Afecta eficiencia &nbsp;|&nbsp; 🟢 BAJA = Preventivo &nbsp;|&nbsp;
+  Stock en rojo = por debajo del mínimo
+</div>
+</body></html>'''
+
+    pdf = weasyprint.HTML(string=html).write_pdf()
+    return send_file(io.BytesIO(pdf), as_attachment=True,
+                     download_name=f"Lista_Refacciones_{date.today()}.pdf",
+                     mimetype="application/pdf")
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
