@@ -3102,7 +3102,18 @@ async function verReq(id){
     <div id="ref-list"></div>
   </div>
   <!-- Modal -->
-  <div id="ref-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9000;overflow-y:auto">
+  
+<div id="ref-info-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:28px 24px;max-width:520px;width:94%;max-height:90vh;overflow-y:auto;position:relative">
+    <button onclick="cerrarInfoModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#555">&times;</button>
+    <div id="ref-info-body"></div>
+    <div style="margin-top:18px;text-align:right">
+      <button id="ref-info-edit-btn" style="background:#1565C0;color:#fff;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:13px">Editar</button>
+    </div>
+  </div>
+</div>
+
+<div id="ref-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9000;overflow-y:auto">
     <div style="background:#fff;max-width:520px;margin:40px auto;border-radius:12px;padding:24px;position:relative">
       <h2 id="ref-modal-title" style="margin:0 0 16px;color:#1F5C2E">Nueva Refacción</h2>
       <form id="ref-form" onsubmit="saveRefaccion(event)">
@@ -3157,7 +3168,7 @@ function renderRef(data){
   filtered.forEach(function(r){
     if(r.seccion!==sec){sec=r.seccion;html+='<div style="font-weight:bold;color:#1F5C2E;margin:14px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:1px">'+(sec||'Sin sección')+'</div>';}
     var low=r.stock_actual<=r.cant_min;
-    html+='<div class="ref-card">'+
+    html+='<div class="ref-card" onclick="verRef('+r.id+')" style="cursor:pointer">'+
       '<div style="flex:1">'+
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
           '<span style="font-weight:bold;font-size:15px">'+r.nombre+'</span>'+
@@ -3176,8 +3187,8 @@ function renderRef(data){
         '<div style="font-size:10px;color:#999">min: '+r.cant_min+'</div>'+
       '</div>'+
       '<div style="display:flex;flex-direction:column;gap:6px">'+
-        '<button onclick="editRef('+r.id+')" style="background:#1565C0;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Editar</button>'+
-        '<button onclick="deleteRef('+r.id+')" style="background:#fff;color:#C62828;border:1px solid #C62828;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Borrar</button>'+
+        '<button onclick="event.stopPropagation();editRef('+r.id+')" style="background:#1565C0;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Editar</button>'+
+        '<button onclick="event.stopPropagation();deleteRef('+r.id+')" style="background:#fff;color:#C62828;border:1px solid #C62828;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Borrar</button>'+
       '</div>'+
     '</div>';
   });
@@ -3197,6 +3208,43 @@ function openRefModal(data){
   document.getElementById('rf-costo').value=data?data.costo:0;
   document.getElementById('ref-modal').style.display='block';
 }
+
+function verRef(id){
+  var r=_refData.find(function(x){return x.id===id;});
+  if(!r)return;
+  var badge='<span class="ref-badge badge-'+r.criticidad+'">'+r.criticidad+'</span>';
+  var stock_color=r.stock_actual<r.cant_min?'#C62828':'#2E7D32';
+  var html='<div style="margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+    '<span style="font-size:17px;font-weight:bold">'+r.nombre+'</span>'+badge+
+    '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:10px;font-size:11px">'+r.categoria+'</span>'+
+    '</div>';
+  function row(label,val){return val?'<div style="margin:6px 0;font-size:13px"><b style="color:#555;min-width:130px;display:inline-block">'+label+':</b> '+val+'</div>':'';}
+  html+=row('Sección',r.seccion);
+  html+=row('Marca',r.marca);
+  html+=row('Modelo / N°',r.modelo);
+  html+=row('Proveedor',r.proveedor);
+  html+=row('Ubicación',r.ubicacion);
+  html+=row('Tiempo entrega',r.tiempo_entrega);
+  html+=row('Descripción',r.descripcion);
+  html+=row('Notas',r.notas);
+  html+='<div style="margin-top:14px;display:flex;gap:20px">'+
+    '<div style="text-align:center;background:#F5F5F5;border-radius:10px;padding:12px 20px">'+
+      '<div style="font-size:28px;font-weight:bold;color:'+stock_color+'">'+r.stock_actual+'</div>'+
+      '<div style="font-size:11px;color:#888">Stock actual</div>'+
+    '</div>'+
+    '<div style="text-align:center;background:#F5F5F5;border-radius:10px;padding:12px 20px">'+
+      '<div style="font-size:28px;font-weight:bold;color:#555">'+r.cant_min+'</div>'+
+      '<div style="font-size:11px;color:#888">Mínimo</div>'+
+    '</div>'+
+    (r.stock_actual<r.cant_min?'<div style="align-self:center;background:#FFEBEE;color:#C62828;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:bold">⚠️ Stock bajo</div>':'')+
+  '</div>';
+  document.getElementById('ref-info-body').innerHTML=html;
+  document.getElementById('ref-info-edit-btn').onclick=function(){cerrarInfoModal();editRef(id);};
+  var m=document.getElementById('ref-info-modal');
+  m.style.display='flex';
+}
+function cerrarInfoModal(){document.getElementById('ref-info-modal').style.display='none';}
+
 function closeRefModal(){document.getElementById('ref-modal').style.display='none';}
 function editRef(id){var r=_refData.find(function(x){return x.id===id;});if(r)openRefModal(r);}
 function saveRefaccion(e){
