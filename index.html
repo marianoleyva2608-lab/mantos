@@ -164,16 +164,66 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <!-- LANDING -->
 <div id="ap-landing">
   <div class="ap-logo-wrap">
-    <svg width="130" height="130" viewBox="0 0 130 130" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="65" cy="65" r="62" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.22)" stroke-width="3"/>
-      <polygon points="65,14 98,33 98,70 65,89 32,70 32,33" fill="rgba(255,255,255,0.88)"/>
-      <circle cx="65" cy="51" r="17" fill="#1a5c2a"/>
-      <rect x="63" y="36" width="4" height="30" rx="2" fill="rgba(255,255,255,0.92)"/>
-      <rect x="50" y="49" width="30" height="4" rx="2" fill="rgba(255,255,255,0.92)"/>
-      <line x1="32" y1="70" x2="98" y2="70" stroke="#1a5c2a" stroke-width="3.5"/>
-      <line x1="36" y1="80" x2="94" y2="80" stroke="rgba(255,255,255,0.55)" stroke-width="2"/>
-      <line x1="42" y1="90" x2="88" y2="90" stroke="rgba(255,255,255,0.38)" stroke-width="2"/>
-      <polygon points="48,96 82,96 65,116" fill="rgba(255,255,255,0.72)"/>
+    <svg width="220" height="200" viewBox="0 0 220 200" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="ng1" cx="35%" cy="30%" r="65%">
+          <stop offset="0%" stop-color="#5ede7a"/>
+          <stop offset="40%" stop-color="#22a844"/>
+          <stop offset="100%" stop-color="#0a4d1e"/>
+        </radialGradient>
+        <radialGradient id="ng2" cx="35%" cy="30%" r="65%">
+          <stop offset="0%" stop-color="#5ede7a"/>
+          <stop offset="40%" stop-color="#22a844"/>
+          <stop offset="100%" stop-color="#0a4d1e"/>
+        </radialGradient>
+        <radialGradient id="hole1" cx="50%" cy="40%" r="55%">
+          <stop offset="0%" stop-color="#c8f0d0"/>
+          <stop offset="35%" stop-color="#aad4b8"/>
+          <stop offset="100%" stop-color="#1a5c2a"/>
+        </radialGradient>
+        <linearGradient id="shimmer" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="rgba(255,255,255,0.45)"/>
+          <stop offset="50%" stop-color="rgba(255,255,255,0.05)"/>
+          <stop offset="100%" stop-color="rgba(255,255,255,0.2)"/>
+        </linearGradient>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="rgba(0,0,0,0.5)"/>
+        </filter>
+      </defs>
+
+      <!-- Left nut (a) -->
+      <ellipse cx="72" cy="80" rx="52" ry="56" fill="url(#ng1)" filter="url(#shadow)"/>
+      <!-- Threading lines left nut -->
+      <ellipse cx="72" cy="80" rx="46" ry="50" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="3.5"/>
+      <ellipse cx="72" cy="80" rx="40" ry="44" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="3"/>
+      <ellipse cx="72" cy="80" rx="34" ry="38" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2.5"/>
+      <!-- Hole left nut -->
+      <ellipse cx="72" cy="80" rx="26" ry="28" fill="url(#hole1)"/>
+      <ellipse cx="72" cy="80" rx="22" ry="24" fill="#1a7a36" opacity="0.6"/>
+      <ellipse cx="72" cy="80" rx="16" ry="18" fill="#0d4a1e"/>
+      <!-- Shimmer left -->
+      <ellipse cx="72" cy="80" rx="52" ry="56" fill="url(#shimmer)" opacity="0.6"/>
+
+      <!-- Right nut (d) -->
+      <ellipse cx="148" cy="80" rx="52" ry="56" fill="url(#ng2)" filter="url(#shadow)"/>
+      <ellipse cx="148" cy="80" rx="46" ry="50" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="3.5"/>
+      <ellipse cx="148" cy="80" rx="40" ry="44" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="3"/>
+      <ellipse cx="148" cy="80" rx="34" ry="38" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2.5"/>
+      <!-- Hole right nut -->
+      <ellipse cx="148" cy="80" rx="26" ry="28" fill="url(#hole1)"/>
+      <ellipse cx="148" cy="80" rx="22" ry="24" fill="#1a7a36" opacity="0.6"/>
+      <ellipse cx="148" cy="80" rx="16" ry="18" fill="#0d4a1e"/>
+      <!-- Shimmer right -->
+      <ellipse cx="148" cy="80" rx="52" ry="56" fill="url(#shimmer)" opacity="0.6"/>
+
+      <!-- J hook (top right, going up) -->
+      <rect x="183" y="10" width="22" height="70" rx="11" fill="url(#ng1)" filter="url(#shadow)"/>
+      <rect x="183" y="10" width="22" height="70" rx="11" fill="url(#shimmer)" opacity="0.5"/>
+
+      <!-- Text AD-PACK -->
+      <text x="110" y="165" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="32" font-weight="900" fill="#1a1a2e" letter-spacing="3" filter="url(#shadow)">AD-PACK</text>
+      <text x="110" y="165" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="32" font-weight="900" fill="url(#shimmer)" letter-spacing="3" opacity="0.4">AD-PACK</text>
+      <text x="196" y="148" font-family="Arial, sans-serif" font-size="13" fill="#1a1a2e">&#174;</text>
     </svg>
     <div class="ap-logo-name">AD-PACK<sup style="font-size:.5em">&#174;</sup></div>
     <div class="ap-logo-sub">Sistema de Mantenimiento</div>
