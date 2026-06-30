@@ -137,9 +137,48 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .sup-title{font-size:18px;font-weight:700;color:var(--gd);margin-bottom:8px}
 .sup-detail{font-size:13px;color:var(--ts);margin-bottom:4px}
 .sup-stat{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin:4px 4px 4px 0}
+
+/* ===== LANDING PAGE AD-PACK ===== */
+#adpack-landing{position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:linear-gradient(135deg,#0a3d1a 0%,#1a5c2a 40%,#2d8a45 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px}
+#adpack-landing.oculto{animation:fadeOutLanding .5s ease forwards}
+@keyframes fadeOutLanding{to{opacity:0;pointer-events:none;visibility:hidden}}
+.ap-logo-wrap{display:flex;flex-direction:column;align-items:center;gap:16px}
+.ap-logo-text{color:#fff;font-size:2.4rem;font-weight:800;letter-spacing:4px;text-transform:uppercase;text-shadow:0 2px 12px rgba(0,0,0,0.4)}
+.ap-logo-sub{color:rgba(255,255,255,0.7);font-size:0.95rem;letter-spacing:6px;text-transform:uppercase}
+.ap-btn{background:#fff;color:#1a5c2a;border:none;border-radius:50px;padding:16px 52px;font-size:1.1rem;font-weight:700;letter-spacing:2px;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform .15s,box-shadow .15s}
+.ap-btn:active{transform:scale(0.96);box-shadow:0 2px 10px rgba(0,0,0,0.2)}
 </style>
 </head>
 <body>
+
+<div id="adpack-landing">
+  <div class="ap-logo-wrap">
+    <svg width="140" height="140" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">
+      <!-- Outer ring -->
+      <circle cx="70" cy="70" r="66" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="4"/>
+      <!-- Main circle -->
+      <circle cx="70" cy="70" r="60" fill="rgba(255,255,255,0.15)"/>
+      <!-- Screw head hex -->
+      <polygon points="70,20 100,37 100,71 70,88 40,71 40,37" fill="rgba(255,255,255,0.9)"/>
+      <!-- Inner screw circle -->
+      <circle cx="70" cy="54" r="18" fill="#1a5c2a"/>
+      <!-- Cross slot -->
+      <rect x="68" y="38" width="4" height="32" rx="2" fill="rgba(255,255,255,0.9)"/>
+      <rect x="54" y="52" width="32" height="4" rx="2" fill="rgba(255,255,255,0.9)"/>
+      <!-- Thread lines -->
+      <line x1="40" y1="71" x2="100" y2="71" stroke="#1a5c2a" stroke-width="3"/>
+      <line x1="42" y1="80" x2="98" y2="80" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+      <line x1="46" y1="89" x2="94" y2="89" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+      <line x1="52" y1="98" x2="88" y2="98" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+      <!-- Bottom tip -->
+      <polygon points="52,98 88,98 70,118" fill="rgba(255,255,255,0.7)"/>
+    </svg>
+    <div class="ap-logo-text">AD-PACK<sup style="font-size:0.5em">®</sup></div>
+    <div class="ap-logo-sub">Sistema de Mantenimiento</div>
+  </div>
+  <button class="ap-btn" onclick="document.getElementById('adpack-landing').classList.add('oculto')">ENTRAR</button>
+</div>
+
 
 <div id="page-home" class="page active">
   <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button class="back" onclick="showPage('req');if(typeof loadReqList==='function')loadReqList();" style="font-size:20px;margin-right:6px" title="Requisiciones">&#128722;</button><button class="back" onclick="showPage('orden')" style="font-size:20px;margin-right:6px" title="Órdenes de Trabajo">&#128203;</button><button class="back" onclick="showPage('reports')" style="font-size:20px;margin-right:6px" title="Reportes">&#128196;</button><button class="back" onclick="showPage('refacciones');loadRefacciones();" style="font-size:20px;margin-right:6px" title="Refacciones">&#128230;</button><button class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
