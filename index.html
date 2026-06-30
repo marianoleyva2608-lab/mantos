@@ -3255,6 +3255,8 @@ async function verReq(id){
           <div><label style="font-size:12px;color:#555">Ubicación en Almacén</label><input id="rf-ubicacion" class="rf-inp" placeholder="Estante A-3"></div>
           <div style="display:none"><label style="font-size:12px;color:#555">Costo Unitario ($)</label><input type="number" id="rf-costo" class="rf-inp" value="0" min="0" step="0.01"></div>
           <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Notas</label><textarea id="rf-notas" class="rf-inp" rows="2" style="resize:vertical"></textarea></div>
+          <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">URL de imagen (opcional)</label><input id="rf-imagen-url" class="rf-inp" placeholder="https://..." oninput="var u=this.value.trim();var p=document.getElementById('rf-imagen-preview');var i=document.getElementById('rf-img-preview-el');if(u){i.src=u;p.style.display='block';}else{p.style.display='none';}"></div>
+          <div id="rf-imagen-preview" style="grid-column:1/-1;display:none;text-align:center"><img id="rf-img-preview-el" src="" style="max-height:120px;max-width:100%;object-fit:contain;border-radius:8px;border:1px solid #eee" onerror="document.getElementById('rf-imagen-preview').style.display='none'"></div>
         </div>
         <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
           <button type="button" onclick="closeRefModal()" style="padding:10px 20px;border:1px solid #ccc;border-radius:8px;cursor:pointer;background:#f5f5f5">Cancelar</button>
@@ -3328,6 +3330,11 @@ function openRefModal(data){
   document.getElementById('rf-stock').value=data?data.stock_actual:0;
   document.getElementById('rf-min').value=data?data.cant_min:1;
   document.getElementById('rf-costo').value=data?data.costo:0;
+  var imgUrl=data&&data.imagen_url?data.imagen_url:'';
+  document.getElementById('rf-imagen-url').value=imgUrl;
+  var prev=document.getElementById('rf-imagen-preview');
+  var pimg=document.getElementById('rf-img-preview-el');
+  if(imgUrl){pimg.src=imgUrl;prev.style.display='block';}else{prev.style.display='none';}
   document.getElementById('ref-modal').style.display='block';
 }
 
@@ -3387,7 +3394,8 @@ function saveRefaccion(e){
     tiempo_entrega:document.getElementById('rf-tiempo').value,
     ubicacion:document.getElementById('rf-ubicacion').value,
     costo:parseFloat(document.getElementById('rf-costo').value)||0,
-    notas:document.getElementById('rf-notas').value
+    notas:document.getElementById('rf-notas').value,
+    imagen_url:document.getElementById('rf-imagen-url').value.trim()
   };
   fetch('/api/refacciones'+(id?'/'+id:''),({method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}))
     .then(r=>r.json()).then(function(){closeRefModal();loadRefacciones();});

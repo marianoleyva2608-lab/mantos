@@ -932,12 +932,12 @@ def api_get_refacciones():
 def api_create_refaccion():
     d = request.json
     con = get_db()
-    con.execute("INSERT INTO refacciones (nombre,descripcion,marca,modelo,categoria,criticidad,seccion,cant_min,stock_actual,tiempo_entrega,proveedor,ubicacion,costo,notas,foto_b64) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    con.execute("INSERT INTO refacciones (nombre,descripcion,marca,modelo,categoria,criticidad,seccion,cant_min,stock_actual,tiempo_entrega,proveedor,ubicacion,costo,notas,foto_b64,imagen_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
          d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
          int(d.get('cant_min',1)),int(d.get('stock_actual',0)),
          d.get('tiempo_entrega',''),d.get('proveedor',''),d.get('ubicacion',''),
-         float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64','')))
+         float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64',''),d.get('imagen_url','')))
     con.commit()
     new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0]
     con.close()
@@ -947,12 +947,12 @@ def api_create_refaccion():
 def api_update_refaccion(ref_id):
     d = request.json
     con = get_db()
-    con.execute("UPDATE refacciones SET nombre=?,descripcion=?,marca=?,modelo=?,categoria=?,criticidad=?,seccion=?,cant_min=?,stock_actual=?,tiempo_entrega=?,proveedor=?,ubicacion=?,costo=?,notas=?,foto_b64=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+    con.execute("UPDATE refacciones SET nombre=?,descripcion=?,marca=?,modelo=?,categoria=?,criticidad=?,seccion=?,cant_min=?,stock_actual=?,tiempo_entrega=?,proveedor=?,ubicacion=?,costo=?,notas=?,foto_b64=?,imagen_url=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
         (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
          d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
          int(d.get('cant_min',1)),int(d.get('stock_actual',0)),
          d.get('tiempo_entrega',''),d.get('proveedor',''),d.get('ubicacion',''),
-         float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64',''),ref_id))
+         float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64',''),d.get('imagen_url',''),ref_id))
     con.commit()
     con.close()
     return jsonify({'ok': True})
