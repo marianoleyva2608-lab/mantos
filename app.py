@@ -97,6 +97,15 @@ def init_users_db():
 init_db()
 init_users_db()
 
+# Seed usuario admin por defecto
+try:
+    import hashlib as _hl
+    _con = get_db()
+    _con.execute("INSERT OR IGNORE INTO users (nombre, email, pin_hash) VALUES (?,?,?)",
+                 ("Mariano Leyva", "marianoleyva2608@gmail.com", _hl.sha256("260881".encode()).hexdigest()))
+    _con.commit(); _con.close()
+except: pass
+
 def hash_pin(pin):
     return hashlib.sha256(pin.encode()).hexdigest()
 

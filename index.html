@@ -183,12 +183,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   </div>
 </div>
 
+<!-- CREAR CUENTA -->
+<div id="ap-register" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:#e0e0e0;display:none;align-items:center;justify-content:center">
+  <div class="ap-card">
+    <div class="ap-card-icon">&#128272;</div>
+    <h2 style="color:#1a5c2a;font-size:1.4rem;font-weight:700;margin:0">Crear Cuenta</h2>
+    <div class="ap-card-sub">Firma Digital AD-PACK</div>
+    <input id="ap-reg-nombre" class="ap-field" type="text" placeholder="Nombre completo" autocomplete="name"/>
+    <input id="ap-reg-email" class="ap-field" type="email" placeholder="Email" autocomplete="email"/>
+    <input id="ap-reg-pin" class="ap-field" type="password" placeholder="PIN (m&#237;nimo 4 caracteres)"/>
+    <input id="ap-reg-pin2" class="ap-field" type="password" placeholder="Confirmar PIN" onkeydown="if(event.key==='Enter')apRegister()"/>
+    <button class="ap-login-btn" onclick="apRegister()">Crear Cuenta y Firma Digital</button>
+    <button onclick="apGoLogin()" style="width:100%;background:#fff;color:#1a5c2a;border:1.5px solid #1a5c2a;border-radius:10px;padding:12px;font-size:.95rem;cursor:pointer;margin-top:4px">&#8592; Volver al Login</button>
+    <div class="ap-err" id="ap-reg-err"></div>
+  </div>
+</div>
+
 <script>
 (function(){
-  var _u=[
-    {e:'marianoleyva2608@gmail.com',p:'260881'},
-    {e:'admin',p:'adpack2024'}
-  ];
   window.apShowLogin=function(){
     var l=document.getElementById('ap-landing');
     l.style.opacity='0';
@@ -198,6 +210,54 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       setTimeout(function(){document.getElementById('ap-email').focus();},100);
     },600);
   };
+  window.apGoLogin=function(){
+    document.getElementById('ap-register').style.display='none';
+    document.getElementById('ap-login').style.display='flex';
+    document.getElementById('ap-err').textContent='';
+  };
+  window.apLogin=function(){
+    var e=document.getElementById('ap-email').value.trim().toLowerCase();
+    var p=document.getElementById('ap-pin').value;
+    document.getElementById('ap-err').textContent='';
+    fetch('/api/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,pin:p})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.ok){document.getElementById('ap-login').style.display='none';}
+        else{document.getElementById('ap-err').textContent=d.error||'Email o PIN incorrecto';}
+      }).catch(function(){document.getElementById('ap-err').textContent='Error de conexi\u00f3n';});
+  };
+  window.apRegister=function(){
+    var nombre=document.getElementById('ap-reg-nombre').value.trim();
+    var email=document.getElementById('ap-reg-email').value.trim().toLowerCase();
+    var pin=document.getElementById('ap-reg-pin').value;
+    var pin2=document.getElementById('ap-reg-pin2').value;
+    var err=document.getElementById('ap-reg-err');
+    err.textContent='';
+    if(!nombre||!email||!pin){err.textContent='Completa todos los campos';return;}
+    if(pin.length<4){err.textContent='PIN debe tener m\u00ednimo 4 caracteres';return;}
+    if(pin!==pin2){err.textContent='Los PIN no coinciden';return;}
+    fetch('/api/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre:nombre,email:email,pin:pin})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.ok){
+          err.style.color='#2e7d32';
+          err.textContent='\u00a1Cuenta creada! Inicia sesi\u00f3n.';
+          setTimeout(window.apGoLogin,1500);
+        } else {err.textContent=d.error||'Error al crear cuenta';}
+      }).catch(function(){err.textContent='Error de conexi\u00f3n';});
+  };
+  // Link "Registrarte" en login
+  var regLink=document.querySelector('#ap-login .ap-card');
+  if(regLink){
+    var lnk=document.createElement('button');
+    lnk.textContent='\u00bfNo tienes cuenta? Reg\u00edstrate';
+    lnk.style.cssText='background:none;border:none;color:#1a5c2a;font-size:.88rem;cursor:pointer;margin-top:4px;text-decoration:underline';
+    lnk.onclick=function(){
+      document.getElementById('ap-login').style.display='none';
+      document.getElementById('ap-register').style.display='flex';
+    };
+    regLink.appendChild(lnk);
+  }
   setTimeout(window.apShowLogin, 1500);
   window.apLogin=function(){
     var e=document.getElementById('ap-email').value.trim().toLowerCase();
