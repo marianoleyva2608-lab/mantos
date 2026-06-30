@@ -21,6 +21,16 @@ def init_db():
         con.commit()
     except Exception:
         pass  # column already exists
+
+    con.execute('''CREATE TABLE IF NOT EXISTS refacciones (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   nombre TEXT, descripcion TEXT, marca TEXT, modelo TEXT,
+                   categoria TEXT, criticidad TEXT DEFAULT 'MEDIA', seccion TEXT,
+                   cant_min INTEGER DEFAULT 1, stock_actual INTEGER DEFAULT 0,
+                   tiempo_entrega TEXT, proveedor TEXT, ubicacion TEXT,
+                   costo REAL DEFAULT 0, notas TEXT, foto_b64 TEXT,
+                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     con.commit(); con.close()
 
 def init_users_db():
@@ -825,6 +835,51 @@ def requisicion_pdf(rid):
     return send_file(buf, mimetype='application/pdf',
                      download_name=f'REQ-{folio}.pdf',
                      as_attachment=False)
+
+
+@app.route('/api/refacciones', methods=['GET'])
+def api_get_refacciones():
+    con = get_db()
+    rows = con.execute('SELECT * FROM refacciones ORDER BY seccion, nombre').fetchall()
+    con.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/refacciones', methods=['POST'])
+def api_create_refaccion():
+    d = request.json
+    con = get_db()
+    con.execute("INSERT INTO refacciones (nombre,descripcion,marca,modelo,categoria,criticidad,seccion,cant_min,stock_actual,tiempo_entrega,proveedor,ubicacion,costo,notas,foto_b64) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
+         d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
+         int(d.get('cant_min',1)),int(d.get('stock_actual',0)),
+         d.get('tiempo_entrega',''),d.get('proveedor',''),d.get('ubicacion',''),
+         float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64','')))
+    con.commit()
+    new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0]
+    con.close()
+    return jsonify({'ok': True, 'id': new_id})
+
+@app.route('/api/refacciones/<int:ref_id>', methods=['PUT'])
+def api_update_refaccion(ref_id):
+    d = request.json
+    con = get_db()
+    con.execute("UPDATE refacciones SET nombre=?,descripcion=?,marca=?,modelo=?,categoria=?,criticidad=?,seccion=?,cant_min=?,stock_actual=?,tiempo_entrega=?,proveedor=?,ubicacion=?,costo=?,notas=?,foto_b64=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+        (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
+         d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
+         int(d.get('cant_min',1)),int(d.get('stock_actual',0)),
+         d.get('tiempo_entrega',''),d.get('proveedor',''),d.get('ubicacion',''),
+         float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64',''),ref_id))
+    con.commit()
+    con.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/refacciones/<int:ref_id>', methods=['DELETE'])
+def api_delete_refaccion(ref_id):
+    con = get_db()
+    con.execute('DELETE FROM refacciones WHERE id=?', (ref_id,))
+    con.commit()
+    con.close()
+    return jsonify({'ok': True})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
