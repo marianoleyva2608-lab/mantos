@@ -259,17 +259,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     regLink.appendChild(lnk);
   }
   setTimeout(window.apShowLogin, 3000);
-  window.apLogin=function(){
-    var e=document.getElementById('ap-email').value.trim().toLowerCase();
-    var p=document.getElementById('ap-pin').value;
-    var ok=_u.some(function(u){return u.e===e&&u.p===p;});
-    if(ok){
-      document.getElementById('ap-login').style.display='none';
-      document.getElementById('ap-err').textContent='';
-    } else {
-      document.getElementById('ap-err').textContent='Email o PIN incorrecto';
-    }
-  };
 })();
 </script>
 
