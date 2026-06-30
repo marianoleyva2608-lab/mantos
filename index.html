@@ -2547,169 +2547,7 @@ function imprimirOrden(){
       '</div>'+
       '<div style="text-align:right;font-size:8px;color:#777;margin-top:8px">A9.F4 Rev. 01</div>'+
       '</div>'+
-    '
-<div id="page-refacciones" class="page">
-  <div class="hdr">
-    <div style="flex:1"><h1>&#128230; Catálogo de Refacciones</h1><div class="sub">Stock y datos de refacciones</div></div>
-    <button class="back" onclick="showPage('home')" title="Inicio">&#8592; Inicio</button>
-  </div>
-  <div style="padding:14px">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-      <button onclick="openRefModal()" style="background:#2E7D32;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:15px;cursor:pointer">&#43; Nueva Refacción</button>
-      <input id="ref-search" type="text" placeholder="Buscar..." oninput="filterRef()" style="padding:8px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;flex:1;min-width:180px">
-    </div>
-    <div id="ref-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
-    <div id="ref-list"></div>
-  </div>
-  <!-- Modal -->
-  <div id="ref-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9000;overflow-y:auto">
-    <div style="background:#fff;max-width:520px;margin:40px auto;border-radius:12px;padding:24px;position:relative">
-      <h2 id="ref-modal-title" style="margin:0 0 16px;color:#1F5C2E">Nueva Refacción</h2>
-      <form id="ref-form" onsubmit="saveRefaccion(event)">
-        <input type="hidden" id="ref-id">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Nombre *</label><input required id="rf-nombre" class="rf-inp" placeholder="Ej: Rodamiento 6205"></div>
-          <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Descripción</label><input id="rf-descripcion" class="rf-inp" placeholder="Descripción breve"></div>
-          <div><label style="font-size:12px;color:#555">Marca</label><input id="rf-marca" class="rf-inp" placeholder="SKF, FAG..."></div>
-          <div><label style="font-size:12px;color:#555">Modelo / Núm. Parte</label><input id="rf-modelo" class="rf-inp" placeholder="6205-2RS"></div>
-          <div><label style="font-size:12px;color:#555">Categoría</label><select id="rf-categoria" class="rf-inp"><option>Rodamientos</option><option>Bandas</option><option>Cadenas</option><option>Sellos</option><option>Filtros</option><option>Eléctrico</option><option>Hidráulico</option><option>Neumático</option><option>Tornillería</option><option>Otro</option></select></div>
-          <div><label style="font-size:12px;color:#555">Criticidad</label><select id="rf-criticidad" class="rf-inp"><option value="ALTA">🔴 ALTA</option><option value="MEDIA" selected>🟡 MEDIA</option><option value="BAJA">🟢 BAJA</option></select></div>
-          <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Sección / Equipo</label><input id="rf-seccion" class="rf-inp" placeholder="TF01, Compresor..."></div>
-          <div><label style="font-size:12px;color:#555">Stock Actual</label><input type="number" id="rf-stock" class="rf-inp" value="0" min="0"></div>
-          <div><label style="font-size:12px;color:#555">Stock Mínimo</label><input type="number" id="rf-min" class="rf-inp" value="1" min="0"></div>
-          <div><label style="font-size:12px;color:#555">Proveedor</label><input id="rf-proveedor" class="rf-inp" placeholder="Proveedor"></div>
-          <div><label style="font-size:12px;color:#555">Tiempo de Entrega</label><input id="rf-tiempo" class="rf-inp" placeholder="3-5 días"></div>
-          <div><label style="font-size:12px;color:#555">Ubicación en Almacén</label><input id="rf-ubicacion" class="rf-inp" placeholder="Estante A-3"></div>
-          <div><label style="font-size:12px;color:#555">Costo Unitario ($)</label><input type="number" id="rf-costo" class="rf-inp" value="0" min="0" step="0.01"></div>
-          <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Notas</label><textarea id="rf-notas" class="rf-inp" rows="2" style="resize:vertical"></textarea></div>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
-          <button type="button" onclick="closeRefModal()" style="padding:10px 20px;border:1px solid #ccc;border-radius:8px;cursor:pointer;background:#f5f5f5">Cancelar</button>
-          <button type="submit" style="padding:10px 24px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:15px">Guardar</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<style>
-.rf-inp{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-top:2px}
-.ref-card{background:#fff;border-radius:10px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.1);display:flex;align-items:center;gap:12px}
-.ref-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:bold;color:#fff}
-.badge-ALTA{background:#C62828}
-.badge-MEDIA{background:#E65100}
-.badge-BAJA{background:#2E7D32}
-.stock-low{color:#C62828;font-weight:bold}
-</style>
-
-<script>
-var _refData = [];
-
-function loadRefacciones(){
-  fetch('/api/refacciones').then(r=>r.json()).then(d=>{
-    _refData = d;
-    renderRef(d);
-    renderRefStats(d);
-  });
-}
-
-function renderRefStats(data){
-  var total=data.length, bajo=data.filter(r=>r.stock_actual<=r.cant_min).length, alta=data.filter(r=>r.criticidad==='ALTA').length;
-  document.getElementById('ref-stats').innerHTML =
-    '<div style="background:#E8F5E9;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:bold;color:#1F5C2E">'+total+'</div><div style="font-size:11px;color:#555">Total</div></div>'+
-    '<div style="background:#FFF3E0;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:bold;color:#E65100">'+bajo+'</div><div style="font-size:11px;color:#555">Stock Bajo</div></div>'+
-    '<div style="background:#FFEBEE;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:bold;color:#C62828">'+alta+'</div><div style="font-size:11px;color:#555">Críticas</div></div>';
-}
-
-function renderRef(data){
-  var q=(document.getElementById('ref-search')||{value:''}).value.toLowerCase();
-  var filtered=q?data.filter(r=>(r.nombre+r.seccion+r.categoria+r.proveedor).toLowerCase().includes(q)):data;
-  if(!filtered.length){document.getElementById('ref-list').innerHTML='<p style="color:#888;text-align:center;padding:30px">Sin resultados</p>';return;}
-  var html='';var sec='';
-  filtered.forEach(function(r){
-    if(r.seccion!==sec){sec=r.seccion;html+='<div style="font-weight:bold;color:#1F5C2E;margin:14px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:1px">'+( sec||'Sin sección')+'</div>';}
-    var low=r.stock_actual<=r.cant_min;
-    html+='<div class="ref-card">'+
-      '<div style="flex:1">'+
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
-          '<span style="font-weight:bold;font-size:15px">'+r.nombre+'</span>'+
-          '<span class="ref-badge badge-'+r.criticidad+'">'+r.criticidad+'</span>'+
-          '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:10px;font-size:11px">'+r.categoria+'</span>'+
-        '</div>'+
-        '<div style="font-size:12px;color:#666">'+
-          (r.marca?'<b>Marca:</b> '+r.marca+'  ':'')+
-          (r.modelo?'<b>Núm:</b> '+r.modelo+'  ':'')+
-          (r.proveedor?'<b>Proveedor:</b> '+r.proveedor+'  ':'')+
-          (r.ubicacion?'<b>Ubic:</b> '+r.ubicacion:'')
-        +'</div>'+
-      '</div>'+
-      '<div style="text-align:center;min-width:70px">'+
-        '<div class="'+(low?'stock-low':'')+'" style="font-size:20px;font-weight:bold">'+r.stock_actual+'</div>'+
-        '<div style="font-size:10px;color:#999">min: '+r.cant_min+'</div>'+
-        '<div style="font-size:10px;color:#999">'+(r.costo>0?'$'+parseFloat(r.costo).toFixed(2):'')+'</div>'+
-      '</div>'+
-      '<div style="display:flex;flex-direction:column;gap:6px">'+
-        '<button onclick="editRef('+r.id+')" style="background:#1565C0;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Editar</button>'+
-        '<button onclick="deleteRef('+r.id+')" style="background:#fff;color:#C62828;border:1px solid #C62828;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Borrar</button>'+
-      '</div>'+
-    '</div>';
-  });
-  document.getElementById('ref-list').innerHTML=html;
-}
-
-function filterRef(){renderRef(_refData);}
-
-function openRefModal(data){
-  document.getElementById('ref-id').value=data?data.id:'';
-  document.getElementById('ref-modal-title').textContent=data?'Editar Refacción':'Nueva Refacción';
-  ['nombre','descripcion','marca','modelo','categoria','criticidad','seccion','ubicacion','proveedor','tiempo','notas'].forEach(function(k){
-    var el=document.getElementById('rf-'+k); if(el&&data)el.value=data[k]||el.value;else if(el&&!data)el.value=(k==='criticidad'?'MEDIA':k==='categoria'?'Rodamientos':'');
-  });
-  document.getElementById('rf-stock').value=data?data.stock_actual:0;
-  document.getElementById('rf-min').value=data?data.cant_min:1;
-  document.getElementById('rf-costo').value=data?data.costo:0;
-  document.getElementById('ref-modal').style.display='block';
-}
-
-function closeRefModal(){document.getElementById('ref-modal').style.display='none';}
-
-function editRef(id){
-  var r=_refData.find(function(x){return x.id===id;});
-  if(r)openRefModal(r);
-}
-
-function saveRefaccion(e){
-  e.preventDefault();
-  var id=document.getElementById('ref-id').value;
-  var body={
-    nombre:document.getElementById('rf-nombre').value,
-    descripcion:document.getElementById('rf-descripcion').value,
-    marca:document.getElementById('rf-marca').value,
-    modelo:document.getElementById('rf-modelo').value,
-    categoria:document.getElementById('rf-categoria').value,
-    criticidad:document.getElementById('rf-criticidad').value,
-    seccion:document.getElementById('rf-seccion').value,
-    stock_actual:parseInt(document.getElementById('rf-stock').value)||0,
-    cant_min:parseInt(document.getElementById('rf-min').value)||1,
-    proveedor:document.getElementById('rf-proveedor').value,
-    tiempo_entrega:document.getElementById('rf-tiempo').value,
-    ubicacion:document.getElementById('rf-ubicacion').value,
-    costo:parseFloat(document.getElementById('rf-costo').value)||0,
-    notas:document.getElementById('rf-notas').value
-  };
-  var url='/api/refacciones'+(id?'/'+id:'');
-  var method=id?'PUT':'POST';
-  fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-    .then(r=>r.json()).then(function(){closeRefModal();loadRefacciones();});
-}
-
-function deleteRef(id){
-  if(!confirm('¿Eliminar esta refacción?'))return;
-  fetch('/api/refacciones/'+id,{method:'DELETE'}).then(r=>r.json()).then(function(){loadRefacciones();});
-}
-</script>
-
-</body></html>');
+    '</body></html>');
     w.document.close();
     setTimeout(function(){w.print();},500);
   });
@@ -3245,6 +3083,147 @@ async function verReq(id){
     setTimeout(hookShowPage, 50);
   }
 })();
+</script>
+
+
+<div id="page-refacciones" class="page">
+  <div class="hdr">
+    <div style="flex:1"><h1>&#128230; Catálogo de Refacciones</h1><div class="sub">Stock y datos de refacciones</div></div>
+    <button class="back" onclick="showPage('home')" title="Inicio">&#8592; Inicio</button>
+  </div>
+  <div style="padding:14px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button onclick="openRefModal()" style="background:#2E7D32;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:15px;cursor:pointer">&#43; Nueva Refacción</button>
+      <input id="ref-search" type="text" placeholder="Buscar..." oninput="filterRef()" style="padding:8px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;flex:1;min-width:180px">
+    </div>
+    <div id="ref-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+    <div id="ref-list"></div>
+  </div>
+  <!-- Modal -->
+  <div id="ref-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9000;overflow-y:auto">
+    <div style="background:#fff;max-width:520px;margin:40px auto;border-radius:12px;padding:24px;position:relative">
+      <h2 id="ref-modal-title" style="margin:0 0 16px;color:#1F5C2E">Nueva Refacción</h2>
+      <form id="ref-form" onsubmit="saveRefaccion(event)">
+        <input type="hidden" id="ref-id">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Nombre *</label><input required id="rf-nombre" class="rf-inp" placeholder="Ej: Rodamiento 6205"></div>
+          <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Descripción</label><input id="rf-descripcion" class="rf-inp" placeholder="Descripción breve"></div>
+          <div><label style="font-size:12px;color:#555">Marca</label><input id="rf-marca" class="rf-inp" placeholder="SKF, FAG..."></div>
+          <div><label style="font-size:12px;color:#555">Modelo / Núm. Parte</label><input id="rf-modelo" class="rf-inp" placeholder="6205-2RS"></div>
+          <div><label style="font-size:12px;color:#555">Categoría</label><select id="rf-categoria" class="rf-inp"><option>Rodamientos</option><option>Bandas</option><option>Cadenas</option><option>Sellos</option><option>Filtros</option><option>Eléctrico</option><option>Hidráulico</option><option>Neumático</option><option>Tornillería</option><option>Otro</option></select></div>
+          <div><label style="font-size:12px;color:#555">Criticidad</label><select id="rf-criticidad" class="rf-inp"><option value="ALTA">🔴 ALTA</option><option value="MEDIA" selected>🟡 MEDIA</option><option value="BAJA">🟢 BAJA</option></select></div>
+          <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Sección / Equipo</label><input id="rf-seccion" class="rf-inp" placeholder="TF01, Compresor..."></div>
+          <div><label style="font-size:12px;color:#555">Stock Actual</label><input type="number" id="rf-stock" class="rf-inp" value="0" min="0"></div>
+          <div><label style="font-size:12px;color:#555">Stock Mínimo</label><input type="number" id="rf-min" class="rf-inp" value="1" min="0"></div>
+          <div><label style="font-size:12px;color:#555">Proveedor</label><input id="rf-proveedor" class="rf-inp" placeholder="Proveedor"></div>
+          <div><label style="font-size:12px;color:#555">Tiempo de Entrega</label><input id="rf-tiempo" class="rf-inp" placeholder="3-5 días"></div>
+          <div><label style="font-size:12px;color:#555">Ubicación en Almacén</label><input id="rf-ubicacion" class="rf-inp" placeholder="Estante A-3"></div>
+          <div><label style="font-size:12px;color:#555">Costo Unitario ($)</label><input type="number" id="rf-costo" class="rf-inp" value="0" min="0" step="0.01"></div>
+          <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Notas</label><textarea id="rf-notas" class="rf-inp" rows="2" style="resize:vertical"></textarea></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+          <button type="button" onclick="closeRefModal()" style="padding:10px 20px;border:1px solid #ccc;border-radius:8px;cursor:pointer;background:#f5f5f5">Cancelar</button>
+          <button type="submit" style="padding:10px 24px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:15px">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+.rf-inp{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-top:2px}
+.ref-card{background:#fff;border-radius:10px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.1);display:flex;align-items:center;gap:12px}
+.ref-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:bold;color:#fff}
+.badge-ALTA{background:#C62828}.badge-MEDIA{background:#E65100}.badge-BAJA{background:#2E7D32}
+</style>
+
+<script>
+var _refData=[];
+function loadRefacciones(){fetch('/api/refacciones').then(r=>r.json()).then(d=>{_refData=d;renderRef(d);renderRefStats(d);});}
+function renderRefStats(data){
+  var total=data.length,bajo=data.filter(r=>r.stock_actual<=r.cant_min).length,alta=data.filter(r=>r.criticidad==='ALTA').length;
+  document.getElementById('ref-stats').innerHTML=
+    '<div style="background:#E8F5E9;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:bold;color:#1F5C2E">'+total+'</div><div style="font-size:11px;color:#555">Total</div></div>'+
+    '<div style="background:#FFF3E0;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:bold;color:#E65100">'+bajo+'</div><div style="font-size:11px;color:#555">Stock Bajo</div></div>'+
+    '<div style="background:#FFEBEE;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:bold;color:#C62828">'+alta+'</div><div style="font-size:11px;color:#555">Críticas</div></div>';
+}
+function renderRef(data){
+  var q=(document.getElementById('ref-search')||{value:''}).value.toLowerCase();
+  var filtered=q?data.filter(r=>(r.nombre+r.seccion+r.categoria+r.proveedor).toLowerCase().includes(q)):data;
+  if(!filtered.length){document.getElementById('ref-list').innerHTML='<p style="color:#888;text-align:center;padding:30px">Sin resultados</p>';return;}
+  var html='',sec='';
+  filtered.forEach(function(r){
+    if(r.seccion!==sec){sec=r.seccion;html+='<div style="font-weight:bold;color:#1F5C2E;margin:14px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:1px">'+(sec||'Sin sección')+'</div>';}
+    var low=r.stock_actual<=r.cant_min;
+    html+='<div class="ref-card">'+
+      '<div style="flex:1">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
+          '<span style="font-weight:bold;font-size:15px">'+r.nombre+'</span>'+
+          '<span class="ref-badge badge-'+r.criticidad+'">'+r.criticidad+'</span>'+
+          '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:10px;font-size:11px">'+r.categoria+'</span>'+
+        '</div>'+
+        '<div style="font-size:12px;color:#666">'+
+          (r.marca?'<b>Marca:</b> '+r.marca+'  ':'')+
+          (r.modelo?'<b>Núm:</b> '+r.modelo+'  ':'')+
+          (r.proveedor?'<b>Proveedor:</b> '+r.proveedor+'  ':'')+
+          (r.ubicacion?'<b>Ubic:</b> '+r.ubicacion:'')
+        +'</div>'+
+      '</div>'+
+      '<div style="text-align:center;min-width:70px">'+
+        '<div style="font-size:20px;font-weight:bold;color:'+(low?'#C62828':'inherit')+'">'+r.stock_actual+'</div>'+
+        '<div style="font-size:10px;color:#999">min: '+r.cant_min+'</div>'+
+        '<div style="font-size:10px;color:#999">'+(r.costo>0?'$'+parseFloat(r.costo).toFixed(2):'')+'</div>'+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;gap:6px">'+
+        '<button onclick="editRef('+r.id+')" style="background:#1565C0;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Editar</button>'+
+        '<button onclick="deleteRef('+r.id+')" style="background:#fff;color:#C62828;border:1px solid #C62828;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Borrar</button>'+
+      '</div>'+
+    '</div>';
+  });
+  document.getElementById('ref-list').innerHTML=html;
+}
+function filterRef(){renderRef(_refData);}
+function openRefModal(data){
+  document.getElementById('ref-id').value=data?data.id:'';
+  document.getElementById('ref-modal-title').textContent=data?'Editar Refacción':'Nueva Refacción';
+  ['nombre','descripcion','marca','modelo','categoria','criticidad','seccion','ubicacion','proveedor','tiempo','notas'].forEach(function(k){
+    var el=document.getElementById('rf-'+k);
+    if(el&&data)el.value=data[k==='tiempo'?'tiempo_entrega':k]||'';
+    else if(el&&!data)el.value=(k==='criticidad'?'MEDIA':k==='categoria'?'Rodamientos':'');
+  });
+  document.getElementById('rf-stock').value=data?data.stock_actual:0;
+  document.getElementById('rf-min').value=data?data.cant_min:1;
+  document.getElementById('rf-costo').value=data?data.costo:0;
+  document.getElementById('ref-modal').style.display='block';
+}
+function closeRefModal(){document.getElementById('ref-modal').style.display='none';}
+function editRef(id){var r=_refData.find(function(x){return x.id===id;});if(r)openRefModal(r);}
+function saveRefaccion(e){
+  e.preventDefault();
+  var id=document.getElementById('ref-id').value;
+  var body={
+    nombre:document.getElementById('rf-nombre').value,
+    descripcion:document.getElementById('rf-descripcion').value,
+    marca:document.getElementById('rf-marca').value,
+    modelo:document.getElementById('rf-modelo').value,
+    categoria:document.getElementById('rf-categoria').value,
+    criticidad:document.getElementById('rf-criticidad').value,
+    seccion:document.getElementById('rf-seccion').value,
+    stock_actual:parseInt(document.getElementById('rf-stock').value)||0,
+    cant_min:parseInt(document.getElementById('rf-min').value)||1,
+    proveedor:document.getElementById('rf-proveedor').value,
+    tiempo_entrega:document.getElementById('rf-tiempo').value,
+    ubicacion:document.getElementById('rf-ubicacion').value,
+    costo:parseFloat(document.getElementById('rf-costo').value)||0,
+    notas:document.getElementById('rf-notas').value
+  };
+  fetch('/api/refacciones'+(id?'/'+id:''),({method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}))
+    .then(r=>r.json()).then(function(){closeRefModal();loadRefacciones();});
+}
+function deleteRef(id){
+  if(!confirm('¿Eliminar esta refacción?'))return;
+  fetch('/api/refacciones/'+id,{method:'DELETE'}).then(r=>r.json()).then(function(){loadRefacciones();});
+}
 </script>
 
 </body>
