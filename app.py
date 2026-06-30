@@ -56,6 +56,22 @@ def init_db():
         except: pass
     con.commit()  # seed3
 
+
+    # -- Deduplicar refacciones: fusionar duplicados por nombre sumando stock --
+    try:
+        dups = con.execute("""
+            SELECT nombre, COUNT(*) as cnt, SUM(stock_actual) as total_stock,
+                   MAX(cant_min) as max_min, MIN(id) as keep_id
+            FROM refacciones GROUP BY nombre HAVING COUNT(*) > 1
+        """).fetchall()
+        for d in dups:
+            nombre, cnt, total_stock, max_min, keep_id = d
+            con.execute("UPDATE refacciones SET stock_actual=?, cant_min=? WHERE id=?",
+                        (total_stock, max_min, keep_id))
+            con.execute("DELETE FROM refacciones WHERE nombre=? AND id!=?", (nombre, keep_id))
+        if dups:
+            con.commit()  # dedup
+    except: pass
     con.commit(); con.close()
 
 def init_users_db():
