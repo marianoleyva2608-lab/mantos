@@ -3341,6 +3341,7 @@ function verRef(id){
     '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:10px;font-size:11px">'+r.categoria+'</span>'+
     '</div>';
   function row(label,val){return val?'<div style="margin:6px 0;font-size:13px"><b style="color:#555;min-width:130px;display:inline-block">'+label+':</b> '+val+'</div>':'';}
+  if(r.imagen_url){html+='<div style="text-align:center;margin:10px 0 6px"><img src="'+r.imagen_url+'" alt="foto" style="max-width:100%;max-height:180px;object-fit:contain;border-radius:8px;border:1px solid #eee" onerror="this.style.display=\'none\'"></div>';}
   html+=row('Sección',r.seccion);
   html+=row('Marca',r.marca);
   html+=row('Modelo / N°',r.modelo);

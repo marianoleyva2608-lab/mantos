@@ -106,6 +106,30 @@ try:
     _con.commit(); _con.close()
 except: pass
 
+# Migración: agregar imagen_url si no existe
+try:
+    _mcon = get_db()
+    _mcon.execute("ALTER TABLE refacciones ADD COLUMN imagen_url TEXT DEFAULT ''")
+    _mcon.commit(); _mcon.close()
+except: pass
+
+# Seed imágenes de productos (UPDATE por nombre LIKE)
+try:
+    _icon = get_db()
+    _img_seeds = [
+        ('%TCN4S-24R%',   'https://ce8dc832c.cloudimg.io/v7/_cdn_/6A/12/90/00/0/598438_1.jpg'),
+        ('%AT8N%',         'https://ce8dc832c.cloudimg.io/v7/_cdn_/08/E1/90/00/0/597632_1.jpg'),
+        ('%NXC-32%',       'https://www.sparegenie.com/cdn/shop/products/10001699.jpg?v=1657890170'),
+        ('%NR2-25%',       'https://media.rs-online.com/image/upload/b_auto,c_pad,dpr_1,f_auto,h_399,q_auto,w_399/R1948771-01'),
+        ('%SC-4-1%',       'https://www.yuengkao.com/images/products/1385961666_mc_sc-4-1_2.jpg'),
+        ('%60.12.8.230%',  'https://ce8dc832c.cloudimg.io/v7/_cdn_/C8/2C/50/00/0/377484_1.jpg'),
+        ('%ZB2-BE101%',    'https://ce8dc832c.cloudimg.io/v7/_cdn_/6D/5F/50/00/0/390614_1.jpg'),
+    ]
+    for _pat, _url in _img_seeds:
+        _icon.execute("UPDATE refacciones SET imagen_url=? WHERE nombre LIKE ? AND (imagen_url IS NULL OR imagen_url='')", (_url, _pat))
+    _icon.commit(); _icon.close()
+except: pass
+
 def hash_pin(pin):
     return hashlib.sha256(pin.encode()).hexdigest()
 
