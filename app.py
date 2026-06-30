@@ -933,8 +933,8 @@ def export_refacciones_excel():
     ws.row_dimensions[2].height = 18
 
     # Header row
-    headers = ["#","REFACCION / DESCRIPCION","MARCA","MODELO","CATEGORIA","CRITICIDAD","SECCION","CANT.MIN.","STOCK ACT.","T. ENTREGA","PROVEEDOR","UBICACION ALMACEN","COSTO $ MXN"]
-    col_w   = [5, 38, 18, 16, 14, 12, 20, 7, 7, 12, 22, 18, 10]
+    headers = ["#","REFACCION / DESCRIPCION","MARCA","MODELO","CATEGORIA","CRITICIDAD","SECCION","CANT.MIN.","STOCK ACT.","T. ENTREGA","PROVEEDOR","UBICACION ALMACEN"]
+    col_w   = [5, 38, 18, 16, 14, 12, 20, 7, 7, 12, 22, 22]
     for i, (h, w) in enumerate(zip(headers, col_w), 1):
         c = ws.cell(row=3, column=i, value=h)
         c.font = Font(bold=True, color="FFFFFF", size=9)
@@ -971,8 +971,7 @@ def export_refacciones_excel():
                     r["categoria"] or "", crit, r["seccion"] or "",
                     r["cant_min"], r["stock_actual"],
                     r["tiempo_entrega"] or "", r["proveedor"] or "",
-                    r["ubicacion"] or "",
-                    f'${r["costo"]:.2f}' if r["costo"] else ""]
+                    r["ubicacion"] or ""]
 
             for col, val in enumerate(vals, 1):
                 cell = ws.cell(row=row_num, column=col, value=val)
@@ -1042,7 +1041,7 @@ def export_refacciones_pdf():
                               textColor=color, alignment=align)
 
     crit_col = {'ALTA': RED, 'MEDIA': ORG, 'BAJA': GREEN_MED}
-    CW = [7*mm,65*mm,22*mm,18*mm,16*mm,16*mm,10*mm,10*mm,14*mm,28*mm,26*mm,13*mm]
+    CW = [7*mm,65*mm,22*mm,18*mm,16*mm,16*mm,10*mm,10*mm,14*mm,28*mm,30*mm]
 
     sections = {}
     for r in rows:
@@ -1072,7 +1071,7 @@ def export_refacciones_pdf():
 
     num = 1
     HDRS = ['#','REFACCION / DESCRIPCION','MARCA','MODELO','CATEGORIA','CRITICIDAD',
-            'MIN','STOCK','ENTREGA','PROVEEDOR','UBICACION ALMACEN','COSTO $']
+            'MIN','STOCK','ENTREGA','PROVEEDOR','UBICACION ALMACEN']
 
     for sec, items in sections.items():
         sh = Table([[Paragraph(f'  ▌ {sec.upper()}', ps(8, True, WHITE))]], colWidths=[sum(CW)])
@@ -1104,7 +1103,6 @@ def export_refacciones_pdf():
                 Paragraph(str(r['tiempo_entrega'] or ''), ps(7)),
                 Paragraph(str(r['proveedor'] or ''),   ps(7)),
                 Paragraph(str(r['ubicacion'] or ''),   ps(7)),
-                Paragraph(f"${r['costo']:.0f}" if r['costo'] else '', ps(7,align=TA_RIGHT)),
             ])
             tstyle += [('BACKGROUND',(0,i),(-1,i),bg),
                        ('BACKGROUND',(5,i),(5,i),cc)]
