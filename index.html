@@ -3319,6 +3319,18 @@ async function verReq(id){
           <div><label style="font-size:12px;color:#555">Ubicación en Almacén</label><input id="rf-ubicacion" class="rf-inp" placeholder="Estante A-3"></div>
           <div style="display:none"><label style="font-size:12px;color:#555">Costo Unitario ($)</label><input type="number" id="rf-costo" class="rf-inp" value="0" min="0" step="0.01"></div>
           <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Notas</label><textarea id="rf-notas" class="rf-inp" rows="2" style="resize:vertical"></textarea></div>
+          <div id="rf-qr-box" style="grid-column:1/-1;background:#F5F8F5;border:1px dashed #1F5C2E;border-radius:8px;padding:10px">
+            <label style="font-size:12px;color:#1F5C2E;font-weight:bold">🏷️ Número de parte / QR (opcional, solo refacciones nuevas)</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px">
+              <select id="rf-cat-cod" class="rf-inp" onchange="rfActualizarClasificaciones();rfPreviewNumero()"><option value="">Categoría...</option></select>
+              <select id="rf-clas-cod" class="rf-inp" onchange="rfPreviewNumero()"><option value="">Clasificación...</option></select>
+              <select id="rf-prov-cod" class="rf-inp" onchange="rfPreviewNumero()"><option value="">Proveedor...</option></select>
+            </div>
+            <div id="rf-numero-preview" style="margin-top:8px;font-size:13px;color:#333;display:none">
+              N° de parte: <b id="rf-numero-texto"></b>
+              <div id="rf-qr-preview" style="margin-top:6px"></div>
+            </div>
+          </div>
           <div style="grid-column:1/-1">
             <label style="font-size:12px;color:#555">Imagen del producto</label>
             <div style="display:flex;gap:6px;align-items:center;margin-top:2px">
@@ -3350,6 +3362,7 @@ async function verReq(id){
 <script>
 var _refData=[];
 function loadRefacciones(){fetch('/api/refacciones').then(r=>r.json()).then(d=>{_refData=d;renderRef(d);renderRefStats(d);populateSeccionSelect(d);populateCategoriaSelect(d);populateCatFilter(d);});}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',loadQrCatalogo);}else{loadQrCatalogo();}
 function renderRefStats(data){
   var total=data.length,bajo=data.filter(r=>r.stock_actual<r.cant_min).length,alta=data.filter(r=>r.criticidad==='ALTA').length;
   document.getElementById('ref-stats').innerHTML=
@@ -3490,6 +3503,24 @@ function openRefModal(data){
     var i=document.getElementById('rf-img-preview-el');
     i.style.display='';i.src='data:image/jpeg;base64,'+data.foto_b64;p.style.display='block';
   }
+  // Numero de parte / QR: solo aplica a refacciones nuevas o las que ya
+  // tengan uno asignado (se muestra pero no se puede reasignar/cambiar).
+  document.getElementById('rf-cat-cod').value='';
+  document.getElementById('rf-clas-cod').innerHTML='<option value="">Clasificación...</option>';
+  document.getElementById('rf-prov-cod').value='';
+  var npBox=document.getElementById('rf-qr-box');
+  var npPrev=document.getElementById('rf-numero-preview');
+  if(data && data.numero_parte){
+    npBox.style.opacity='0.6';
+    npBox.querySelectorAll('select').forEach(function(s){s.disabled=true;});
+    document.getElementById('rf-numero-texto').textContent=data.numero_parte;
+    document.getElementById('rf-qr-preview').innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=1F5C2E&data='+encodeURIComponent(data.numero_parte)+'" style="border-radius:6px;border:2px solid #1F5C2E">';
+    npPrev.style.display='block';
+  } else {
+    npBox.style.opacity='1';
+    npBox.querySelectorAll('select').forEach(function(s){s.disabled=false;});
+    npPrev.style.display='none';
+  }
   document.getElementById('ref-modal').style.display='block';
 }
 
@@ -3515,6 +3546,7 @@ function verRef(id){
       '<input type="file" accept="image/*" capture="environment" style="display:none" onchange="subirFotoRef('+r.id+',this)">'+
     '</label>';
   }
+  html+=row('N° de parte',r.numero_parte?'<b style="color:#1F5C2E">'+r.numero_parte+'</b>':'');
   html+=row('Sección',r.seccion);
   html+=row('Marca',r.marca);
   html+=row('Modelo / N°',r.modelo);
@@ -3562,13 +3594,14 @@ function subirFotoRef(id, input){
   reader.readAsDataURL(file);
 }
 function mostrarQR(r){
-  var text='REFACCION: '+r.nombre+
+  var text=r.numero_parte?r.numero_parte:(
+    'REFACCION: '+r.nombre+
     ' | SECCION: '+(r.seccion||'')+
     ' | UBIC: '+(r.ubicacion||'')+
     ' | STOCK: '+r.stock_actual+'/'+r.cant_min+
     ' | MARCA: '+(r.marca||'')+
     (r.modelo?' MOD:'+r.modelo:'')+
-    ' | PROV: '+(r.proveedor||'');
+    ' | PROV: '+(r.proveedor||''));
   document.getElementById('qr-title').textContent=r.nombre;
   document.getElementById('qr-subtitle').textContent=(r.seccion||'')+(r.ubicacion?' • '+r.ubicacion:'');
   var canvas=document.getElementById('qr-canvas');
@@ -3592,6 +3625,53 @@ function imprimirQR(){
   w.document.close();
 }
 
+// ---- Catálogo de códigos para número de parte / QR (refacciones NUEVAS) ----
+var _qrCatalogo=null;
+function loadQrCatalogo(){
+  fetch('/api/qr-catalogo').then(function(r){return r.json();}).then(function(d){
+    _qrCatalogo=d;
+    var selCat=document.getElementById('rf-cat-cod');
+    var selProv=document.getElementById('rf-prov-cod');
+    if(!selCat||!selProv)return;
+    Object.keys(d.categorias).forEach(function(cod){
+      var opt=document.createElement('option');
+      opt.value=cod; opt.textContent=cod+' - '+d.categorias[cod].nombre;
+      selCat.appendChild(opt);
+    });
+    Object.keys(d.proveedores).forEach(function(cod){
+      var opt=document.createElement('option');
+      opt.value=cod; opt.textContent=d.proveedores[cod]+' ('+cod+')';
+      selProv.appendChild(opt);
+    });
+  });
+}
+function rfActualizarClasificaciones(){
+  var catCod=document.getElementById('rf-cat-cod').value;
+  var selClas=document.getElementById('rf-clas-cod');
+  selClas.innerHTML='<option value="">Clasificación...</option>';
+  if(_qrCatalogo && catCod && _qrCatalogo.categorias[catCod]){
+    var clas=_qrCatalogo.categorias[catCod].clasificaciones;
+    Object.keys(clas).forEach(function(cod){
+      var opt=document.createElement('option');
+      opt.value=cod; opt.textContent=cod+' - '+clas[cod];
+      selClas.appendChild(opt);
+    });
+  }
+}
+function rfPreviewNumero(){
+  var cat=document.getElementById('rf-cat-cod').value;
+  var clas=document.getElementById('rf-clas-cod').value;
+  var prov=document.getElementById('rf-prov-cod').value;
+  var prev=document.getElementById('rf-numero-preview');
+  if(!(cat&&clas&&prov)){prev.style.display='none';return;}
+  fetch('/api/refacciones/preview-numero?categoria_cod='+cat+'&clasificacion_cod='+clas+'&proveedor_cod='+prov)
+    .then(function(r){return r.json();}).then(function(d){
+      if(!d.numero_parte)return;
+      document.getElementById('rf-numero-texto').textContent=d.numero_parte+' (vista previa)';
+      document.getElementById('rf-qr-preview').innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=1F5C2E&data='+encodeURIComponent(d.numero_parte)+'" style="border-radius:6px;border:2px solid #1F5C2E">';
+      prev.style.display='block';
+    });
+}
 function rfCategoriaChange(sel){
   var inp=document.getElementById('rf-categoria-nueva');
   if(sel.value==='__nueva_cat__'){inp.style.display='';inp.focus();}
@@ -3679,7 +3759,10 @@ function saveRefaccion(e){
     costo:parseFloat(document.getElementById('rf-costo').value)||0,
     notas:document.getElementById('rf-notas').value,
     imagen_url:document.getElementById('rf-imagen-url').value.trim(),
-    foto_b64:document.getElementById('rf-img-b64').value||undefined
+    foto_b64:document.getElementById('rf-img-b64').value||undefined,
+    categoria_cod:document.getElementById('rf-cat-cod').value,
+    clasificacion_cod:document.getElementById('rf-clas-cod').value,
+    proveedor_cod:document.getElementById('rf-prov-cod').value
   };
   fetch('/api/refacciones'+(id?'/'+id:''),({method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}))
     .then(r=>r.json()).then(function(){closeRefModal();loadRefacciones();});

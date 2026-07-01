@@ -1,5 +1,6 @@
 import os, io, base64, sqlite3, json, hashlib
 from flask import Flask, request, send_file, jsonify
+from qr_catalog import CATEGORIAS as QR_CATEGORIAS, PROVEEDORES as QR_PROVEEDORES
 
 app = Flask(__name__)
 DATA_DIR = os.environ.get('DATA_DIR', '/app/data')
@@ -83,6 +84,14 @@ try:
     _mcon = get_db()
     _mcon.execute("ALTER TABLE refacciones ADD COLUMN imagen_url TEXT DEFAULT ''")
     _mcon.commit(); _mcon.close()
+except: pass
+
+# Migración: agregar numero_parte (para QR) si no existe.
+# Las refacciones ya existentes quedan con numero_parte='' (no se tocan/regeneran).
+try:
+    _npcon = get_db()
+    _npcon.execute("ALTER TABLE refacciones ADD COLUMN numero_parte TEXT DEFAULT ''")
+    _npcon.commit(); _npcon.close()
 except: pass
 
 # Seed imágenes de productos (UPDATE por nombre LIKE)
@@ -904,16 +913,26 @@ def api_get_refacciones():
 def api_create_refaccion():
     d = request.json
     con = get_db()
-    con.execute("INSERT INTO refacciones (nombre,descripcion,marca,modelo,categoria,criticidad,seccion,cant_min,stock_actual,tiempo_entrega,proveedor,ubicacion,costo,notas,foto_b64,imagen_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    # Numero de parte / QR: solo se genera si el usuario eligio categoria,
+    # clasificacion y proveedor (codigos del catalogo). Es opcional y no
+    # afecta a las refacciones existentes, que conservan numero_parte=''.
+    numero_parte = ''
+    cat_cod = d.get('categoria_cod', '')
+    clas_cod = d.get('clasificacion_cod', '')
+    prov_cod = d.get('proveedor_cod', '')
+    if cat_cod and clas_cod and prov_cod:
+        numero_parte = _build_numero_parte(con, cat_cod, clas_cod, prov_cod)
+    con.execute("INSERT INTO refacciones (nombre,descripcion,marca,modelo,categoria,criticidad,seccion,cant_min,stock_actual,tiempo_entrega,proveedor,ubicacion,costo,notas,foto_b64,imagen_url,numero_parte) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
          d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
          int(d.get('cant_min',1)),int(d.get('stock_actual',0)),
          d.get('tiempo_entrega',''),d.get('proveedor',''),d.get('ubicacion',''),
-         float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64',''),d.get('imagen_url','')))
+         float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64',''),d.get('imagen_url',''),
+         numero_parte))
     con.commit()
     new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0]
     con.close()
-    return jsonify({'ok': True, 'id': new_id})
+    return jsonify({'ok': True, 'id': new_id, 'numero_parte': numero_parte})
 
 @app.route('/api/refacciones/<int:ref_id>', methods=['PUT'])
 def api_update_refaccion(ref_id):
@@ -946,6 +965,48 @@ def api_delete_refaccion(ref_id):
     con.commit()
     con.close()
     return jsonify({'ok': True})
+
+
+# ---------------------------------------------------------------
+# Generación de número de parte / QR (solo para refacciones NUEVAS)
+# Basado en el catálogo de categorías/clasificaciones/proveedores
+# de "base_para__QR.xlsx". No afecta refacciones ya existentes.
+# ---------------------------------------------------------------
+
+@app.route('/api/qr-catalogo', methods=['GET'])
+def api_qr_catalogo():
+    return jsonify({'categorias': QR_CATEGORIAS, 'proveedores': QR_PROVEEDORES})
+
+
+def _build_numero_parte(con, cat_cod, clas_cod, prov_cod):
+    """Genera un numero_parte consecutivo tipo CAT-CLAS-PROV-0001, sin
+    reutilizar consecutivos ya usados para ese mismo prefijo."""
+    prefijo = f"{cat_cod}-{clas_cod}-{prov_cod}-"
+    rows = con.execute(
+        "SELECT numero_parte FROM refacciones WHERE numero_parte LIKE ?",
+        (prefijo + '%',)
+    ).fetchall()
+    maxn = 0
+    for r in rows:
+        try:
+            n = int(r['numero_parte'].split('-')[-1])
+            maxn = max(maxn, n)
+        except (ValueError, AttributeError, IndexError):
+            continue
+    return f"{prefijo}{maxn+1:04d}"
+
+
+@app.route('/api/refacciones/preview-numero', methods=['GET'])
+def api_preview_numero_parte():
+    cat_cod = request.args.get('categoria_cod', '')
+    clas_cod = request.args.get('clasificacion_cod', '')
+    prov_cod = request.args.get('proveedor_cod', '')
+    if not (cat_cod and clas_cod and prov_cod):
+        return jsonify({'error': 'Faltan categoria_cod, clasificacion_cod o proveedor_cod'}), 400
+    con = get_db()
+    numero = _build_numero_parte(con, cat_cod, clas_cod, prov_cod)
+    con.close()
+    return jsonify({'numero_parte': numero})
 
 
 @app.route('/api/refacciones/export/excel', methods=['GET'])
