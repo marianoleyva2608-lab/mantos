@@ -982,21 +982,24 @@ def api_qr_catalogo():
     return jsonify({'categorias': QR_CATEGORIAS, 'proveedores': QR_PROVEEDORES})
 
 
+EMPRESA_COD = 'A0'  # AD-PACK: prefijo fijo que llevan TODOS los numeros de parte
+
 def _build_numero_parte(con, cat_cod, clas_cod, prov_cod):
-    """Genera un numero_parte de 6 caracteres con el formato AD-PACK:
-       [Categoria 1 digito][Proveedor 2 caracteres][Clasificacion 1 digito][Secuencial 2 digitos]
-       Ejemplo: 5A0612 = Categoria 5 (500) + Proveedor A0 + Clasificacion 6 (600) + secuencial 12
+    """Genera un numero_parte de 8 caracteres con el formato AD-PACK:
+       [A0 empresa][Categoria 1 digito][Proveedor 2 caracteres][Clasificacion 1 digito][Secuencial 2 digitos]
+       Ejemplo: A08A0100 = A0 (empresa) + 8 (800=MANTENIMIENTO) + A0 (proveedor ADPACK)
+                + 1 (100=primera clasificacion) + 00 (secuencial)
        El secuencial 00-99 es consecutivo dentro de la MISMA combinacion
        categoria+proveedor+clasificacion (para no reutilizar ya usados)."""
     cat_dig = str(cat_cod)[0]
     clas_dig = str(clas_cod)[0]
     prov_cod = str(prov_cod).upper()
-    prefijo = f"{cat_dig}{prov_cod}{clas_dig}"
+    prefijo = f"{EMPRESA_COD}{cat_dig}{prov_cod}{clas_dig}"
     rows = con.execute(
-        "SELECT numero_parte FROM refacciones WHERE numero_parte LIKE ? AND length(numero_parte)=6",
+        "SELECT numero_parte FROM refacciones WHERE numero_parte LIKE ? AND length(numero_parte)=8",
         (prefijo + '__',)
     ).fetchall()
-    maxn = 0
+    maxn = -1
     for r in rows:
         try:
             n = int(r['numero_parte'][-2:])
