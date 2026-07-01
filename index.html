@@ -3318,8 +3318,9 @@ function renderRef(data){
           (r.ubicacion?'<b>Ubic:</b> '+r.ubicacion:'')
         +'</div>'+
       '</div>'+
-      '<div style="text-align:center;min-width:70px">'+
-        '<div style="font-size:20px;font-weight:bold;color:'+(low?'#C62828':'inherit')+'">'+r.stock_actual+'</div>'+
+      '<div style="text-align:center;min-width:70px;background:'+stockBg+';border-radius:10px;padding:8px 10px">'+
+        '<div style="font-size:9px;margin-bottom:2px">'+stockIcon+'</div>'+
+        '<div style="font-size:20px;font-weight:bold;color:'+stockColor+'">'+r.stock_actual+'</div>'+
         '<div style="font-size:10px;color:#999">min: '+r.cant_min+'</div>'+
       '</div>'+
       '<div style="display:flex;flex-direction:column;gap:6px">'+
