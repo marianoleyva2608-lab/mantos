@@ -3247,7 +3247,12 @@ async function verReq(id){
           <div><label style="font-size:12px;color:#555">Modelo / Núm. Parte</label><input id="rf-modelo" class="rf-inp" placeholder="6205-2RS"></div>
           <div><label style="font-size:12px;color:#555">Categoría</label><select id="rf-categoria" class="rf-inp"><option>Rodamientos</option><option>Bandas</option><option>Cadenas</option><option>Sellos</option><option>Filtros</option><option>Eléctrico</option><option>Hidráulico</option><option>Neumático</option><option>Tornillería</option><option>Otro</option></select></div>
           <div><label style="font-size:12px;color:#555">Criticidad</label><select id="rf-criticidad" class="rf-inp"><option value="ALTA">🔴 ALTA</option><option value="MEDIA" selected>🟡 MEDIA</option><option value="BAJA">🟢 BAJA</option></select></div>
-          <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Sección / Equipo</label><input id="rf-seccion" class="rf-inp" placeholder="TF01, Compresor..."></div>
+          <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Sección / Equipo</label>
+          <select id="rf-seccion" class="rf-inp" onchange="rfSeccionChange(this)">
+            <option value="">-- Seleccionar sección --</option>
+            <option value="__nueva__">➕ Nueva sección...</option>
+          </select>
+          <input id="rf-seccion-nueva" class="rf-inp" placeholder="Nombre de la nueva sección" style="display:none;margin-top:6px"></div>
           <div><label style="font-size:12px;color:#555">Stock Actual</label><input type="number" id="rf-stock" class="rf-inp" value="0" min="0"></div>
           <div><label style="font-size:12px;color:#555">Stock Mínimo</label><input type="number" id="rf-min" class="rf-inp" value="1" min="0"></div>
           <div><label style="font-size:12px;color:#555">Proveedor</label><input id="rf-proveedor" class="rf-inp" placeholder="Proveedor"></div>
@@ -3276,7 +3281,7 @@ async function verReq(id){
 
 <script>
 var _refData=[];
-function loadRefacciones(){fetch('/api/refacciones').then(r=>r.json()).then(d=>{_refData=d;renderRef(d);renderRefStats(d);});}
+function loadRefacciones(){fetch('/api/refacciones').then(r=>r.json()).then(d=>{_refData=d;renderRef(d);renderRefStats(d);populateSeccionSelect(d);});}
 function renderRefStats(data){
   var total=data.length,bajo=data.filter(r=>r.stock_actual<=r.cant_min).length,alta=data.filter(r=>r.criticidad==='ALTA').length;
   document.getElementById('ref-stats').innerHTML=
@@ -3322,13 +3327,30 @@ function filterRef(){renderRef(_refData);}
 function openRefModal(data){
   document.getElementById('ref-id').value=data?data.id:'';
   document.getElementById('ref-modal-title').textContent=data?'Editar Refacción':'Nueva Refacción';
-  ['nombre','descripcion','marca','modelo','categoria','criticidad','seccion','ubicacion','proveedor','tiempo','notas'].forEach(function(k){
+  ['nombre','descripcion','marca','modelo','categoria','criticidad','ubicacion','proveedor','tiempo','notas'].forEach(function(k){
     var el=document.getElementById('rf-'+k);
     if(el&&data)el.value=data[k==='tiempo'?'tiempo_entrega':k]||'';
     else if(el&&!data)el.value=(k==='criticidad'?'MEDIA':k==='categoria'?'Rodamientos':'');
   });
   document.getElementById('rf-stock').value=data?data.stock_actual:0;
   document.getElementById('rf-min').value=data?data.cant_min:1;
+  // Sección: set select, or add as custom option if not in list
+  (function(){
+    var sec=data?data.seccion||'':'';
+    var sel=document.getElementById('rf-seccion');
+    var inp=document.getElementById('rf-seccion-nueva');
+    inp.style.display='none'; inp.value='';
+    // Check if option exists
+    var found=false;
+    for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===sec){found=true;break;}}
+    if(!found&&sec){
+      // Add it temporarily before the "nueva" option
+      var opt=document.createElement('option');
+      opt.value=sec;opt.textContent=sec;
+      sel.insertBefore(opt,sel.options[sel.options.length-1]);
+    }
+    sel.value=sec||'';
+  })();
   document.getElementById('rf-costo').value=data?data.costo:0;
   var imgUrl=data&&data.imagen_url?data.imagen_url:'';
   document.getElementById('rf-imagen-url').value=imgUrl;
@@ -3375,6 +3397,25 @@ function verRef(id){
 }
 function cerrarInfoModal(){document.getElementById('ref-info-modal').style.display='none';}
 
+function rfSeccionChange(sel){
+  var inp=document.getElementById('rf-seccion-nueva');
+  if(sel.value==='__nueva__'){inp.style.display='';inp.focus();}
+  else{inp.style.display='none';inp.value='';}
+}
+function getSeccionValue(){
+  var sel=document.getElementById('rf-seccion');
+  if(sel.value==='__nueva__')return document.getElementById('rf-seccion-nueva').value.trim();
+  return sel.value;
+}
+function populateSeccionSelect(data){
+  var secs=[...new Set(data.map(function(r){return r.seccion;}).filter(Boolean))].sort();
+  var sel=document.getElementById('rf-seccion');
+  var current=getSeccionValue();
+  sel.innerHTML='<option value="">-- Seleccionar sección --</option>'+
+    secs.map(function(s){return '<option value="'+s+'">'+s+'</option>';}).join('')+
+    '<option value="__nueva__">➕ Nueva sección...</option>';
+  if(current&&secs.indexOf(current)>=0)sel.value=current;
+}
 function closeRefModal(){document.getElementById('ref-modal').style.display='none';}
 function editRef(id){var r=_refData.find(function(x){return x.id===id;});if(r)openRefModal(r);}
 function saveRefaccion(e){
@@ -3387,7 +3428,7 @@ function saveRefaccion(e){
     modelo:document.getElementById('rf-modelo').value,
     categoria:document.getElementById('rf-categoria').value,
     criticidad:document.getElementById('rf-criticidad').value,
-    seccion:document.getElementById('rf-seccion').value,
+    seccion:getSeccionValue(),
     stock_actual:parseInt(document.getElementById('rf-stock').value)||0,
     cant_min:parseInt(document.getElementById('rf-min').value)||1,
     proveedor:document.getElementById('rf-proveedor').value,
