@@ -921,7 +921,11 @@ def api_create_refaccion():
     clas_cod = d.get('clasificacion_cod', '')
     prov_cod = d.get('proveedor_cod', '')
     if cat_cod and clas_cod and prov_cod:
-        numero_parte = _build_numero_parte(con, cat_cod, clas_cod, prov_cod)
+        try:
+            numero_parte = _build_numero_parte(con, cat_cod, clas_cod, prov_cod)
+        except ValueError as e:
+            con.close()
+            return jsonify({'error': str(e)}), 409
     con.execute("INSERT INTO refacciones (nombre,descripcion,marca,modelo,categoria,criticidad,seccion,cant_min,stock_actual,tiempo_entrega,proveedor,ubicacion,costo,notas,foto_b64,imagen_url,numero_parte) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
          d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
@@ -979,21 +983,29 @@ def api_qr_catalogo():
 
 
 def _build_numero_parte(con, cat_cod, clas_cod, prov_cod):
-    """Genera un numero_parte consecutivo tipo CAT-CLAS-PROV-0001, sin
-    reutilizar consecutivos ya usados para ese mismo prefijo."""
-    prefijo = f"{cat_cod}-{clas_cod}-{prov_cod}-"
+    """Genera un numero_parte de 6 caracteres con el formato AD-PACK:
+       [Categoria 1 digito][Proveedor 2 caracteres][Clasificacion 1 digito][Secuencial 2 digitos]
+       Ejemplo: 5A0612 = Categoria 5 (500) + Proveedor A0 + Clasificacion 6 (600) + secuencial 12
+       El secuencial 00-99 es consecutivo dentro de la MISMA combinacion
+       categoria+proveedor+clasificacion (para no reutilizar ya usados)."""
+    cat_dig = str(cat_cod)[0]
+    clas_dig = str(clas_cod)[0]
+    prov_cod = str(prov_cod).upper()
+    prefijo = f"{cat_dig}{prov_cod}{clas_dig}"
     rows = con.execute(
-        "SELECT numero_parte FROM refacciones WHERE numero_parte LIKE ?",
-        (prefijo + '%',)
+        "SELECT numero_parte FROM refacciones WHERE numero_parte LIKE ? AND length(numero_parte)=6",
+        (prefijo + '__',)
     ).fetchall()
     maxn = 0
     for r in rows:
         try:
-            n = int(r['numero_parte'].split('-')[-1])
+            n = int(r['numero_parte'][-2:])
             maxn = max(maxn, n)
-        except (ValueError, AttributeError, IndexError):
+        except (ValueError, TypeError, IndexError):
             continue
-    return f"{prefijo}{maxn+1:04d}"
+    if maxn >= 99:
+        raise ValueError(f"Se agotaron los consecutivos (00-99) para el prefijo {prefijo}")
+    return f"{prefijo}{maxn+1:02d}"
 
 
 @app.route('/api/refacciones/preview-numero', methods=['GET'])
@@ -1004,7 +1016,11 @@ def api_preview_numero_parte():
     if not (cat_cod and clas_cod and prov_cod):
         return jsonify({'error': 'Faltan categoria_cod, clasificacion_cod o proveedor_cod'}), 400
     con = get_db()
-    numero = _build_numero_parte(con, cat_cod, clas_cod, prov_cod)
+    try:
+        numero = _build_numero_parte(con, cat_cod, clas_cod, prov_cod)
+    except ValueError as e:
+        con.close()
+        return jsonify({'error': str(e)}), 409
     con.close()
     return jsonify({'numero_parte': numero})
 
