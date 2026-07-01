@@ -919,6 +919,16 @@ def api_create_refaccion():
 def api_update_refaccion(ref_id):
     d = request.json
     con = get_db()
+    # Patch parcial (solo foto_b64)
+    if d.get('_patch'):
+        fields=[]; vals=[]
+        for col in ['foto_b64','imagen_url','stock_actual','cant_min']:
+            if col in d: fields.append(col+'=?'); vals.append(d[col])
+        if fields:
+            vals.append(ref_id)
+            con.execute('UPDATE refacciones SET '+','.join(fields)+',updated_at=CURRENT_TIMESTAMP WHERE id=?', vals)
+            con.commit(); con.close()
+        return jsonify({'ok': True})
     con.execute("UPDATE refacciones SET nombre=?,descripcion=?,marca=?,modelo=?,categoria=?,criticidad=?,seccion=?,cant_min=?,stock_actual=?,tiempo_entrega=?,proveedor=?,ubicacion=?,costo=?,notas=?,foto_b64=?,imagen_url=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
         (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
          d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
