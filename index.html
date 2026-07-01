@@ -3245,7 +3245,12 @@ async function verReq(id){
           <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Descripción</label><input id="rf-descripcion" class="rf-inp" placeholder="Descripción breve"></div>
           <div><label style="font-size:12px;color:#555">Marca</label><input id="rf-marca" class="rf-inp" placeholder="SKF, FAG..."></div>
           <div><label style="font-size:12px;color:#555">Modelo / Núm. Parte</label><input id="rf-modelo" class="rf-inp" placeholder="6205-2RS"></div>
-          <div><label style="font-size:12px;color:#555">Categoría</label><select id="rf-categoria" class="rf-inp"><option>Rodamientos</option><option>Bandas</option><option>Cadenas</option><option>Sellos</option><option>Filtros</option><option>Eléctrico</option><option>Hidráulico</option><option>Neumático</option><option>Tornillería</option><option>Otro</option></select></div>
+          <div><label style="font-size:12px;color:#555">Categoría</label>
+            <select id="rf-categoria" class="rf-inp" onchange="rfCategoriaChange(this)">
+              <option>Rodamientos</option><option>Bandas</option><option>Cadenas</option><option>Sellos</option><option>Filtros</option><option>Eléctrico</option><option>Hidráulico</option><option>Neumático</option><option>Tornillería</option><option>Consumible</option><option>Control temp.</option><option>Contactor</option><option>Relevador</option><option>SSR</option><option>Timer</option><option>Fuente DC</option><option>Resistencia</option><option>Electroválvula</option><option>Instrumento</option><option>Lubricante</option><option>Cable</option><option>Terminal</option><option>Conector</option><option>Fusible</option><option>Pulsador</option><option>Selector</option><option>Protección</option><option>Rodamiento</option><option>Manguera</option><option>Válvula</option><option>Herramienta</option><option>Otro</option>
+              <option value="__nueva_cat__">➕ Nueva categoría...</option>
+            </select>
+            <input id="rf-categoria-nueva" class="rf-inp" placeholder="Nombre de la nueva categoría" style="display:none;margin-top:6px"></div>
           <div><label style="font-size:12px;color:#555">Criticidad</label><select id="rf-criticidad" class="rf-inp"><option value="ALTA">🔴 ALTA</option><option value="MEDIA" selected>🟡 MEDIA</option><option value="BAJA">🟢 BAJA</option></select></div>
           <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Sección / Equipo</label>
           <select id="rf-seccion" class="rf-inp" onchange="rfSeccionChange(this)">
@@ -3281,9 +3286,9 @@ async function verReq(id){
 
 <script>
 var _refData=[];
-function loadRefacciones(){fetch('/api/refacciones').then(r=>r.json()).then(d=>{_refData=d;renderRef(d);renderRefStats(d);populateSeccionSelect(d);});}
+function loadRefacciones(){fetch('/api/refacciones').then(r=>r.json()).then(d=>{_refData=d;renderRef(d);renderRefStats(d);populateSeccionSelect(d);populateCategoriaSelect(d);});}
 function renderRefStats(data){
-  var total=data.length,bajo=data.filter(r=>r.stock_actual<=r.cant_min).length,alta=data.filter(r=>r.criticidad==='ALTA').length;
+  var total=data.length,bajo=data.filter(r=>r.stock_actual<r.cant_min).length,alta=data.filter(r=>r.criticidad==='ALTA').length;
   document.getElementById('ref-stats').innerHTML=
     '<div style="background:#E8F5E9;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:bold;color:#1F5C2E">'+total+'</div><div style="font-size:11px;color:#555">Total</div></div>'+
     '<div style="background:#FFF3E0;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:bold;color:#E65100">'+bajo+'</div><div style="font-size:11px;color:#555">Stock Bajo</div></div>'+
@@ -3296,7 +3301,7 @@ function renderRef(data){
   var html='',sec='';
   filtered.forEach(function(r){
     if(r.seccion!==sec){sec=r.seccion;html+='<div style="font-weight:bold;color:#1F5C2E;margin:14px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:1px">'+(sec||'Sin sección')+'</div>';}
-    var low=r.stock_actual<=r.cant_min;
+    var low=r.stock_actual<r.cant_min;
     html+='<div class="ref-card" onclick="verRef('+r.id+')" style="cursor:pointer">'+
       '<div style="flex:1">'+
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
@@ -3327,10 +3332,10 @@ function filterRef(){renderRef(_refData);}
 function openRefModal(data){
   document.getElementById('ref-id').value=data?data.id:'';
   document.getElementById('ref-modal-title').textContent=data?'Editar Refacción':'Nueva Refacción';
-  ['nombre','descripcion','marca','modelo','categoria','criticidad','ubicacion','proveedor','tiempo','notas'].forEach(function(k){
+  ['nombre','descripcion','marca','modelo','criticidad','ubicacion','proveedor','tiempo','notas'].forEach(function(k){
     var el=document.getElementById('rf-'+k);
     if(el&&data)el.value=data[k==='tiempo'?'tiempo_entrega':k]||'';
-    else if(el&&!data)el.value=(k==='criticidad'?'MEDIA':k==='categoria'?'Rodamientos':'');
+    else if(el&&!data)el.value=(k==='criticidad'?'MEDIA':'');
   });
   document.getElementById('rf-stock').value=data?data.stock_actual:0;
   document.getElementById('rf-min').value=data?data.cant_min:1;
@@ -3350,6 +3355,21 @@ function openRefModal(data){
       sel.insertBefore(opt,sel.options[sel.options.length-1]);
     }
     sel.value=sec||'';
+  })();
+  // Categoría: set select or add as custom option
+  (function(){
+    var cat=data?data.categoria||'':'Rodamientos';
+    var sel=document.getElementById('rf-categoria');
+    var inp=document.getElementById('rf-categoria-nueva');
+    inp.style.display='none'; inp.value='';
+    var found=false;
+    for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===cat||sel.options[i].text===cat){found=true;break;}}
+    if(!found&&cat){
+      var opt=document.createElement('option');
+      opt.value=cat;opt.textContent=cat;
+      sel.insertBefore(opt,sel.options[sel.options.length-1]);
+    }
+    sel.value=cat;
   })();
   document.getElementById('rf-costo').value=data?data.costo:0;
   var imgUrl=data&&data.imagen_url?data.imagen_url:'';
@@ -3397,6 +3417,16 @@ function verRef(id){
 }
 function cerrarInfoModal(){document.getElementById('ref-info-modal').style.display='none';}
 
+function rfCategoriaChange(sel){
+  var inp=document.getElementById('rf-categoria-nueva');
+  if(sel.value==='__nueva_cat__'){inp.style.display='';inp.focus();}
+  else{inp.style.display='none';inp.value='';}
+}
+function getCategoriaValue(){
+  var sel=document.getElementById('rf-categoria');
+  if(sel.value==='__nueva_cat__')return document.getElementById('rf-categoria-nueva').value.trim();
+  return sel.value;
+}
 function rfSeccionChange(sel){
   var inp=document.getElementById('rf-seccion-nueva');
   if(sel.value==='__nueva__'){inp.style.display='';inp.focus();}
@@ -3406,6 +3436,22 @@ function getSeccionValue(){
   var sel=document.getElementById('rf-seccion');
   if(sel.value==='__nueva__')return document.getElementById('rf-seccion-nueva').value.trim();
   return sel.value;
+}
+function populateCategoriaSelect(data){
+  var cats=[...new Set(data.map(function(r){return r.categoria;}).filter(Boolean))].sort();
+  var sel=document.getElementById('rf-categoria');
+  var current=getCategoriaValue();
+  // Keep all existing hardcoded options, just add any new ones from data before "nueva"
+  var existing=[];
+  for(var i=0;i<sel.options.length-1;i++)existing.push(sel.options[i].value||sel.options[i].text);
+  cats.forEach(function(c){
+    if(existing.indexOf(c)<0){
+      var opt=document.createElement('option');
+      opt.value=c;opt.textContent=c;
+      sel.insertBefore(opt,sel.options[sel.options.length-1]);
+      existing.push(c);
+    }
+  });
 }
 function populateSeccionSelect(data){
   var secs=[...new Set(data.map(function(r){return r.seccion;}).filter(Boolean))].sort();
@@ -3426,7 +3472,7 @@ function saveRefaccion(e){
     descripcion:document.getElementById('rf-descripcion').value,
     marca:document.getElementById('rf-marca').value,
     modelo:document.getElementById('rf-modelo').value,
-    categoria:document.getElementById('rf-categoria').value,
+    categoria:getCategoriaValue(),
     criticidad:document.getElementById('rf-criticidad').value,
     seccion:getSeccionValue(),
     stock_actual:parseInt(document.getElementById('rf-stock').value)||0,
