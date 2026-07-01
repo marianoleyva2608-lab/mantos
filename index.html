@@ -3220,6 +3220,36 @@ async function verReq(id){
       <a href="/api/refacciones/export/pdf" style="background:#B71C1C;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:15px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px">&#128196; Exportar PDF</a>
       <input id="ref-search" type="text" placeholder="Buscar..." oninput="filterRef()" style="padding:8px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;flex:1;min-width:180px">
     </div>
+    <!-- Filtros y ordenamiento -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+      <span style="font-size:12px;color:#555;font-weight:bold">Ordenar:</span>
+      <select id="ref-sort" onchange="filterRef()" style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;cursor:pointer">
+        <option value="seccion">📁 Sección</option>
+        <option value="stock_desc">📦 Stock: Mayor → Menor</option>
+        <option value="stock_asc">📦 Stock: Menor → Mayor</option>
+        <option value="nombre">🔤 Nombre A-Z</option>
+        <option value="marca">🏷️ Marca A-Z</option>
+        <option value="categoria">📂 Categoría</option>
+        <option value="criticidad">🚨 Criticidad</option>
+      </select>
+      <span style="font-size:12px;color:#555;font-weight:bold;margin-left:8px">Filtrar:</span>
+      <select id="ref-filter-crit" onchange="filterRef()" style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;cursor:pointer">
+        <option value="">🚦 Criticidad: Todas</option>
+        <option value="ALTA">🔴 ALTA</option>
+        <option value="MEDIA">🟡 MEDIA</option>
+        <option value="BAJA">🟢 BAJA</option>
+      </select>
+      <select id="ref-filter-stock" onchange="filterRef()" style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;cursor:pointer">
+        <option value="">📊 Stock: Todos</option>
+        <option value="bajo">🔴 Stock bajo mínimo</option>
+        <option value="minimo">🟡 En mínimo</option>
+        <option value="ok">🟢 Stock OK</option>
+      </select>
+      <select id="ref-filter-cat" onchange="filterRef()" style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;cursor:pointer">
+        <option value="">📂 Categoría: Todas</option>
+      </select>
+      <button onclick="resetFiltros()" style="padding:6px 12px;border:1px solid #aaa;border-radius:6px;font-size:12px;background:#fff;cursor:pointer;color:#555">↺ Limpiar</button>
+    </div>
     <div id="ref-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
     <div id="ref-list"></div>
   </div>
@@ -3286,7 +3316,7 @@ async function verReq(id){
 
 <script>
 var _refData=[];
-function loadRefacciones(){fetch('/api/refacciones').then(r=>r.json()).then(d=>{_refData=d;renderRef(d);renderRefStats(d);populateSeccionSelect(d);populateCategoriaSelect(d);});}
+function loadRefacciones(){fetch('/api/refacciones').then(r=>r.json()).then(d=>{_refData=d;renderRef(d);renderRefStats(d);populateSeccionSelect(d);populateCategoriaSelect(d);populateCatFilter(d);});}
 function renderRefStats(data){
   var total=data.length,bajo=data.filter(r=>r.stock_actual<r.cant_min).length,alta=data.filter(r=>r.criticidad==='ALTA').length;
   document.getElementById('ref-stats').innerHTML=
@@ -3294,13 +3324,55 @@ function renderRefStats(data){
     '<div style="background:#FFF3E0;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:bold;color:#E65100">'+bajo+'</div><div style="font-size:11px;color:#555">Stock Bajo</div></div>'+
     '<div style="background:#FFEBEE;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:bold;color:#C62828">'+alta+'</div><div style="font-size:11px;color:#555">Críticas</div></div>';
 }
+function resetFiltros(){
+  document.getElementById('ref-sort').value='seccion';
+  document.getElementById('ref-filter-crit').value='';
+  document.getElementById('ref-filter-stock').value='';
+  document.getElementById('ref-filter-cat').value='';
+  document.getElementById('ref-search').value='';
+  renderRef(_refData);
+}
+function populateCatFilter(data){
+  var cats=[...new Set(data.map(function(r){return r.categoria;}).filter(Boolean))].sort();
+  var sel=document.getElementById('ref-filter-cat');
+  if(!sel)return;
+  var cur=sel.value;
+  sel.innerHTML='<option value="">📂 Categoría: Todas</option>'+
+    cats.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
+  if(cur)sel.value=cur;
+}
 function renderRef(data){
   var q=(document.getElementById('ref-search')||{value:''}).value.toLowerCase();
-  var filtered=q?data.filter(r=>(r.nombre+r.seccion+r.categoria+r.proveedor).toLowerCase().includes(q)):data;
+  var sort=(document.getElementById('ref-sort')||{value:'seccion'}).value;
+  var fCrit=(document.getElementById('ref-filter-crit')||{value:''}).value;
+  var fStock=(document.getElementById('ref-filter-stock')||{value:''}).value;
+  var fCat=(document.getElementById('ref-filter-cat')||{value:''}).value;
+  var filtered=data.slice();
+  if(q)filtered=filtered.filter(r=>(r.nombre+r.seccion+r.categoria+r.proveedor+r.marca).toLowerCase().includes(q));
+  if(fCrit)filtered=filtered.filter(r=>r.criticidad===fCrit);
+  if(fCat)filtered=filtered.filter(r=>r.categoria===fCat);
+  if(fStock==='bajo')filtered=filtered.filter(r=>r.stock_actual<r.cant_min);
+  else if(fStock==='minimo')filtered=filtered.filter(r=>r.stock_actual===r.cant_min);
+  else if(fStock==='ok')filtered=filtered.filter(r=>r.stock_actual>r.cant_min);
+  // Sort
+  var critOrder={'ALTA':0,'MEDIA':1,'BAJA':2};
+  if(sort==='stock_desc')filtered.sort(function(a,b){return b.stock_actual-a.stock_actual;});
+  else if(sort==='stock_asc')filtered.sort(function(a,b){return a.stock_actual-b.stock_actual;});
+  else if(sort==='nombre')filtered.sort(function(a,b){return a.nombre.localeCompare(b.nombre);});
+  else if(sort==='marca')filtered.sort(function(a,b){return (a.marca||'').localeCompare(b.marca||'');});
+  else if(sort==='categoria')filtered.sort(function(a,b){return (a.categoria||'').localeCompare(b.categoria||'');});
+  else if(sort==='criticidad')filtered.sort(function(a,b){return (critOrder[a.criticidad]||1)-(critOrder[b.criticidad]||1);});
+  else filtered.sort(function(a,b){return (a.seccion||'').localeCompare(b.seccion||'')||a.nombre.localeCompare(b.nombre);});
   if(!filtered.length){document.getElementById('ref-list').innerHTML='<p style="color:#888;text-align:center;padding:30px">Sin resultados</p>';return;}
-  var html='',sec='';
+  var html='',lastGroup='';
   filtered.forEach(function(r){
-    if(r.seccion!==sec){sec=r.seccion;html+='<div style="font-weight:bold;color:#1F5C2E;margin:14px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:1px">'+(sec||'Sin sección')+'</div>';}
+    // Group header based on sort mode
+    var groupVal='';
+    if(sort==='seccion')groupVal=r.seccion||'Sin sección';
+    else if(sort==='categoria')groupVal=r.categoria||'Sin categoría';
+    else if(sort==='criticidad')groupVal=r.criticidad||'Sin criticidad';
+    else if(sort==='marca')groupVal=r.marca||'Sin marca';
+    if(groupVal&&groupVal!==lastGroup){lastGroup=groupVal;html+='<div style="font-weight:bold;color:#1F5C2E;margin:14px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:1px">'+groupVal+'</div>';}
     var stockColor=r.stock_actual<r.cant_min?'#C62828':(r.stock_actual===r.cant_min?'#F57F17':'#2E7D32');
     var stockBg=r.stock_actual<r.cant_min?'#FFEBEE':(r.stock_actual===r.cant_min?'#FFF8E1':'#E8F5E9');
     var stockIcon=r.stock_actual<r.cant_min?'🔴':(r.stock_actual===r.cant_min?'🟡':'🟢');
