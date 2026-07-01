@@ -3301,7 +3301,9 @@ function renderRef(data){
   var html='',sec='';
   filtered.forEach(function(r){
     if(r.seccion!==sec){sec=r.seccion;html+='<div style="font-weight:bold;color:#1F5C2E;margin:14px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:1px">'+(sec||'Sin sección')+'</div>';}
-    var low=r.stock_actual<r.cant_min;
+    var stockColor=r.stock_actual<r.cant_min?'#C62828':(r.stock_actual===r.cant_min?'#F57F17':'#2E7D32');
+    var stockBg=r.stock_actual<r.cant_min?'#FFEBEE':(r.stock_actual===r.cant_min?'#FFF8E1':'#E8F5E9');
+    var stockIcon=r.stock_actual<r.cant_min?'🔴':(r.stock_actual===r.cant_min?'🟡':'🟢');
     html+='<div class="ref-card" onclick="verRef('+r.id+')" style="cursor:pointer">'+
       '<div style="flex:1">'+
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
