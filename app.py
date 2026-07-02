@@ -953,15 +953,34 @@ def api_update_refaccion(ref_id):
             con.execute('UPDATE refacciones SET '+','.join(fields)+',updated_at=CURRENT_TIMESTAMP WHERE id=?', vals)
             con.commit(); con.close()
         return jsonify({'ok': True})
-    con.execute("UPDATE refacciones SET nombre=?,descripcion=?,marca=?,modelo=?,categoria=?,criticidad=?,seccion=?,cant_min=?,stock_actual=?,tiempo_entrega=?,proveedor=?,ubicacion=?,costo=?,notas=?,foto_b64=?,imagen_url=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+
+    # Numero de parte: SOLO se asigna si la refaccion aun no tiene uno.
+    # Si ya tiene, se conserva tal cual (nunca se sobreescribe/regenera).
+    row = con.execute('SELECT numero_parte FROM refacciones WHERE id=?', (ref_id,)).fetchone()
+    numero_parte_actual = row['numero_parte'] if row else ''
+    numero_parte_final = numero_parte_actual
+    if not numero_parte_actual:
+        planta_cod = d.get('planta_cod', '')
+        grupo = d.get('grupo', '')
+        categoria_qr = d.get('categoria_qr', '')
+        prov_cod = d.get('proveedor_cod', '')
+        if planta_cod and grupo and categoria_qr and prov_cod:
+            try:
+                numero_parte_final = _build_numero_parte(con, planta_cod, grupo, categoria_qr, prov_cod)
+            except ValueError as e:
+                con.close()
+                return jsonify({'error': str(e)}), 409
+
+    con.execute("UPDATE refacciones SET nombre=?,descripcion=?,marca=?,modelo=?,categoria=?,criticidad=?,seccion=?,cant_min=?,stock_actual=?,tiempo_entrega=?,proveedor=?,ubicacion=?,costo=?,notas=?,foto_b64=?,imagen_url=?,numero_parte=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
         (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
          d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
          int(d.get('cant_min',1)),int(d.get('stock_actual',0)),
          d.get('tiempo_entrega',''),d.get('proveedor',''),d.get('ubicacion',''),
-         float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64',''),d.get('imagen_url',''),ref_id))
+         float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64',''),d.get('imagen_url',''),
+         numero_parte_final,ref_id))
     con.commit()
     con.close()
-    return jsonify({'ok': True})
+    return jsonify({'ok': True, 'numero_parte': numero_parte_final})
 
 @app.route('/api/refacciones/<int:ref_id>', methods=['DELETE'])
 def api_delete_refaccion(ref_id):
