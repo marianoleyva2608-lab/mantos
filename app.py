@@ -94,6 +94,97 @@ try:
     _npcon.commit(); _npcon.close()
 except: pass
 
+# ---------------------------------------------------------------------------
+# Migracion (una sola vez, idempotente): asignar numero_parte a refacciones
+# que YA EXISTIAN antes de este cambio y que aun no tienen codigo. No toca
+# stock_actual, cant_min, ni ningun otro campo; solo llena numero_parte.
+# Mapea la 'categoria' de texto libre ya usada en la app al Grupo/Categoria
+# del catalogo QR (mejor esfuerzo), y el 'proveedor' de texto libre al
+# codigo de proveedor mas parecido; si no encuentra coincidencia usa A0
+# (ADPACK) como proveedor generico.
+# ---------------------------------------------------------------------------
+import unicodedata as _ud
+
+def _norm(s):
+    s = (s or '').strip().upper()
+    s = _ud.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii')
+    return s
+
+_CATEGORIA_QR_MAP = {
+    'SSR': ('Eléctrico', 'SSR'),
+    'TIMER': ('Eléctrico', 'Timer'),
+    'FUENTE DC': ('Eléctrico', 'Fuente DC'),
+    'RESISTENCIA': ('Calentamiento', 'Resistencia'),
+    'ELECTROVALVULA': ('Hidráulico', 'Electrovalvula'),
+    'INSTRUMENTO': ('Eléctrico', 'Instrumento'),
+    'LUBRICANTE': ('Mecánico', 'Lubricante'),
+    'CABLE': ('Eléctrico', 'Cable'),
+    'TERMINAL': ('Eléctrico', 'Terminal'),
+    'CONECTOR': ('Eléctrico', 'Conector'),
+    'FUSIBLE': ('Eléctrico', 'Fusible'),
+    'PULSADOR': ('Eléctrico', 'Pulsador'),
+    'SELECTOR': ('Eléctrico', 'Otro'),
+    'PROTECCION': ('Eléctrico', 'Protección'),
+    'RODAMIENTO': ('Mecánico', 'Rodamiento'),
+    'RODAMIENTOS': ('Mecánico', 'Rodamiento'),
+    'MANGUERA': ('Hidráulico', 'Manguera'),
+    'VALVULA': ('Hidráulico', 'Válvula'),
+    'HERRAMIENTA': ('Mecánico', 'Otro'),
+    'CONDENSADOR': ('Eléctrico', 'Condensador'),
+    'INSTRUMENTACION': ('Eléctrico', 'Instrumentación'),
+    'MECANICO': ('Mecánico', 'Otro'),
+    'REFACCIONES': ('Mecánico', 'Otro'),
+    'SENSOR': ('Eléctrico', 'Instrumento'),
+    'BANDAS': ('Mecánico', 'Otro'),
+    'CADENAS': ('Mecánico', 'Otro'),
+    'SELLOS': ('Mecánico', 'Otro'),
+    'FILTROS': ('Hidráulico', 'Otro'),
+    'ELECTRICO': ('Eléctrico', 'Otro'),
+    'HIDRAULICO': ('Hidráulico', 'Otro'),
+    'NEUMATICO': ('Hidráulico', 'Otro'),
+    'TORNILLERIA': ('Mecánico', 'Otro'),
+    'CONSUMIBLE': ('Mecánico', 'Otro'),
+    'CONSUMIBLES': ('Mecánico', 'Otro'),
+    'CONTROL TEMP.': ('Eléctrico', 'Instrumento'),
+    'CONTACTOR': ('Eléctrico', 'Otro'),
+    'RELEVADOR': ('Eléctrico', 'Otro'),
+    'OTRO': ('Mecánico', 'Otro'),
+}
+_CATEGORIA_QR_DEFAULT = ('Mecánico', 'Otro')
+
+def _match_proveedor_cod(proveedor_texto):
+    t = _norm(proveedor_texto)
+    if not t:
+        return 'A0'
+    for cod, nombre in QR_PROVEEDORES.items():
+        n = _norm(nombre)
+        if t == n or t in n or n in t:
+            return cod
+    return 'A0'  # ADPACK como proveedor generico si no hay coincidencia
+
+def _migrar_numero_parte_existentes():
+    con = get_db()
+    pendientes = con.execute(
+        "SELECT id, categoria, proveedor FROM refacciones WHERE numero_parte='' OR numero_parte IS NULL"
+    ).fetchall()
+    asignados, sin_espacio = 0, []
+    for row in pendientes:
+        grupo, categoria_qr = _CATEGORIA_QR_MAP.get(_norm(row['categoria']), _CATEGORIA_QR_DEFAULT)
+        prov_cod = _match_proveedor_cod(row['proveedor'])
+        try:
+            numero = _build_numero_parte(con, 'A0', grupo, categoria_qr, prov_cod)
+        except ValueError:
+            sin_espacio.append(row['id'])
+            continue
+        con.execute("UPDATE refacciones SET numero_parte=? WHERE id=?", (numero, row['id']))
+        asignados += 1
+    con.commit()
+    con.close()
+    if asignados or sin_espacio:
+        print(f"[migracion numero_parte] asignados={asignados} sin_espacio={sin_espacio}")
+
+
+
 # Seed imágenes de productos (UPDATE por nombre LIKE)
 try:
     _icon = get_db()
@@ -1033,6 +1124,14 @@ def _build_numero_parte(con, planta_cod, grupo, categoria, prov_cod):
         if n not in usados:
             return f"{planta_cod}{QR_CATEGORIA_FIJA}{prov_cod}{n:03d}"
     raise ValueError(f"Se agotaron los codigos disponibles para {grupo} / {categoria} ({desde}-{hasta})")
+
+
+# Ejecutar migracion de numero_parte para refacciones existentes (idempotente:
+# solo toca las que tienen numero_parte vacio, no afecta stock/otros datos).
+try:
+    _migrar_numero_parte_existentes()
+except Exception as _e:
+    print(f"[migracion numero_parte] error: {_e}")
 
 
 @app.route('/api/refacciones/preview-numero', methods=['GET'])
