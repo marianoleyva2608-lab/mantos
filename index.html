@@ -3314,19 +3314,20 @@ async function verReq(id){
           <input id="rf-seccion-nueva" class="rf-inp" placeholder="Nombre de la nueva sección" style="display:none;margin-top:6px"></div>
           <div><label style="font-size:12px;color:#555">Stock Actual</label><input type="number" id="rf-stock" class="rf-inp" value="0" min="0"></div>
           <div><label style="font-size:12px;color:#555">Stock Mínimo</label><input type="number" id="rf-min" class="rf-inp" value="1" min="0"></div>
-          <div><label style="font-size:12px;color:#555">Proveedor</label><input id="rf-proveedor" class="rf-inp" placeholder="Proveedor"></div>
+          <div><label style="font-size:12px;color:#555">Proveedor</label>
+            <select id="rf-proveedor" class="rf-inp" onchange="rfProveedorChange(this);rfPreviewNumero()">
+              <option value="">-- Seleccionar proveedor --</option>
+              <option value="__nuevo_prov__">➕ Agregar proveedor...</option>
+            </select>
+            <input id="rf-proveedor-nuevo" class="rf-inp" placeholder="Nombre del proveedor nuevo" style="display:none;margin-top:6px"></div>
           <div><label style="font-size:12px;color:#555">Tiempo de Entrega</label><input id="rf-tiempo" class="rf-inp" placeholder="3-5 días"></div>
           <div><label style="font-size:12px;color:#555">Ubicación en Almacén</label><input id="rf-ubicacion" class="rf-inp" placeholder="Estante A-3"></div>
           <div style="display:none"><label style="font-size:12px;color:#555">Costo Unitario ($)</label><input type="number" id="rf-costo" class="rf-inp" value="0" min="0" step="0.01"></div>
           <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Notas</label><textarea id="rf-notas" class="rf-inp" rows="2" style="resize:vertical"></textarea></div>
           <div id="rf-qr-box" style="grid-column:1/-1;background:#F5F8F5;border:1px dashed #1F5C2E;border-radius:8px;padding:10px">
             <label style="font-size:12px;color:#1F5C2E;font-weight:bold">🏷️ Número de parte / QR (opcional, solo refacciones nuevas)</label>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-top:4px">
-              <select id="rf-planta-cod" class="rf-inp" onchange="rfPreviewNumero()"><option value="">Planta/Condición...</option></select>
-              <select id="rf-grupo" class="rf-inp" onchange="rfActualizarCategoriasQR();rfPreviewNumero()"><option value="">Grupo...</option></select>
-              <select id="rf-categoria-qr" class="rf-inp" onchange="rfPreviewNumero()"><option value="">Categoría...</option></select>
-              <select id="rf-prov-cod" class="rf-inp" onchange="rfPreviewNumero()"><option value="">Proveedor...</option></select>
-            </div>
+            <div style="font-size:11px;color:#777;margin:2px 0 6px">Usa la Categoría y el Proveedor de arriba. Solo falta la planta/condición:</div>
+            <select id="rf-planta-cod" class="rf-inp" onchange="rfPreviewNumero()"><option value="">Planta/Condición...</option></select>
             <div id="rf-numero-preview" style="margin-top:8px;font-size:13px;color:#333;display:none">
               N° de parte: <b id="rf-numero-texto"></b>
               <div id="rf-qr-preview" style="margin-top:6px"></div>
@@ -3455,7 +3456,7 @@ function filterRef(){renderRef(_refData);}
 function openRefModal(data){
   document.getElementById('ref-id').value=data?data.id:'';
   document.getElementById('ref-modal-title').textContent=data?'Editar Refacción':'Nueva Refacción';
-  ['nombre','descripcion','marca','modelo','criticidad','ubicacion','proveedor','tiempo','notas'].forEach(function(k){
+  ['nombre','descripcion','marca','modelo','criticidad','ubicacion','tiempo','notas'].forEach(function(k){
     var el=document.getElementById('rf-'+k);
     if(el&&data)el.value=data[k==='tiempo'?'tiempo_entrega':k]||'';
     else if(el&&!data)el.value=(k==='criticidad'?'MEDIA':'');
@@ -3494,6 +3495,25 @@ function openRefModal(data){
     }
     sel.value=cat;
   })();
+  // Proveedor: buscar por nombre en la lista; si no coincide, usar "Agregar proveedor"
+  (function(){
+    var provNombre=data?data.proveedor||'':'';
+    var sel=document.getElementById('rf-proveedor');
+    var inp=document.getElementById('rf-proveedor-nuevo');
+    inp.style.display='none'; inp.value='';
+    if(!provNombre){sel.value='';return;}
+    var found=false;
+    for(var i=0;i<sel.options.length;i++){
+      if(sel.options[i].textContent.trim().toLowerCase()===provNombre.trim().toLowerCase()){
+        sel.selectedIndex=i;found=true;break;
+      }
+    }
+    if(!found){
+      sel.value='__nuevo_prov__';
+      inp.style.display='';
+      inp.value=provNombre;
+    }
+  })();
   document.getElementById('rf-costo').value=data?data.costo:0;
   var imgUrl=data&&data.imagen_url?data.imagen_url:'';
   document.getElementById('rf-imagen-url').value=imgUrl;
@@ -3508,9 +3528,6 @@ function openRefModal(data){
   // Numero de parte / QR: solo aplica a refacciones nuevas o las que ya
   // tengan uno asignado (se muestra pero no se puede reasignar/cambiar).
   document.getElementById('rf-planta-cod').value='';
-  document.getElementById('rf-grupo').value='';
-  document.getElementById('rf-categoria-qr').innerHTML='<option value="">Categoría...</option>';
-  document.getElementById('rf-prov-cod').value='';
   var npBox=document.getElementById('rf-qr-box');
   var npPrev=document.getElementById('rf-numero-preview');
   if(data && data.numero_parte){
@@ -3634,52 +3651,75 @@ function imprimirQR(){
 
 // ---- Catálogo de códigos para número de parte / QR (refacciones NUEVAS) ----
 var _qrCatalogo=null;
+// Mismo mapeo que el backend (_CATEGORIA_QR_MAP en app.py): Categoria de
+// texto libre ya usada en la app -> (Grupo, Categoria) del catalogo QR.
+var _CATEGORIA_QR_MAP={
+  'SSR':['Eléctrico','SSR'],'TIMER':['Eléctrico','Timer'],'FUENTE DC':['Eléctrico','Fuente DC'],
+  'RESISTENCIA':['Calentamiento','Resistencia'],'ELECTROVALVULA':['Hidráulico','Electrovalvula'],
+  'INSTRUMENTO':['Eléctrico','Instrumento'],'LUBRICANTE':['Mecánico','Lubricante'],'CABLE':['Eléctrico','Cable'],
+  'TERMINAL':['Eléctrico','Terminal'],'CONECTOR':['Eléctrico','Conector'],'FUSIBLE':['Eléctrico','Fusible'],
+  'PULSADOR':['Eléctrico','Pulsador'],'SELECTOR':['Eléctrico','Otro'],'PROTECCION':['Eléctrico','Protección'],
+  'RODAMIENTO':['Mecánico','Rodamiento'],'RODAMIENTOS':['Mecánico','Rodamiento'],'MANGUERA':['Hidráulico','Manguera'],
+  'VALVULA':['Hidráulico','Válvula'],'HERRAMIENTA':['Mecánico','Otro'],'CONDENSADOR':['Eléctrico','Condensador'],
+  'INSTRUMENTACION':['Eléctrico','Instrumentación'],'MECANICO':['Mecánico','Otro'],'REFACCIONES':['Mecánico','Otro'],
+  'SENSOR':['Eléctrico','Instrumento'],'BANDAS':['Mecánico','Otro'],'CADENAS':['Mecánico','Otro'],
+  'SELLOS':['Mecánico','Otro'],'FILTROS':['Hidráulico','Otro'],'ELECTRICO':['Eléctrico','Otro'],
+  'HIDRAULICO':['Hidráulico','Otro'],'NEUMATICO':['Hidráulico','Otro'],'TORNILLERIA':['Mecánico','Otro'],
+  'CONSUMIBLE':['Mecánico','Otro'],'CONSUMIBLES':['Mecánico','Otro'],'CONTROL TEMP.':['Eléctrico','Instrumento'],
+  'CONTACTOR':['Eléctrico','Otro'],'RELEVADOR':['Eléctrico','Otro'],'OTRO':['Mecánico','Otro']
+};
+function _normQr(s){
+  return (s||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+function _grupoCategoriaDeTexto(catTexto){
+  var m=_CATEGORIA_QR_MAP[_normQr(catTexto)];
+  return m?{grupo:m[0],categoria:m[1]}:{grupo:'Mecánico',categoria:'Otro'};
+}
 function loadQrCatalogo(){
   fetch('/api/qr-catalogo').then(function(r){return r.json();}).then(function(d){
     _qrCatalogo=d;
     var selPlanta=document.getElementById('rf-planta-cod');
-    var selGrupo=document.getElementById('rf-grupo');
-    var selProv=document.getElementById('rf-prov-cod');
-    if(!selPlanta||!selGrupo||!selProv)return;
-    Object.keys(d.planta).forEach(function(cod){
-      var opt=document.createElement('option');
-      opt.value=cod; opt.textContent=cod+' - '+d.planta[cod];
-      selPlanta.appendChild(opt);
-    });
-    Object.keys(d.grupos).forEach(function(g){
-      var opt=document.createElement('option');
-      opt.value=g; opt.textContent=g;
-      selGrupo.appendChild(opt);
-    });
-    Object.keys(d.proveedores).forEach(function(cod){
-      var opt=document.createElement('option');
-      opt.value=cod; opt.textContent=d.proveedores[cod]+' ('+cod+')';
-      selProv.appendChild(opt);
-    });
+    var selProv=document.getElementById('rf-proveedor');
+    if(selPlanta){
+      Object.keys(d.planta).forEach(function(cod){
+        var opt=document.createElement('option');
+        opt.value=cod; opt.textContent=cod+' - '+d.planta[cod];
+        selPlanta.appendChild(opt);
+      });
+    }
+    if(selProv){
+      var nuevoOpt=selProv.querySelector('option[value="__nuevo_prov__"]');
+      Object.keys(d.proveedores).forEach(function(cod){
+        var opt=document.createElement('option');
+        opt.value=cod; opt.textContent=d.proveedores[cod];
+        selProv.insertBefore(opt,nuevoOpt);
+      });
+    }
   });
 }
-function rfActualizarCategoriasQR(){
-  var grupo=document.getElementById('rf-grupo').value;
-  var selCat=document.getElementById('rf-categoria-qr');
-  selCat.innerHTML='<option value="">Categoría...</option>';
-  if(_qrCatalogo && grupo && _qrCatalogo.grupos[grupo]){
-    var cats=_qrCatalogo.grupos[grupo];
-    Object.keys(cats).forEach(function(nombre){
-      var r=cats[nombre];
-      var opt=document.createElement('option');
-      opt.value=nombre; opt.textContent=nombre+' ('+r.desde+'-'+r.hasta+')';
-      selCat.appendChild(opt);
-    });
-  }
+function rfProveedorChange(sel){
+  var inp=document.getElementById('rf-proveedor-nuevo');
+  if(sel.value==='__nuevo_prov__'){inp.style.display='';inp.focus();}
+  else{inp.style.display='none';inp.value='';}
+}
+function getProveedorNombre(){
+  var sel=document.getElementById('rf-proveedor');
+  if(sel.value==='__nuevo_prov__')return document.getElementById('rf-proveedor-nuevo').value.trim();
+  return sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].textContent:'';
+}
+function getProveedorCod(){
+  var sel=document.getElementById('rf-proveedor');
+  if(sel.value && sel.value!=='__nuevo_prov__')return sel.value;
+  return ''; // proveedor nuevo sin codigo del catalogo: no se genera QR automatico
 }
 function rfPreviewNumero(){
   var planta=document.getElementById('rf-planta-cod').value;
-  var grupo=document.getElementById('rf-grupo').value;
-  var cat=document.getElementById('rf-categoria-qr').value;
-  var prov=document.getElementById('rf-prov-cod').value;
+  var prov=getProveedorCod();
+  var catTexto=getCategoriaValue();
   var prev=document.getElementById('rf-numero-preview');
-  if(!(planta&&grupo&&cat&&prov)){prev.style.display='none';return;}
-  fetch('/api/refacciones/preview-numero?planta_cod='+encodeURIComponent(planta)+'&grupo='+encodeURIComponent(grupo)+'&categoria='+encodeURIComponent(cat)+'&proveedor_cod='+encodeURIComponent(prov))
+  if(!(planta&&prov&&catTexto)){prev.style.display='none';return;}
+  var gc=_grupoCategoriaDeTexto(catTexto);
+  fetch('/api/refacciones/preview-numero?planta_cod='+encodeURIComponent(planta)+'&grupo='+encodeURIComponent(gc.grupo)+'&categoria='+encodeURIComponent(gc.categoria)+'&proveedor_cod='+encodeURIComponent(prov))
     .then(function(r){return r.json();}).then(function(d){
       if(!d.numero_parte){
         document.getElementById('rf-numero-texto').textContent=d.error||'No disponible';
@@ -3687,7 +3727,7 @@ function rfPreviewNumero(){
         document.getElementById('rf-qr-preview').innerHTML='';
         return;
       }
-      document.getElementById('rf-numero-texto').textContent=d.numero_parte+' (vista previa)';
+      document.getElementById('rf-numero-texto').textContent=d.numero_parte+' (vista previa · '+gc.grupo+'/'+gc.categoria+')';
       document.getElementById('rf-qr-preview').innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=1F5C2E&data='+encodeURIComponent(d.numero_parte)+'" style="border-radius:6px;border:2px solid #1F5C2E">';
       prev.style.display='block';
     });
@@ -3696,6 +3736,7 @@ function rfCategoriaChange(sel){
   var inp=document.getElementById('rf-categoria-nueva');
   if(sel.value==='__nueva_cat__'){inp.style.display='';inp.focus();}
   else{inp.style.display='none';inp.value='';}
+  rfPreviewNumero();
 }
 function getCategoriaValue(){
   var sel=document.getElementById('rf-categoria');
@@ -3763,17 +3804,19 @@ function editRef(id){var r=_refData.find(function(x){return x.id===id;});if(r)op
 function saveRefaccion(e){
   e.preventDefault();
   var id=document.getElementById('ref-id').value;
+  var catTexto=getCategoriaValue();
+  var gc=_grupoCategoriaDeTexto(catTexto);
   var body={
     nombre:document.getElementById('rf-nombre').value,
     descripcion:document.getElementById('rf-descripcion').value,
     marca:document.getElementById('rf-marca').value,
     modelo:document.getElementById('rf-modelo').value,
-    categoria:getCategoriaValue(),
+    categoria:catTexto,
     criticidad:document.getElementById('rf-criticidad').value,
     seccion:getSeccionValue(),
     stock_actual:parseInt(document.getElementById('rf-stock').value)||0,
     cant_min:parseInt(document.getElementById('rf-min').value)||1,
-    proveedor:document.getElementById('rf-proveedor').value,
+    proveedor:getProveedorNombre(),
     tiempo_entrega:document.getElementById('rf-tiempo').value,
     ubicacion:document.getElementById('rf-ubicacion').value,
     costo:parseFloat(document.getElementById('rf-costo').value)||0,
@@ -3781,9 +3824,9 @@ function saveRefaccion(e){
     imagen_url:document.getElementById('rf-imagen-url').value.trim(),
     foto_b64:document.getElementById('rf-img-b64').value||undefined,
     planta_cod:document.getElementById('rf-planta-cod').value,
-    grupo:document.getElementById('rf-grupo').value,
-    categoria_qr:document.getElementById('rf-categoria-qr').value,
-    proveedor_cod:document.getElementById('rf-prov-cod').value
+    grupo:gc.grupo,
+    categoria_qr:gc.categoria,
+    proveedor_cod:getProveedorCod()
   };
   fetch('/api/refacciones'+(id?'/'+id:''),({method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}))
     .then(r=>r.json()).then(function(){closeRefModal();loadRefacciones();});
