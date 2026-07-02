@@ -1,6 +1,6 @@
 import os, io, base64, sqlite3, json, hashlib
 from flask import Flask, request, send_file, jsonify
-from qr_catalog import CATEGORIAS as QR_CATEGORIAS, PROVEEDORES as QR_PROVEEDORES
+from qr_catalog import CATEGORIA_FIJA as QR_CATEGORIA_FIJA, GRUPOS as QR_GRUPOS, PLANTA as QR_PLANTA, PROVEEDORES as QR_PROVEEDORES
 
 app = Flask(__name__)
 DATA_DIR = os.environ.get('DATA_DIR', '/app/data')
@@ -917,12 +917,13 @@ def api_create_refaccion():
     # clasificacion y proveedor (codigos del catalogo). Es opcional y no
     # afecta a las refacciones existentes, que conservan numero_parte=''.
     numero_parte = ''
-    cat_cod = d.get('categoria_cod', '')
-    clas_cod = d.get('clasificacion_cod', '')
+    planta_cod = d.get('planta_cod', '')
+    grupo = d.get('grupo', '')
+    categoria_qr = d.get('categoria_qr', '')
     prov_cod = d.get('proveedor_cod', '')
-    if cat_cod and clas_cod and prov_cod:
+    if planta_cod and grupo and categoria_qr and prov_cod:
         try:
-            numero_parte = _build_numero_parte(con, cat_cod, clas_cod, prov_cod)
+            numero_parte = _build_numero_parte(con, planta_cod, grupo, categoria_qr, prov_cod)
         except ValueError as e:
             con.close()
             return jsonify({'error': str(e)}), 409
@@ -979,48 +980,53 @@ def api_delete_refaccion(ref_id):
 
 @app.route('/api/qr-catalogo', methods=['GET'])
 def api_qr_catalogo():
-    return jsonify({'categorias': QR_CATEGORIAS, 'proveedores': QR_PROVEEDORES})
+    return jsonify({'grupos': QR_GRUPOS, 'planta': QR_PLANTA, 'proveedores': QR_PROVEEDORES})
 
 
-EMPRESA_COD = 'A0'  # AD-PACK: prefijo fijo que llevan TODOS los numeros de parte
-
-def _build_numero_parte(con, cat_cod, clas_cod, prov_cod):
-    """Genera un numero_parte de 8 caracteres con el formato AD-PACK:
-       [A0 empresa][Categoria 1 digito][Proveedor 2 caracteres][Clasificacion 1 digito][Secuencial 2 digitos]
-       Ejemplo: A08A0100 = A0 (empresa) + 8 (800=MANTENIMIENTO) + A0 (proveedor ADPACK)
-                + 1 (100=primera clasificacion) + 00 (secuencial)
-       El secuencial 00-99 es consecutivo dentro de la MISMA combinacion
-       categoria+proveedor+clasificacion (para no reutilizar ya usados)."""
-    cat_dig = str(cat_cod)[0]
-    clas_dig = str(clas_cod)[0]
-    prov_cod = str(prov_cod).upper()
-    prefijo = f"{EMPRESA_COD}{cat_dig}{prov_cod}{clas_dig}"
+def _build_numero_parte(con, planta_cod, grupo, categoria, prov_cod):
+    """Genera un numero_parte de 8 caracteres:
+       [Planta/Condicion 2][Categoria fija=8][Proveedor 2][Codigo categoria+consecutivo 3]
+       Ejemplo: A08C0241 = A0 (CONDICION NORMAL) + 8 (fijo, Mantenimiento)
+                + C0 (proveedor) + 241 (Electrico|Fusible=240-259, consecutivo 1)
+       El consecutivo se reserva dentro del rango [desde,hasta] de la categoria,
+       compartido entre TODOS los proveedores de esa categoria (asi lo definio
+       generador_QR.xlsx). Se usa el primer numero libre del rango."""
+    if planta_cod not in QR_PLANTA:
+        raise ValueError(f"Codigo de planta/condicion invalido: {planta_cod}")
+    if grupo not in QR_GRUPOS or categoria not in QR_GRUPOS[grupo]:
+        raise ValueError(f"Categoria invalida: {grupo} / {categoria}")
+    if prov_cod not in QR_PROVEEDORES:
+        raise ValueError(f"Codigo de proveedor invalido: {prov_cod}")
+    rango = QR_GRUPOS[grupo][categoria]
+    desde, hasta = rango['desde'], rango['hasta']
     rows = con.execute(
-        "SELECT numero_parte FROM refacciones WHERE numero_parte LIKE ? AND length(numero_parte)=8",
-        (prefijo + '__',)
+        "SELECT numero_parte FROM refacciones WHERE length(numero_parte)=8"
     ).fetchall()
-    maxn = -1
+    usados = set()
     for r in rows:
         try:
-            n = int(r['numero_parte'][-2:])
-            maxn = max(maxn, n)
+            n = int(r['numero_parte'][-3:])
+            if desde <= n <= hasta:
+                usados.add(n)
         except (ValueError, TypeError, IndexError):
             continue
-    if maxn >= 99:
-        raise ValueError(f"Se agotaron los consecutivos (00-99) para el prefijo {prefijo}")
-    return f"{prefijo}{maxn+1:02d}"
+    for n in range(desde, hasta + 1):
+        if n not in usados:
+            return f"{planta_cod}{QR_CATEGORIA_FIJA}{prov_cod}{n:03d}"
+    raise ValueError(f"Se agotaron los codigos disponibles para {grupo} / {categoria} ({desde}-{hasta})")
 
 
 @app.route('/api/refacciones/preview-numero', methods=['GET'])
 def api_preview_numero_parte():
-    cat_cod = request.args.get('categoria_cod', '')
-    clas_cod = request.args.get('clasificacion_cod', '')
+    planta_cod = request.args.get('planta_cod', '')
+    grupo = request.args.get('grupo', '')
+    categoria = request.args.get('categoria', '')
     prov_cod = request.args.get('proveedor_cod', '')
-    if not (cat_cod and clas_cod and prov_cod):
-        return jsonify({'error': 'Faltan categoria_cod, clasificacion_cod o proveedor_cod'}), 400
+    if not (planta_cod and grupo and categoria and prov_cod):
+        return jsonify({'error': 'Faltan planta_cod, grupo, categoria o proveedor_cod'}), 400
     con = get_db()
     try:
-        numero = _build_numero_parte(con, cat_cod, clas_cod, prov_cod)
+        numero = _build_numero_parte(con, planta_cod, grupo, categoria, prov_cod)
     except ValueError as e:
         con.close()
         return jsonify({'error': str(e)}), 409

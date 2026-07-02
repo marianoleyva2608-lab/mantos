@@ -3321,9 +3321,10 @@ async function verReq(id){
           <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Notas</label><textarea id="rf-notas" class="rf-inp" rows="2" style="resize:vertical"></textarea></div>
           <div id="rf-qr-box" style="grid-column:1/-1;background:#F5F8F5;border:1px dashed #1F5C2E;border-radius:8px;padding:10px">
             <label style="font-size:12px;color:#1F5C2E;font-weight:bold">🏷️ Número de parte / QR (opcional, solo refacciones nuevas)</label>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px">
-              <select id="rf-cat-cod" class="rf-inp" onchange="rfActualizarClasificaciones();rfPreviewNumero()"><option value="">Categoría...</option></select>
-              <select id="rf-clas-cod" class="rf-inp" onchange="rfPreviewNumero()"><option value="">Clasificación...</option></select>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-top:4px">
+              <select id="rf-planta-cod" class="rf-inp" onchange="rfPreviewNumero()"><option value="">Planta/Condición...</option></select>
+              <select id="rf-grupo" class="rf-inp" onchange="rfActualizarCategoriasQR();rfPreviewNumero()"><option value="">Grupo...</option></select>
+              <select id="rf-categoria-qr" class="rf-inp" onchange="rfPreviewNumero()"><option value="">Categoría...</option></select>
               <select id="rf-prov-cod" class="rf-inp" onchange="rfPreviewNumero()"><option value="">Proveedor...</option></select>
             </div>
             <div id="rf-numero-preview" style="margin-top:8px;font-size:13px;color:#333;display:none">
@@ -3505,8 +3506,9 @@ function openRefModal(data){
   }
   // Numero de parte / QR: solo aplica a refacciones nuevas o las que ya
   // tengan uno asignado (se muestra pero no se puede reasignar/cambiar).
-  document.getElementById('rf-cat-cod').value='';
-  document.getElementById('rf-clas-cod').innerHTML='<option value="">Clasificación...</option>';
+  document.getElementById('rf-planta-cod').value='';
+  document.getElementById('rf-grupo').value='';
+  document.getElementById('rf-categoria-qr').innerHTML='<option value="">Categoría...</option>';
   document.getElementById('rf-prov-cod').value='';
   var npBox=document.getElementById('rf-qr-box');
   var npPrev=document.getElementById('rf-numero-preview');
@@ -3630,13 +3632,19 @@ var _qrCatalogo=null;
 function loadQrCatalogo(){
   fetch('/api/qr-catalogo').then(function(r){return r.json();}).then(function(d){
     _qrCatalogo=d;
-    var selCat=document.getElementById('rf-cat-cod');
+    var selPlanta=document.getElementById('rf-planta-cod');
+    var selGrupo=document.getElementById('rf-grupo');
     var selProv=document.getElementById('rf-prov-cod');
-    if(!selCat||!selProv)return;
-    Object.keys(d.categorias).forEach(function(cod){
+    if(!selPlanta||!selGrupo||!selProv)return;
+    Object.keys(d.planta).forEach(function(cod){
       var opt=document.createElement('option');
-      opt.value=cod; opt.textContent=cod+' - '+d.categorias[cod].nombre;
-      selCat.appendChild(opt);
+      opt.value=cod; opt.textContent=cod+' - '+d.planta[cod];
+      selPlanta.appendChild(opt);
+    });
+    Object.keys(d.grupos).forEach(function(g){
+      var opt=document.createElement('option');
+      opt.value=g; opt.textContent=g;
+      selGrupo.appendChild(opt);
     });
     Object.keys(d.proveedores).forEach(function(cod){
       var opt=document.createElement('option');
@@ -3645,28 +3653,35 @@ function loadQrCatalogo(){
     });
   });
 }
-function rfActualizarClasificaciones(){
-  var catCod=document.getElementById('rf-cat-cod').value;
-  var selClas=document.getElementById('rf-clas-cod');
-  selClas.innerHTML='<option value="">Clasificación...</option>';
-  if(_qrCatalogo && catCod && _qrCatalogo.categorias[catCod]){
-    var clas=_qrCatalogo.categorias[catCod].clasificaciones;
-    Object.keys(clas).forEach(function(cod){
+function rfActualizarCategoriasQR(){
+  var grupo=document.getElementById('rf-grupo').value;
+  var selCat=document.getElementById('rf-categoria-qr');
+  selCat.innerHTML='<option value="">Categoría...</option>';
+  if(_qrCatalogo && grupo && _qrCatalogo.grupos[grupo]){
+    var cats=_qrCatalogo.grupos[grupo];
+    Object.keys(cats).forEach(function(nombre){
+      var r=cats[nombre];
       var opt=document.createElement('option');
-      opt.value=cod; opt.textContent=cod+' - '+clas[cod];
-      selClas.appendChild(opt);
+      opt.value=nombre; opt.textContent=nombre+' ('+r.desde+'-'+r.hasta+')';
+      selCat.appendChild(opt);
     });
   }
 }
 function rfPreviewNumero(){
-  var cat=document.getElementById('rf-cat-cod').value;
-  var clas=document.getElementById('rf-clas-cod').value;
+  var planta=document.getElementById('rf-planta-cod').value;
+  var grupo=document.getElementById('rf-grupo').value;
+  var cat=document.getElementById('rf-categoria-qr').value;
   var prov=document.getElementById('rf-prov-cod').value;
   var prev=document.getElementById('rf-numero-preview');
-  if(!(cat&&clas&&prov)){prev.style.display='none';return;}
-  fetch('/api/refacciones/preview-numero?categoria_cod='+cat+'&clasificacion_cod='+clas+'&proveedor_cod='+prov)
+  if(!(planta&&grupo&&cat&&prov)){prev.style.display='none';return;}
+  fetch('/api/refacciones/preview-numero?planta_cod='+encodeURIComponent(planta)+'&grupo='+encodeURIComponent(grupo)+'&categoria='+encodeURIComponent(cat)+'&proveedor_cod='+encodeURIComponent(prov))
     .then(function(r){return r.json();}).then(function(d){
-      if(!d.numero_parte)return;
+      if(!d.numero_parte){
+        document.getElementById('rf-numero-texto').textContent=d.error||'No disponible';
+        prev.style.display='block';
+        document.getElementById('rf-qr-preview').innerHTML='';
+        return;
+      }
       document.getElementById('rf-numero-texto').textContent=d.numero_parte+' (vista previa)';
       document.getElementById('rf-qr-preview').innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=1F5C2E&data='+encodeURIComponent(d.numero_parte)+'" style="border-radius:6px;border:2px solid #1F5C2E">';
       prev.style.display='block';
@@ -3760,8 +3775,9 @@ function saveRefaccion(e){
     notas:document.getElementById('rf-notas').value,
     imagen_url:document.getElementById('rf-imagen-url').value.trim(),
     foto_b64:document.getElementById('rf-img-b64').value||undefined,
-    categoria_cod:document.getElementById('rf-cat-cod').value,
-    clasificacion_cod:document.getElementById('rf-clas-cod').value,
+    planta_cod:document.getElementById('rf-planta-cod').value,
+    grupo:document.getElementById('rf-grupo').value,
+    categoria_qr:document.getElementById('rf-categoria-qr').value,
     proveedor_cod:document.getElementById('rf-prov-cod').value
   };
   fetch('/api/refacciones'+(id?'/'+id:''),({method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}))

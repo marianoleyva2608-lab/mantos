@@ -1,104 +1,129 @@
 # -*- coding: utf-8 -*-
-# Catalogo generado a partir de base_para__QR.xlsx (categorias, clasificaciones y proveedores)
+# Catalogo generado a partir de generador_QR.xlsx
+# (Grupos/Categorias con rangos, Planta/Condicion, Proveedores)
 # Se usa SOLO para generar numero_parte / QR de refacciones NUEVAS.
 # No modifica ni sustituye las refacciones ya existentes en la base de datos.
 
-CATEGORIAS = {
-    "100": {
-        "nombre": "AD-PACK",
-        "clasificaciones": {
-            "100": "PLASTA",
-            "200": "OTROS",
-            "300": "PRODUCCION INTERNA",
-            "400": "ACTIVOS",
-            "900": "HERRAMIENTAS"
+# Digito fijo de categoria general (Mantenimiento) que llevan TODOS los numeros de parte
+CATEGORIA_FIJA = '8'
+
+# Grupo -> { Categoria: {desde, hasta} }
+GRUPOS = {
+    "Eléctrico": {
+        "SSR": {
+            "desde": 100,
+            "hasta": 119
+        },
+        "Timer": {
+            "desde": 120,
+            "hasta": 139
+        },
+        "Fuente DC": {
+            "desde": 140,
+            "hasta": 159
+        },
+        "Instrumento": {
+            "desde": 160,
+            "hasta": 179
+        },
+        "Cable": {
+            "desde": 180,
+            "hasta": 199
+        },
+        "Terminal": {
+            "desde": 200,
+            "hasta": 219
+        },
+        "Conector": {
+            "desde": 220,
+            "hasta": 239
+        },
+        "Fusible": {
+            "desde": 240,
+            "hasta": 259
+        },
+        "Pulsador": {
+            "desde": 260,
+            "hasta": 279
+        },
+        "Protección": {
+            "desde": 280,
+            "hasta": 299
+        },
+        "Condensador": {
+            "desde": 300,
+            "hasta": 319
+        },
+        "Instrumentación": {
+            "desde": 320,
+            "hasta": 339
+        },
+        "Otro": {
+            "desde": 340,
+            "hasta": 399
         }
     },
-    "200": {
-        "nombre": "3M",
-        "clasificaciones": {
-            "100": "ADHESIVOS",
-            "200": "ABRASIVOS",
-            "300": "CINTAS",
-            "400": "MASKING",
-            "500": "PAÑOS",
-            "600": "EPP",
-            "700": "OTROS",
-            "800": "FILTROS",
-            "900": "HERRAMIENTAS"
+    "Calentamiento": {
+        "Resistencia": {
+            "desde": 400,
+            "hasta": 430
         }
     },
-    "300": {
-        "nombre": "OTROS",
-        "clasificaciones": {
-            "100": "ABRASIVOS",
-            "200": "CARTON",
-            "300": "CINTAS",
-            "400": "EMBALAJE",
-            "500": "PLASTICOS",
-            "600": "LIJAS",
-            "700": "REFACCIONES EQUIPOS",
-            "800": "OTROS",
-            "900": "HERRAMIENTAS"
+    "Hidráulico": {
+        "Electroválvula": {
+            "desde": 500,
+            "hasta": 534
+        },
+        "Manguera": {
+            "desde": 535,
+            "hasta": 569
+        },
+        "Válvula": {
+            "desde": 570,
+            "hasta": 604
+        },
+        "Electrovalvula": {
+            "desde": 605,
+            "hasta": 639
+        },
+        "Otro": {
+            "desde": 640,
+            "hasta": 699
         }
     },
-    "400": {
-        "nombre": "TUK",
-        "clasificaciones": {
-            "100": "C. EMPAQUE",
-            "200": "C. MARCAJE",
-            "300": "C.ENMASCARAR",
-            "400": "C.DOBLE CARA",
-            "500": "C. MULTIUSOS",
-            "600": "MASKING",
-            "700": "C. OTROS",
-            "900": "HERRAMIENTAS"
+    "Mecánico": {
+        "Lubricante": {
+            "desde": 700,
+            "hasta": 732
+        },
+        "Rodamiento": {
+            "desde": 733,
+            "hasta": 765
+        },
+        "Otro": {
+            "desde": 766,
+            "hasta": 799
         }
-    },
-    "500": {
-        "nombre": "EMBALAJE",
-        "clasificaciones": {
-            "100": "BOLSAS",
-            "200": "POLIFOAM",
-            "300": "CINTAS",
-            "400": "CARTON",
-            "500": "FLEJES",
-            "600": "STRECH FILM",
-            "700": "POLIBURBUJAS",
-            "800": "PLASTICO",
-            "900": "HERRAMIENTAS"
-        }
-    },
-    "600": {
-        "nombre": "TERMO",
-        "clasificaciones": {
-            "100": "PET",
-            "200": "PRODUCTO TERMINADO",
-            "300": "MATERIA PRIMA",
-            "900": "HERRAMIENTAS"
-        }
-    },
-    "700": {
-        "nombre": "CONVER",
-        "clasificaciones": {
-            "100": "MATERIA PRIMA",
-            "200": "MATA",
-            "300": "NISSAN",
-            "400": "PRODUCTOS CONVERTIDOS",
-            "900": "HERRAMIENTAS"
-        }
-    },
-    "800": {
-        "nombre": "MANTENIMIENTO",
-        "clasificaciones": {}
-    },
-    "900": {
-        "nombre": "DISPONIBLE",
-        "clasificaciones": {}
     }
 }
 
+# Codigo de planta/condicion -> descripcion
+PLANTA = {
+    "A0": "CONDICION NORMAL",
+    "A1": "CONDICION ESPECIAL DE VENTA",
+    "A2": "CONDICION ESPECIAL DE COMPRA",
+    "A3": "Disponible",
+    "A4": "Disponible",
+    "A5": "Disponible",
+    "A6": "Disponible",
+    "A7": "Disponible",
+    "A8": "Disponible",
+    "A9": "Disponible"
+}
+
+# Codigo de proveedor -> nombre
 PROVEEDORES = {
+    "A0": "ADPACK",
     "A1": "3M COMPANY",
     "A2": "3M MEXICO, S.A. DE C.V.",
     "A3": "ABASTECEDORA LUMEN",
@@ -106,7 +131,6 @@ PROVEEDORES = {
     "A5": "ABRASIVOS Y CONVERSIONES IDEAL, S.A. DE C.V.",
     "A6": "ACAT MAXICANA S.A. DE C.V.",
     "A7": "ADMINISTRADORA GALLCO",
-    "A0": "ADPACK",
     "A8": "ADVANCED COMPOSITES MEXICANA S.A. DE C.V.",
     "A9": "ALEJANDRO BALCAZAR LOPEZ",
     "B0": "ANTONIO ESQUIVEL HERRERA",
