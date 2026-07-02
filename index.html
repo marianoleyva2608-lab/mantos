@@ -3395,7 +3395,7 @@ function renderRef(data){
   var fStock=(document.getElementById('ref-filter-stock')||{value:''}).value;
   var fCat=(document.getElementById('ref-filter-cat')||{value:''}).value;
   var filtered=data.slice();
-  if(q)filtered=filtered.filter(r=>(r.nombre+r.seccion+r.categoria+r.proveedor+r.marca).toLowerCase().includes(q));
+  if(q)filtered=filtered.filter(r=>(r.nombre+r.seccion+r.categoria+r.proveedor+r.marca+(r.numero_parte||'')).toLowerCase().includes(q));
   if(fCrit)filtered=filtered.filter(r=>r.criticidad===fCrit);
   if(fCat)filtered=filtered.filter(r=>r.categoria===fCat);
   if(fStock==='bajo')filtered=filtered.filter(r=>r.stock_actual<r.cant_min);
@@ -3429,6 +3429,7 @@ function renderRef(data){
           '<span style="font-weight:bold;font-size:15px">'+r.nombre+'</span>'+
           '<span class="ref-badge badge-'+r.criticidad+'">'+r.criticidad+'</span>'+
           '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:10px;font-size:11px">'+r.categoria+'</span>'+
+          (r.numero_parte?'<span style="background:#1F5C2E;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-family:monospace">🏷️ '+r.numero_parte+'</span>':'')+
         '</div>'+
         '<div style="font-size:12px;color:#666">'+
           (r.marca?'<b>Marca:</b> '+r.marca+'  ':'')+
