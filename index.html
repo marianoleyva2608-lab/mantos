@@ -3517,7 +3517,7 @@ function openRefModal(data){
   document.getElementById('rf-costo').value=data?data.costo:0;
   var imgUrl=data&&data.imagen_url?data.imagen_url:'';
   document.getElementById('rf-imagen-url').value=imgUrl;
-  document.getElementById('rf-img-b64').value='';
+  document.getElementById('rf-img-b64').value=(data&&data.foto_b64)?data.foto_b64:'';
   rfImgPreview(imgUrl);
   // Si tiene foto_b64 y no tiene URL, mostrar la foto guardada
   if(!imgUrl&&data&&data.foto_b64){

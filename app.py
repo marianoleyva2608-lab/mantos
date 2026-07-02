@@ -1047,7 +1047,7 @@ def api_update_refaccion(ref_id):
 
     # Numero de parte: SOLO se asigna si la refaccion aun no tiene uno.
     # Si ya tiene, se conserva tal cual (nunca se sobreescribe/regenera).
-    row = con.execute('SELECT numero_parte FROM refacciones WHERE id=?', (ref_id,)).fetchone()
+    row = con.execute('SELECT numero_parte, foto_b64 FROM refacciones WHERE id=?', (ref_id,)).fetchone()
     numero_parte_actual = row['numero_parte'] if row else ''
     numero_parte_final = numero_parte_actual
     if not numero_parte_actual:
@@ -1062,12 +1062,16 @@ def api_update_refaccion(ref_id):
                 con.close()
                 return jsonify({'error': str(e)}), 409
 
+    # Foto: si no llega una foto NUEVA en el request, se conserva la que ya
+    # habia en la base de datos (nunca se borra por omision/bug del frontend).
+    foto_b64_final = d.get('foto_b64') or (row['foto_b64'] if row else '')
+
     con.execute("UPDATE refacciones SET nombre=?,descripcion=?,marca=?,modelo=?,categoria=?,criticidad=?,seccion=?,cant_min=?,stock_actual=?,tiempo_entrega=?,proveedor=?,ubicacion=?,costo=?,notas=?,foto_b64=?,imagen_url=?,numero_parte=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
         (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
          d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
          int(d.get('cant_min',1)),int(d.get('stock_actual',0)),
          d.get('tiempo_entrega',''),d.get('proveedor',''),d.get('ubicacion',''),
-         float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64',''),d.get('imagen_url',''),
+         float(d.get('costo',0)),d.get('notas',''),foto_b64_final,d.get('imagen_url',''),
          numero_parte_final,ref_id))
     con.commit()
     con.close()
