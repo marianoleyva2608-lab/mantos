@@ -15,6 +15,7 @@ def get_db():
 def init_db():
     con = get_db()
     con.execute('CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY, machine_id TEXT, fecha TEXT, data TEXT)')
+    con.execute('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)')
     con.execute('CREATE TABLE IF NOT EXISTS work_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, numero TEXT NOT NULL, solicitante TEXT, fecha TEXT, equipo TEXT, planta TEXT, tipo TEXT, estatus TEXT, hora_inicio TEXT, hora_termino TEXT, tiempo_paro TEXT, descripcion_falla TEXT, actividad_realizada TEXT, refaccion TEXT, observaciones TEXT, firma_solicitante TEXT, firma_recibe TEXT, firma_liberacion TEXT, fotos TEXT, created_at TEXT DEFAULT (datetime(\'now\')))')
     # Migrate: add fotos column if missing
     try:
@@ -93,6 +94,58 @@ try:
     _npcon.execute("ALTER TABLE refacciones ADD COLUMN numero_parte TEXT DEFAULT ''")
     _npcon.commit(); _npcon.close()
 except: pass
+
+# ---------------------------------------------------------------------------
+# Migracion de UNA SOLA VEZ: restaurar cant_min y stock_actual segun el
+# respaldo "Lista_Refacciones_2026-07-01.xlsx" que el usuario proporciono
+# (se emparejan por nombre EXACTO). Solo toca esos dos campos, nada mas.
+# Se controla con app_meta para que NUNCA vuelva a correr despues (para no
+# pisar cantidades que el usuario ajuste manualmente mas adelante).
+# ---------------------------------------------------------------------------
+_CANTIDADES_REF_FLAG = 'cantidades_restauradas_20260701'
+
+def _restaurar_cantidades_20260701():
+    con = get_db()
+    ya_corrio = con.execute("SELECT value FROM app_meta WHERE key=?", (_CANTIDADES_REF_FLAG,)).fetchone()
+    if ya_corrio:
+        con.close()
+        return
+    ref_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_cantidades_ref_20260701.json')
+    try:
+        with open(ref_path, encoding='utf-8') as f:
+            referencia = json.load(f)
+    except FileNotFoundError:
+        con.close()
+        return
+    actuales = con.execute("SELECT id, nombre FROM refacciones").fetchall()
+    por_nombre = {}
+    for row in actuales:
+        por_nombre.setdefault(row['nombre'], []).append(row['id'])
+    actualizadas, sin_match, ambiguas = 0, [], []
+    for item in referencia:
+        ids = por_nombre.get(item['nombre'])
+        if not ids:
+            sin_match.append(item['nombre'])
+            continue
+        if len(ids) > 1:
+            ambiguas.append(item['nombre'])
+            continue
+        con.execute("UPDATE refacciones SET cant_min=?, stock_actual=? WHERE id=?",
+                    (item['cant_min'], item['stock_actual'], ids[0]))
+        actualizadas += 1
+    con.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", (_CANTIDADES_REF_FLAG, 'done'))
+    con.commit()
+    con.close()
+    print(f"[restaurar cantidades 2026-07-01] actualizadas={actualizadas} sin_match={len(sin_match)} ambiguas={len(ambiguas)}")
+    if sin_match:
+        print(f"[restaurar cantidades 2026-07-01] SIN COINCIDENCIA (revisar manualmente): {sin_match}")
+    if ambiguas:
+        print(f"[restaurar cantidades 2026-07-01] NOMBRES DUPLICADOS (no se tocaron): {ambiguas}")
+
+try:
+    _restaurar_cantidades_20260701()
+except Exception as _e:
+    print(f"[restaurar cantidades 2026-07-01] error: {_e}")
 
 # ---------------------------------------------------------------------------
 # Migracion (una sola vez, idempotente): asignar numero_parte a refacciones

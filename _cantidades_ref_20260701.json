@@ -1,0 +1,317 @@
+[
+ {
+  "nombre": "Rodamiento URB Pillow Block Bearing",
+  "cant_min": 1,
+  "stock_actual": 2
+ },
+ {
+  "nombre": "Cable Mica Tape Glass Braid 10AWG 500C 600V Niquel puro 100m",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Cable Viakon TF-LS 16 AWG negro 100m",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Cinta aislante eléctrica 3M",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Cinta fibra de vidrio alta temp.",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Cinta teflón 1/2\"",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Compuesto térmico Arctic",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Kit terminales aislados Volteck 55 piezas 22-10 AWG",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Loctite LB 771 Nickel Anti-Seize 453g",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Pegamento cianocrilato (super glue)",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Soldadura Truper 60/40 1mm 450g",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Bloque contacto ZB2-BE101 NO 10A 400V",
+  "cant_min": 2,
+  "stock_actual": 4
+ },
+ {
+  "nombre": "Bloques terminales PLC verdes carril DIN",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Bobina solenoide conector DIN gris 220VAC",
+  "cant_min": 2,
+  "stock_actual": 6
+ },
+ {
+  "nombre": "Cable Viakon THLS-16 negro 16AWG 100m",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Caja Fusibles surtidos",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Condensador arranque/marcha motor 220VAC",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Condensador de arranque motor",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Condensador de arranque/marcha motor 220VAC",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Contactor Fuji Electric SC-4-1",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Contador digital Autonics LEBN",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Fuente 24VDC Moeller easy400-POW",
+  "cant_min": 1,
+  "stock_actual": 6
+ },
+ {
+  "nombre": "Fuente Moeller easy400-POW 24VDC",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Interruptor automático Schneider iC60N",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Kit terminales aisladas Volteck 55 piezas",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Micro switch palanca 15A 125-480V",
+  "cant_min": 2,
+  "stock_actual": 2
+ },
+ {
+  "nombre": "Pulsador hongo negro 22mm 10A 400V",
+  "cant_min": 2,
+  "stock_actual": 2
+ },
+ {
+  "nombre": "Pulsador iluminado amarillo 22mm",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Pulsador iluminado azul 22mm",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Relevador Finder 60.12.8.230.0040 10A 230VAC",
+  "cant_min": 2,
+  "stock_actual": 4
+ },
+ {
+  "nombre": "Relevador estado sólido Fotek SSR-25VA 25A",
+  "cant_min": 1,
+  "stock_actual": 2
+ },
+ {
+  "nombre": "Relevador estado sólido GOLD SAP4950D 50A",
+  "cant_min": 1,
+  "stock_actual": 6
+ },
+ {
+  "nombre": "Relevador estado sólido JO-3F 50A 480VAC",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Relé sobrecarga térmica CHINT NR2-25 2.5-4A",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "SSR Fotek SSR-25VA 25A",
+  "cant_min": 1,
+  "stock_actual": 2
+ },
+ {
+  "nombre": "SSR Gold SAP4950D 50A",
+  "cant_min": 1,
+  "stock_actual": 6
+ },
+ {
+  "nombre": "SSR Gold SAP4950D 50A 32VDC",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Selector 2 posiciones llave 22mm",
+  "cant_min": 1,
+  "stock_actual": 5
+ },
+ {
+  "nombre": "Selector rotativo 2 posiciones 22mm negro",
+  "cant_min": 1,
+  "stock_actual": 2
+ },
+ {
+  "nombre": "Termometro digital Traceable c/sonda",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Timer Autonics AT8N",
+  "cant_min": 1,
+  "stock_actual": 2
+ },
+ {
+  "nombre": "Timer Autonics AT8N 100-240VAC",
+  "cant_min": 2,
+  "stock_actual": 2
+ },
+ {
+  "nombre": "Conectores neumáticos  10mm",
+  "cant_min": 10,
+  "stock_actual": 2
+ },
+ {
+  "nombre": "Electroválvula neumática 4/2 vías 24VDC",
+  "cant_min": 2,
+  "stock_actual": 5
+ },
+ {
+  "nombre": "Manómetro Ashcroft 63mm vacío 0-30 inHg",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Manómetro analógico neumático circular",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Pistola engrasadora manual acero inox",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Rodamiento / balero URB RUM",
+  "cant_min": 2,
+  "stock_actual": 5
+ },
+ {
+  "nombre": "Valvula solenoide neumatica 5/2 vias manifold",
+  "cant_min": 1,
+  "stock_actual": 2
+ },
+ {
+  "nombre": "Válvula seguridad Komatsu Safe Valve",
+  "cant_min": 1,
+  "stock_actual": 5
+ },
+ {
+  "nombre": "Válvula solenoide DE WIT 2W-25-NC-E-VI5 1\" NC",
+  "cant_min": 2,
+  "stock_actual": 6
+ },
+ {
+  "nombre": "Cinta fibra de vidrio aislante (rollo)",
+  "cant_min": 1,
+  "stock_actual": 6
+ },
+ {
+  "nombre": "Resistencia cerámica 325W termopar K 12x6.5cm",
+  "cant_min": 2,
+  "stock_actual": 4
+ },
+ {
+  "nombre": "Resistencia cerámica 350W termopar K 12x6.5cm",
+  "cant_min": 1,
+  "stock_actual": 6
+ },
+ {
+  "nombre": "Resistencia cerámica 625W termopar K 25x6.5cm",
+  "cant_min": 4,
+  "stock_actual": 0
+ },
+ {
+  "nombre": "Resistencia cerámica Ceramicx 325W 12x6.5cm",
+  "cant_min": 1,
+  "stock_actual": 6
+ },
+ {
+  "nombre": "Resistencia plana 300W termopar K 12x6.5cm",
+  "cant_min": 1,
+  "stock_actual": 6
+ },
+ {
+  "nombre": "Resistencia plana 625W termopar K 25x6.5cm",
+  "cant_min": 1,
+  "stock_actual": 6
+ },
+ {
+  "nombre": "Resistencia plana 650W termopar K 25x6.5cm",
+  "cant_min": 1,
+  "stock_actual": 6
+ },
+ {
+  "nombre": "Resistencia tubular tipo U calentadora 220V",
+  "cant_min": 6,
+  "stock_actual": 12
+ },
+ {
+  "nombre": "Terminales de anillo sin aislamiento (caja)",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Termopar tipo K de repuesto",
+  "cant_min": 1,
+  "stock_actual": 1
+ },
+ {
+  "nombre": "Termómetro digital portátil Traceable",
+  "cant_min": 1,
+  "stock_actual": 1
+ }
+]
