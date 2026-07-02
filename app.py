@@ -148,6 +148,50 @@ except Exception as _e:
     print(f"[restaurar cantidades 2026-07-01] error: {_e}")
 
 # ---------------------------------------------------------------------------
+# Migracion 2026-07-02: actualizar stock_actual y cant_min segun Excel
+# Lista_Refacciones_2026-07-02.xlsx. Empareja por nombre exacto.
+# ---------------------------------------------------------------------------
+_CANTIDADES_REF_FLAG_2 = 'cantidades_restauradas_20260702'
+
+def _restaurar_cantidades_20260702():
+    con = get_db()
+    ya_corrio = con.execute("SELECT value FROM app_meta WHERE key=?", (_CANTIDADES_REF_FLAG_2,)).fetchone()
+    if ya_corrio:
+        con.close()
+        return
+    ref_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_cantidades_ref_20260702.json')
+    try:
+        with open(ref_path, encoding='utf-8') as f:
+            referencia = json.load(f)
+    except FileNotFoundError:
+        con.close()
+        return
+    actuales = con.execute("SELECT id, nombre FROM refacciones").fetchall()
+    por_nombre = {}
+    for row in actuales:
+        por_nombre.setdefault(row['nombre'], []).append(row['id'])
+    actualizadas, sin_match = 0, []
+    for item in referencia:
+        ids = por_nombre.get(item['nombre'])
+        if not ids:
+            sin_match.append(item['nombre'])
+            continue
+        for rid in ids:
+            con.execute("UPDATE refacciones SET cant_min=?, stock_actual=? WHERE id=?",
+                        (item['cant_min'], item['stock_actual'], rid))
+            actualizadas += 1
+    con.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", (_CANTIDADES_REF_FLAG_2, 'done'))
+    con.commit(); con.close()
+    print(f"[cantidades 2026-07-02] actualizadas={actualizadas} sin_match={len(sin_match)}")
+    if sin_match:
+        print(f"[cantidades 2026-07-02] SIN MATCH: {sin_match}")
+
+try:
+    _restaurar_cantidades_20260702()
+except Exception as _e:
+    print(f"[cantidades 2026-07-02] error: {_e}")
+
+# ---------------------------------------------------------------------------
 # Migracion (una sola vez, idempotente): asignar numero_parte a refacciones
 # que YA EXISTIAN antes de este cambio y que aun no tienen codigo. No toca
 # stock_actual, cant_min, ni ningun otro campo; solo llena numero_parte.
