@@ -3605,6 +3605,9 @@ function mostrarQR(r){
     ' | MARCA: '+(r.marca||'')+
     (r.modelo?' MOD:'+r.modelo:'')+
     ' | PROV: '+(r.proveedor||''));
+  var codigoEl=document.getElementById('qr-codigo');
+  if(r.numero_parte){codigoEl.textContent=r.numero_parte;codigoEl.style.display='block';}
+  else{codigoEl.style.display='none';}
   document.getElementById('qr-title').textContent=r.nombre;
   document.getElementById('qr-subtitle').textContent=(r.seccion||'')+(r.ubicacion?' • '+r.ubicacion:'');
   var canvas=document.getElementById('qr-canvas');
@@ -3619,6 +3622,7 @@ function imprimirQR(){
   var src=img?img.src:'';
   var w=window.open('','_blank','width=400,height=500');
   w.document.write('<html><body style="text-align:center;font-family:Arial,sans-serif;padding:20px">'+
+    (r.numero_parte?'<div style="font-size:22px;font-weight:bold;letter-spacing:2px;color:#1F5C2E;font-family:monospace;margin-bottom:6px">'+r.numero_parte+'</div>':'')+
     '<div style="font-size:16px;font-weight:bold;color:#1F5C2E;margin-bottom:4px">'+r.nombre+'</div>'+
     '<div style="font-size:11px;color:#888;margin-bottom:14px">'+(r.seccion||'')+' • '+(r.ubicacion||'')+'</div>'+
     (src?'<img src="'+src+'" style="width:200px;height:200px">':'<p>QR no disponible</p>')+
@@ -3795,6 +3799,7 @@ function deleteRef(id){
 <div id="qr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:320px;width:92%;text-align:center;position:relative">
     <button onclick="document.getElementById('qr-modal').style.display='none'" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#555">✕</button>
+    <div id="qr-codigo" style="font-weight:bold;font-size:20px;letter-spacing:2px;color:#1F5C2E;font-family:monospace;margin-bottom:6px;display:none"></div>
     <div id="qr-title" style="font-weight:bold;font-size:15px;margin-bottom:4px;color:#1F5C2E"></div>
     <div id="qr-subtitle" style="font-size:11px;color:#888;margin-bottom:16px"></div>
     <div id="qr-canvas" style="display:flex;justify-content:center;margin-bottom:16px"></div>
