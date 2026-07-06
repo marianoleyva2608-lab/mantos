@@ -3387,7 +3387,19 @@ async function verReq(id){
             </select>
             <input id="rf-proveedor-nuevo" class="rf-inp" placeholder="Nombre del proveedor nuevo" style="display:none;margin-top:6px"></div>
           <div><label style="font-size:12px;color:#555">Tiempo de Entrega</label><input id="rf-tiempo" class="rf-inp" placeholder="3-5 días"></div>
-          <div><label style="font-size:12px;color:#555">Ubicación en Almacén</label><input id="rf-ubicacion" class="rf-inp" placeholder="Estante A-3"></div>
+          <div><label style="font-size:12px;color:#555">Ubicación en Estante (Área-Estante-Posición)</label>
+            <div style="display:flex;gap:6px">
+              <select id="rf-ubi-area" class="rf-inp" style="flex:1">
+                <option value="">Área</option>
+                <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+                <option value="D">D</option><option value="E">E</option><option value="F">F</option>
+                <option value="G">G</option><option value="H">H</option>
+              </select>
+              <input type="number" id="rf-ubi-estante" class="rf-inp" placeholder="Estante" min="1" style="flex:1">
+              <input type="number" id="rf-ubi-posicion" class="rf-inp" placeholder="Posición" min="1" style="flex:1">
+            </div>
+            <input type="hidden" id="rf-ubicacion-original">
+          </div>
           <div style="display:none"><label style="font-size:12px;color:#555">Costo Unitario ($)</label><input type="number" id="rf-costo" class="rf-inp" value="0" min="0" step="0.01"></div>
           <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Notas</label><textarea id="rf-notas" class="rf-inp" rows="2" style="resize:vertical"></textarea></div>
           <div id="rf-qr-box" style="grid-column:1/-1;background:#F5F8F5;border:1px dashed #1F5C2E;border-radius:8px;padding:10px">
@@ -3626,7 +3638,7 @@ function filterRef(){renderRef(_refData);}
 function openRefModal(data){
   document.getElementById('ref-id').value=(data&&data.id)?data.id:'';
   document.getElementById('ref-modal-title').textContent=(data&&data.id)?'Editar Refacción':(data?'Nueva Refacción (clonada)':'Nueva Refacción');
-  ['nombre','descripcion','marca','modelo','criticidad','ubicacion','tiempo','notas'].forEach(function(k){
+  ['nombre','descripcion','marca','modelo','criticidad','tiempo','notas'].forEach(function(k){
     var el=document.getElementById('rf-'+k);
     if(el&&data)el.value=data[k==='tiempo'?'tiempo_entrega':k]||'';
     else if(el&&!data)el.value=(k==='criticidad'?'MEDIA':'');
@@ -3683,6 +3695,18 @@ function openRefModal(data){
       inp.style.display='';
       inp.value=provNombre;
     }
+  })();
+  // Ubicación en estante: Área(letra)-Estante(num)-Posición(num). Si el valor
+  // guardado no tiene ese formato (ubicaciones antiguas en texto libre), se deja
+  // en blanco para capturar el código nuevo, pero se conserva el texto original
+  // por si no se llenan los 3 campos al guardar (para no perder el dato viejo).
+  (function(){
+    var ubiOriginal=data&&data.ubicacion?data.ubicacion:'';
+    document.getElementById('rf-ubicacion-original').value=ubiOriginal;
+    var m=ubiOriginal.match(/^([A-Ha-h])-(\d+)-(\d+)$/);
+    document.getElementById('rf-ubi-area').value=m?m[1].toUpperCase():'';
+    document.getElementById('rf-ubi-estante').value=m?m[2]:'';
+    document.getElementById('rf-ubi-posicion').value=m?m[3]:'';
   })();
   document.getElementById('rf-costo').value=data?data.costo:0;
   var imgUrl=data&&data.imagen_url?data.imagen_url:'';
@@ -3888,6 +3912,16 @@ function getProveedorCod(){
   if(sel.value && sel.value!=='__nuevo_prov__')return sel.value;
   return ''; // proveedor nuevo sin codigo del catalogo: no se genera QR automatico
 }
+function getUbicacionValue(){
+  var area=document.getElementById('rf-ubi-area').value;
+  var estante=document.getElementById('rf-ubi-estante').value;
+  var posicion=document.getElementById('rf-ubi-posicion').value;
+  if(area&&estante&&posicion){
+    return area+'-'+estante+'-'+String(posicion).padStart(2,'0');
+  }
+  // faltan datos del codigo nuevo: conserva el valor original para no perder ubicaciones ya guardadas
+  return document.getElementById('rf-ubicacion-original').value||'';
+}
 function rfPreviewNumero(){
   var planta=document.getElementById('rf-planta-cod').value;
   var prov=getProveedorCod();
@@ -4009,7 +4043,7 @@ function saveRefaccion(e){
       cant_min:parseInt(document.getElementById('rf-min').value)||1,
       proveedor:nombreProveedor,
       tiempo_entrega:document.getElementById('rf-tiempo').value,
-      ubicacion:document.getElementById('rf-ubicacion').value,
+      ubicacion:getUbicacionValue(),
       costo:parseFloat(document.getElementById('rf-costo').value)||0,
       notas:document.getElementById('rf-notas').value,
       imagen_url:document.getElementById('rf-imagen-url').value.trim(),
