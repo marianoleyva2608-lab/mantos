@@ -3405,6 +3405,12 @@ async function verReq(id){
             </div>
             <input type="hidden" id="rf-ubicacion-original">
           </div>
+          <div><label style="font-size:12px;color:#555">Nombre de Estante / Almacén</label>
+            <select id="rf-estante" class="rf-inp" onchange="rfEstanteChange(this)">
+              <option value="">-- Seleccionar estante --</option>
+              <option value="__nuevo_estante__">➕ Agregar estante...</option>
+            </select>
+            <input id="rf-estante-nuevo" class="rf-inp" placeholder="Nombre del estante nuevo" style="display:none;margin-top:6px"></div>
           <div style="display:none"><label style="font-size:12px;color:#555">Costo Unitario ($)</label><input type="number" id="rf-costo" class="rf-inp" value="0" min="0" step="0.01"></div>
           <div style="grid-column:1/-1"><label style="font-size:12px;color:#555">Notas</label><textarea id="rf-notas" class="rf-inp" rows="2" style="resize:vertical"></textarea></div>
           <div id="rf-qr-box" style="grid-column:1/-1;background:#F5F8F5;border:1px dashed #1F5C2E;border-radius:8px;padding:10px">
@@ -3473,7 +3479,7 @@ function importRefaccionesExcel(input){
     .catch(function(){ input.value=''; alert('Error de conexion al importar'); });
 }
 function loadRefacciones(){fetch('/api/refacciones').then(r=>r.json()).then(d=>{_refData=d;renderRef(d);renderRefStats(d);populateSeccionSelect(d);populateCategoriaSelect(d);populateCatFilter(d);});}
-if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',loadQrCatalogo);}else{loadQrCatalogo();}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){loadQrCatalogo();loadEstantes();});}else{loadQrCatalogo();loadEstantes();}
 function renderRefStats(data){
   var total=data.length,bajo=data.filter(r=>r.stock_actual<r.cant_min).length,alta=data.filter(r=>r.criticidad==='ALTA').length;
   document.getElementById('ref-stats').innerHTML=
@@ -3714,6 +3720,23 @@ function openRefModal(data){
     document.getElementById('rf-ubi-posicion').value=m?m[3].toUpperCase():'';
   })();
   document.getElementById('rf-costo').value=data?data.costo:0;
+  // Nombre de estante/almacen: buscar en la lista; si no coincide (o viene vacio), "Agregar estante"
+  (function(){
+    var estNombre=data?data.estante_nombre||'':'';
+    var sel=document.getElementById('rf-estante');
+    var inp=document.getElementById('rf-estante-nuevo');
+    inp.style.display='none'; inp.value='';
+    if(!estNombre){sel.value='';return;}
+    var found=false;
+    for(var i=0;i<sel.options.length;i++){
+      if(sel.options[i].value===estNombre){sel.selectedIndex=i;found=true;break;}
+    }
+    if(!found){
+      sel.value='__nuevo_estante__';
+      inp.style.display='';
+      inp.value=estNombre;
+    }
+  })();
   var imgUrl=data&&data.imagen_url?data.imagen_url:'';
   document.getElementById('rf-imagen-url').value=imgUrl;
   document.getElementById('rf-img-b64').value=(data&&data.foto_b64)?data.foto_b64:'';
@@ -3902,6 +3925,34 @@ function loadQrCatalogo(){
     }
   });
 }
+function loadEstantes(){
+  fetch('/api/estantes').then(function(r){return r.json();}).then(function(d){
+    var sel=document.getElementById('rf-estante');
+    if(!sel)return;
+    var nuevoOpt=sel.querySelector('option[value="__nuevo_estante__"]');
+    var valorPrevio=sel.value;
+    Array.prototype.slice.call(sel.options).forEach(function(opt){
+      if(opt.value!=='' && opt.value!=='__nuevo_estante__') opt.remove();
+    });
+    (d.estantes||[]).forEach(function(nombre){
+      var opt=document.createElement('option');
+      opt.value=nombre; opt.textContent=nombre;
+      sel.insertBefore(opt,nuevoOpt);
+    });
+    if(valorPrevio && sel.querySelector('option[value="'+valorPrevio+'"]')) sel.value=valorPrevio;
+  });
+}
+function rfEstanteChange(sel){
+  var inp=document.getElementById('rf-estante-nuevo');
+  if(sel.value==='__nuevo_estante__'){inp.style.display='';inp.focus();}
+  else{inp.style.display='none';inp.value='';}
+}
+function getEstanteNombre(){
+  var sel=document.getElementById('rf-estante');
+  if(!sel)return '';
+  if(sel.value==='__nuevo_estante__')return document.getElementById('rf-estante-nuevo').value.trim();
+  return sel.value;
+}
 function rfProveedorChange(sel){
   var inp=document.getElementById('rf-proveedor-nuevo');
   if(sel.value==='__nuevo_prov__'){inp.style.display='';inp.focus();}
@@ -4047,8 +4098,11 @@ function saveRefaccion(e){
   var selProv=document.getElementById('rf-proveedor');
   var esProveedorNuevo=selProv.value==='__nuevo_prov__';
   var nombreProveedor=getProveedorNombre();
+  var selEstante=document.getElementById('rf-estante');
+  var esEstanteNuevo=selEstante&&selEstante.value==='__nuevo_estante__';
+  var nombreEstante=getEstanteNombre();
 
-  function guardarConProveedor(provCod){
+  function guardarFinal(provCod, estanteNombreFinal){
     var body={
       nombre:document.getElementById('rf-nombre').value,
       descripcion:document.getElementById('rf-descripcion').value,
@@ -4062,6 +4116,7 @@ function saveRefaccion(e){
       proveedor:nombreProveedor,
       tiempo_entrega:document.getElementById('rf-tiempo').value,
       ubicacion:getUbicacionValue(),
+      estante_nombre:estanteNombreFinal,
       costo:parseFloat(document.getElementById('rf-costo').value)||0,
       notas:document.getElementById('rf-notas').value,
       imagen_url:document.getElementById('rf-imagen-url').value.trim(),
@@ -4075,6 +4130,22 @@ function saveRefaccion(e){
       .then(r=>r.json()).then(function(){closeRefModal();loadRefacciones();});
   }
 
+  function resolverEstanteYGuardar(provCod){
+    if(esEstanteNuevo && nombreEstante){
+      // Estante escrito a mano: se registra en la lista de estantes para que
+      // quede disponible en el dropdown la proxima vez.
+      fetch('/api/estantes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre:nombreEstante})})
+        .then(function(r){return r.json();})
+        .then(function(d){
+          loadEstantes();
+          guardarFinal(provCod, d.nombre||nombreEstante);
+        })
+        .catch(function(){guardarFinal(provCod, nombreEstante);});
+    }else{
+      guardarFinal(provCod, nombreEstante);
+    }
+  }
+
   if(esProveedorNuevo && nombreProveedor){
     // Proveedor escrito a mano: se registra en la lista de proveedores (con su
     // propio codigo letra+numero) para que quede disponible en el dropdown la proxima vez.
@@ -4082,11 +4153,11 @@ function saveRefaccion(e){
       .then(function(r){return r.json();})
       .then(function(d){
         loadQrCatalogo();
-        guardarConProveedor(d.codigo||'');
+        resolverEstanteYGuardar(d.codigo||'');
       })
-      .catch(function(){guardarConProveedor('');});
+      .catch(function(){resolverEstanteYGuardar('');});
   }else{
-    guardarConProveedor(getProveedorCod());
+    resolverEstanteYGuardar(getProveedorCod());
   }
 }
 function deleteRef(id){

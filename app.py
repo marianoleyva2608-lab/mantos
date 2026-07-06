@@ -105,6 +105,28 @@ try:
     _npcon.commit(); _npcon.close()
 except: pass
 
+# Migración: agregar estante_nombre (nombre del estante/almacén, ej. "Estante
+# de herramientas") si no existe. Es independiente del codigo Area-Estante-
+# Posicion que ya se guarda en 'ubicacion'.
+try:
+    _escon = get_db()
+    _escon.execute("ALTER TABLE refacciones ADD COLUMN estante_nombre TEXT DEFAULT ''")
+    _escon.commit(); _escon.close()
+except: pass
+
+def init_estantes_db():
+    con = get_db()
+    con.execute(
+        """CREATE TABLE IF NOT EXISTS estantes
+        (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE,
+         created_at TEXT DEFAULT (datetime('now')))"""
+    )
+    con.execute("INSERT OR IGNORE INTO estantes (nombre) VALUES ('Almacén Estante 2')")
+    con.execute("INSERT OR IGNORE INTO estantes (nombre) VALUES ('Estante de herramientas')")
+    con.commit(); con.close()
+
+init_estantes_db()
+
 # ---------------------------------------------------------------------------
 # Migracion de UNA SOLA VEZ: restaurar cant_min y stock_actual segun el
 # respaldo "Lista_Refacciones_2026-07-01.xlsx" que el usuario proporciono
@@ -1263,13 +1285,13 @@ def api_create_refaccion():
         except ValueError as e:
             con.close()
             return jsonify({'error': str(e)}), 409
-    con.execute("INSERT INTO refacciones (nombre,descripcion,marca,modelo,categoria,criticidad,seccion,cant_min,stock_actual,tiempo_entrega,proveedor,ubicacion,costo,notas,foto_b64,imagen_url,numero_parte) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    con.execute("INSERT INTO refacciones (nombre,descripcion,marca,modelo,categoria,criticidad,seccion,cant_min,stock_actual,tiempo_entrega,proveedor,ubicacion,costo,notas,foto_b64,imagen_url,numero_parte,estante_nombre) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
          d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
          int(d.get('cant_min',1)),int(d.get('stock_actual',0)),
          d.get('tiempo_entrega',''),d.get('proveedor',''),d.get('ubicacion',''),
          float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64',''),d.get('imagen_url',''),
-         numero_parte))
+         numero_parte,d.get('estante_nombre','')))
     con.commit()
     new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0]
     con.close()
@@ -1311,13 +1333,13 @@ def api_update_refaccion(ref_id):
     # habia en la base de datos (nunca se borra por omision/bug del frontend).
     foto_b64_final = d.get('foto_b64') or (row['foto_b64'] if row else '')
 
-    con.execute("UPDATE refacciones SET nombre=?,descripcion=?,marca=?,modelo=?,categoria=?,criticidad=?,seccion=?,cant_min=?,stock_actual=?,tiempo_entrega=?,proveedor=?,ubicacion=?,costo=?,notas=?,foto_b64=?,imagen_url=?,numero_parte=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+    con.execute("UPDATE refacciones SET nombre=?,descripcion=?,marca=?,modelo=?,categoria=?,criticidad=?,seccion=?,cant_min=?,stock_actual=?,tiempo_entrega=?,proveedor=?,ubicacion=?,costo=?,notas=?,foto_b64=?,imagen_url=?,numero_parte=?,estante_nombre=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
         (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
          d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
          int(d.get('cant_min',1)),int(d.get('stock_actual',0)),
          d.get('tiempo_entrega',''),d.get('proveedor',''),d.get('ubicacion',''),
          float(d.get('costo',0)),d.get('notas',''),foto_b64_final,d.get('imagen_url',''),
-         numero_parte_final,ref_id))
+         numero_parte_final,d.get('estante_nombre',''),ref_id))
     con.commit()
     con.close()
     return jsonify({'ok': True, 'numero_parte': numero_parte_final})
@@ -1390,6 +1412,34 @@ def api_qr_catalogo():
     proveedores = _todos_proveedores(con)
     con.close()
     return jsonify({'grupos': QR_GRUPOS, 'planta': QR_PLANTA, 'proveedores': proveedores})
+
+@app.route('/api/estantes', methods=['GET'])
+def api_list_estantes():
+    con = get_db()
+    rows = con.execute("SELECT nombre FROM estantes ORDER BY nombre COLLATE NOCASE").fetchall()
+    con.close()
+    return jsonify({'estantes': [r['nombre'] for r in rows]})
+
+@app.route('/api/estantes', methods=['POST'])
+def api_add_estante():
+    """Registra un nombre de estante escrito a mano (opcion 'Agregar estante...')
+    para que quede disponible como opcion normal la proxima vez."""
+    d = request.get_json(force=True) or {}
+    nombre = (d.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Falta el nombre del estante'}), 400
+    con = get_db()
+    existente = con.execute(
+        "SELECT nombre FROM estantes WHERE nombre = ? COLLATE NOCASE", (nombre,)
+    ).fetchone()
+    if existente:
+        con.close()
+        return jsonify({'ok': True, 'nombre': existente['nombre'], 'existente': True})
+    con.execute("INSERT INTO estantes (nombre) VALUES (?)", (nombre,))
+    con.commit()
+    con.close()
+    return jsonify({'ok': True, 'nombre': nombre, 'existente': False})
+
 
 
 def _build_numero_parte(con, planta_cod, grupo, categoria, prov_cod):
