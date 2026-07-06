@@ -3321,6 +3321,11 @@ async function verReq(id){
       <select id="ref-filter-cat" onchange="filterRef()" style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;cursor:pointer">
         <option value="">📂 Categoría: Todas</option>
       </select>
+      <select id="ref-filter-img" onchange="filterRef()" style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;cursor:pointer">
+        <option value="">🖼️ Imagen: Todas</option>
+        <option value="con">✅ Con imagen</option>
+        <option value="sin">🚫 Sin imagen</option>
+      </select>
       <button onclick="resetFiltros()" style="padding:6px 12px;border:1px solid #aaa;border-radius:6px;font-size:12px;background:#fff;cursor:pointer;color:#555">↺ Limpiar</button>
     </div>
     <div id="ref-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
@@ -3437,6 +3442,7 @@ function resetFiltros(){
   document.getElementById('ref-filter-crit').value='';
   document.getElementById('ref-filter-stock').value='';
   document.getElementById('ref-filter-cat').value='';
+  var fi=document.getElementById('ref-filter-img'); if(fi)fi.value='';
   document.getElementById('ref-search').value='';
   renderRef(_refData);
 }
@@ -3480,6 +3486,9 @@ function selectAllVisibleRef(){
   if(fStock==='bajo')filtered=filtered.filter(r=>r.stock_actual<r.cant_min);
   else if(fStock==='minimo')filtered=filtered.filter(r=>r.stock_actual===r.cant_min);
   else if(fStock==='ok')filtered=filtered.filter(r=>r.stock_actual>r.cant_min);
+  var fImg2=(document.getElementById('ref-filter-img')||{value:''}).value;
+  if(fImg2==='con')filtered=filtered.filter(refTieneImagen);
+  else if(fImg2==='sin')filtered=filtered.filter(r=>!refTieneImagen(r));
   filtered.forEach(function(r){_refSelected.add(r.id);});
   updateRefBulkBar();
   renderRef(_refData);
@@ -3514,6 +3523,9 @@ function bulkDeleteRef(){
     })
     .catch(function(){ if(typeof showToast==='function')showToast('Error al eliminar'); });
 }
+function refTieneImagen(r){
+  return !!((r.imagen_url && r.imagen_url.trim()) || r.foto_b64);
+}
 function renderRef(data){
   var q=(document.getElementById('ref-search')||{value:''}).value.toLowerCase();
   var sort=(document.getElementById('ref-sort')||{value:'seccion'}).value;
@@ -3527,6 +3539,9 @@ function renderRef(data){
   if(fStock==='bajo')filtered=filtered.filter(r=>r.stock_actual<r.cant_min);
   else if(fStock==='minimo')filtered=filtered.filter(r=>r.stock_actual===r.cant_min);
   else if(fStock==='ok')filtered=filtered.filter(r=>r.stock_actual>r.cant_min);
+  var fImg=(document.getElementById('ref-filter-img')||{value:''}).value;
+  if(fImg==='con')filtered=filtered.filter(refTieneImagen);
+  else if(fImg==='sin')filtered=filtered.filter(r=>!refTieneImagen(r));
   // Sort
   var critOrder={'ALTA':0,'MEDIA':1,'BAJA':2};
   if(sort==='stock_desc')filtered.sort(function(a,b){return b.stock_actual-a.stock_actual;});
