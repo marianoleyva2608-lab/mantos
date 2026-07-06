@@ -3986,10 +3986,10 @@ function imprimirQRLote(){
   }
   var w=window.open('','_blank');
   w.document.write('<html><head><title>Imprimir QR en lote</title><style>'+
-    '@page{size:3in 3in;margin:0}'+
+    '@page{size:3in 3in;margin:4mm}'+
     '*{box-sizing:border-box}'+
     'body{margin:0;font-family:Arial,sans-serif}'+
-    '.label-page{width:3in;height:3in;display:grid;page-break-after:always}'+
+    '.label-page{width:calc(3in - 8mm);height:calc(3in - 8mm);display:grid;page-break-after:always}'+
     '.qr-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;border:0.5px dotted #ccc;padding:2px}'+
     '.qr-cell img{width:auto;height:auto;max-width:92%;max-height:76%}'+
     '.qr-cell-code{font-size:'+fuenteCodigo+';font-family:monospace;text-align:center;word-break:break-all;line-height:1.1;margin-top:2px}'+
