@@ -3429,7 +3429,7 @@ async function verReq(id){
               <label style="white-space:nowrap;background:#1565C0;color:#fff;padding:8px 12px;border-radius:6px;font-size:12px;cursor:pointer;flex-shrink:0">📷 Cámara<input type="file" accept="image/*" capture="environment" style="display:none" onchange="rfImgFromCamera(this)"></label>
             </div>
             <div id="rf-imagen-preview" style="grid-column:1/-1;display:none;text-align:center;margin-top:8px;position:relative">
-              <img id="rf-img-preview-el" src="" style="max-height:160px;max-width:100%;object-fit:contain;border-radius:8px;border:2px solid #1F5C2E" onerror="this.style.display='none';document.getElementById('rf-img-error').style.display='block'">
+              <img id="rf-img-preview-el" src="" style="max-height:160px;max-width:100%;object-fit:contain;border-radius:8px;border:2px solid #1F5C2E" onerror="rfImgOnError(this)">
               <div id="rf-img-error" style="display:none;color:#C62828;font-size:12px;padding:8px">⚠️ No se puede cargar la imagen — verifica la URL</div>
             </div>
           </div>
@@ -3738,14 +3738,18 @@ function openRefModal(data){
     }
   })();
   var imgUrl=data&&data.imagen_url?data.imagen_url:'';
+  var fotoB64Existente=(data&&data.foto_b64)?data.foto_b64:'';
   document.getElementById('rf-imagen-url').value=imgUrl;
-  document.getElementById('rf-img-b64').value=(data&&data.foto_b64)?data.foto_b64:'';
+  document.getElementById('rf-img-b64').value=fotoB64Existente;
+  // Si la URL guardada llega a fallar al cargar, usar la foto_b64 ya guardada
+  // como respaldo automatico en vez de solo mostrar un error.
+  document.getElementById('rf-img-preview-el').dataset.fallback=fotoB64Existente?('data:image/jpeg;base64,'+fotoB64Existente):'';
   rfImgPreview(imgUrl);
   // Si tiene foto_b64 y no tiene URL, mostrar la foto guardada
-  if(!imgUrl&&data&&data.foto_b64){
+  if(!imgUrl&&fotoB64Existente){
     var p=document.getElementById('rf-imagen-preview');
     var i=document.getElementById('rf-img-preview-el');
-    i.style.display='';i.src='data:image/jpeg;base64,'+data.foto_b64;p.style.display='block';
+    i.style.display='';i.src='data:image/jpeg;base64,'+fotoB64Existente;p.style.display='block';
   }
   // Numero de parte / QR: solo aplica a refacciones nuevas o las que ya
   // tengan uno asignado (se muestra pero no se puede reasignar/cambiar).
@@ -3824,8 +3828,11 @@ function subirFotoRef(id, input){
   var reader=new FileReader();
   reader.onload=function(e){
     var b64=e.target.result.split(',')[1];
+    // Se limpia tambien imagen_url: si la refaccion ya tenia una URL guardada
+    // (rota o no), esa tenia prioridad al mostrar la foto y la nueva foto
+    // tomada por camara nunca se llegaba a ver aunque si se guardaba.
     fetch('/api/refacciones/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({foto_b64:b64,_patch:true})})
+      body:JSON.stringify({foto_b64:b64,imagen_url:'',_patch:true})})
     .then(function(r){return r.json();})
     .then(function(){
       loadRefacciones();
@@ -4066,6 +4073,19 @@ function rfImgPreview(url){
   if(url){i.style.display='';i.src=url;if(e)e.style.display='none';p.style.display='block';}
   else{p.style.display='none';}
 }
+function rfImgOnError(img){
+  // Si la URL fallo al cargar pero hay una foto_b64 guardada como respaldo,
+  // se muestra esa en vez de dejar solo un mensaje de error.
+  var fallback=img.dataset.fallback;
+  var err=document.getElementById('rf-img-error');
+  if(fallback && img.src!==fallback){
+    img.dataset.fallback='';
+    img.src=fallback;
+    return;
+  }
+  img.style.display='none';
+  if(err) err.style.display='block';
+}
 function rfImgFromCamera(input){
   var file=input.files[0];if(!file)return;
   var reader=new FileReader();
@@ -4075,6 +4095,9 @@ function rfImgFromCamera(input){
     document.getElementById('rf-imagen-url').value='';
     var i=document.getElementById('rf-img-preview-el');
     var p=document.getElementById('rf-imagen-preview');
+    var e=document.getElementById('rf-img-error');
+    i.dataset.fallback=''; // la foto nueva ya no necesita el respaldo anterior
+    if(e)e.style.display='none';
     i.style.display='';i.src=ev.target.result;p.style.display='block';
   };
   reader.readAsDataURL(file);
