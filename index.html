@@ -3624,7 +3624,7 @@ function renderRef(data){
 }
 function filterRef(){renderRef(_refData);}
 function openRefModal(data){
-  document.getElementById('ref-id').value=data?data.id:'';
+  document.getElementById('ref-id').value=(data&&data.id)?data.id:'';
   document.getElementById('ref-modal-title').textContent=(data&&data.id)?'Editar Refacción':(data?'Nueva Refacción (clonada)':'Nueva Refacción');
   ['nombre','descripcion','marca','modelo','criticidad','ubicacion','tiempo','notas'].forEach(function(k){
     var el=document.getElementById('rf-'+k);
