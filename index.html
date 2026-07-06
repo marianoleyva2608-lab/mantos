@@ -3994,19 +3994,22 @@ function cerrarEscanerQR(){
   }
 }
 function imprimirQRLote(){
-  var n=parseInt((document.querySelector('input[name="qr-lote-layout"]:checked')||{}).value)||3;
+  var MAX_POR_ETIQUETA=25; // 5x5, tope por etiqueta de 3"x3"
   var items=Array.from(_refSelected).map(function(id){return _refData.find(function(x){return x.id===id;});}).filter(function(r){return r&&r.numero_parte;});
   if(!items.length){showToast&&showToast('Ninguna de las refacciones seleccionadas tiene número de parte / QR');return;}
-  var porEtiqueta=n*n;
-  var fuenteCodigo=n>=4?'7px':(n===3?'8px':'10px');
+  // Tamano de fuente del codigo segun el lado de la cuadricula (n x n) de esa
+  // etiqueta: entre mas codigos entren, mas chica se ajusta la letra sola.
+  var fuentePorN={1:'16px',2:'12px',3:'9px',4:'7px',5:'6px'};
   var paginas='';
-  for(var i=0;i<items.length;i+=porEtiqueta){
-    var grupo=items.slice(i,i+porEtiqueta);
+  for(var i=0;i<items.length;i+=MAX_POR_ETIQUETA){
+    var grupo=items.slice(i,i+MAX_POR_ETIQUETA);
+    var n=Math.max(1,Math.ceil(Math.sqrt(grupo.length)));
+    var fuenteCodigo=fuentePorN[n]||'6px';
     var celdas='';
     grupo.forEach(function(r){
       celdas+='<div class="qr-cell">'+
         '<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=000000&data='+encodeURIComponent(r.numero_parte)+'">'+
-        '<div class="qr-cell-code">'+r.numero_parte+'</div>'+
+        '<div class="qr-cell-code" style="font-size:'+fuenteCodigo+'">'+r.numero_parte+'</div>'+
       '</div>';
     });
     paginas+='<div class="label-page" style="grid-template-columns:repeat('+n+',1fr);grid-template-rows:repeat('+n+',1fr)">'+celdas+'</div>';
@@ -4019,7 +4022,7 @@ function imprimirQRLote(){
     '.label-page{width:calc(3in - 8mm);height:calc(3in - 8mm);display:grid;page-break-after:always}'+
     '.qr-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;border:0.5px dotted #ccc;padding:2px}'+
     '.qr-cell img{width:auto;height:auto;max-width:92%;max-height:76%}'+
-    '.qr-cell-code{font-size:'+fuenteCodigo+';font-family:monospace;text-align:center;word-break:break-all;line-height:1.1;margin-top:2px}'+
+    '.qr-cell-code{font-family:monospace;text-align:center;word-break:break-all;line-height:1.1;margin-top:2px}'+
     '</style></head><body>'+paginas+'<script>window.onload=function(){window.print();}<\/script></body></html>');
   w.document.close();
   cerrarQRLoteModal();
@@ -4361,14 +4364,8 @@ function deleteRef(id){
   <div style="background:#fff;border-radius:16px;padding:24px;max-width:360px;width:92%;position:relative">
     <button onclick="cerrarQRLoteModal()" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#555">✕</button>
     <h3 style="margin:0 0 4px;color:#1F5C2E">🖨️ Imprimir QR en lote</h3>
-    <div id="qr-lote-count" style="font-size:13px;color:#555;margin-bottom:14px"></div>
-    <label style="font-size:13px;font-weight:bold;color:#555">Diseño de etiqueta (3" x 3")</label>
-    <div style="display:flex;flex-direction:column;gap:8px;margin:10px 0 18px">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px"><input type="radio" name="qr-lote-layout" value="2"> 2 x 2 &nbsp;(4 códigos por etiqueta)</label>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px"><input type="radio" name="qr-lote-layout" value="3" checked> 3 x 3 &nbsp;(9 códigos por etiqueta)</label>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px"><input type="radio" name="qr-lote-layout" value="4"> 4 x 4 &nbsp;(16 códigos por etiqueta)</label>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px"><input type="radio" name="qr-lote-layout" value="5"> 5 x 5 &nbsp;(25 códigos por etiqueta)</label>
-    </div>
+    <div id="qr-lote-count" style="font-size:13px;color:#555;margin-bottom:6px"></div>
+    <div style="font-size:12px;color:#888;margin-bottom:18px">El tamaño de la cuadrícula se ajusta solo según cuántos códigos entren en cada etiqueta (máximo 25 por etiqueta de 3"x3", margen de 4mm). Si seleccionas más de 25, se reparten en varias etiquetas.</div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button onclick="cerrarQRLoteModal()" style="background:#eee;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:13px">Cancelar</button>
       <button onclick="imprimirQRLote()" style="background:#1F5C2E;color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:13px">🖨️ Imprimir</button>
