@@ -3385,7 +3385,7 @@ async function verReq(id){
               <option value="">-- Seleccionar proveedor --</option>
               <option value="__nuevo_prov__">➕ Agregar proveedor...</option>
             </select>
-            <input id="rf-proveedor-nuevo" class="rf-inp" placeholder="Nombre del proveedor nuevo" style="display:none;margin-top:6px"></div>
+            <input id="rf-proveedor-nuevo" class="rf-inp" placeholder="Nombre del proveedor nuevo" style="display:none;margin-top:6px" oninput="rfPreviewNumero()"></div>
           <div><label style="font-size:12px;color:#555">Tiempo de Entrega</label><input id="rf-tiempo" class="rf-inp" placeholder="3-5 días"></div>
           <div><label style="font-size:12px;color:#555">Ubicación en Estante (Área-Estante-Posición)</label>
             <div style="display:flex;gap:6px">
@@ -3929,9 +3929,22 @@ function getUbicacionValue(){
 }
 function rfPreviewNumero(){
   var planta=document.getElementById('rf-planta-cod').value;
+  var selProv=document.getElementById('rf-proveedor');
+  var esProveedorNuevo=selProv.value==='__nuevo_prov__';
+  var nombreProveedorNuevo=esProveedorNuevo?document.getElementById('rf-proveedor-nuevo').value.trim():'';
   var prov=getProveedorCod();
   var catTexto=getCategoriaValue();
   var prev=document.getElementById('rf-numero-preview');
+  // Proveedor nuevo (escrito a mano): todavia no tiene codigo asignado, eso
+  // ocurre hasta que se presiona Guardar. Se avisa en vez de dejar la vista
+  // previa oculta sin explicacion.
+  if(esProveedorNuevo){
+    if(!(planta&&catTexto&&nombreProveedorNuevo)){prev.style.display='none';return;}
+    document.getElementById('rf-numero-texto').textContent='Se generará al guardar (proveedor nuevo: '+nombreProveedorNuevo+')';
+    document.getElementById('rf-qr-preview').innerHTML='';
+    prev.style.display='block';
+    return;
+  }
   if(!(planta&&prov&&catTexto)){prev.style.display='none';return;}
   var gc=_grupoCategoriaDeTexto(catTexto);
   fetch('/api/refacciones/preview-numero?planta_cod='+encodeURIComponent(planta)+'&grupo='+encodeURIComponent(gc.grupo)+'&categoria='+encodeURIComponent(gc.categoria)+'&proveedor_cod='+encodeURIComponent(prov))
