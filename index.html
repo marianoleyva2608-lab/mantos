@@ -160,6 +160,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .ap-login-btn:active{background:#0f3a1a}
 .ap-err{color:#c62828;font-size:.83rem;min-height:16px;margin-top:2px}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
 </head>
 <body>
 
@@ -3293,6 +3294,7 @@ async function verReq(id){
       <a href="/api/refacciones/export/pdf" style="background:#B71C1C;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:15px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px">&#128196; Exportar PDF</a>
       <label style="background:#6A1B9A;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">&#128193; Importar Excel<input id="ref-import-input" type="file" accept=".xlsx" style="display:none" onchange="importRefaccionesExcel(this)"></label>
       <input id="ref-search" type="text" placeholder="Buscar..." oninput="filterRef()" style="padding:8px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;flex:1;min-width:180px">
+      <button onclick="abrirEscanerQR()" title="Buscar escaneando un QR" style="background:#1F5C2E;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:14px;cursor:pointer">&#128247; Escanear QR</button>
     </div>
     <!-- Filtros y ordenamiento -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
@@ -3901,6 +3903,69 @@ function abrirImpresionQRLote(){
   document.getElementById('qr-lote-modal').style.display='flex';
 }
 function cerrarQRLoteModal(){document.getElementById('qr-lote-modal').style.display='none';}
+
+// ---- Escanear QR con la camara para buscar una refaccion ----
+var _qrScanStream=null;
+var _qrScanRAF=null;
+function abrirEscanerQR(){
+  if(typeof jsQR==='undefined'){
+    alert('No se pudo cargar el lector de QR (revisa tu conexión a internet) e intenta de nuevo.');
+    return;
+  }
+  if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){
+    alert('Este navegador no permite acceder a la cámara para escanear.');
+    return;
+  }
+  var modal=document.getElementById('qr-scan-modal');
+  var video=document.getElementById('qr-scan-video');
+  var status=document.getElementById('qr-scan-status');
+  status.textContent='Apunta la cámara al código QR...';
+  modal.style.display='flex';
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+    .then(function(stream){
+      _qrScanStream=stream;
+      video.srcObject=stream;
+      video.play();
+      _qrScanTick();
+    })
+    .catch(function(err){
+      status.textContent='No se pudo acceder a la cámara: '+(err&&err.message?err.message:err);
+    });
+}
+function _qrScanTick(){
+  var video=document.getElementById('qr-scan-video');
+  var canvas=document.getElementById('qr-scan-canvas');
+  var modal=document.getElementById('qr-scan-modal');
+  if(!modal||modal.style.display==='none')return;
+  if(video.readyState===video.HAVE_ENOUGH_DATA){
+    canvas.width=video.videoWidth;
+    canvas.height=video.videoHeight;
+    var ctx=canvas.getContext('2d');
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    var imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+    var code=jsQR(imageData.data,imageData.width,imageData.height);
+    if(code&&code.data){
+      _qrScanEncontrado(code.data);
+      return;
+    }
+  }
+  _qrScanRAF=requestAnimationFrame(_qrScanTick);
+}
+function _qrScanEncontrado(texto){
+  document.getElementById('ref-search').value=texto.trim();
+  filterRef();
+  cerrarEscanerQR();
+  showToast&&showToast('QR encontrado: '+texto.trim());
+}
+function cerrarEscanerQR(){
+  var modal=document.getElementById('qr-scan-modal');
+  if(modal)modal.style.display='none';
+  if(_qrScanRAF){cancelAnimationFrame(_qrScanRAF);_qrScanRAF=null;}
+  if(_qrScanStream){
+    _qrScanStream.getTracks().forEach(function(t){t.stop();});
+    _qrScanStream=null;
+  }
+}
 function imprimirQRLote(){
   var n=parseInt((document.querySelector('input[name="qr-lote-layout"]:checked')||{}).value)||3;
   var items=Array.from(_refSelected).map(function(id){return _refData.find(function(x){return x.id===id;});}).filter(function(r){return r&&r.numero_parte;});
@@ -4256,6 +4321,14 @@ function deleteRef(id){
   </div>
 </div>
 
+<!-- Modal Escanear QR para buscar -->
+<div id="qr-scan-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:7000;flex-direction:column;align-items:center;justify-content:center">
+  <video id="qr-scan-video" style="max-width:92vw;max-height:65vh;border-radius:10px;background:#000" playsinline muted></video>
+  <canvas id="qr-scan-canvas" style="display:none"></canvas>
+  <div id="qr-scan-status" style="color:#fff;margin-top:14px;font-size:14px;text-align:center;padding:0 20px">Apunta la cámara al código QR...</div>
+  <button onclick="cerrarEscanerQR()" style="margin-top:16px;background:#C62828;color:#fff;border:none;padding:10px 24px;border-radius:8px;cursor:pointer;font-size:14px">Cancelar</button>
+</div>
+
 <!-- Modal Imprimir QR en lote -->
 <div id="qr-lote-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:6000;align-items:center;justify-content:center" onclick="if(event.target===this)cerrarQRLoteModal()">
   <div style="background:#fff;border-radius:16px;padding:24px;max-width:360px;width:92%;position:relative">
@@ -4267,6 +4340,7 @@ function deleteRef(id){
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px"><input type="radio" name="qr-lote-layout" value="2"> 2 x 2 &nbsp;(4 códigos por etiqueta)</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px"><input type="radio" name="qr-lote-layout" value="3" checked> 3 x 3 &nbsp;(9 códigos por etiqueta)</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px"><input type="radio" name="qr-lote-layout" value="4"> 4 x 4 &nbsp;(16 códigos por etiqueta)</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px"><input type="radio" name="qr-lote-layout" value="5"> 5 x 5 &nbsp;(25 códigos por etiqueta)</label>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button onclick="cerrarQRLoteModal()" style="background:#eee;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:13px">Cancelar</button>
