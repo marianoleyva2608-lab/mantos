@@ -3337,7 +3337,7 @@ async function verReq(id){
       <span id="ref-bulk-count" style="font-size:13px;font-weight:700;color:#8a6100">0 seleccionadas</span>
       <button onclick="selectAllVisibleRef()" style="background:#fff;border:1px solid #aaa;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer">Seleccionar visibles</button>
       <button onclick="clearRefSelection()" style="background:#fff;border:1px solid #aaa;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button>
-      <button onclick="abrirImpresionQRLote()" style="background:#1565C0;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:auto">&#128424;&#65039; Imprimir QR</button>
+      <button onclick="abrirImpresionQRLote()" id="ref-bulk-print-btn" style="background:#1565C0;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:auto">&#128424;&#65039; Imprimir QR</button>
       <button onclick="bulkDeleteRef()" style="background:#C62828;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">&#128465; Borrar seleccionadas</button>
     </div>
     <div id="ref-list"></div>
@@ -3552,10 +3552,18 @@ function clearRefSelection(){
 function updateRefBulkBar(){
   var bar=document.getElementById('ref-bulk-bar');
   var count=document.getElementById('ref-bulk-count');
+  var printBtn=document.getElementById('ref-bulk-print-btn');
   if(!bar||!count)return;
   if(_refBulkMode){
     bar.style.display='flex';
     count.textContent=_refSelected.size+' seleccionada'+(_refSelected.size===1?'':'s');
+    if(printBtn){
+      var conQr=Array.from(_refSelected).filter(function(id){
+        var r=_refData.find(function(x){return x.id===id;});
+        return r&&r.numero_parte;
+      }).length;
+      printBtn.textContent='🖨️ Imprimir QR ('+conQr+')';
+    }
   } else {
     bar.style.display='none';
   }
