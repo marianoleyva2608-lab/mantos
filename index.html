@@ -3324,6 +3324,15 @@ async function verReq(id){
       <button onclick="resetFiltros()" style="padding:6px 12px;border:1px solid #aaa;border-radius:6px;font-size:12px;background:#fff;cursor:pointer;color:#555">↺ Limpiar</button>
     </div>
     <div id="ref-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      <button onclick="toggleRefBulkMode()" id="ref-bulk-toggle-btn" style="background:#fff;color:#555;border:1px solid #aaa;padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer">&#9745; Seleccionar varias</button>
+    </div>
+    <div id="ref-bulk-bar" style="display:none;position:sticky;top:0;z-index:50;background:#FFF3E0;border:1px solid #FFB300;border-radius:10px;padding:10px 14px;margin-bottom:10px;align-items:center;gap:10px;flex-wrap:wrap">
+      <span id="ref-bulk-count" style="font-size:13px;font-weight:700;color:#8a6100">0 seleccionadas</span>
+      <button onclick="selectAllVisibleRef()" style="background:#fff;border:1px solid #aaa;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer">Seleccionar visibles</button>
+      <button onclick="clearRefSelection()" style="background:#fff;border:1px solid #aaa;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button>
+      <button onclick="bulkDeleteRef()" style="background:#C62828;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:auto">&#128465; Borrar seleccionadas</button>
+    </div>
     <div id="ref-list"></div>
   </div>
   <!-- Modal -->
@@ -3440,6 +3449,71 @@ function populateCatFilter(data){
     cats.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
   if(cur)sel.value=cur;
 }
+var _refBulkMode=false;
+var _refSelected=new Set();
+function toggleRefBulkMode(){
+  _refBulkMode=!_refBulkMode;
+  var btn=document.getElementById('ref-bulk-toggle-btn');
+  if(btn)btn.textContent=_refBulkMode?'\u2715 Salir de seleccion':'\u2611 Seleccionar varias';
+  if(!_refBulkMode)_refSelected.clear();
+  updateRefBulkBar();
+  renderRef(_refData);
+}
+function toggleRefSelect(id, checked){
+  if(checked)_refSelected.add(id); else _refSelected.delete(id);
+  updateRefBulkBar();
+  renderRef(_refData);
+}
+function selectAllVisibleRef(){
+  document.querySelectorAll('#ref-list input[type=checkbox]').forEach(function(cb){
+    cb.checked=true;
+  });
+  // Recompute from currently rendered cards by re-running the same filter/sort as renderRef
+  var q=(document.getElementById('ref-search')||{value:''}).value.toLowerCase();
+  var fCrit=(document.getElementById('ref-filter-crit')||{value:''}).value;
+  var fStock=(document.getElementById('ref-filter-stock')||{value:''}).value;
+  var fCat=(document.getElementById('ref-filter-cat')||{value:''}).value;
+  var filtered=_refData.slice();
+  if(q)filtered=filtered.filter(r=>(r.nombre+r.seccion+r.categoria+r.proveedor+r.marca+(r.numero_parte||'')).toLowerCase().includes(q));
+  if(fCrit)filtered=filtered.filter(r=>r.criticidad===fCrit);
+  if(fCat)filtered=filtered.filter(r=>r.categoria===fCat);
+  if(fStock==='bajo')filtered=filtered.filter(r=>r.stock_actual<r.cant_min);
+  else if(fStock==='minimo')filtered=filtered.filter(r=>r.stock_actual===r.cant_min);
+  else if(fStock==='ok')filtered=filtered.filter(r=>r.stock_actual>r.cant_min);
+  filtered.forEach(function(r){_refSelected.add(r.id);});
+  updateRefBulkBar();
+  renderRef(_refData);
+}
+function clearRefSelection(){
+  _refSelected.clear();
+  updateRefBulkBar();
+  renderRef(_refData);
+}
+function updateRefBulkBar(){
+  var bar=document.getElementById('ref-bulk-bar');
+  var count=document.getElementById('ref-bulk-count');
+  if(!bar||!count)return;
+  if(_refBulkMode){
+    bar.style.display='flex';
+    count.textContent=_refSelected.size+' seleccionada'+(_refSelected.size===1?'':'s');
+  } else {
+    bar.style.display='none';
+  }
+}
+function bulkDeleteRef(){
+  if(!_refSelected.size){showToast&&showToast('Selecciona al menos una refaccion');return;}
+  if(!confirm('¿Eliminar '+_refSelected.size+' refaccion(es) seleccionada(s)? Esta accion no se puede deshacer.'))return;
+  fetch('/api/refacciones/bulk-delete',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ids:Array.from(_refSelected)})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      _refSelected.clear();
+      updateRefBulkBar();
+      loadRefacciones();
+      if(typeof showToast==='function')showToast('Eliminadas: '+(d.deleted||0));
+    })
+    .catch(function(){ if(typeof showToast==='function')showToast('Error al eliminar'); });
+}
 function renderRef(data){
   var q=(document.getElementById('ref-search')||{value:''}).value.toLowerCase();
   var sort=(document.getElementById('ref-sort')||{value:'seccion'}).value;
@@ -3475,7 +3549,9 @@ function renderRef(data){
     var stockColor=r.stock_actual<r.cant_min?'#C62828':(r.stock_actual===r.cant_min?'#F57F17':'#2E7D32');
     var stockBg=r.stock_actual<r.cant_min?'#FFEBEE':(r.stock_actual===r.cant_min?'#FFF8E1':'#E8F5E9');
     var stockIcon=r.stock_actual<r.cant_min?'🔴':(r.stock_actual===r.cant_min?'🟡':'🟢');
-    html+='<div class="ref-card" onclick="verRef('+r.id+')" style="cursor:pointer">'+
+    var _checked=_refSelected.has(r.id);
+    html+='<div class="ref-card" onclick="'+(_refBulkMode?('event.stopPropagation();toggleRefSelect('+r.id+','+(!_checked)+')'):('verRef('+r.id+')'))+'" style="cursor:pointer">'+
+      (_refBulkMode?('<div onclick="event.stopPropagation()" style="display:flex;align-items:center;padding-right:4px"><input type="checkbox" '+(_checked?'checked':'')+' onchange="toggleRefSelect('+r.id+',this.checked)" style="width:20px;height:20px;cursor:pointer"></div>'):'')+
       '<div style="flex:1">'+
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
           '<span style="font-weight:bold;font-size:15px">'+r.nombre+'</span>'+

@@ -354,6 +354,20 @@ def list_users():
     con.close()
     return jsonify([dict(r) for r in rows])
 
+@app.route('/api/refacciones/bulk-delete', methods=['POST'])
+def bulk_delete_refacciones():
+    d = request.json or {}
+    ids = d.get('ids') or []
+    ids = [int(i) for i in ids if str(i).isdigit()]
+    if not ids:
+        return jsonify({'error': 'No se recibieron ids validos'}), 400
+    con = get_db()
+    placeholders = ','.join('?' * len(ids))
+    cur = con.execute('DELETE FROM refacciones WHERE id IN (%s)' % placeholders, ids)
+    deleted = cur.rowcount
+    con.commit(); con.close()
+    return jsonify({'ok': True, 'deleted': deleted})
+
 @app.route('/api/users/change-pin', methods=['POST'])
 def change_pin_user():
     d = request.json or {}
