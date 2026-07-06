@@ -160,7 +160,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .ap-login-btn:active{background:#0f3a1a}
 .ap-err{color:#c62828;font-size:.83rem;min-height:16px;margin-top:2px}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<script>
+// Cargador de jsQR con varios CDN de respaldo: si la red bloquea uno
+// (algunas redes de planta/oficina bloquean ciertos CDN), intenta con otro.
+window._jsQRLoaded=false;
+(function(){
+  var _urls=[
+    'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js',
+    'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js',
+    'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js'
+  ];
+  function tryLoad(i){
+    if(i>=_urls.length)return;
+    var s=document.createElement('script');
+    s.src=_urls[i];
+    s.onload=function(){window._jsQRLoaded=true;};
+    s.onerror=function(){tryLoad(i+1);};
+    document.head.appendChild(s);
+  }
+  tryLoad(0);
+})();
+</script>
 </head>
 <body>
 
@@ -3907,9 +3927,16 @@ function cerrarQRLoteModal(){document.getElementById('qr-lote-modal').style.disp
 // ---- Escanear QR con la camara para buscar una refaccion ----
 var _qrScanStream=null;
 var _qrScanRAF=null;
-function abrirEscanerQR(){
+function abrirEscanerQR(reintento){
   if(typeof jsQR==='undefined'){
-    alert('No se pudo cargar el lector de QR (revisa tu conexión a internet) e intenta de nuevo.');
+    // La libreria puede seguir cargando (red lenta) o el primer CDN pudo
+    // haber fallado y estar probando uno de respaldo: se reintenta un par
+    // de veces antes de avisar que no se pudo cargar.
+    if(!reintento||reintento<4){
+      setTimeout(function(){abrirEscanerQR((reintento||0)+1);},800);
+      return;
+    }
+    alert('No se pudo cargar el lector de QR. Puede que esta red bloquee el acceso a librerías externas (CDN). Intenta con otra red (datos móviles) o vuelve a intentar en un momento.');
     return;
   }
   if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){
