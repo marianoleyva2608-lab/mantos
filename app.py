@@ -354,6 +354,82 @@ def list_users():
     con.close()
     return jsonify([dict(r) for r in rows])
 
+@app.route('/api/refacciones/import', methods=['POST'])
+def import_refacciones_excel():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No se recibio ningun archivo'}), 400
+    file = request.files['file']
+    if not file or not file.filename:
+        return jsonify({'error': 'Archivo vacio'}), 400
+    try:
+        wb = openpyxl.load_workbook(file, data_only=True)
+        ws = wb.active
+    except Exception as e:
+        return jsonify({'error': 'No se pudo leer el Excel: ' + str(e)}), 400
+
+    def norm(v):
+        return (str(v).strip() if v is not None else '')
+
+    parsed = []
+    seccion_actual = ''
+    for row in ws.iter_rows(min_row=4, values_only=True):
+        if not row or row[0] is None:
+            continue
+        col0 = row[0]
+        if isinstance(col0, str) and ('\u258c' in col0 or col0.strip().startswith('\U0001F534')):
+            if '\u258c' in col0:
+                seccion_actual = col0.replace('\u258c', '').strip()
+            continue
+        try:
+            int(col0)
+        except (ValueError, TypeError):
+            continue
+        nombre = norm(row[1]) if len(row) > 1 else ''
+        if not nombre:
+            continue
+        def as_int(v, default=0):
+            try:
+                return int(v)
+            except (ValueError, TypeError):
+                return default
+        parsed.append({
+            'nombre': nombre,
+            'marca': norm(row[2]) if len(row) > 2 else '',
+            'modelo': norm(row[3]) if len(row) > 3 else '',
+            'categoria': norm(row[4]) if len(row) > 4 else '',
+            'criticidad': (norm(row[5]) or 'MEDIA').upper() if len(row) > 5 else 'MEDIA',
+            'seccion': norm(row[6]) if len(row) > 6 and norm(row[6]) else seccion_actual,
+            'cant_min': as_int(row[7] if len(row) > 7 else None, 1),
+            'stock_actual': as_int(row[8] if len(row) > 8 else None, 0),
+            'tiempo_entrega': norm(row[9]) if len(row) > 9 else '',
+            'proveedor': norm(row[10]) if len(row) > 10 else '',
+            'ubicacion': norm(row[11]) if len(row) > 11 else '',
+        })
+
+    if not parsed:
+        return jsonify({'error': 'No se encontraron refacciones validas en el archivo'}), 400
+
+    con = get_db()
+    existing = con.execute('SELECT nombre, imagen_url, foto_b64, numero_parte FROM refacciones').fetchall()
+    existing_by_name = {}
+    for e in existing:
+        key = (e['nombre'] or '').strip().lower()
+        if key and key not in existing_by_name:
+            existing_by_name[key] = e
+
+    con.execute('DELETE FROM refacciones')
+    inserted = 0
+    insert_sql = 'INSERT INTO refacciones (nombre, marca, modelo, categoria, criticidad, seccion, cant_min, stock_actual, tiempo_entrega, proveedor, ubicacion, imagen_url, foto_b64, numero_parte) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    for item in parsed:
+        prev = existing_by_name.get(item['nombre'].strip().lower())
+        imagen_url = prev['imagen_url'] if prev else None
+        foto_b64 = prev['foto_b64'] if prev else None
+        numero_parte = prev['numero_parte'] if prev else None
+        con.execute(insert_sql, (item['nombre'], item['marca'], item['modelo'], item['categoria'], item['criticidad'], item['seccion'], item['cant_min'], item['stock_actual'], item['tiempo_entrega'], item['proveedor'], item['ubicacion'], imagen_url, foto_b64, numero_parte))
+        inserted += 1
+    con.commit(); con.close()
+    return jsonify({'ok': True, 'importadas': inserted})
+
 @app.route('/api/refacciones/bulk-delete', methods=['POST'])
 def bulk_delete_refacciones():
     d = request.json or {}

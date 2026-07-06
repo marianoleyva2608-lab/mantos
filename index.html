@@ -3291,6 +3291,7 @@ async function verReq(id){
       <button onclick="openRefModal()" style="background:#2E7D32;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:15px;cursor:pointer">&#43; Nueva Refacción</button>
       <a href="/api/refacciones/export/excel" style="background:#1565C0;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:15px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px">&#128196; Exportar Excel</a>
       <a href="/api/refacciones/export/pdf" style="background:#B71C1C;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:15px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px">&#128196; Exportar PDF</a>
+      <label style="background:#6A1B9A;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">&#128193; Importar Excel<input id="ref-import-input" type="file" accept=".xlsx" style="display:none" onchange="importRefaccionesExcel(this)"></label>
       <input id="ref-search" type="text" placeholder="Buscar..." oninput="filterRef()" style="padding:8px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;flex:1;min-width:180px">
     </div>
     <!-- Filtros y ordenamiento -->
@@ -3428,6 +3429,23 @@ async function verReq(id){
 
 <script>
 var _refData=[];
+function importRefaccionesExcel(input){
+  var file = input.files[0];
+  if(!file) return;
+  if(!confirm('Esto va a REEMPLAZAR todas las refacciones actuales por las del archivo "'+file.name+'".\n\nSe conservaran las fotos de las refacciones cuyo nombre coincida exactamente.\n\n¿Continuar?')) { input.value=''; return; }
+  var fd = new FormData();
+  fd.append('file', file);
+  if(typeof showToast==='function') showToast('Importando...');
+  fetch('/api/refacciones/import', {method:'POST', body: fd})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      input.value='';
+      if(d.error){ alert('Error: '+d.error); return; }
+      if(typeof showToast==='function') showToast('Importadas '+d.importadas+' refacciones');
+      loadRefacciones();
+    })
+    .catch(function(){ input.value=''; alert('Error de conexion al importar'); });
+}
 function loadRefacciones(){fetch('/api/refacciones').then(r=>r.json()).then(d=>{_refData=d;renderRef(d);renderRefStats(d);populateSeccionSelect(d);populateCategoriaSelect(d);populateCatFilter(d);});}
 if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',loadQrCatalogo);}else{loadQrCatalogo();}
 function renderRefStats(data){
