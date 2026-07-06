@@ -3396,7 +3396,12 @@ async function verReq(id){
                 <option value="G">G</option><option value="H">H</option>
               </select>
               <input type="number" id="rf-ubi-estante" class="rf-inp" placeholder="Estante" min="1" style="flex:1">
-              <input type="number" id="rf-ubi-posicion" class="rf-inp" placeholder="Posición" min="1" style="flex:1">
+              <select id="rf-ubi-posicion" class="rf-inp" style="flex:1">
+                <option value="">Posición</option>
+                <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+                <option value="D">D</option><option value="E">E</option><option value="F">F</option>
+                <option value="G">G</option><option value="H">H</option>
+              </select>
             </div>
             <input type="hidden" id="rf-ubicacion-original">
           </div>
@@ -3703,10 +3708,10 @@ function openRefModal(data){
   (function(){
     var ubiOriginal=data&&data.ubicacion?data.ubicacion:'';
     document.getElementById('rf-ubicacion-original').value=ubiOriginal;
-    var m=ubiOriginal.match(/^([A-Ha-h])-(\d+)-(\d+)$/);
+    var m=ubiOriginal.match(/^([A-Ha-h])-(\d+)-([A-Ha-h])$/);
     document.getElementById('rf-ubi-area').value=m?m[1].toUpperCase():'';
     document.getElementById('rf-ubi-estante').value=m?m[2]:'';
-    document.getElementById('rf-ubi-posicion').value=m?m[3]:'';
+    document.getElementById('rf-ubi-posicion').value=m?m[3].toUpperCase():'';
   })();
   document.getElementById('rf-costo').value=data?data.costo:0;
   var imgUrl=data&&data.imagen_url?data.imagen_url:'';
@@ -3917,7 +3922,7 @@ function getUbicacionValue(){
   var estante=document.getElementById('rf-ubi-estante').value;
   var posicion=document.getElementById('rf-ubi-posicion').value;
   if(area&&estante&&posicion){
-    return area+'-'+estante+'-'+String(posicion).padStart(2,'0');
+    return area+'-'+estante+'-'+posicion;
   }
   // faltan datos del codigo nuevo: conserva el valor original para no perder ubicaciones ya guardadas
   return document.getElementById('rf-ubicacion-original').value||'';
