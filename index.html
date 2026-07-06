@@ -3441,7 +3441,16 @@ function importRefaccionesExcel(input){
     .then(function(d){
       input.value='';
       if(d.error){ alert('Error: '+d.error); return; }
-      if(typeof showToast==='function') showToast('Importadas '+d.importadas+' refacciones');
+      var msg = 'Importadas '+d.importadas+' refacciones. Fotos conservadas: '+(d.fotos_conservadas||0)+'.';
+      if(d.fotos_perdidas){
+        msg += '\n\n\u26a0\ufe0f '+d.fotos_perdidas+' foto(s) NO encontraron coincidencia y no se pudieron conservar:\n- '+
+          (d.fotos_perdidas_nombres||[]).join('\n- ');
+        alert(msg);
+      } else if(typeof showToast==='function'){
+        showToast(msg);
+      } else {
+        alert(msg);
+      }
       loadRefacciones();
     })
     .catch(function(){ input.value=''; alert('Error de conexion al importar'); });
