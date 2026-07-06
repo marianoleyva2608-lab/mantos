@@ -354,6 +354,26 @@ def list_users():
     con.close()
     return jsonify([dict(r) for r in rows])
 
+@app.route('/api/users/change-pin', methods=['POST'])
+def change_pin_user():
+    d = request.json or {}
+    email      = d.get('email','').strip().lower()
+    pin_actual = d.get('pin_actual','').strip()
+    pin_nuevo  = d.get('pin_nuevo','').strip()
+    if not email or not pin_actual or not pin_nuevo:
+        return jsonify({'error': 'Email, PIN actual y PIN nuevo son requeridos'}), 400
+    if len(pin_nuevo) < 4:
+        return jsonify({'error': 'El PIN nuevo debe tener minimo 4 caracteres'}), 400
+    con = get_db()
+    row = con.execute('SELECT id FROM users WHERE email=? AND pin_hash=?',
+                       (email, hash_pin(pin_actual))).fetchone()
+    if not row:
+        con.close()
+        return jsonify({'error': 'Email o PIN actual incorrecto'}), 401
+    con.execute('UPDATE users SET pin_hash=? WHERE id=?', (hash_pin(pin_nuevo), row['id']))
+    con.commit(); con.close()
+    return jsonify({'ok': True})
+
 try:
     import openpyxl
     from openpyxl.utils import get_column_letter

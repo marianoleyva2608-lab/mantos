@@ -328,6 +328,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <div style="text-align:center;padding:16px;color:#999;font-size:13px">⏳ Cargando usuarios...</div>
       </div>
     </div>
+
+    <!-- MODAL: CAMBIAR PIN DE USUARIO -->
+    <div id="change-pin-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:6000;align-items:center;justify-content:center" onclick="if(event.target===this)closeChangePinForm()">
+      <div style="background:#fff;border-radius:14px;padding:22px 20px;max-width:340px;width:90%;position:relative">
+        <button onclick="closeChangePinForm()" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:#555">&times;</button>
+        <div style="font-size:14px;font-weight:700;color:#1a5c2a;margin-bottom:4px">&#128273; Cambiar PIN</div>
+        <div id="cp-email-display" style="font-size:12px;color:#888;margin-bottom:12px;word-break:break-all"></div>
+        <input type="hidden" id="cp-email">
+        <input id="cp-actual" type="password" placeholder="PIN actual" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:8px;box-sizing:border-box">
+        <input id="cp-nuevo" type="password" placeholder="PIN nuevo (mínimo 4 dígitos)" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:8px;box-sizing:border-box">
+        <input id="cp-nuevo2" type="password" placeholder="Confirmar PIN nuevo" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+        <div style="display:flex;gap:8px">
+          <button onclick="submitChangePin()" style="flex:1;background:#1a5c2a;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Guardar</button>
+          <button onclick="closeChangePinForm()" style="background:#eee;border:none;padding:10px 16px;border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
+        </div>
+        <div id="change-pin-err" style="margin-top:8px;font-size:12px;color:#c62828;text-align:center"></div>
+      </div>
+    </div>
     <div style="background:#fff;margin:12px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.12);overflow:hidden">
       <div style="background:#1a5c2a;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#128274; Sistema de Firma Digital PKI</div>
       <div style="padding:14px">
@@ -1235,6 +1253,37 @@ async function submitAddUser(){
   }catch(e){err.style.color='#c62828';err.textContent='❌ Error de conexión';}
 }
 
+function showChangePinForm(email){
+  document.getElementById('cp-email').value = email;
+  document.getElementById('cp-email-display').textContent = email;
+  document.getElementById('cp-actual').value='';
+  document.getElementById('cp-nuevo').value='';
+  document.getElementById('cp-nuevo2').value='';
+  document.getElementById('change-pin-err').textContent='';
+  document.getElementById('change-pin-modal').style.display='flex';
+}
+function closeChangePinForm(){
+  document.getElementById('change-pin-modal').style.display='none';
+}
+async function submitChangePin(){
+  const email   = document.getElementById('cp-email').value;
+  const actual  = document.getElementById('cp-actual').value.trim();
+  const nuevo   = document.getElementById('cp-nuevo').value.trim();
+  const nuevo2  = document.getElementById('cp-nuevo2').value.trim();
+  const err     = document.getElementById('change-pin-err');
+  if(!actual||!nuevo||!nuevo2){err.style.color='#c62828';err.textContent='Completa todos los campos';return;}
+  if(nuevo.length<4){err.style.color='#c62828';err.textContent='El PIN nuevo debe tener minimo 4 caracteres';return;}
+  if(nuevo!==nuevo2){err.style.color='#c62828';err.textContent='El PIN nuevo no coincide';return;}
+  err.style.color='#666'; err.textContent='Guardando...';
+  try{
+    const res = await fetch('/api/users/change-pin',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:email,pin_actual:actual,pin_nuevo:nuevo})});
+    const d = await res.json();
+    if(d.error){err.style.color='#c62828';err.textContent=d.error;return;}
+    err.style.color='#2e7d32';err.textContent='PIN actualizado';
+    setTimeout(closeChangePinForm,900);
+  }catch(e){err.style.color='#c62828';err.textContent='Error de conexion';}
+}
 async function loadUsersList(){
   const el = document.getElementById('users-list');
   if(!el) return;
@@ -1253,8 +1302,9 @@ async function loadUsersList(){
           <div style="font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.email}</div>
           <div style="font-size:10px;color:#aaa;margin-top:2px">Desde: ${u.created_at||''}</div>
         </div>
-        <div style="text-align:right;flex-shrink:0">
+        <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           <div style="font-size:9px;background:#e8f5e9;color:#2e7d32;padding:3px 8px;border-radius:20px;font-weight:700">&#10003; PKI activo</div>
+          <button onclick="showChangePinForm('${u.email.replace(/'/g,"\\'")}')" style="font-size:10px;background:#fff;color:#1565C0;border:1px solid #1565C0;border-radius:14px;padding:2px 10px;cursor:pointer">&#128273; Cambiar PIN</button>
         </div>
       </div>`).join('');
   }catch(e){
