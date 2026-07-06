@@ -68,8 +68,18 @@ def init_users_db():
     )
     con.commit(); con.close()
 
+def init_proveedores_db():
+    con = get_db()
+    con.execute(
+        """CREATE TABLE IF NOT EXISTS proveedores_extra
+        (codigo TEXT PRIMARY KEY, nombre TEXT NOT NULL,
+         created_at TEXT DEFAULT (datetime('now')))"""
+    )
+    con.commit(); con.close()
+
 init_db()
 init_users_db()
+init_proveedores_db()
 
 # Seed usuario admin por defecto
 try:
@@ -1327,9 +1337,59 @@ def api_delete_refaccion(ref_id):
 # de "base_para__QR.xlsx". No afecta refacciones ya existentes.
 # ---------------------------------------------------------------
 
+_LETRAS_PROVEEDOR = "ABCDEFGHIJKLMN" + "Ñ" + "OPQRSTUVWXYZ"
+
+def _todos_proveedores(con):
+    """Combina el catalogo fijo de proveedores (qr_catalog.py) con los
+    proveedores agregados dinamicamente desde la app (tabla proveedores_extra)."""
+    combinado = dict(QR_PROVEEDORES)
+    rows = con.execute("SELECT codigo, nombre FROM proveedores_extra").fetchall()
+    for r in rows:
+        combinado[r['codigo']] = r['nombre']
+    return combinado
+
+def _siguiente_codigo_proveedor(con):
+    """Genera el siguiente codigo libre (letra+numero) siguiendo la misma
+    secuencia del catalogo fijo: A0..A9, B0..B9, ..., N0..N9, Ñ0..Ñ9, O0..O9, ..."""
+    usados = set(QR_PROVEEDORES.keys())
+    rows = con.execute("SELECT codigo FROM proveedores_extra").fetchall()
+    usados |= {r['codigo'] for r in rows}
+    for letra in _LETRAS_PROVEEDOR:
+        for digito in range(10):
+            cod = f"{letra}{digito}"
+            if cod not in usados:
+                return cod
+    raise ValueError("Se agotaron los codigos de proveedor disponibles")
+
+@app.route('/api/proveedores', methods=['POST'])
+def api_add_proveedor():
+    """Registra un proveedor nuevo escrito a mano en el formulario de
+    Nueva Refaccion (opcion 'Agregar proveedor...') para que a partir de
+    ese momento aparezca como opcion normal del catalogo de proveedores,
+    con su propio codigo letra+numero igual que los proveedores fijos."""
+    d = request.get_json(force=True) or {}
+    nombre = (d.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Falta el nombre del proveedor'}), 400
+    con = get_db()
+    todos = _todos_proveedores(con)
+    nombre_norm = _norm(nombre)
+    for cod, nom in todos.items():
+        if _norm(nom) == nombre_norm:
+            con.close()
+            return jsonify({'ok': True, 'codigo': cod, 'nombre': nom, 'existente': True})
+    codigo = _siguiente_codigo_proveedor(con)
+    con.execute("INSERT INTO proveedores_extra (codigo, nombre) VALUES (?,?)", (codigo, nombre))
+    con.commit()
+    con.close()
+    return jsonify({'ok': True, 'codigo': codigo, 'nombre': nombre, 'existente': False})
+
 @app.route('/api/qr-catalogo', methods=['GET'])
 def api_qr_catalogo():
-    return jsonify({'grupos': QR_GRUPOS, 'planta': QR_PLANTA, 'proveedores': QR_PROVEEDORES})
+    con = get_db()
+    proveedores = _todos_proveedores(con)
+    con.close()
+    return jsonify({'grupos': QR_GRUPOS, 'planta': QR_PLANTA, 'proveedores': proveedores})
 
 
 def _build_numero_parte(con, planta_cod, grupo, categoria, prov_cod):
@@ -1344,7 +1404,7 @@ def _build_numero_parte(con, planta_cod, grupo, categoria, prov_cod):
         raise ValueError(f"Codigo de planta/condicion invalido: {planta_cod}")
     if grupo not in QR_GRUPOS or categoria not in QR_GRUPOS[grupo]:
         raise ValueError(f"Categoria invalida: {grupo} / {categoria}")
-    if prov_cod not in QR_PROVEEDORES:
+    if prov_cod not in _todos_proveedores(con):
         raise ValueError(f"Codigo de proveedor invalido: {prov_cod}")
     rango = QR_GRUPOS[grupo][categoria]
     desde, hasta = rango['desde'], rango['hasta']

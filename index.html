@@ -3860,11 +3860,16 @@ function loadQrCatalogo(){
     }
     if(selProv){
       var nuevoOpt=selProv.querySelector('option[value="__nuevo_prov__"]');
+      var valorPrevio=selProv.value;
+      Array.prototype.slice.call(selProv.options).forEach(function(opt){
+        if(opt.value!=='' && opt.value!=='__nuevo_prov__') opt.remove();
+      });
       Object.keys(d.proveedores).forEach(function(cod){
         var opt=document.createElement('option');
         opt.value=cod; opt.textContent=d.proveedores[cod];
         selProv.insertBefore(opt,nuevoOpt);
       });
+      if(valorPrevio && selProv.querySelector('option[value="'+valorPrevio+'"]')) selProv.value=valorPrevio;
     }
   });
 }
@@ -3987,30 +3992,50 @@ function saveRefaccion(e){
   var id=document.getElementById('ref-id').value;
   var catTexto=getCategoriaValue();
   var gc=_grupoCategoriaDeTexto(catTexto);
-  var body={
-    nombre:document.getElementById('rf-nombre').value,
-    descripcion:document.getElementById('rf-descripcion').value,
-    marca:document.getElementById('rf-marca').value,
-    modelo:document.getElementById('rf-modelo').value,
-    categoria:catTexto,
-    criticidad:document.getElementById('rf-criticidad').value,
-    seccion:getSeccionValue(),
-    stock_actual:parseInt(document.getElementById('rf-stock').value)||0,
-    cant_min:parseInt(document.getElementById('rf-min').value)||1,
-    proveedor:getProveedorNombre(),
-    tiempo_entrega:document.getElementById('rf-tiempo').value,
-    ubicacion:document.getElementById('rf-ubicacion').value,
-    costo:parseFloat(document.getElementById('rf-costo').value)||0,
-    notas:document.getElementById('rf-notas').value,
-    imagen_url:document.getElementById('rf-imagen-url').value.trim(),
-    foto_b64:document.getElementById('rf-img-b64').value||undefined,
-    planta_cod:document.getElementById('rf-planta-cod').value,
-    grupo:gc.grupo,
-    categoria_qr:gc.categoria,
-    proveedor_cod:getProveedorCod()
-  };
-  fetch('/api/refacciones'+(id?'/'+id:''),({method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}))
-    .then(r=>r.json()).then(function(){closeRefModal();loadRefacciones();});
+  var selProv=document.getElementById('rf-proveedor');
+  var esProveedorNuevo=selProv.value==='__nuevo_prov__';
+  var nombreProveedor=getProveedorNombre();
+
+  function guardarConProveedor(provCod){
+    var body={
+      nombre:document.getElementById('rf-nombre').value,
+      descripcion:document.getElementById('rf-descripcion').value,
+      marca:document.getElementById('rf-marca').value,
+      modelo:document.getElementById('rf-modelo').value,
+      categoria:catTexto,
+      criticidad:document.getElementById('rf-criticidad').value,
+      seccion:getSeccionValue(),
+      stock_actual:parseInt(document.getElementById('rf-stock').value)||0,
+      cant_min:parseInt(document.getElementById('rf-min').value)||1,
+      proveedor:nombreProveedor,
+      tiempo_entrega:document.getElementById('rf-tiempo').value,
+      ubicacion:document.getElementById('rf-ubicacion').value,
+      costo:parseFloat(document.getElementById('rf-costo').value)||0,
+      notas:document.getElementById('rf-notas').value,
+      imagen_url:document.getElementById('rf-imagen-url').value.trim(),
+      foto_b64:document.getElementById('rf-img-b64').value||undefined,
+      planta_cod:document.getElementById('rf-planta-cod').value,
+      grupo:gc.grupo,
+      categoria_qr:gc.categoria,
+      proveedor_cod:provCod
+    };
+    fetch('/api/refacciones'+(id?'/'+id:''),({method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}))
+      .then(r=>r.json()).then(function(){closeRefModal();loadRefacciones();});
+  }
+
+  if(esProveedorNuevo && nombreProveedor){
+    // Proveedor escrito a mano: se registra en la lista de proveedores (con su
+    // propio codigo letra+numero) para que quede disponible en el dropdown la proxima vez.
+    fetch('/api/proveedores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre:nombreProveedor})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        loadQrCatalogo();
+        guardarConProveedor(d.codigo||'');
+      })
+      .catch(function(){guardarConProveedor('');});
+  }else{
+    guardarConProveedor(getProveedorCod());
+  }
 }
 function deleteRef(id){
   if(!confirm('¿Eliminar esta refacción?'))return;
