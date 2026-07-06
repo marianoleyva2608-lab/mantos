@@ -3337,7 +3337,8 @@ async function verReq(id){
       <span id="ref-bulk-count" style="font-size:13px;font-weight:700;color:#8a6100">0 seleccionadas</span>
       <button onclick="selectAllVisibleRef()" style="background:#fff;border:1px solid #aaa;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer">Seleccionar visibles</button>
       <button onclick="clearRefSelection()" style="background:#fff;border:1px solid #aaa;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button>
-      <button onclick="bulkDeleteRef()" style="background:#C62828;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:auto">&#128465; Borrar seleccionadas</button>
+      <button onclick="abrirImpresionQRLote()" style="background:#1565C0;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:auto">&#128424;&#65039; Imprimir QR</button>
+      <button onclick="bulkDeleteRef()" style="background:#C62828;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">&#128465; Borrar seleccionadas</button>
     </div>
     <div id="ref-list"></div>
   </div>
@@ -3880,6 +3881,50 @@ function imprimirQR(){
   w.document.close();
 }
 
+// ---- Imprimir varios QR juntos en una etiqueta de 3" x 3" ----
+function abrirImpresionQRLote(){
+  if(!_refSelected.size){showToast&&showToast('Selecciona al menos una refacción');return;}
+  var seleccionadas=Array.from(_refSelected).map(function(id){return _refData.find(function(x){return x.id===id;});}).filter(Boolean);
+  var conQr=seleccionadas.filter(function(r){return r.numero_parte;});
+  var sinQr=seleccionadas.length-conQr.length;
+  var msg=conQr.length+' de '+seleccionadas.length+' seleccionada(s) tienen número de parte / QR y se imprimirán.';
+  if(sinQr>0)msg+=' '+sinQr+' no tienen QR asignado y se omitirán.';
+  document.getElementById('qr-lote-count').textContent=msg;
+  document.getElementById('qr-lote-modal').style.display='flex';
+}
+function cerrarQRLoteModal(){document.getElementById('qr-lote-modal').style.display='none';}
+function imprimirQRLote(){
+  var n=parseInt((document.querySelector('input[name="qr-lote-layout"]:checked')||{}).value)||3;
+  var items=Array.from(_refSelected).map(function(id){return _refData.find(function(x){return x.id===id;});}).filter(function(r){return r&&r.numero_parte;});
+  if(!items.length){showToast&&showToast('Ninguna de las refacciones seleccionadas tiene número de parte / QR');return;}
+  var porEtiqueta=n*n;
+  var fuenteCodigo=n>=4?'7px':(n===3?'8px':'10px');
+  var paginas='';
+  for(var i=0;i<items.length;i+=porEtiqueta){
+    var grupo=items.slice(i,i+porEtiqueta);
+    var celdas='';
+    grupo.forEach(function(r){
+      celdas+='<div class="qr-cell">'+
+        '<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=000000&data='+encodeURIComponent(r.numero_parte)+'">'+
+        '<div class="qr-cell-code">'+r.numero_parte+'</div>'+
+      '</div>';
+    });
+    paginas+='<div class="label-page" style="grid-template-columns:repeat('+n+',1fr);grid-template-rows:repeat('+n+',1fr)">'+celdas+'</div>';
+  }
+  var w=window.open('','_blank');
+  w.document.write('<html><head><title>Imprimir QR en lote</title><style>'+
+    '@page{size:3in 3in;margin:0}'+
+    '*{box-sizing:border-box}'+
+    'body{margin:0;font-family:Arial,sans-serif}'+
+    '.label-page{width:3in;height:3in;display:grid;page-break-after:always}'+
+    '.qr-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;border:0.5px dotted #ccc;padding:2px}'+
+    '.qr-cell img{width:auto;height:auto;max-width:92%;max-height:76%}'+
+    '.qr-cell-code{font-size:'+fuenteCodigo+';font-family:monospace;text-align:center;word-break:break-all;line-height:1.1;margin-top:2px}'+
+    '</style></head><body>'+paginas+'<script>window.onload=function(){window.print();}<\/script></body></html>');
+  w.document.close();
+  cerrarQRLoteModal();
+}
+
 // ---- Catálogo de códigos para número de parte / QR (refacciones NUEVAS) ----
 var _qrCatalogo=null;
 // Mismo mapeo que el backend (_CATEGORIA_QR_MAP en app.py): Categoria de
@@ -4200,6 +4245,25 @@ function deleteRef(id){
     <div id="qr-subtitle" style="font-size:11px;color:#888;margin-bottom:16px"></div>
     <div id="qr-canvas" style="display:flex;justify-content:center;margin-bottom:16px"></div>
     <button onclick="imprimirQR()" style="background:#1F5C2E;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer">🖨️ Imprimir QR</button>
+  </div>
+</div>
+
+<!-- Modal Imprimir QR en lote -->
+<div id="qr-lote-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:6000;align-items:center;justify-content:center" onclick="if(event.target===this)cerrarQRLoteModal()">
+  <div style="background:#fff;border-radius:16px;padding:24px;max-width:360px;width:92%;position:relative">
+    <button onclick="cerrarQRLoteModal()" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#555">✕</button>
+    <h3 style="margin:0 0 4px;color:#1F5C2E">🖨️ Imprimir QR en lote</h3>
+    <div id="qr-lote-count" style="font-size:13px;color:#555;margin-bottom:14px"></div>
+    <label style="font-size:13px;font-weight:bold;color:#555">Diseño de etiqueta (3" x 3")</label>
+    <div style="display:flex;flex-direction:column;gap:8px;margin:10px 0 18px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px"><input type="radio" name="qr-lote-layout" value="2"> 2 x 2 &nbsp;(4 códigos por etiqueta)</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px"><input type="radio" name="qr-lote-layout" value="3" checked> 3 x 3 &nbsp;(9 códigos por etiqueta)</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px"><input type="radio" name="qr-lote-layout" value="4"> 4 x 4 &nbsp;(16 códigos por etiqueta)</label>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="cerrarQRLoteModal()" style="background:#eee;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:13px">Cancelar</button>
+      <button onclick="imprimirQRLote()" style="background:#1F5C2E;color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:13px">🖨️ Imprimir</button>
+    </div>
   </div>
 </div>
 </body>
