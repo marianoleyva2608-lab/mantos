@@ -3,6 +3,89 @@ from flask import Flask, request, send_file, jsonify
 from qr_catalog import CATEGORIA_FIJA as QR_CATEGORIA_FIJA, GRUPOS as QR_GRUPOS, PLANTA as QR_PLANTA, PROVEEDORES as QR_PROVEEDORES
 
 app = Flask(__name__)
+ ══════════════════════════════════════════════════════════
+# EXTRAER DATOS DE REFACCIÓN CON IA — usando OpenAI (agregar a app.py)
+# ══════════════════════════════════════════════════════════
+# Requiere: pip install requests (ya viene con Flask normalmente)
+# Requiere variable de entorno OPENAI_API_KEY en Easypanel
+# (Project > tu servicio > Environment)
+ 
+import requests as _requests
+ 
+CATEGORIAS_VALIDAS_IA = [
+    'Rodamientos', 'Bandas', 'Cadenas', 'Sellos', 'Filtros', 'Eléctrico', 'Hidráulico',
+    'Neumático', 'Tornillería', 'Consumible', 'Control temp.', 'Contactor', 'Relevador',
+    'SSR', 'Timer', 'Fuente DC', 'Resistencia', 'Electroválvula', 'Instrumento', 'Lubricante',
+    'Cable', 'Terminal', 'Conector', 'Fusible', 'Pulsador', 'Selector', 'Protección',
+    'Rodamiento', 'Manguera', 'Válvula', 'Herramienta', 'Otro'
+]
+ 
+ 
+@app.route('/api/refacciones/extraer-datos', methods=['POST'])
+def extraer_datos_refaccion():
+    d = request.json or {}
+    foto_b64 = d.get('foto_b64', '').strip()
+    media_type = d.get('media_type', 'image/jpeg')
+ 
+    if not foto_b64:
+        return jsonify({'error': 'No se recibió imagen'}), 400
+ 
+    api_key = os.environ.get('OPENAI_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'OPENAI_API_KEY no configurada en el servidor'}), 500
+ 
+    prompt = (
+        "Eres un asistente que extrae datos de refacciones industriales a partir de fotos "
+        "(etiquetas, empaques, o la pieza física).\n"
+        "Responde SOLO con un JSON valido, sin texto adicional, sin backticks, con esta "
+        "estructura exacta:\n"
+        '{"nombre": "", "marca": "", "modelo": "", "categoria_sugerida": "", "notas": ""}\n'
+        'Para "categoria_sugerida" usa EXACTAMENTE una de estas opciones si aplica, o "Otro" '
+        "si no encaja: " + ", ".join(CATEGORIAS_VALIDAS_IA) + ".\n"
+        'Si algun dato no es visible o no estas seguro, deja el campo como cadena vacia "".'
+    )
+ 
+    try:
+        resp = _requests.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'model': 'gpt-4o-mini',
+                'max_tokens': 500,
+                'messages': [{
+                    'role': 'user',
+                    'content': [
+                        {'type': 'text', 'text': prompt},
+                        {'type': 'image_url', 'image_url': {
+                            'url': f'data:{media_type};base64,{foto_b64}'
+                        }}
+                    ]
+                }],
+                'response_format': {'type': 'json_object'}
+            },
+            timeout=30
+        )
+        data = resp.json()
+ 
+        if 'error' in data:
+            return jsonify({'error': data['error'].get('message', 'Error de la API de OpenAI')}), 500
+ 
+        text = data['choices'][0]['message']['content']
+        clean = text.replace('```json', '').replace('```', '').strip()
+        extracted = json.loads(clean)
+ 
+        if extracted.get('categoria_sugerida') not in CATEGORIAS_VALIDAS_IA:
+            extracted['categoria_sugerida'] = 'Otro'
+ 
+        return jsonify({'ok': True, 'data': extracted})
+ 
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+ 
 DATA_DIR = os.environ.get('DATA_DIR', '/app/data')
 os.makedirs(DATA_DIR, exist_ok=True)
 DB_PATH = os.path.join(DATA_DIR, 'reports.db')
