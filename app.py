@@ -3,7 +3,7 @@ from flask import Flask, request, send_file, jsonify
 from qr_catalog import CATEGORIA_FIJA as QR_CATEGORIA_FIJA, GRUPOS as QR_GRUPOS, PLANTA as QR_PLANTA, PROVEEDORES as QR_PROVEEDORES
 
 app = Flask(__name__)
- ══════════════════════════════════════════════════════════
+ # ══════════════════════════════════════════════════════════
 # EXTRAER DATOS DE REFACCIÓN CON IA — usando OpenAI (agregar a app.py)
 # ══════════════════════════════════════════════════════════
 # Requiere: pip install requests (ya viene con Flask normalmente)
