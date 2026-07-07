@@ -26,10 +26,15 @@ def extraer_datos_refaccion():
     d = request.json or {}
     foto_b64 = d.get('foto_b64', '').strip()
     media_type = d.get('media_type', 'image/jpeg')
- 
-    if not foto_b64:
+    imagen_url = d.get('imagen_url', '').strip()
+
+    if not foto_b64 and not imagen_url:
         return jsonify({'error': 'No se recibió imagen'}), 400
- 
+
+    # Si viene una URL publica, se manda tal cual a OpenAI (soporta URLs
+    # remotas ademas de imagenes en base64), sin necesidad de descargarla.
+    image_url_payload = imagen_url if imagen_url else f'data:{media_type};base64,{foto_b64}'
+
     api_key = os.environ.get('OPENAI_API_KEY')
     if not api_key:
         return jsonify({'error': 'OPENAI_API_KEY no configurada en el servidor'}), 500
@@ -60,7 +65,7 @@ def extraer_datos_refaccion():
                     'content': [
                         {'type': 'text', 'text': prompt},
                         {'type': 'image_url', 'image_url': {
-                            'url': f'data:{media_type};base64,{foto_b64}'
+                            'url': image_url_payload
                         }}
                     ]
                 }],

@@ -3448,7 +3448,7 @@ async function verReq(id){
           <div style="grid-column:1/-1">
             <label style="font-size:12px;color:#555">Imagen del producto</label>
             <div style="display:flex;gap:6px;align-items:center;margin-top:2px">
-              <input id="rf-imagen-url" class="rf-inp" placeholder="https://... (pega URL de imagen)" style="flex:1" oninput="rfImgPreview(this.value)">
+              <input id="rf-imagen-url" class="rf-inp" placeholder="https://... (pega URL de imagen)" style="flex:1" oninput="rfImgPreview(this.value);rfAutollenarDesdeURL(this.value)">
               <label style="white-space:nowrap;background:#1565C0;color:#fff;padding:8px 12px;border-radius:6px;font-size:12px;cursor:pointer;flex-shrink:0">📷 Cámara<input type="file" accept="image/*" capture="environment" style="display:none" onchange="rfImgFromCamera(this)"></label>
               <label style="white-space:nowrap;background:#6A1B9A;color:#fff;padding:8px 12px;border-radius:6px;font-size:12px;cursor:pointer;flex-shrink:0" id="rf-ia-btn"><span id="rf-ia-btn-text">🤖 Autollenar con IA</span><input type="file" accept="image/*" capture="environment" style="display:none" onchange="rfAutollenarConIA(this)"></label>
             </div>
@@ -4251,6 +4251,41 @@ function rfImgFromCamera(input){
   };
   reader.readAsDataURL(file);
 }
+function _rfAplicarDatosIA(data){
+  if(data.nombre)document.getElementById('rf-nombre').value=data.nombre;
+  if(data.marca)document.getElementById('rf-marca').value=data.marca;
+  if(data.modelo)document.getElementById('rf-modelo').value=data.modelo;
+  if(data.notas)document.getElementById('rf-notas').value=data.notas;
+  if(data.categoria_sugerida){
+    var sel=document.getElementById('rf-categoria');
+    var found=false;
+    for(var k=0;k<sel.options.length;k++){
+      if(sel.options[k].value===data.categoria_sugerida||sel.options[k].textContent.trim()===data.categoria_sugerida){
+        sel.selectedIndex=k;found=true;break;
+      }
+    }
+    if(!found){
+      var inpCat=document.getElementById('rf-categoria-nueva');
+      sel.value='__nueva_cat__';inpCat.style.display='';inpCat.value=data.categoria_sugerida;
+    }
+  }
+}
+function _rfLlamarIA(body,btnTxtEl){
+  var original=btnTxtEl?btnTxtEl.textContent:null;
+  if(btnTxtEl)btnTxtEl.textContent='⏳ Analizando...';
+  return fetch('/api/refacciones/extraer-datos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(btnTxtEl)btnTxtEl.textContent=original;
+      if(d.error){throw new Error(d.error);}
+      _rfAplicarDatosIA(d.data||{});
+      showToast&&showToast('Datos auto-llenados con IA. Revísalos antes de guardar.');
+    })
+    .catch(function(err){
+      if(btnTxtEl)btnTxtEl.textContent=original;
+      alert('No se pudo autollenar con IA: '+(err&&err.message?err.message:err));
+    });
+}
 function rfAutollenarConIA(input){
   var file=input.files[0];if(!file)return;
   var reader=new FileReader();
@@ -4267,43 +4302,25 @@ function rfAutollenarConIA(input){
     i.style.display='';i.src=ev.target.result;p.style.display='block';
 
     var btnTxt=document.getElementById('rf-ia-btn-text');
-    var original=btnTxt.textContent;
-    btnTxt.textContent='⏳ Analizando...';
     document.getElementById('rf-ia-btn').style.pointerEvents='none';
-    fetch('/api/refacciones/extraer-datos',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({foto_b64:b64,media_type:file.type||'image/jpeg'})})
-      .then(function(r){return r.json();})
-      .then(function(d){
-        btnTxt.textContent=original;
-        document.getElementById('rf-ia-btn').style.pointerEvents='';
-        if(d.error){alert('No se pudo autollenar con IA: '+d.error);return;}
-        var data=d.data||{};
-        if(data.nombre)document.getElementById('rf-nombre').value=data.nombre;
-        if(data.marca)document.getElementById('rf-marca').value=data.marca;
-        if(data.modelo)document.getElementById('rf-modelo').value=data.modelo;
-        if(data.notas)document.getElementById('rf-notas').value=data.notas;
-        if(data.categoria_sugerida){
-          var sel=document.getElementById('rf-categoria');
-          var found=false;
-          for(var k=0;k<sel.options.length;k++){
-            if(sel.options[k].value===data.categoria_sugerida||sel.options[k].textContent.trim()===data.categoria_sugerida){
-              sel.selectedIndex=k;found=true;break;
-            }
-          }
-          if(!found){
-            var inpCat=document.getElementById('rf-categoria-nueva');
-            sel.value='__nueva_cat__';inpCat.style.display='';inpCat.value=data.categoria_sugerida;
-          }
-        }
-        showToast&&showToast('Datos auto-llenados con IA. Revísalos antes de guardar.');
-      })
-      .catch(function(err){
-        btnTxt.textContent=original;
-        document.getElementById('rf-ia-btn').style.pointerEvents='';
-        alert('No se pudo conectar con el servicio de IA: '+(err&&err.message?err.message:err));
-      });
+    _rfLlamarIA({foto_b64:b64,media_type:file.type||'image/jpeg'},btnTxt)
+      .then(function(){document.getElementById('rf-ia-btn').style.pointerEvents='';})
+      .catch(function(){document.getElementById('rf-ia-btn').style.pointerEvents='';});
   };
   reader.readAsDataURL(file);
+}
+// Al pegar/escribir una URL de imagen, se autollena solo (con un pequeno
+// retraso para no disparar una llamada por cada tecla mientras se escribe).
+var _rfUrlIATimeout=null;
+function rfAutollenarDesdeURL(url){
+  url=(url||'').trim();
+  clearTimeout(_rfUrlIATimeout);
+  if(!/^https?:\/\//i.test(url))return;
+  _rfUrlIATimeout=setTimeout(function(){
+    var actual=(document.getElementById('rf-imagen-url')||{}).value||'';
+    if(actual.trim()!==url)return; // el usuario siguio escribiendo, ya no aplica
+    _rfLlamarIA({imagen_url:url},null);
+  },900);
 }
 function closeRefModal(){document.getElementById('ref-modal').style.display='none';}
 function editRef(id){var r=_refData.find(function(x){return x.id===id;});if(r)openRefModal(r);}
