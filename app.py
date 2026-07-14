@@ -1827,5 +1827,121 @@ def export_refacciones_pdf():
                      download_name=f"Lista_Refacciones_{date.today()}.pdf",
                      mimetype='application/pdf')
 
+@app.route('/api/refacciones/export/pdf-pedido', methods=['GET'])
+def export_refacciones_pdf_pedido():
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from datetime import date
+
+    con = get_db()
+    rows = con.execute(
+        'SELECT * FROM refacciones WHERE stock_actual < cant_min ORDER BY proveedor, nombre'
+    ).fetchall()
+    con.close()
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                            leftMargin=8*mm, rightMargin=8*mm,
+                            topMargin=8*mm, bottomMargin=8*mm)
+
+    RED_DARK  = colors.HexColor('#B71C1C')
+    RED_MED   = colors.HexColor('#C62828')
+    RED_LIGHT = colors.HexColor('#FFCDD2')
+    ORG   = colors.HexColor('#E65100')
+    GREEN_MED = colors.HexColor('#2E7D32')
+    GRAY  = colors.HexColor('#F5F5F5')
+    WHITE = colors.white
+
+    def ps(size=7, bold=False, color=colors.black, align=TA_LEFT):
+        return ParagraphStyle('x', fontSize=size, leading=size+2,
+                              fontName='Helvetica-Bold' if bold else 'Helvetica',
+                              textColor=color, alignment=align)
+
+    crit_col = {'ALTA': RED_MED, 'MEDIA': ORG, 'BAJA': GREEN_MED}
+    CW = [7*mm,70*mm,25*mm,20*mm,16*mm,16*mm,16*mm,20*mm,24*mm,34*mm]
+
+    grupos = {}
+    for r in rows:
+        grupos.setdefault(r['proveedor'] or 'Sin proveedor asignado', []).append(r)
+
+    story = []
+    t = Table([[Paragraph('LISTA DE REFACCIONES A PEDIR — STOCK POR DEBAJO DEL MÍNIMO | AD-PACK',
+                          ps(12, True, WHITE, TA_CENTER))]], colWidths=[sum(CW)])
+    t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),RED_DARK),
+                           ('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
+    story.append(t)
+
+    s = Table([[f'Total de refacciones a pedir: {len(rows)}',
+                'Solicitado por: _________________',
+                f'Fecha: {date.today()}']],
+              colWidths=[sum(CW)//3, sum(CW)//3, sum(CW)-2*(sum(CW)//3)])
+    s.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),RED_MED),
+                           ('TEXTCOLOR',(0,0),(-1,-1),WHITE),
+                           ('FONTSIZE',(0,0),(-1,-1),7.5),
+                           ('FONTNAME',(0,0),(-1,-1),'Helvetica-Bold'),
+                           ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3)]))
+    story.append(s)
+    story.append(Spacer(1,2*mm))
+
+    if not rows:
+        story.append(Paragraph('✅ No hay refacciones por debajo del stock mínimo en este momento.', ps(10, True, GREEN_MED)))
+    num = 1
+    HDRS = ['#','REFACCION / DESCRIPCION','MARCA','MODELO','CRITICIDAD','MIN','STOCK','A PEDIR','ENTREGA','UBICACION']
+
+    for prov, items in grupos.items():
+        sh = Table([[Paragraph(f'  🛒 PROVEEDOR: {prov.upper()}', ps(8, True, WHITE))]], colWidths=[sum(CW)])
+        sh.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),RED_MED),
+                                ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3)]))
+        story.append(sh)
+
+        tdata = [[Paragraph(h, ps(7,True,WHITE,TA_CENTER)) for h in HDRS]]
+        tstyle = [
+            ('BACKGROUND',(0,0),(-1,0),RED_MED),
+            ('GRID',(0,0),(-1,-1),0.3,colors.HexColor('#BDBDBD')),
+            ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+            ('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),
+        ]
+        for i, r in enumerate(items, 1):
+            cc = crit_col.get(r['criticidad'] or 'MEDIA', ORG)
+            bg = GRAY if i % 2 == 0 else WHITE
+            a_pedir = max(1, r['cant_min'] - r['stock_actual'])
+            tdata.append([
+                Paragraph(str(num),                    ps(7,align=TA_CENTER)),
+                Paragraph(str(r['nombre'] or ''),       ps(7)),
+                Paragraph(str(r['marca'] or ''),        ps(7)),
+                Paragraph(str(r['modelo'] or ''),       ps(7)),
+                Paragraph(str(r['criticidad'] or ''),   ps(7,True,WHITE,TA_CENTER)),
+                Paragraph(str(r['cant_min']),           ps(7,align=TA_CENTER)),
+                Paragraph(str(r['stock_actual']),       ps(7,True,RED_MED,TA_CENTER)),
+                Paragraph(str(a_pedir),                 ps(8,True,RED_DARK,TA_CENTER)),
+                Paragraph(str(r['tiempo_entrega'] or ''), ps(7)),
+                Paragraph(str(r['ubicacion'] or ''),    ps(7)),
+            ])
+            tstyle += [('BACKGROUND',(0,i),(-1,i),bg),
+                       ('BACKGROUND',(4,i),(4,i),cc)]
+            num += 1
+
+        dt = Table(tdata, colWidths=CW, repeatRows=1)
+        dt.setStyle(TableStyle(tstyle))
+        story.append(dt)
+        story.append(Spacer(1,2*mm))
+
+    ft = Table([[Paragraph('"A PEDIR" = Cant. Mínima − Stock Actual (mínimo 1)  |  🔴 ALTA = Paro de producción  |  🟡 MEDIA  |  🟢 BAJA',
+                            ps(6, color=colors.HexColor('#555555')))]], colWidths=[sum(CW)])
+    ft.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),RED_LIGHT),
+                            ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3)]))
+    story.append(ft)
+
+    doc.build(story)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                     download_name=f"Lista_Para_Pedir_{date.today()}.pdf",
+                     mimetype='application/pdf')
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
