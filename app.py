@@ -608,39 +608,33 @@ def _norm_key(s):
     return ''.join((s or '').strip().lower().split())
 
 
-def _match_fotos_existentes(con, parsed):
-    """Para cada item parseado, busca si ya existe una refaccion con el
-    mismo nombre (o marca+modelo) que tenga foto/numero_parte, para saber
-    que se conservaria. No modifica nada."""
-    existing = con.execute('SELECT nombre, marca, modelo, imagen_url, foto_b64, numero_parte FROM refacciones').fetchall()
+def _contar_nuevas_actualizadas(con, parsed):
+    """Para cada item parseado, dice si ya existe (se actualizaria) o es
+    nuevo (se agregaria). No modifica nada. Como el import ya NUNCA borra
+    ni sobreescribe fotos, esto solo es informativo."""
+    existing = con.execute('SELECT nombre, marca, modelo FROM refacciones').fetchall()
     existing_by_name = {}
     existing_by_marca_modelo = {}
-    existing_with_image = {}
     for e in existing:
-        has_img = bool((e['imagen_url'] and e['imagen_url'].strip()) or e['foto_b64'])
         name_key = _norm_key(e['nombre'])
         if name_key and name_key not in existing_by_name:
             existing_by_name[name_key] = e
         mm_key = (_norm_key(e['marca']), _norm_key(e['modelo']))
         if mm_key != ('', '') and mm_key not in existing_by_marca_modelo:
             existing_by_marca_modelo[mm_key] = e
-        if has_img:
-            existing_with_image[name_key] = e
 
-    matched_prev_names = set()
-    conservadas = 0
+    nuevas, actualizadas = 0, 0
     for item in parsed:
         name_key = _norm_key(item['nombre'])
         mm_key = (_norm_key(item['marca']), _norm_key(item['modelo']))
         prev = existing_by_name.get(name_key)
         if not prev and mm_key != ('', ''):
             prev = existing_by_marca_modelo.get(mm_key)
-        if prev and ((prev['imagen_url'] and prev['imagen_url'].strip()) or prev['foto_b64']):
-            conservadas += 1
-            matched_prev_names.add(_norm_key(prev['nombre']))
-
-    perdidas_nombres = [existing_with_image[k]['nombre'] for k in existing_with_image if k not in matched_prev_names]
-    return conservadas, len(existing), perdidas_nombres
+        if prev:
+            actualizadas += 1
+        else:
+            nuevas += 1
+    return nuevas, actualizadas, len(existing)
 
 
 @app.route('/api/refacciones/import-preview', methods=['POST'])
@@ -658,16 +652,15 @@ def preview_import_refacciones_excel():
         return jsonify({'error': error}), 400
 
     con = get_db()
-    conservadas, total_actual, perdidas_nombres = _match_fotos_existentes(con, parsed)
+    nuevas, actualizadas, total_actual = _contar_nuevas_actualizadas(con, parsed)
     con.close()
 
     return jsonify({
         'ok': True,
         'total_en_archivo': len(parsed),
         'total_actual_en_app': total_actual,
-        'fotos_conservadas': conservadas,
-        'fotos_perdidas': len(perdidas_nombres),
-        'fotos_perdidas_nombres': perdidas_nombres[:20],
+        'nuevas': nuevas,
+        'actualizadas': actualizadas,
         'columnas_detectadas': list(col_map.keys()),
         'muestra': parsed[:15],  # primeras filas para mostrar de ejemplo
     })
@@ -686,49 +679,49 @@ def import_refacciones_excel():
         return jsonify({'error': error}), 400
 
     con = get_db()
-    existing = con.execute('SELECT nombre, marca, modelo, imagen_url, foto_b64, numero_parte FROM refacciones').fetchall()
+    existing = con.execute('SELECT id, nombre, marca, modelo, imagen_url, foto_b64, numero_parte FROM refacciones').fetchall()
     existing_by_name = {}
     existing_by_marca_modelo = {}
-    existing_with_image = {}
     for e in existing:
-        has_img = bool((e['imagen_url'] and e['imagen_url'].strip()) or e['foto_b64'])
         name_key = _norm_key(e['nombre'])
         if name_key and name_key not in existing_by_name:
             existing_by_name[name_key] = e
         mm_key = (_norm_key(e['marca']), _norm_key(e['modelo']))
         if mm_key != ('', '') and mm_key not in existing_by_marca_modelo:
             existing_by_marca_modelo[mm_key] = e
-        if has_img:
-            existing_with_image[name_key] = e
 
-    con.execute('DELETE FROM refacciones')
-    inserted = 0
-    conservadas = 0
-    matched_prev_names = set()
-    insert_sql = 'INSERT INTO refacciones (nombre, marca, modelo, categoria, criticidad, seccion, cant_min, stock_actual, tiempo_entrega, proveedor, ubicacion, costo, notas, imagen_url, foto_b64, numero_parte) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    nuevas = 0
+    actualizadas = 0
+    update_sql = ('UPDATE refacciones SET nombre=?, marca=?, modelo=?, categoria=?, criticidad=?, seccion=?, '
+                  'cant_min=?, stock_actual=?, tiempo_entrega=?, proveedor=?, ubicacion=?, costo=?, notas=?, '
+                  'updated_at=CURRENT_TIMESTAMP WHERE id=?')
+    insert_sql = ('INSERT INTO refacciones (nombre, marca, modelo, categoria, criticidad, seccion, cant_min, '
+                  'stock_actual, tiempo_entrega, proveedor, ubicacion, costo, notas) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
     for item in parsed:
         name_key = _norm_key(item['nombre'])
         mm_key = (_norm_key(item['marca']), _norm_key(item['modelo']))
         prev = existing_by_name.get(name_key)
         if not prev and mm_key != ('', ''):
             prev = existing_by_marca_modelo.get(mm_key)
-        imagen_url = prev['imagen_url'] if prev else None
-        foto_b64 = prev['foto_b64'] if prev else None
-        numero_parte = prev['numero_parte'] if prev else None
-        if prev and ((imagen_url and imagen_url.strip()) or foto_b64):
-            conservadas += 1
-            matched_prev_names.add(_norm_key(prev['nombre']))
-        con.execute(insert_sql, (item['nombre'], item['marca'], item['modelo'], item['categoria'], item['criticidad'], item['seccion'], item['cant_min'], item['stock_actual'], item['tiempo_entrega'], item['proveedor'], item['ubicacion'], item['costo'], item['notas'], imagen_url, foto_b64, numero_parte))
-        inserted += 1
+        vals = (item['nombre'], item['marca'], item['modelo'], item['categoria'], item['criticidad'],
+                item['seccion'], item['cant_min'], item['stock_actual'], item['tiempo_entrega'],
+                item['proveedor'], item['ubicacion'], item['costo'], item['notas'])
+        if prev:
+            # Refaccion ya existente: se actualizan sus datos pero se
+            # CONSERVAN foto, numero_parte, y no se toca ninguna otra
+            # refaccion que no venga en este archivo (nunca se borra nada).
+            con.execute(update_sql, vals + (prev['id'],))
+            actualizadas += 1
+        else:
+            con.execute(insert_sql, vals)
+            nuevas += 1
     con.commit(); con.close()
 
-    perdidas_nombres = [existing_with_image[k]['nombre'] for k in existing_with_image if k not in matched_prev_names]
     return jsonify({
         'ok': True,
-        'importadas': inserted,
-        'fotos_conservadas': conservadas,
-        'fotos_perdidas': len(perdidas_nombres),
-        'fotos_perdidas_nombres': perdidas_nombres[:20],
+        'importadas': nuevas + actualizadas,
+        'nuevas': nuevas,
+        'actualizadas': actualizadas,
         'columnas_detectadas': list(col_map.keys()),
     })
 
