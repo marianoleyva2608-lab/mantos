@@ -1901,6 +1901,143 @@ def api_preview_numero_parte():
     return jsonify({'numero_parte': numero})
 
 
+@app.route('/api/refacciones/export/excel-a9f2', methods=['GET'])
+def export_refacciones_excel_a9f2():
+    con = get_db()
+    rows = con.execute('SELECT * FROM refacciones ORDER BY seccion, nombre').fetchall()
+    con.close()
+
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from openpyxl.drawing.image import Image as XLImage
+    from datetime import date
+    from PIL import Image as PILImage
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Refacciones A9-F2"
+
+    GREEN_DARK = PatternFill("solid", fgColor="1F5C2E")
+    GREEN_MED  = PatternFill("solid", fgColor="2E7D32")
+    GREEN_LIGHT= PatternFill("solid", fgColor="C8E6C9")
+    RED_FILL   = PatternFill("solid", fgColor="C62828")
+    ORG_FILL   = PatternFill("solid", fgColor="E65100")
+    GRAY_LIGHT = PatternFill("solid", fgColor="F5F5F5")
+    WHITE_FILL = PatternFill("solid", fgColor="FFFFFF")
+    thin = Side(style="thin", color="BDBDBD")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    NCOLS = 13
+    last_col = get_column_letter(NCOLS)
+
+    ws.merge_cells(f"A1:{last_col}1")
+    ws["A1"] = "LISTA DE REFACCIONES — AD-PACK  |  Formato A9-F2 Rev.01"
+    ws["A1"].font = Font(bold=True, color="FFFFFF", size=13)
+    ws["A1"].fill = GREEN_DARK
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 28
+
+    ws.merge_cells("A2:D2"); ws["A2"] = "Área:  Mantenimiento / Termoformado"
+    ws.merge_cells("E2:H2"); ws["E2"] = "Responsable:  _________________"
+    ws.merge_cells("I2:J2"); ws["I2"] = "Revisión:  01"
+    ws.merge_cells(f"K2:{last_col}2"); ws["K2"] = f"Fecha:  {date.today()}"
+    for cell in ["A2","E2","I2","K2"]:
+        ws[cell].font = Font(bold=True, size=9, color="FFFFFF")
+        ws[cell].fill = GREEN_MED
+        ws[cell].alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    ws.row_dimensions[2].height = 18
+
+    headers = ["ITEM","(N) NORMAL\n(C) CRÍTICA","DESCRIPCIÓN","NÚMERO DE PARTE\n/ MODELO","UBICACIÓN",
+               "STATUS","MÁXIMO","MÍNIMO","PUNTO DE\nREORDEN","INVENTARIO\nREAL",
+               "TIEMPO DE ENTREGA\nDEL PROVEEDOR","EQUIPOS A LOS\nQUE PERTENECE","IMAGEN"]
+    col_w = [6, 10, 34, 20, 18, 9, 9, 9, 10, 10, 16, 20, 14]
+    for i, (h, w) in enumerate(zip(headers, col_w), 1):
+        c = ws.cell(row=3, column=i, value=h)
+        c.font = Font(bold=True, color="FFFFFF", size=9)
+        c.fill = GREEN_MED
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        c.border = border
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.row_dimensions[3].height = 28
+
+    sections = {}
+    for r in rows:
+        sections.setdefault(r["seccion"] or "Sin sección", []).append(r)
+
+    row_num = 4
+    num = 1
+    for sec, items in sections.items():
+        ws.merge_cells(f"A{row_num}:{last_col}{row_num}")
+        ws[f"A{row_num}"] = f"  ▌ {sec.upper()}"
+        ws[f"A{row_num}"].font = Font(bold=True, color="FFFFFF", size=10)
+        ws[f"A{row_num}"].fill = GREEN_MED
+        ws.row_dimensions[row_num].height = 18
+        row_num += 1
+
+        for r in items:
+            fill = GRAY_LIGHT if num % 2 == 0 else WHITE_FILL
+            nc = "C" if (r["criticidad"] or "MEDIA") == "ALTA" else "N"
+            if r["stock_actual"] <= 0:
+                status, status_fill = "AGOTADO", RED_FILL
+            elif r["stock_actual"] <= r["cant_min"]:
+                status, status_fill = "BAJO", ORG_FILL
+            else:
+                status, status_fill = "OK", PatternFill("solid", fgColor="2E7D32")
+            num_parte_modelo = r["numero_parte"] or r["modelo"] or ""
+
+            vals = [num, nc, r["nombre"] or "", num_parte_modelo, r["ubicacion"] or "",
+                    status, "", r["cant_min"], "", r["stock_actual"],
+                    r["tiempo_entrega"] or "", r["seccion"] or "", ""]
+            for col, val in enumerate(vals, 1):
+                cell = ws.cell(row=row_num, column=col, value=val)
+                cell.border = border
+                cell.font = Font(size=9)
+                cell.alignment = Alignment(vertical="center", wrap_text=True,
+                                           horizontal="center" if col in [1,2,6,7,8,9,10] else "left")
+                cell.fill = fill
+            ws.cell(row=row_num, column=2).fill = RED_FILL if nc=="C" else PatternFill("solid", fgColor="2E7D32")
+            ws.cell(row=row_num, column=2).font = Font(bold=True, color="FFFFFF", size=9)
+            ws.cell(row=row_num, column=6).fill = status_fill
+            ws.cell(row=row_num, column=6).font = Font(bold=True, color="FFFFFF", size=9)
+
+            ws.row_dimensions[row_num].height = 60
+            # Imagen (foto subida o URL) embebida en la celda de IMAGEN
+            try:
+                raw = None
+                if r["foto_b64"]:
+                    raw = base64.b64decode(r["foto_b64"])
+                elif r["imagen_url"]:
+                    resp = _requests.get(r["imagen_url"], timeout=4)
+                    if resp.status_code == 200:
+                        raw = resp.content
+                if raw:
+                    pil_img = PILImage.open(io.BytesIO(raw)).convert("RGB")
+                    pil_img.thumbnail((80, 80))
+                    img_buf = io.BytesIO()
+                    pil_img.save(img_buf, format="PNG")
+                    img_buf.seek(0)
+                    xl_img = XLImage(img_buf)
+                    ws.add_image(xl_img, f"{last_col}{row_num}")
+            except Exception:
+                pass
+
+            row_num += 1
+            num += 1
+
+    ws.merge_cells(f"A{row_num}:{last_col}{row_num}")
+    ws[f"A{row_num}"] = "  (N) Normal | (C) Crítica | STATUS: OK / BAJO / AGOTADO | MÁXIMO y PUNTO DE REORDEN: pendientes de definir"
+    ws[f"A{row_num}"].font = Font(italic=True, size=8, color="555555")
+    ws[f"A{row_num}"].fill = GREEN_LIGHT
+
+    ws.freeze_panes = "A4"
+
+    buf = io.BytesIO()
+    wb.save(buf); buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                     download_name=f"A9-F2_Refacciones_{date.today()}.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
 @app.route('/api/refacciones/export/excel', methods=['GET'])
 def export_refacciones_excel():
     con = get_db()
