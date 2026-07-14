@@ -1917,9 +1917,9 @@ def export_refacciones_pdf():
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib import colors
     from reportlab.lib.units import mm
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
     from reportlab.lib.styles import ParagraphStyle
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from datetime import date
 
     con = get_db()
@@ -1939,13 +1939,42 @@ def export_refacciones_pdf():
     GRAY  = colors.HexColor('#F5F5F5')
     WHITE = colors.white
 
-    def ps(size=7, bold=False, color=colors.black, align=TA_LEFT):
+    def ps(size=6.5, bold=False, color=colors.black, align=TA_LEFT):
         return ParagraphStyle('x', fontSize=size, leading=size+2,
                               fontName='Helvetica-Bold' if bold else 'Helvetica',
                               textColor=color, alignment=align)
 
-    crit_col = {'ALTA': RED, 'MEDIA': ORG, 'BAJA': GREEN_MED}
-    CW = [7*mm,55*mm,30*mm,18*mm,16*mm,10*mm,10*mm,14*mm,24*mm,24*mm,14*mm,30*mm]
+    # Formato oficial A9-F2 "REFACCIONES" Rev.01
+    CW = [8*mm,10*mm,44*mm,26*mm,22*mm,14*mm,12*mm,12*mm,16*mm,16*mm,18*mm,26*mm,18*mm]
+    HDRS = ['ITEM','(N) NORMAL\n(C) CRÍTICA','DESCRIPCIÓN','NÚMERO DE PARTE\n/ MODELO','UBICACIÓN',
+            'STATUS','MÁXIMO','MÍNIMO','PUNTO DE\nREORDEN','INVENTARIO\nREAL',
+            'TIEMPO DE ENTREGA\nDEL PROVEEDOR','EQUIPOS A LOS\nQUE PERTENECE','IMAGEN']
+
+    def get_imagen_flowable(r):
+        """Intenta obtener la imagen de la refaccion (foto subida o URL) como
+        thumbnail para la tabla. Si falla o no hay imagen, regresa celda vacia."""
+        try:
+            raw = None
+            if r['foto_b64']:
+                raw = base64.b64decode(r['foto_b64'])
+            elif r['imagen_url']:
+                resp = _requests.get(r['imagen_url'], timeout=4)
+                if resp.status_code == 200:
+                    raw = resp.content
+            if raw:
+                img = RLImage(io.BytesIO(raw), width=15*mm, height=15*mm)
+                img.hAlign = 'CENTER'
+                return img
+        except Exception:
+            pass
+        return ''
+
+    def status_de(r):
+        if r['stock_actual'] <= 0:
+            return 'AGOTADO', RED
+        if r['stock_actual'] <= r['cant_min']:
+            return 'BAJO', ORG
+        return 'OK', GREEN_MED
 
     sections = {}
     for r in rows:
@@ -1953,8 +1982,8 @@ def export_refacciones_pdf():
 
     story = []
 
-    # ---- Titulo ----
-    t = Table([[Paragraph('LISTA DE REFACCIONES — ALMACÉN MANTENIMIENTO | AD-PACK Termoformado',
+    # ---- Titulo (formato A9-F2) ----
+    t = Table([[Paragraph('LISTA DE REFACCIONES — AD-PACK  |  Formato A9-F2 Rev.01',
                           ps(12, True, WHITE, TA_CENTER))]],
               colWidths=[sum(CW)])
     t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GREEN_DARK),
@@ -1963,7 +1992,7 @@ def export_refacciones_pdf():
 
     s = Table([[f'Área: Mantenimiento / Termoformado',
                 'Responsable: _________________',
-                'Revisión: 00',
+                'Revisión: 01',
                 f'Fecha: {date.today()}']],
               colWidths=[sum(CW)*0.32, sum(CW)*0.32, sum(CW)*0.16, sum(CW)*0.20])
     s.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GREEN_MED),
@@ -1975,17 +2004,13 @@ def export_refacciones_pdf():
     story.append(Spacer(1,2*mm))
 
     num = 1
-    HDRS = ['#','REFACCIÓN / DESCRIPCIÓN','MARCA / MODELO','CATEGORÍA','CRITICIDAD',
-            'CANT.\nMÍN.','STOCK\nACT.','T. ENTREGA','PROVEEDOR SUGERIDO','UBICACIÓN\nALMACÉN',
-            'COSTO\nAPROX $','NOTAS']
-
     for sec, items in sections.items():
         sh = Table([[Paragraph(f'  ▌ {sec.upper()}', ps(8, True, WHITE))]], colWidths=[sum(CW)])
         sh.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GREEN_MED),
                                 ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3)]))
         story.append(sh)
 
-        tdata = [[Paragraph(h, ps(7,True,WHITE,TA_CENTER)) for h in HDRS]]
+        tdata = [[Paragraph(h, ps(6.5,True,WHITE,TA_CENTER)) for h in HDRS]]
         tstyle = [
             ('BACKGROUND',(0,0),(-1,0),GREEN_MED),
             ('GRID',(0,0),(-1,-1),0.3,colors.HexColor('#BDBDBD')),
@@ -1994,27 +2019,27 @@ def export_refacciones_pdf():
         ]
 
         for i, r in enumerate(items, 1):
-            low = r['stock_actual'] <= r['cant_min']
-            cc  = crit_col.get(r['criticidad'] or 'MEDIA', ORG)
-            bg  = GRAY if i % 2 == 0 else WHITE
-            marca_modelo = ' / '.join([x for x in [r['marca'] or '', r['modelo'] or ''] if x])
-            costo_txt = f"${r['costo']:,.0f}" if r['costo'] else ''
+            bg = GRAY if i % 2 == 0 else WHITE
+            nc = 'C' if (r['criticidad'] or 'MEDIA') == 'ALTA' else 'N'
+            nc_color = RED if nc == 'C' else GREEN_MED
+            num_parte_modelo = r['numero_parte'] or r['modelo'] or ''
+            status_txt, status_color = status_de(r)
             tdata.append([
-                Paragraph(str(num),           ps(7,align=TA_CENTER)),
-                Paragraph(str(r['nombre'] or ''),     ps(7)),
-                Paragraph(marca_modelo,               ps(7)),
-                Paragraph(str(r['categoria'] or ''),  ps(7)),
-                Paragraph(str(r['criticidad'] or ''), ps(7,True,WHITE,TA_CENTER)),
-                Paragraph(str(r['cant_min']),          ps(7,align=TA_CENTER)),
-                Paragraph(str(r['stock_actual']),      ps(7,bold=low,color=RED if low else colors.black,align=TA_CENTER)),
-                Paragraph(str(r['tiempo_entrega'] or ''), ps(7)),
-                Paragraph(str(r['proveedor'] or ''),   ps(7)),
-                Paragraph(str(r['ubicacion'] or ''),   ps(7)),
-                Paragraph(costo_txt,                   ps(7,align=TA_RIGHT)),
-                Paragraph(str(r['notas'] or ''),       ps(7)),
+                Paragraph(str(num),                    ps(align=TA_CENTER)),
+                Paragraph(nc,                           ps(6.5,True,nc_color,TA_CENTER)),
+                Paragraph(str(r['nombre'] or ''),       ps()),
+                Paragraph(str(num_parte_modelo),        ps()),
+                Paragraph(str(r['ubicacion'] or ''),    ps()),
+                Paragraph(status_txt,                   ps(6.5,True,status_color,TA_CENTER)),
+                Paragraph('',                           ps(align=TA_CENTER)),  # MAXIMO: no se rastrea aun
+                Paragraph(str(r['cant_min']),           ps(align=TA_CENTER)),
+                Paragraph('',                           ps(align=TA_CENTER)),  # PUNTO DE REORDEN: no se rastrea aun
+                Paragraph(str(r['stock_actual']),       ps(6.5,True, RED if status_txt!='OK' else colors.black, TA_CENTER)),
+                Paragraph(str(r['tiempo_entrega'] or ''), ps()),
+                Paragraph(str(r['seccion'] or ''),      ps()),
+                get_imagen_flowable(r),
             ])
-            tstyle += [('BACKGROUND',(0,i),(-1,i),bg),
-                       ('BACKGROUND',(4,i),(4,i),cc)]
+            tstyle += [('BACKGROUND',(0,i),(-1,i),bg)]
             num += 1
 
         dt = Table(tdata, colWidths=CW, repeatRows=1)
@@ -2023,7 +2048,7 @@ def export_refacciones_pdf():
         story.append(Spacer(1,2*mm))
 
     # Footer
-    ft = Table([[Paragraph('🔴 ALTA = Paro de producción    |    🟡 MEDIA = Afecta eficiencia    |    🟢 BAJA = Preventivo    |    ✓ = Identificado en almacén',
+    ft = Table([[Paragraph('(N) Normal  |  (C) Crítica  |  STATUS: OK = stock suficiente, BAJO = por debajo del mínimo, AGOTADO = sin existencia  |  MÁXIMO y PUNTO DE REORDEN: pendientes de definir',
                             ps(6, color=colors.HexColor('#555555')))]],
                colWidths=[sum(CW)])
     ft.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GREEN_LIGHT),
@@ -2031,8 +2056,8 @@ def export_refacciones_pdf():
     story.append(ft)
     story.append(Spacer(1,6*mm))
 
-    firma = Table([['Elaboró:', '', '', '', 'Revisó:', '', '', '', 'Autorizó:', '', '', '']],
-                  colWidths=[sum(CW)/12]*12)
+    firma = Table([['Elaboró:', '', '', '', 'Revisó:', '', '', '', 'Autorizó:', '', '', '', '']],
+                  colWidths=[sum(CW)/13]*13)
     firma.setStyle(TableStyle([
         ('FONTSIZE',(0,0),(-1,-1),8),
         ('FONTNAME',(0,0),(-1,-1),'Helvetica-Bold'),
@@ -2045,7 +2070,7 @@ def export_refacciones_pdf():
     doc.build(story)
     buf.seek(0)
     return send_file(buf, as_attachment=True,
-                     download_name=f"Lista_Refacciones_{date.today()}.pdf",
+                     download_name=f"A9-F2_Refacciones_{date.today()}.pdf",
                      mimetype='application/pdf')
 
 @app.route('/api/refacciones/export/pdf-pedido', methods=['GET'])
