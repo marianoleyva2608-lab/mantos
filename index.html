@@ -3705,12 +3705,8 @@ function renderRef(data){
     var stockBg=r.stock_actual<r.cant_min?'#FFEBEE':(r.stock_actual===r.cant_min?'#FFF8E1':'#E8F5E9');
     var stockIcon=r.stock_actual<r.cant_min?'🔴':(r.stock_actual===r.cant_min?'🟡':'🟢');
     var _checked=_refSelected.has(r.id);
-    var _imgSrc=getRefImagenSrc(r);
     html+='<div class="ref-card" onclick="'+(_refBulkMode?('event.stopPropagation();toggleRefSelect('+r.id+','+(!_checked)+')'):('verRef('+r.id+')'))+'" style="cursor:pointer">'+
       (_refBulkMode?('<div onclick="event.stopPropagation()" style="display:flex;align-items:center;padding-right:4px"><input type="checkbox" '+(_checked?'checked':'')+' onchange="toggleRefSelect('+r.id+',this.checked)" style="width:20px;height:20px;cursor:pointer"></div>'):'')+
-      (_imgSrc
-        ? '<img src="'+_imgSrc+'" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid #ddd;flex-shrink:0" onerror="this.style.display=\'none\'">'
-        : '<div style="width:56px;height:56px;border-radius:8px;background:#F0F0F0;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;color:#bbb">📦</div>')+
       '<div style="flex:1">'+
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
           '<span style="font-weight:bold;font-size:15px">'+r.nombre+'</span>'+
