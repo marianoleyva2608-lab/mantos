@@ -649,9 +649,9 @@ def _norm_key(s):
 
 def _contar_nuevas_actualizadas(con, parsed):
     """Para cada item parseado, dice si ya existe (se actualizaria) o es
-    nuevo (se agregaria). No modifica nada. Como el import ya NUNCA borra
-    ni sobreescribe fotos, esto solo es informativo."""
-    existing = con.execute('SELECT nombre, marca, modelo FROM refacciones').fetchall()
+    nuevo (se agregaria). Tambien cuenta cuantas refacciones actuales NO
+    vienen en el archivo (esas se eliminarian). No modifica nada."""
+    existing = con.execute('SELECT id, nombre, marca, modelo FROM refacciones').fetchall()
     existing_by_name = {}
     existing_by_marca_modelo = {}
     for e in existing:
@@ -663,6 +663,7 @@ def _contar_nuevas_actualizadas(con, parsed):
             existing_by_marca_modelo[mm_key] = e
 
     nuevas, actualizadas = 0, 0
+    matched_ids = set()
     for item in parsed:
         name_key = _norm_key(item['nombre'])
         mm_key = (_norm_key(item['marca']), _norm_key(item['modelo']))
@@ -671,9 +672,11 @@ def _contar_nuevas_actualizadas(con, parsed):
             prev = existing_by_marca_modelo.get(mm_key)
         if prev:
             actualizadas += 1
+            matched_ids.add(prev['id'])
         else:
             nuevas += 1
-    return nuevas, actualizadas, len(existing)
+    a_eliminar = [e['nombre'] for e in existing if e['id'] not in matched_ids]
+    return nuevas, actualizadas, len(existing), a_eliminar
 
 
 @app.route('/api/refacciones/import-preview', methods=['POST'])
@@ -691,7 +694,7 @@ def preview_import_refacciones_excel():
         return jsonify({'error': error}), 400
 
     con = get_db()
-    nuevas, actualizadas, total_actual = _contar_nuevas_actualizadas(con, parsed)
+    nuevas, actualizadas, total_actual, a_eliminar_nombres = _contar_nuevas_actualizadas(con, parsed)
     con.close()
 
     return jsonify({
@@ -700,6 +703,8 @@ def preview_import_refacciones_excel():
         'total_actual_en_app': total_actual,
         'nuevas': nuevas,
         'actualizadas': actualizadas,
+        'eliminadas': len(a_eliminar_nombres),
+        'eliminadas_nombres': a_eliminar_nombres[:20],
         'columnas_detectadas': list(col_map.keys()),
         'muestra': parsed[:15],  # primeras filas para mostrar de ejemplo
     })
@@ -731,6 +736,7 @@ def import_refacciones_excel():
 
     nuevas = 0
     actualizadas = 0
+    matched_ids = set()
     update_sql = ('UPDATE refacciones SET nombre=?, marca=?, modelo=?, categoria=?, criticidad=?, seccion=?, '
                   'cant_min=?, stock_actual=?, tiempo_entrega=?, proveedor=?, ubicacion=?, costo=?, notas=?, '
                   'updated_at=CURRENT_TIMESTAMP WHERE id=?')
@@ -747,19 +753,31 @@ def import_refacciones_excel():
                 item['proveedor'], item['ubicacion'], item['costo'], item['notas'])
         if prev:
             # Refaccion ya existente: se actualizan sus datos pero se
-            # CONSERVAN foto, numero_parte, y no se toca ninguna otra
-            # refaccion que no venga en este archivo (nunca se borra nada).
+            # CONSERVAN foto y numero_parte (no estan en el UPDATE).
             con.execute(update_sql, vals + (prev['id'],))
             actualizadas += 1
+            matched_ids.add(prev['id'])
         else:
             con.execute(insert_sql, vals)
             nuevas += 1
+
+    # Las refacciones que YA NO vienen en este archivo se eliminan (para que
+    # la lista no acumule sobrantes). Las que si coinciden ya se preservaron
+    # arriba con su foto/numero_parte intactos.
+    eliminadas = 0
+    sobrantes_ids = [e['id'] for e in existing if e['id'] not in matched_ids]
+    if sobrantes_ids:
+        placeholders = ','.join('?' * len(sobrantes_ids))
+        cur = con.execute(f'DELETE FROM refacciones WHERE id IN ({placeholders})', sobrantes_ids)
+        eliminadas = cur.rowcount
+
     con.commit(); con.close()
 
     return jsonify({
         'ok': True,
         'importadas': nuevas + actualizadas,
         'nuevas': nuevas,
+        'eliminadas': eliminadas,
         'actualizadas': actualizadas,
         'columnas_detectadas': list(col_map.keys()),
     })

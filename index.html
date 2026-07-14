@@ -3505,17 +3505,21 @@ function mostrarPreviewImport(d, filename){
     '</tr>';
   }).join('');
   var masFilas = d.total_en_archivo>15 ? '<div style="padding:6px 8px;color:#888;font-size:12px">...y '+(d.total_en_archivo-15)+' más</div>' : '';
+  var avisoEliminar = d.eliminadas>0
+    ? '<div style="background:#FFEBEE;color:#C62828;padding:8px 12px;border-radius:8px;font-size:13px;margin-top:8px">🗑️ <b>'+d.eliminadas+' refacción(es)</b> que NO están en este archivo se eliminarán: '+(d.eliminadas_nombres||[]).slice(0,5).join(', ')+(d.eliminadas_nombres.length>5?'...':'')+'</div>'
+    : '<div style="background:#E8F5E9;color:#2E7D32;padding:8px 12px;border-radius:8px;font-size:13px;margin-top:8px">✓ Ninguna refacción actual se eliminará</div>';
 
   var html =
     '<div id="import-preview-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px">'+
       '<div style="background:#fff;border-radius:12px;max-width:800px;width:100%;max-height:85vh;overflow:auto;padding:20px">'+
         '<h2 style="margin:0 0 4px;color:#1F5C2E">Vista previa de importación</h2>'+
         '<div style="color:#666;font-size:13px;margin-bottom:10px">Archivo: '+filename+'</div>'+
-        '<div style="background:#E8F5E9;color:#2E7D32;padding:8px 12px;border-radius:8px;font-size:13px;margin-bottom:10px">✓ Esta acción NUNCA borra refacciones. Solo agrega nuevas y actualiza las que coincidan por nombre o marca+modelo (las fotos y números de parte se conservan siempre).</div>'+
+        '<div style="background:#E8F5E9;color:#2E7D32;padding:8px 12px;border-radius:8px;font-size:13px;margin-bottom:10px">✓ Las fotos y números de parte de las refacciones que coincidan por nombre o marca+modelo SIEMPRE se conservan.</div>'+
         '<div style="background:#F5F8F5;border-radius:8px;padding:10px;font-size:14px">'+
           'Actualmente tienes <b>'+d.total_actual_en_app+'</b> refacciones.<br>'+
           'Este archivo tiene <b>'+d.total_en_archivo+'</b> filas: <b>'+d.nuevas+'</b> se agregarán como nuevas, <b>'+d.actualizadas+'</b> ya existen y se actualizarán (sus datos, no su foto).'+
         '</div>'+
+        avisoEliminar+
         '<div style="margin-top:14px;font-size:12px;color:#888">Columnas detectadas: '+(d.columnas_detectadas||[]).join(', ')+'</div>'+
         '<table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:13px">'+
           '<thead><tr style="background:#1F5C2E;color:#fff">'+
@@ -3525,7 +3529,7 @@ function mostrarPreviewImport(d, filename){
         masFilas+
         '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">'+
           '<button onclick="cancelarPreviewImport()" style="padding:10px 18px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer">Cancelar</button>'+
-          '<button onclick="confirmarImportExcel()" style="padding:10px 18px;border-radius:8px;border:none;background:#2E7D32;color:#fff;font-weight:bold;cursor:pointer">✅ Agregar / Actualizar refacciones</button>'+
+          '<button onclick="confirmarImportExcel()" style="padding:10px 18px;border-radius:8px;border:none;background:#B71C1C;color:#fff;font-weight:bold;cursor:pointer">⚠️ Confirmar importación</button>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -3551,7 +3555,7 @@ function confirmarImportExcel(){
     .then(function(d){
       cancelarPreviewImport();
       if(d.error){ alert('Error: '+d.error); return; }
-      var msg = 'Listo: '+d.nuevas+' refacción(es) nueva(s) agregada(s), '+d.actualizadas+' actualizada(s). Ninguna refacción anterior fue eliminada.';
+      var msg = 'Listo: '+d.nuevas+' nueva(s), '+d.actualizadas+' actualizada(s)'+(d.eliminadas?', '+d.eliminadas+' eliminada(s) por no estar en el archivo':'')+'. Las fotos de las que coincidieron se conservaron.';
       if(typeof showToast==='function'){ showToast(msg); } else { alert(msg); }
       loadRefacciones();
     })
