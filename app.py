@@ -490,13 +490,65 @@ def import_refacciones_excel():
     def norm(v):
         return (str(v).strip() if v is not None else '')
 
+    def norm_header(v):
+        s = (str(v).strip().upper() if v is not None else '')
+        s = _ud.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii')
+        return ' '.join(s.split())
+
+    # --- Detectar automaticamente la fila de encabezados y mapear columnas ---
+    # Soporta distintos formatos/plantillas de Excel: busca en las primeras
+    # 10 filas la que tenga una celda que empiece con '#' o 'REFACC'.
+    HEADER_RULES = [
+        ('nombre',         ['REFACC']),
+        ('marca_modelo',   ['MARCA / MODELO', 'MARCA/MODELO']),
+        ('marca',          ['MARCA']),
+        ('modelo',         ['MODELO', 'NUM PARTE', 'NUM. PARTE']),
+        ('categoria',      ['CATEGOR']),
+        ('criticidad',     ['CRITICID']),
+        ('seccion',        ['SECCION', 'AREA', 'EQUIPO']),
+        ('cant_min',       ['CANT']),
+        ('stock_actual',   ['STOCK']),
+        ('tiempo_entrega', ['ENTREGA']),
+        ('proveedor',      ['PROVEEDOR']),
+        ('ubicacion',      ['UBICACION']),
+        ('costo',          ['COSTO']),
+        ('notas',          ['NOTAS', 'OBSERVAC']),
+    ]
+
+    header_row_idx = None
+    col_map = {}
+    all_rows = list(ws.iter_rows(values_only=True))
+    for i, row in enumerate(all_rows[:10]):
+        headers_norm = [norm_header(c) for c in row]
+        if any(h == '#' or h.startswith('REFACC') for h in headers_norm):
+            header_row_idx = i
+            for col_i, h in enumerate(headers_norm):
+                if not h:
+                    continue
+                for field, keywords in HEADER_RULES:
+                    if field in col_map:
+                        continue
+                    if any(kw in h for kw in keywords):
+                        col_map[field] = col_i
+                        break
+            break
+
+    if header_row_idx is None or 'nombre' not in col_map:
+        return jsonify({'error': 'No se encontro una fila de encabezados reconocible (se esperaba una columna "#" y "Refaccion/Descripcion")'}), 400
+
+    def cell(row, field, default=None):
+        idx = col_map.get(field)
+        if idx is None or idx >= len(row):
+            return default
+        return row[idx]
+
     parsed = []
     seccion_actual = ''
-    for row in ws.iter_rows(min_row=4, values_only=True):
+    for row in all_rows[header_row_idx + 1:]:
         if not row or row[0] is None:
             continue
         col0 = row[0]
-        if isinstance(col0, str) and ('\u258c' in col0 or col0.strip().startswith('\U0001F534')):
+        if isinstance(col0, str) and ('\u258c' in col0 or col0.strip()[:1] in ('\U0001F534', '\U0001F7E1', '\U0001F7E2', '\u2139')):
             if '\u258c' in col0:
                 seccion_actual = col0.replace('\u258c', '').strip()
             continue
@@ -504,26 +556,50 @@ def import_refacciones_excel():
             int(col0)
         except (ValueError, TypeError):
             continue
-        nombre = norm(row[1]) if len(row) > 1 else ''
+        nombre = norm(cell(row, 'nombre'))
         if not nombre:
             continue
+
         def as_int(v, default=0):
             try:
                 return int(v)
             except (ValueError, TypeError):
                 return default
+
+        def as_float(v, default=0.0):
+            try:
+                if isinstance(v, str):
+                    v = v.replace('$', '').replace(',', '').strip()
+                return float(v)
+            except (ValueError, TypeError):
+                return default
+
+        marca, modelo = '', ''
+        if 'marca_modelo' in col_map:
+            combo = norm(cell(row, 'marca_modelo'))
+            if '/' in combo:
+                marca, modelo = [p.strip() for p in combo.split('/', 1)]
+            else:
+                marca = combo
+        else:
+            marca = norm(cell(row, 'marca'))
+            modelo = norm(cell(row, 'modelo'))
+
+        seccion_celda = norm(cell(row, 'seccion'))
         parsed.append({
             'nombre': nombre,
-            'marca': norm(row[2]) if len(row) > 2 else '',
-            'modelo': norm(row[3]) if len(row) > 3 else '',
-            'categoria': norm(row[4]) if len(row) > 4 else '',
-            'criticidad': (norm(row[5]) or 'MEDIA').upper() if len(row) > 5 else 'MEDIA',
-            'seccion': norm(row[6]) if len(row) > 6 and norm(row[6]) else seccion_actual,
-            'cant_min': as_int(row[7] if len(row) > 7 else None, 1),
-            'stock_actual': as_int(row[8] if len(row) > 8 else None, 0),
-            'tiempo_entrega': norm(row[9]) if len(row) > 9 else '',
-            'proveedor': norm(row[10]) if len(row) > 10 else '',
-            'ubicacion': norm(row[11]) if len(row) > 11 else '',
+            'marca': marca,
+            'modelo': modelo,
+            'categoria': norm(cell(row, 'categoria')),
+            'criticidad': (norm(cell(row, 'criticidad')) or 'MEDIA').upper(),
+            'seccion': seccion_celda or seccion_actual,
+            'cant_min': as_int(cell(row, 'cant_min'), 1),
+            'stock_actual': as_int(cell(row, 'stock_actual'), 0),
+            'tiempo_entrega': norm(cell(row, 'tiempo_entrega')),
+            'proveedor': norm(cell(row, 'proveedor')),
+            'ubicacion': norm(cell(row, 'ubicacion')),
+            'costo': as_float(cell(row, 'costo'), 0.0),
+            'notas': norm(cell(row, 'notas')),
         })
 
     if not parsed:
@@ -552,7 +628,7 @@ def import_refacciones_excel():
     inserted = 0
     conservadas = 0
     matched_prev_names = set()
-    insert_sql = 'INSERT INTO refacciones (nombre, marca, modelo, categoria, criticidad, seccion, cant_min, stock_actual, tiempo_entrega, proveedor, ubicacion, imagen_url, foto_b64, numero_parte) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    insert_sql = 'INSERT INTO refacciones (nombre, marca, modelo, categoria, criticidad, seccion, cant_min, stock_actual, tiempo_entrega, proveedor, ubicacion, costo, notas, imagen_url, foto_b64, numero_parte) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
     for item in parsed:
         name_key = norm_key(item['nombre'])
         mm_key = (norm_key(item['marca']), norm_key(item['modelo']))
@@ -565,7 +641,7 @@ def import_refacciones_excel():
         if prev and ((imagen_url and imagen_url.strip()) or foto_b64):
             conservadas += 1
             matched_prev_names.add(norm_key(prev['nombre']))
-        con.execute(insert_sql, (item['nombre'], item['marca'], item['modelo'], item['categoria'], item['criticidad'], item['seccion'], item['cant_min'], item['stock_actual'], item['tiempo_entrega'], item['proveedor'], item['ubicacion'], imagen_url, foto_b64, numero_parte))
+        con.execute(insert_sql, (item['nombre'], item['marca'], item['modelo'], item['categoria'], item['criticidad'], item['seccion'], item['cant_min'], item['stock_actual'], item['tiempo_entrega'], item['proveedor'], item['ubicacion'], item['costo'], item['notas'], imagen_url, foto_b64, numero_parte))
         inserted += 1
     con.commit(); con.close()
 
@@ -576,6 +652,7 @@ def import_refacciones_excel():
         'fotos_conservadas': conservadas,
         'fotos_perdidas': len(perdidas_nombres),
         'fotos_perdidas_nombres': perdidas_nombres[:20],
+        'columnas_detectadas': list(col_map.keys()),
     })
 
 @app.route('/api/refacciones/bulk-delete', methods=['POST'])
