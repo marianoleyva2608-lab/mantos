@@ -105,6 +105,14 @@ def init_db():
     con = get_db()
     con.execute('CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY, machine_id TEXT, fecha TEXT, data TEXT)')
     con.execute('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)')
+    con.execute('''CREATE TABLE IF NOT EXISTS respuestas_problemas (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   folio TEXT, fecha TEXT, equipo TEXT, seccion TEXT,
+                   descripcion_falla TEXT, hora_inicio TEXT,
+                   mttr_estimado TEXT, tiempo_real TEXT,
+                   areas_notificadas TEXT, acciones_tomadas TEXT,
+                   causa_raiz TEXT, tiempo_total_paro TEXT, elaboro TEXT,
+                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     con.execute('CREATE TABLE IF NOT EXISTS work_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, numero TEXT NOT NULL, solicitante TEXT, fecha TEXT, equipo TEXT, planta TEXT, tipo TEXT, estatus TEXT, hora_inicio TEXT, hora_termino TEXT, tiempo_paro TEXT, descripcion_falla TEXT, actividad_realizada TEXT, refaccion TEXT, observaciones TEXT, firma_solicitante TEXT, firma_recibe TEXT, firma_liberacion TEXT, fotos TEXT, created_at TEXT DEFAULT (datetime(\'now\')))')
     # Migrate: add fotos column if missing
     try:
@@ -1097,6 +1105,106 @@ def api_next_order_number():
     next_num = (last['mx'] or 257) + 1
     con.close()
     return jsonify({'numero': str(next_num).zfill(4)})
+
+
+# ── RESPUESTA A SOLUCION DE PROBLEMAS PARA MANTENIMIENTO ──────────
+# Modulo independiente (no modifica Ordenes de Trabajo). Se llena cuando
+# una falla supera el tiempo estimado de MTTR.
+@app.route('/api/respuestas-problemas/next-folio', methods=['GET'])
+def api_next_folio_rsp():
+    con = get_db()
+    last = con.execute("SELECT MAX(CAST(REPLACE(folio, 'RSP-', '') AS INTEGER)) as mx FROM respuestas_problemas").fetchone()
+    con.close()
+    next_num = (last['mx'] or 0) + 1
+    return jsonify({'folio': 'RSP-' + str(next_num).zfill(4)})
+
+@app.route('/api/respuestas-problemas', methods=['GET'])
+def api_get_respuestas_problemas():
+    con = get_db()
+    rows = con.execute('SELECT * FROM respuestas_problemas ORDER BY id DESC').fetchall()
+    con.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/respuestas-problemas', methods=['POST'])
+def api_create_respuesta_problema():
+    d = request.json or {}
+    con = get_db()
+    con.execute('''INSERT INTO respuestas_problemas
+        (folio, fecha, equipo, seccion, descripcion_falla, hora_inicio, mttr_estimado,
+         tiempo_real, areas_notificadas, acciones_tomadas, causa_raiz, tiempo_total_paro, elaboro)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+        (d.get('folio',''), d.get('fecha',''), d.get('equipo',''), d.get('seccion',''),
+         d.get('descripcion_falla',''), d.get('hora_inicio',''), d.get('mttr_estimado',''),
+         d.get('tiempo_real',''), d.get('areas_notificadas',''), d.get('acciones_tomadas',''),
+         d.get('causa_raiz',''), d.get('tiempo_total_paro',''), d.get('elaboro','')))
+    con.commit()
+    new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0]
+    con.close()
+    return jsonify({'ok': True, 'id': new_id})
+
+@app.route('/api/respuestas-problemas/<int:rid>', methods=['DELETE'])
+def api_delete_respuesta_problema(rid):
+    con = get_db()
+    con.execute('DELETE FROM respuestas_problemas WHERE id=?', (rid,))
+    con.commit(); con.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/respuestas-problemas/<int:rid>/pdf', methods=['GET'])
+def api_pdf_respuesta_problema(rid):
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+
+    con = get_db()
+    r = con.execute('SELECT * FROM respuestas_problemas WHERE id=?', (rid,)).fetchone()
+    con.close()
+    if not r:
+        return jsonify({'error': 'No encontrado'}), 404
+
+    GREEN_DARK = colors.HexColor('#1F5C2E')
+    WHITE = colors.white
+    GRAY = colors.HexColor('#F5F5F5')
+
+    def ps(size=9, bold=False, align=TA_LEFT):
+        return ParagraphStyle('x', fontSize=size, leading=size+3,
+                              fontName='Helvetica-Bold' if bold else 'Helvetica', alignment=align)
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=18*mm, rightMargin=18*mm, topMargin=14*mm, bottomMargin=14*mm)
+    W = letter[0] - 36*mm
+    story = []
+    t = Table([[Paragraph('RESPUESTA A SOLUCIÓN DE PROBLEMAS PARA MANTENIMIENTO', ps(13, True, TA_CENTER))]], colWidths=[W])
+    t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GREEN_DARK),('TEXTCOLOR',(0,0),(-1,-1),WHITE),
+                           ('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+    story.append(t)
+    story.append(Spacer(1,4*mm))
+
+    campos = [
+        ('Folio', r['folio']), ('Fecha', r['fecha']), ('Equipo', r['equipo']), ('Sección/Área', r['seccion']),
+        ('Descripción de la falla', r['descripcion_falla']), ('Hora de inicio del paro', r['hora_inicio']),
+        ('MTTR estimado', r['mttr_estimado']), ('Tiempo real transcurrido', r['tiempo_real']),
+        ('Áreas notificadas', r['areas_notificadas']), ('Acciones tomadas', r['acciones_tomadas']),
+        ('Causa raíz identificada', r['causa_raiz']), ('Tiempo total de paro', r['tiempo_total_paro']),
+        ('Elaboró', r['elaboro']),
+    ]
+    tdata = [[Paragraph(k, ps(9,True)), Paragraph(str(v or ''), ps(9))] for k, v in campos]
+    dt = Table(tdata, colWidths=[W*0.32, W*0.68])
+    dt.setStyle(TableStyle([
+        ('GRID',(0,0),(-1,-1),0.4,colors.HexColor('#BDBDBD')),
+        ('BACKGROUND',(0,0),(0,-1),GRAY),
+        ('VALIGN',(0,0),(-1,-1),'TOP'),
+        ('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),
+        ('LEFTPADDING',(0,0),(-1,-1),8),
+    ]))
+    story.append(dt)
+    doc.build(story)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                     download_name=f"{r['folio'] or 'RSP'}.pdf", mimetype='application/pdf')
+
 
 @app.route('/version')
 def version():

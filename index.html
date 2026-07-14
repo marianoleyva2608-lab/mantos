@@ -304,7 +304,7 @@ window._jsQRLoaded=false;
 
 
 <div id="page-home" class="page active">
-  <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button class="back" onclick="showPage('req');if(typeof loadReqList==='function')loadReqList();" style="font-size:20px;margin-right:6px" title="Requisiciones">&#128722;</button><button class="back" onclick="showPage('orden')" style="font-size:20px;margin-right:6px" title="Órdenes de Trabajo">&#128203;</button><button class="back" onclick="showPage('reports')" style="font-size:20px;margin-right:6px" title="Reportes">&#128196;</button><button class="back" onclick="showPage('refacciones');loadRefacciones();" style="font-size:20px;margin-right:6px" title="Refacciones">&#128230;</button><button class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
+  <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button class="back" onclick="showPage('req');if(typeof loadReqList==='function')loadReqList();" style="font-size:20px;margin-right:6px" title="Requisiciones">&#128722;</button><button class="back" onclick="showPage('orden')" style="font-size:20px;margin-right:6px" title="Órdenes de Trabajo">&#128203;</button><button class="back" onclick="showPage('rsp');if(typeof loadRspList==='function')loadRspList();" style="font-size:20px;margin-right:6px" title="Respuesta a Solución de Problemas">&#128227;</button><button class="back" onclick="showPage('reports')" style="font-size:20px;margin-right:6px" title="Reportes">&#128196;</button><button class="back" onclick="showPage('refacciones');loadRefacciones();" style="font-size:20px;margin-right:6px" title="Refacciones">&#128230;</button><button class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
   <div class="home-c" id="home-c"></div>
 </div>
 
@@ -2271,6 +2271,56 @@ authInit();
 
 
 <!-- ══ REQUISICIONES: LISTA ══ -->
+<!-- ══ RESPUESTA A SOLUCION DE PROBLEMAS: LISTA ══ -->
+<div id="page-rsp" class="page" style="background:#f5f5f5;padding-bottom:30px">
+  <div class="hdr">
+    <button class="back" onclick="showPage('home')">&#8249;</button>
+    <div style="flex:1"><h1>&#128227; Respuesta a Solución de Problemas</h1></div>
+    <button onclick="rspNuevo()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
+  </div>
+  <div style="padding:10px 14px;font-size:12px;color:#777">Se llena cuando una falla supera el tiempo estimado de MTTR (1 hora). No modifica las Órdenes de Trabajo.</div>
+  <div id="rsp-list" style="padding:12px"></div>
+</div>
+
+<!-- ══ RESPUESTA A SOLUCION DE PROBLEMAS: NUEVA ══ -->
+<div id="page-rsp-nueva" class="page" style="background:#f5f5f5;padding-bottom:40px">
+  <div class="hdr">
+    <button class="back" onclick="showPage('rsp');loadRspList()">&#8249;</button>
+    <div style="flex:1"><h1>&#128227; Nueva Respuesta</h1></div>
+  </div>
+  <div style="padding:12px;display:flex;flex-direction:column;gap:10px">
+    <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Folio</label>
+        <input id="rsp-folio" type="text" readonly style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;background:#f0f0f0"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Fecha</label>
+        <input id="rsp-fecha" type="date" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Equipo</label>
+        <input id="rsp-equipo" type="text" placeholder="Equipo afectado" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Sección / Área</label>
+        <input id="rsp-seccion" type="text" placeholder="Termoformado / Conversión" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box"></div>
+      <div style="grid-column:1/-1"><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Descripción de la falla</label>
+        <textarea id="rsp-descripcion" rows="2" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box"></textarea></div>
+      <div><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Hora de inicio del paro</label>
+        <input id="rsp-hora-inicio" type="time" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">MTTR estimado</label>
+        <input id="rsp-mttr" type="text" placeholder="Ej. 1 hora" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Tiempo real transcurrido</label>
+        <input id="rsp-tiempo-real" type="text" placeholder="Ej. 2.5 horas" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Tiempo total de paro</label>
+        <input id="rsp-tiempo-total" type="text" placeholder="Ej. 3 horas" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box"></div>
+      <div style="grid-column:1/-1"><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Áreas notificadas</label>
+        <input id="rsp-areas" type="text" placeholder="Producción, Calidad, etc." style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box"></div>
+      <div style="grid-column:1/-1"><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Acciones tomadas</label>
+        <textarea id="rsp-acciones" rows="3" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box"></textarea></div>
+      <div style="grid-column:1/-1"><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Causa raíz identificada</label>
+        <textarea id="rsp-causa-raiz" rows="2" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box"></textarea></div>
+      <div><label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Elaboró</label>
+        <input id="rsp-elaboro" type="text" placeholder="Nombre del técnico" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box"></div>
+    </div>
+    <button onclick="guardarRsp()" style="background:#1F5C2E;color:#fff;border:none;padding:12px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Guardar</button>
+  </div>
+</div>
+
 <div id="page-req" class="page" style="background:#f5f5f5;padding-bottom:30px">
   <div class="hdr">
     <button class="back" onclick="showPage('home')">&#8249;</button>
@@ -3128,6 +3178,62 @@ async function guardarReq(){
       },900);
     } else { if(typeof showToast==='function') showToast('Error: '+(j.error||'?')); }
   } catch(e){ if(typeof showToast==='function') showToast('Error de conexión'); }
+}
+
+// ── RESPUESTA A SOLUCION DE PROBLEMAS ──────────────────────────────
+function loadRspList(){
+  fetch('/api/respuestas-problemas').then(function(r){return r.json();}).then(function(data){
+    var el = document.getElementById('rsp-list');
+    if(!data.length){ el.innerHTML = '<p style="color:#888;text-align:center;padding:30px">Sin registros todavía</p>'; return; }
+    el.innerHTML = data.map(function(r){
+      return '<div style="background:#fff;border-radius:10px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.1)">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+          '<b style="color:#1F5C2E">'+(r.folio||'')+'</b><span style="font-size:12px;color:#888">'+(r.fecha||'')+'</span>'+
+        '</div>'+
+        '<div style="font-size:14px;font-weight:600">'+(r.equipo||'')+' <span style="color:#888;font-weight:400">('+(r.seccion||'')+')</span></div>'+
+        '<div style="font-size:13px;color:#555;margin-top:4px">'+(r.descripcion_falla||'')+'</div>'+
+        '<div style="font-size:12px;color:#888;margin-top:6px">MTTR est.: '+(r.mttr_estimado||'-')+' | Tiempo real: '+(r.tiempo_real||'-')+' | Paro total: '+(r.tiempo_total_paro||'-')+'</div>'+
+        '<div style="display:flex;gap:8px;margin-top:10px">'+
+          '<a href="/api/respuestas-problemas/'+r.id+'/pdf" style="background:#1565C0;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;text-decoration:none">📄 PDF</a>'+
+          '<button onclick="rspEliminar('+r.id+')" style="background:#fff;color:#C62828;border:1px solid #C62828;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">Borrar</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  });
+}
+function rspNuevo(){
+  ['rsp-fecha','rsp-equipo','rsp-seccion','rsp-descripcion','rsp-hora-inicio','rsp-mttr','rsp-tiempo-real','rsp-tiempo-total','rsp-areas','rsp-acciones','rsp-causa-raiz','rsp-elaboro'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('rsp-fecha').value = new Date().toISOString().slice(0,10);
+  document.getElementById('rsp-mttr').value = '1 hora';
+  fetch('/api/respuestas-problemas/next-folio').then(function(r){return r.json();}).then(function(d){
+    document.getElementById('rsp-folio').value = d.folio;
+  });
+  showPage('rsp-nueva');
+}
+function guardarRsp(){
+  var body = {
+    folio: document.getElementById('rsp-folio').value,
+    fecha: document.getElementById('rsp-fecha').value,
+    equipo: document.getElementById('rsp-equipo').value,
+    seccion: document.getElementById('rsp-seccion').value,
+    descripcion_falla: document.getElementById('rsp-descripcion').value,
+    hora_inicio: document.getElementById('rsp-hora-inicio').value,
+    mttr_estimado: document.getElementById('rsp-mttr').value,
+    tiempo_real: document.getElementById('rsp-tiempo-real').value,
+    tiempo_total_paro: document.getElementById('rsp-tiempo-total').value,
+    areas_notificadas: document.getElementById('rsp-areas').value,
+    acciones_tomadas: document.getElementById('rsp-acciones').value,
+    causa_raiz: document.getElementById('rsp-causa-raiz').value,
+    elaboro: document.getElementById('rsp-elaboro').value,
+  };
+  fetch('/api/respuestas-problemas', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+    .then(function(r){return r.json();}).then(function(){ showPage('rsp'); loadRspList(); });
+}
+function rspEliminar(id){
+  if(!confirm('¿Borrar este registro?')) return;
+  fetch('/api/respuestas-problemas/'+id, {method:'DELETE'}).then(function(){ loadRspList(); });
 }
 
 async function loadReqList(){
