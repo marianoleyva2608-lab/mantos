@@ -1,6 +1,7 @@
 import os, io, base64, sqlite3, json, hashlib
 from flask import Flask, request, send_file, jsonify
 from qr_catalog import CATEGORIA_FIJA as QR_CATEGORIA_FIJA, GRUPOS as QR_GRUPOS, PLANTA as QR_PLANTA, PROVEEDORES as QR_PROVEEDORES
+from placeholders_categoria import PLACEHOLDERS_CATEGORIA
 
 app = Flask(__name__)
  # ══════════════════════════════════════════════════════════
@@ -266,6 +267,42 @@ try:
     _restaurar_cantidades_20260701()
 except Exception as _e:
     print(f"[restaurar cantidades 2026-07-01] error: {_e}")
+
+# ---------------------------------------------------------------------------
+# Migracion de UNA SOLA VEZ: asignar una imagen de referencia GENERICA (no es
+# la foto real de la pieza) a las refacciones que aun no tienen ninguna foto,
+# segun su categoria. Nunca sobreescribe una foto ya subida por el usuario,
+# y esta controlada con app_meta para no volver a correr en el futuro (asi
+# si luego subes la foto real, esta migracion no la vuelve a pisar).
+# ---------------------------------------------------------------------------
+_PLACEHOLDER_FLAG = 'fotos_referencia_categoria_v1'
+
+def _asignar_fotos_referencia_por_categoria():
+    con = get_db()
+    ya_corrio = con.execute("SELECT value FROM app_meta WHERE key=?", (_PLACEHOLDER_FLAG,)).fetchone()
+    if ya_corrio:
+        con.close()
+        return
+    pendientes = con.execute(
+        "SELECT id, categoria FROM refacciones WHERE (foto_b64='' OR foto_b64 IS NULL) AND (imagen_url='' OR imagen_url IS NULL)"
+    ).fetchall()
+    asignadas = 0
+    for row in pendientes:
+        cat = (row['categoria'] or '').strip()
+        b64 = PLACEHOLDERS_CATEGORIA.get(cat) or PLACEHOLDERS_CATEGORIA.get('Otro')
+        if not b64:
+            continue
+        con.execute("UPDATE refacciones SET foto_b64=? WHERE id=?", (b64, row['id']))
+        asignadas += 1
+    con.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", (_PLACEHOLDER_FLAG, 'done'))
+    con.commit()
+    con.close()
+    print(f"[fotos referencia por categoria] asignadas={asignadas} de {len(pendientes)} pendientes")
+
+try:
+    _asignar_fotos_referencia_por_categoria()
+except Exception as _e:
+    print(f"[fotos referencia por categoria] error: {_e}")
 
 # ---------------------------------------------------------------------------
 # Migracion 2026-07-02: actualizar stock_actual y cant_min segun Excel
