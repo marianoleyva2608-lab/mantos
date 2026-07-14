@@ -1888,7 +1888,7 @@ def export_refacciones_pdf():
                               textColor=color, alignment=align)
 
     crit_col = {'ALTA': RED, 'MEDIA': ORG, 'BAJA': GREEN_MED}
-    CW = [7*mm,65*mm,22*mm,18*mm,16*mm,16*mm,10*mm,10*mm,14*mm,28*mm,30*mm]
+    CW = [7*mm,55*mm,30*mm,18*mm,16*mm,10*mm,10*mm,14*mm,24*mm,24*mm,14*mm,30*mm]
 
     sections = {}
     for r in rows:
@@ -1906,8 +1906,9 @@ def export_refacciones_pdf():
 
     s = Table([[f'Área: Mantenimiento / Termoformado',
                 'Responsable: _________________',
-                f'Revisión: 00   |   Fecha: {date.today()}']],
-              colWidths=[sum(CW)//3, sum(CW)//3, sum(CW)-2*(sum(CW)//3)])
+                'Revisión: 00',
+                f'Fecha: {date.today()}']],
+              colWidths=[sum(CW)*0.32, sum(CW)*0.32, sum(CW)*0.16, sum(CW)*0.20])
     s.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GREEN_MED),
                            ('TEXTCOLOR',(0,0),(-1,-1),WHITE),
                            ('FONTSIZE',(0,0),(-1,-1),7.5),
@@ -1917,8 +1918,9 @@ def export_refacciones_pdf():
     story.append(Spacer(1,2*mm))
 
     num = 1
-    HDRS = ['#','REFACCION / DESCRIPCION','MARCA','MODELO','CATEGORIA','CRITICIDAD',
-            'MIN','STOCK','ENTREGA','PROVEEDOR','UBICACION ALMACEN']
+    HDRS = ['#','REFACCIÓN / DESCRIPCIÓN','MARCA / MODELO','CATEGORÍA','CRITICIDAD',
+            'CANT.\nMÍN.','STOCK\nACT.','T. ENTREGA','PROVEEDOR SUGERIDO','UBICACIÓN\nALMACÉN',
+            'COSTO\nAPROX $','NOTAS']
 
     for sec, items in sections.items():
         sh = Table([[Paragraph(f'  ▌ {sec.upper()}', ps(8, True, WHITE))]], colWidths=[sum(CW)])
@@ -1938,11 +1940,12 @@ def export_refacciones_pdf():
             low = r['stock_actual'] <= r['cant_min']
             cc  = crit_col.get(r['criticidad'] or 'MEDIA', ORG)
             bg  = GRAY if i % 2 == 0 else WHITE
+            marca_modelo = ' / '.join([x for x in [r['marca'] or '', r['modelo'] or ''] if x])
+            costo_txt = f"${r['costo']:,.0f}" if r['costo'] else ''
             tdata.append([
                 Paragraph(str(num),           ps(7,align=TA_CENTER)),
                 Paragraph(str(r['nombre'] or ''),     ps(7)),
-                Paragraph(str(r['marca'] or ''),      ps(7)),
-                Paragraph(str(r['modelo'] or ''),     ps(7)),
+                Paragraph(marca_modelo,               ps(7)),
                 Paragraph(str(r['categoria'] or ''),  ps(7)),
                 Paragraph(str(r['criticidad'] or ''), ps(7,True,WHITE,TA_CENTER)),
                 Paragraph(str(r['cant_min']),          ps(7,align=TA_CENTER)),
@@ -1950,9 +1953,11 @@ def export_refacciones_pdf():
                 Paragraph(str(r['tiempo_entrega'] or ''), ps(7)),
                 Paragraph(str(r['proveedor'] or ''),   ps(7)),
                 Paragraph(str(r['ubicacion'] or ''),   ps(7)),
+                Paragraph(costo_txt,                   ps(7,align=TA_RIGHT)),
+                Paragraph(str(r['notas'] or ''),       ps(7)),
             ])
             tstyle += [('BACKGROUND',(0,i),(-1,i),bg),
-                       ('BACKGROUND',(5,i),(5,i),cc)]
+                       ('BACKGROUND',(4,i),(4,i),cc)]
             num += 1
 
         dt = Table(tdata, colWidths=CW, repeatRows=1)
@@ -1961,12 +1966,24 @@ def export_refacciones_pdf():
         story.append(Spacer(1,2*mm))
 
     # Footer
-    ft = Table([[Paragraph('🔴 ALTA = Paro producción  |  🟡 MEDIA = Afecta eficiencia  |  🟢 BAJA = Preventivo  |  Stock rojo = bajo mínimo',
+    ft = Table([[Paragraph('🔴 ALTA = Paro de producción    |    🟡 MEDIA = Afecta eficiencia    |    🟢 BAJA = Preventivo    |    ✓ = Identificado en almacén',
                             ps(6, color=colors.HexColor('#555555')))]],
                colWidths=[sum(CW)])
     ft.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GREEN_LIGHT),
                             ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3)]))
     story.append(ft)
+    story.append(Spacer(1,6*mm))
+
+    firma = Table([['Elaboró:', '', '', '', 'Revisó:', '', '', '', 'Autorizó:', '', '', '']],
+                  colWidths=[sum(CW)/12]*12)
+    firma.setStyle(TableStyle([
+        ('FONTSIZE',(0,0),(-1,-1),8),
+        ('FONTNAME',(0,0),(-1,-1),'Helvetica-Bold'),
+        ('LINEBELOW',(1,0),(3,0),0.5,colors.grey),
+        ('LINEBELOW',(5,0),(7,0),0.5,colors.grey),
+        ('LINEBELOW',(9,0),(11,0),0.5,colors.grey),
+    ]))
+    story.append(firma)
 
     doc.build(story)
     buf.seek(0)
