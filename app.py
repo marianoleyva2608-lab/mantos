@@ -299,10 +299,12 @@ def _asignar_fotos_referencia_por_categoria():
     con.close()
     print(f"[fotos referencia por categoria] asignadas={asignadas} de {len(pendientes)} pendientes")
 
-try:
-    _asignar_fotos_referencia_por_categoria()
-except Exception as _e:
-    print(f"[fotos referencia por categoria] error: {_e}")
+# DESACTIVADA por peticion del usuario (2026-07-14): no ejecutar todavia,
+# para revisar primero cuantas refacciones ya tienen foto real en produccion.
+# try:
+#     _asignar_fotos_referencia_por_categoria()
+# except Exception as _e:
+#     print(f"[fotos referencia por categoria] error: {_e}")
 
 # ---------------------------------------------------------------------------
 # Migracion 2026-07-02: actualizar stock_actual y cant_min segun Excel
