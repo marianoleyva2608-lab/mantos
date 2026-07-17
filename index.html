@@ -4088,7 +4088,8 @@ function abrirImpresionQRLote(){
   var seleccionadas=Array.from(_refSelected).map(function(id){return _refData.find(function(x){return x.id===id;});}).filter(Boolean);
   var conQr=seleccionadas.filter(function(r){return r.numero_parte;});
   var sinQr=seleccionadas.length-conQr.length;
-  var msg=conQr.length+' de '+seleccionadas.length+' seleccionada(s) tienen número de parte / QR y se imprimirán.';
+  var totalEtiquetas=conQr.reduce(function(sum,r){return sum+Math.max(1,r.stock_actual||0);},0);
+  var msg=conQr.length+' de '+seleccionadas.length+' seleccionada(s) tienen número de parte / QR → '+totalEtiquetas+' etiqueta(s) en total (según stock).';
   if(sinQr>0)msg+=' '+sinQr+' no tienen QR asignado y se omitirán.';
   document.getElementById('qr-lote-count').textContent=msg;
   document.getElementById('qr-lote-modal').style.display='flex';
@@ -4166,8 +4167,16 @@ function cerrarEscanerQR(){
 }
 function imprimirQRLote(){
   var MAX_POR_ETIQUETA=25; // 5x5, tope por etiqueta de 3"x3"
-  var items=Array.from(_refSelected).map(function(id){return _refData.find(function(x){return x.id===id;});}).filter(function(r){return r&&r.numero_parte;});
-  if(!items.length){showToast&&showToast('Ninguna de las refacciones seleccionadas tiene número de parte / QR');return;}
+  var seleccionadas=Array.from(_refSelected).map(function(id){return _refData.find(function(x){return x.id===id;});}).filter(function(r){return r&&r.numero_parte;});
+  if(!seleccionadas.length){showToast&&showToast('Ninguna de las refacciones seleccionadas tiene número de parte / QR');return;}
+  // Repetir cada QR tantas veces como diga el stock actual (una etiqueta
+  // por unidad física). Si el stock es 0, se imprime al menos 1 para no
+  // perder la referencia de esa refaccion.
+  var items=[];
+  seleccionadas.forEach(function(r){
+    var copias=Math.max(1, r.stock_actual||0);
+    for(var c=0;c<copias;c++) items.push(r);
+  });
   // Tamano de fuente del codigo segun el lado de la cuadricula (n x n) de esa
   // etiqueta: entre mas codigos entren, mas chica se ajusta la letra sola.
   var fuentePorN={1:'16px',2:'12px',3:'9px',4:'7px',5:'6px'};
@@ -4607,7 +4616,8 @@ function deleteRef(id){
     <button onclick="cerrarQRLoteModal()" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#555">✕</button>
     <h3 style="margin:0 0 4px;color:#1F5C2E">🖨️ Imprimir QR en lote</h3>
     <div id="qr-lote-count" style="font-size:13px;color:#555;margin-bottom:6px"></div>
-    <div style="font-size:12px;color:#888;margin-bottom:18px">El tamaño de la cuadrícula se ajusta solo según cuántos códigos entren en cada etiqueta (máximo 25 por etiqueta de 3"x3", margen de 4mm). Si seleccionas más de 25, se reparten en varias etiquetas.</div>
+    <div style="font-size:12px;color:#888;margin-bottom:6px">El tamaño de la cuadrícula se ajusta solo según cuántos códigos entren en cada etiqueta (máximo 25 por etiqueta de 3"x3", margen de 4mm). Si seleccionas más de 25, se reparten en varias etiquetas.</div>
+    <div style="font-size:12px;color:#1F5C2E;background:#F5F8F5;border-radius:6px;padding:8px;margin-bottom:18px">🏷️ Cada QR se repite según el <b>stock actual</b> de esa refacción (ej. si tienes 5 piezas, se imprimen 5 etiquetas iguales, una por unidad).</div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button onclick="cerrarQRLoteModal()" style="background:#eee;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:13px">Cancelar</button>
       <button onclick="imprimirQRLote()" style="background:#1F5C2E;color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:13px">🖨️ Imprimir</button>
