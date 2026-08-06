@@ -99,6 +99,17 @@
   .size-l .etiqueta { width: 100mm; height: 55mm; }
   .size-l .etiqueta .texto { font-size: 19px; }
 
+  /* Modo impresora Zebra: una etiqueta por pagina, tamaño exacto del rollo */
+  .size-zebra { display: block; padding: 0; border: none; }
+  .size-zebra .etiqueta {
+    width: 75mm; height: 50mm;
+    margin: 0 auto 6mm;
+    page-break-after: always;
+    break-after: page;
+  }
+  .size-zebra .etiqueta:last-child { margin-bottom: 0; }
+  .size-zebra .etiqueta .texto { font-size: 16px; }
+
   .vacio { color: #999; font-size: 13px; padding: 10px; }
 
   @media print {
@@ -106,9 +117,12 @@
     .hoja, .hoja * { visibility: visible; }
     .hoja { position: absolute; top: 0; left: 0; border: none; padding: 0; }
     .etiqueta { border: 1px solid #000; }
-    @page { size: auto; margin: 8mm; }
+    .size-zebra .etiqueta { border: none; margin: 0; }
   }
   .no-imprimir { }
+</style>
+<style id="estiloPagina">
+  @page { size: auto; margin: 8mm; }
 </style>
 </head>
 <body>
@@ -149,20 +163,21 @@ KH1, 50, 17-07-26, OMAR"></textarea>
   <div class="controles-generar">
     <label>Tamaño de etiqueta:
       <select id="tamano">
-        <option value="size-s">Chica (65x30mm)</option>
-        <option value="size-m" selected>Mediana (85x40mm)</option>
-        <option value="size-l">Grande (100x55mm)</option>
+        <option value="size-zebra" selected>Impresora Zebra (rollo 75x50mm, 1 por página)</option>
+        <option value="size-s">Hoja normal - Chica (65x30mm)</option>
+        <option value="size-m">Hoja normal - Mediana (85x40mm)</option>
+        <option value="size-l">Hoja normal - Grande (100x55mm)</option>
       </select>
     </label>
     <button id="btnGenerar">Generar etiquetas</button>
     <button class="secundario" id="btnImprimir">Imprimir</button>
   </div>
-  <p class="ayuda">Para guardar en PDF: al imprimir, elige "Guardar como PDF" como impresora de destino.</p>
+  <p class="ayuda" id="ayudaImpresion">En la impresora Zebra: al imprimir, elige tu impresora Zebra como destino y confirma que el tamaño de papel sea "75 x 50 mm" (no A4/Letter) para que salga una etiqueta por hoja del rollo.</p>
 </div>
 
 <div class="panel">
   <h2 class="no-imprimir">Vista previa</h2>
-  <div id="hoja" class="hoja size-m">
+  <div id="hoja" class="hoja size-zebra">
     <div class="vacio">Aún no se han generado etiquetas.</div>
   </div>
 </div>
@@ -225,9 +240,32 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     renderTabla();
   });
 
+  var QR_SIZE_POR_TAMANO = { 'size-zebra': 110, 'size-s': 70, 'size-m': 90, 'size-l': 110 };
+  var AYUDA_POR_TAMANO = {
+    'size-zebra': 'En la impresora Zebra: al imprimir, elige tu impresora Zebra como destino y confirma que el tamaño de papel sea "75 x 50 mm" (no A4/Letter) para que salga una etiqueta por hoja del rollo.',
+    'size-s': 'Para guardar en PDF: al imprimir, elige "Guardar como PDF" como impresora de destino.',
+    'size-m': 'Para guardar en PDF: al imprimir, elige "Guardar como PDF" como impresora de destino.',
+    'size-l': 'Para guardar en PDF: al imprimir, elige "Guardar como PDF" como impresora de destino.'
+  };
+
+  function actualizarEstiloPagina() {
+    var tamano = document.getElementById('tamano').value;
+    var css = tamano === 'size-zebra'
+      ? '@page { size: 75mm 50mm; margin: 0; }'
+      : '@page { size: auto; margin: 8mm; }';
+    document.getElementById('estiloPagina').textContent = css;
+    document.getElementById('ayudaImpresion').textContent = AYUDA_POR_TAMANO[tamano];
+  }
+
+  document.getElementById('tamano').addEventListener('change', actualizarEstiloPagina);
+
   document.getElementById('btnGenerar').addEventListener('click', function () {
+    var tamano = document.getElementById('tamano').value;
+    var qrSize = QR_SIZE_POR_TAMANO[tamano] || 90;
+    actualizarEstiloPagina();
+
     var hoja = document.getElementById('hoja');
-    hoja.className = 'hoja ' + document.getElementById('tamano').value;
+    hoja.className = 'hoja ' + tamano;
     hoja.innerHTML = '';
 
     if (filas.length === 0) {
@@ -258,14 +296,15 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 
       new QRCode(qrDiv, {
         text: textoCompleto,
-        width: 90,
-        height: 90,
+        width: qrSize,
+        height: qrSize,
         correctLevel: QRCode.CorrectLevel.M
       });
     });
   });
 
   document.getElementById('btnImprimir').addEventListener('click', function () {
+    actualizarEstiloPagina();
     window.print();
   });
 </script>
