@@ -103,12 +103,15 @@
   .size-zebra { display: block; padding: 0; border: none; }
   .size-zebra .etiqueta {
     width: 75mm; height: 50mm;
+    padding: 2mm; gap: 2mm;
     margin: 0 auto 6mm;
+    overflow: hidden;
     page-break-after: always;
     break-after: page;
   }
   .size-zebra .etiqueta:last-child { margin-bottom: 0; }
-  .size-zebra .etiqueta .texto { font-size: 16px; }
+  .size-zebra .etiqueta .qr { flex: 0 0 auto; }
+  .size-zebra .etiqueta .texto { font-size: 13px; line-height: 1.35; }
 
   .vacio { color: #999; font-size: 13px; padding: 10px; }
 
@@ -240,7 +243,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     renderTabla();
   });
 
-  var QR_SIZE_POR_TAMANO = { 'size-zebra': 110, 'size-s': 70, 'size-m': 90, 'size-l': 110 };
+  var QR_SIZE_POR_TAMANO = { 'size-zebra': 150, 'size-s': 70, 'size-m': 90, 'size-l': 110 };
   var AYUDA_POR_TAMANO = {
     'size-zebra': 'En la impresora Zebra: al imprimir, elige tu impresora Zebra como destino y confirma que el tamaño de papel sea "75 x 50 mm" (no A4/Letter) para que salga una etiqueta por hoja del rollo.',
     'size-s': 'Para guardar en PDF: al imprimir, elige "Guardar como PDF" como impresora de destino.',
@@ -274,10 +277,10 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     }
 
     filas.forEach(function (fila) {
-      var linea1 = 'TRAY ' + fila.tray;
-      var linea2 = fila.piezas + ' PZA';
-      var linea3 = fila.fecha;
-      var linea4 = fila.operador;
+      var linea1 = 'MODELO: ' + fila.tray;
+      var linea2 = 'CANTIDAD: ' + fila.piezas;
+      var linea3 = 'FECHA: ' + fila.fecha;
+      var linea4 = 'OPERARIO: ' + fila.operador;
       var textoCompleto = [linea1, linea2, linea3, linea4].join('\n');
 
       var etiqueta = document.createElement('div');
