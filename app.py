@@ -1007,6 +1007,11 @@ def index():
     html = open('index.html', encoding='utf-8').read()
     return html, 200, {'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store, no-cache, must-revalidate', 'Pragma':'no-cache'}
 
+@app.route('/etiquetas')
+def etiquetas():
+    html = open('etiquetas.html', encoding='utf-8').read()
+    return html, 200, {'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store, no-cache, must-revalidate', 'Pragma':'no-cache'}
+
 @app.route('/generar', methods=['POST'])
 def generar():
     try:
