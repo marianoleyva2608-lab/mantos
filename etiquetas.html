@@ -183,12 +183,12 @@
   <h2>1. Captura tus filas</h2>
   <p class="ayuda">
     Una etiqueta por línea. Puedes pegar directo desde Excel (columnas separadas por tabulador),
-    o escribir separando con comas: <b>Código, Piezas, Fecha, Operador</b>.<br>
-    Ejemplo: <code>A1, 50, 17-07-26, OMAR</code>
+    o escribir separando con comas: <b>Código, Piezas, Fecha, Operador, Copias</b> (Copias es opcional, si no la pones se asume 1).<br>
+    Ejemplo: <code>A1, 50, 17-07-26, OMAR, 3</code>
   </p>
-  <textarea id="entrada" placeholder="A1, 50, 17-07-26, OMAR
+  <textarea id="entrada" placeholder="A1, 50, 17-07-26, OMAR, 3
 A1, 50, 20-07-26, OMAR
-KH1, 50, 17-07-26, OMAR"></textarea>
+KH1, 50, 17-07-26, OMAR, 2"></textarea>
   <div class="fila-controles">
     <button id="btnCargar">Cargar filas a la tabla</button>
   </div>
@@ -198,7 +198,7 @@ KH1, 50, 17-07-26, OMAR"></textarea>
   <h2>2. Revisa / edita antes de generar</h2>
   <table id="tablaFilas">
     <thead>
-      <tr><th style="width:20%">Código (Tray)</th><th style="width:15%">Piezas</th><th style="width:20%">Fecha</th><th style="width:20%">Operador</th><th style="width:10%"></th></tr>
+      <tr><th style="width:17%">Código (Tray)</th><th style="width:13%">Piezas</th><th style="width:17%">Fecha</th><th style="width:17%">Operador</th><th style="width:12%">Copias</th><th style="width:10%"></th></tr>
     </thead>
     <tbody id="cuerpoTabla"></tbody>
   </table>
@@ -330,7 +330,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       else if (linea.indexOf('|') !== -1) cols = linea.split('|');
       else cols = linea.split(',');
       cols = cols.map(function (c) { return c.trim(); });
-      return { tray: cols[0] || '', piezas: cols[1] || '', fecha: cols[2] || '', operador: cols[3] || '' };
+      return { tray: cols[0] || '', piezas: cols[1] || '', fecha: cols[2] || '', operador: cols[3] || '', copias: cols[4] || '1' };
     });
   }
 
@@ -339,11 +339,12 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     cuerpo.innerHTML = '';
     filas.forEach(function (fila, idx) {
       var tr = document.createElement('tr');
-      ['tray', 'piezas', 'fecha', 'operador'].forEach(function (campo) {
+      ['tray', 'piezas', 'fecha', 'operador', 'copias'].forEach(function (campo) {
         var td = document.createElement('td');
         var input = document.createElement('input');
-        input.type = 'text';
-        input.value = fila[campo];
+        input.type = campo === 'copias' ? 'number' : 'text';
+        if (campo === 'copias') { input.min = '1'; input.style.width = '70px'; }
+        input.value = campo === 'copias' ? (fila.copias || '1') : fila[campo];
         input.addEventListener('input', function () { filas[idx][campo] = input.value; });
         td.appendChild(input);
         tr.appendChild(td);
@@ -369,7 +370,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   document.getElementById('btnAgregarFila').addEventListener('click', function () {
-    filas.push({ tray: '', piezas: '', fecha: '', operador: '' });
+    filas.push({ tray: '', piezas: '', fecha: '', operador: '', copias: '1' });
     renderTabla();
   });
 
@@ -414,27 +415,31 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       var linea3 = 'FECHA: ' + fila.fecha;
       var linea4 = 'OPERARIO: ' + fila.operador;
       var textoCompleto = [linea1, linea2, linea3, linea4].join('\n');
+      var copias = parseInt(fila.copias, 10);
+      if (!copias || copias < 1) copias = 1;
 
-      var etiqueta = document.createElement('div');
-      etiqueta.className = 'etiqueta';
+      for (var c = 0; c < copias; c++) {
+        var etiqueta = document.createElement('div');
+        etiqueta.className = 'etiqueta';
 
-      var qrDiv = document.createElement('div');
-      qrDiv.className = 'qr';
-      etiqueta.appendChild(qrDiv);
+        var qrDiv = document.createElement('div');
+        qrDiv.className = 'qr';
+        etiqueta.appendChild(qrDiv);
 
-      var textoDiv = document.createElement('div');
-      textoDiv.className = 'texto';
-      textoDiv.textContent = textoCompleto;
-      etiqueta.appendChild(textoDiv);
+        var textoDiv = document.createElement('div');
+        textoDiv.className = 'texto';
+        textoDiv.textContent = textoCompleto;
+        etiqueta.appendChild(textoDiv);
 
-      hoja.appendChild(etiqueta);
+        hoja.appendChild(etiqueta);
 
-      new QRCode(qrDiv, {
-        text: textoCompleto,
-        width: qrSize,
-        height: qrSize,
-        correctLevel: QRCode.CorrectLevel.M
-      });
+        new QRCode(qrDiv, {
+          text: textoCompleto,
+          width: qrSize,
+          height: qrSize,
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      }
     });
   });
 
@@ -448,7 +453,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   var estadoZebra = document.getElementById('estadoZebra');
 
   // recordar la última IP usada
-  inputIpPi.value = localStorage.getItem('adpack_ip_pi') || '';
+  var IP_PI_POR_DEFECTO = '100.87.53.113';
+  inputIpPi.value = localStorage.getItem('adpack_ip_pi') || IP_PI_POR_DEFECTO;
   inputIpPi.addEventListener('change', function () {
     localStorage.setItem('adpack_ip_pi', inputIpPi.value.trim());
   });
@@ -475,13 +481,20 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     }
     localStorage.setItem('adpack_ip_pi', ip);
 
+    var filasExpandidas = [];
+    filas.forEach(function (fila) {
+      var copias = parseInt(fila.copias, 10);
+      if (!copias || copias < 1) copias = 1;
+      for (var c = 0; c < copias; c++) filasExpandidas.push(fila);
+    });
+
     estadoZebra.style.color = '#666';
-    estadoZebra.textContent = 'Enviando ' + filas.length + ' etiqueta(s) (' + MAPA_TAMANO_ZPL[tamanoSel] + ')...';
+    estadoZebra.textContent = 'Enviando ' + filasExpandidas.length + ' etiqueta(s) (' + MAPA_TAMANO_ZPL[tamanoSel] + ')...';
 
     fetch('https://' + ip + ':5000/imprimir', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filas: filas, tamano: MAPA_TAMANO_ZPL[tamanoSel] })
+      body: JSON.stringify({ filas: filasExpandidas, tamano: MAPA_TAMANO_ZPL[tamanoSel] })
     })
       .then(function (resp) { return resp.json().then(function (data) { return { status: resp.status, data: data }; }); })
       .then(function (r) {
@@ -683,7 +696,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   var inputIpPiConv = document.getElementById('ipPiConv');
   var estadoZebraConv = document.getElementById('estadoZebraConv');
 
-  inputIpPiConv.value = localStorage.getItem('adpack_ip_pi') || '';
+  inputIpPiConv.value = localStorage.getItem('adpack_ip_pi') || IP_PI_POR_DEFECTO;
   inputIpPiConv.addEventListener('change', function () {
     localStorage.setItem('adpack_ip_pi', inputIpPiConv.value.trim());
   });
