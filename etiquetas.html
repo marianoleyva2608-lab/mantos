@@ -143,10 +143,10 @@
     display: flex; flex-direction: column; width: 100%; height: 100%;
     font-family: Arial, sans-serif; color: #111;
   }
-  .etiqueta-conv .logo-conv-wrap { display: flex; align-items: center; margin-bottom: 2mm; }
+  .etiqueta-conv .logo-conv-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 2mm; }
   .etiqueta-conv .logo-conv-img,
   .etiqueta-conv .logo-conv-svg { height: 9mm; width: auto; display: block; }
-  .etiqueta-conv .url-conv { font-size: 9px; color: #1a3768; margin: 0 0 2mm 0; }
+  .etiqueta-conv .url-conv { font-size: 9px; color: #1a3768; margin: 0 0 2mm 0; text-align: center; }
   .etiqueta-conv .linea-conv { border: none; border-top: 1.5px solid #111; margin: 1.5mm 0; }
   .etiqueta-conv .codigo-conv { font-size: 17px; font-weight: 700; text-align: center; margin-bottom: 1mm; }
   .etiqueta-conv .desc-conv { font-size: 13px; text-align: center; margin-bottom: 1mm; }
@@ -257,9 +257,10 @@ KH1, 50, 17-07-26, OMAR, 2"></textarea>
   <p class="ayuda">
     Una etiqueta por línea. Puedes pegar directo desde Excel (columnas separadas por tabulador),
     o escribir separando con comas: <b>Código, Descripción, Material, Lote, Caducidad, Cantidad, F. Producción</b>.<br>
-    Ejemplo: <code>0101090052, L21CDS TAPE1 AD-PACK 3MGT7112, 3M GT7112, 3M13581801, 26 ENE 2029, 50 PZAS, 14 JUL 2026</code>
+    Ejemplo: <code>0101090052, L21CDS TAPE1 AD-PACK 3MGT7112, 3M GT7112, 3M13581801, 2029-01-26, 50 PZAS, 2026-07-14</code><br>
+    <b>Tip:</b> en el paso 2 puedes elegir Material y Lote de una lista, y las fechas con un calendario (clic para elegir) — no hace falta escribirlas bien aquí.
   </p>
-  <textarea id="entradaConv" placeholder="0101090052, L21CDS TAPE1 AD-PACK 3MGT7112, 3M GT7112, 3M13581801, 26 ENE 2029, 50 PZAS, 14 JUL 2026"></textarea>
+  <textarea id="entradaConv" placeholder="0101090052, L21CDS TAPE1 AD-PACK 3MGT7112, 3M GT7112, 3M13581801, , 50 PZAS, "></textarea>
   <div class="fila-controles">
     <button id="btnCargarConv">Cargar filas a la tabla</button>
   </div>
@@ -553,18 +554,151 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     });
   }
 
+  var OPCIONES_LOTE = ['3M13581801', '3M13003748'];
+  var OPCIONES_MATERIAL = ['3M GT7112'];
+  var OPCIONES_CODIGO_DESC = [
+    { codigo: '0101090052', descripcion: 'L21CDS TAPE1 AD-PACK 3MGT7112' },
+    { codigo: '0101090053', descripcion: 'L21CDS TAPE2 AD-PACK 3MGT7112' },
+    { codigo: '0101090054', descripcion: 'L21CDS TAPE3 AD-PACK 3MGT7112' },
+    { codigo: '0101090055', descripcion: 'L21CDS TAPE4 AD-PACK 3MGT7112' },
+    { codigo: '0101090056', descripcion: 'L21CDS TAPE5 AD-PACK 3MGT7112' },
+  ];
+  var OTRO_VALOR = '__otro__';
+
+  var MESES_ES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+  function formatoFechaEtiqueta(iso) {
+    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso || '';
+    var partes = iso.split('-');
+    var dia = partes[2];
+    var mes = MESES_ES[parseInt(partes[1], 10) - 1];
+    var anio = partes[0];
+    return dia + ' ' + mes + ' ' + anio;
+  }
+
+  function crearCeldaSelectConOtro(fila, idx, campo, opciones) {
+    var td = document.createElement('td');
+    var select = document.createElement('select');
+    select.style.width = '100%';
+    opciones.concat(['Otro (escribir)']).forEach(function (op, i) {
+      var opt = document.createElement('option');
+      opt.value = (i === opciones.length) ? OTRO_VALOR : op;
+      opt.textContent = op;
+      select.appendChild(opt);
+    });
+
+    var inputOtro = document.createElement('input');
+    inputOtro.type = 'text';
+    inputOtro.placeholder = 'Escribe el valor';
+    inputOtro.style.marginTop = '4px';
+    inputOtro.style.width = '100%';
+
+    var valorActual = fila[campo] || '';
+    var coincide = opciones.indexOf(valorActual) !== -1;
+    select.value = coincide ? valorActual : OTRO_VALOR;
+    inputOtro.style.display = coincide ? 'none' : '';
+    inputOtro.value = coincide ? '' : valorActual;
+
+    select.addEventListener('change', function () {
+      if (select.value === OTRO_VALOR) {
+        inputOtro.style.display = '';
+        filasConv[idx][campo] = inputOtro.value;
+      } else {
+        inputOtro.style.display = 'none';
+        filasConv[idx][campo] = select.value;
+      }
+    });
+    inputOtro.addEventListener('input', function () {
+      filasConv[idx][campo] = inputOtro.value;
+    });
+
+    td.appendChild(select);
+    td.appendChild(inputOtro);
+    return td;
+  }
+
+  function crearCeldaFecha(fila, idx, campo) {
+    var td = document.createElement('td');
+    var input = document.createElement('input');
+    input.type = 'date';
+    input.style.width = '100%';
+    // si el valor guardado ya es ISO (yyyy-mm-dd) lo precarga; si no, se deja vacío para elegir de nuevo
+    input.value = /^\d{4}-\d{2}-\d{2}$/.test(fila[campo]) ? fila[campo] : '';
+    input.addEventListener('input', function () { filasConv[idx][campo] = input.value; });
+    td.appendChild(input);
+    return td;
+  }
+
+  function crearCeldaCodigo(fila, idx) {
+    var td = document.createElement('td');
+    var select = document.createElement('select');
+    select.style.width = '100%';
+
+    OPCIONES_CODIGO_DESC.forEach(function (op) {
+      var opt = document.createElement('option');
+      opt.value = op.codigo;
+      opt.textContent = op.codigo + ' — ' + op.descripcion;
+      select.appendChild(opt);
+    });
+    var optOtro = document.createElement('option');
+    optOtro.value = OTRO_VALOR;
+    optOtro.textContent = 'Otro (escribir)';
+    select.appendChild(optOtro);
+
+    var inputOtro = document.createElement('input');
+    inputOtro.type = 'text';
+    inputOtro.placeholder = 'Código';
+    inputOtro.style.marginTop = '4px';
+    inputOtro.style.width = '100%';
+
+    var coincidencia = OPCIONES_CODIGO_DESC.filter(function (op) { return op.codigo === fila.codigo; })[0];
+    select.value = coincidencia ? coincidencia.codigo : OTRO_VALOR;
+    inputOtro.style.display = coincidencia ? 'none' : '';
+    inputOtro.value = coincidencia ? '' : (fila.codigo || '');
+
+    select.addEventListener('change', function () {
+      if (select.value === OTRO_VALOR) {
+        inputOtro.style.display = '';
+        filasConv[idx].codigo = inputOtro.value;
+      } else {
+        inputOtro.style.display = 'none';
+        var op = OPCIONES_CODIGO_DESC.filter(function (o) { return o.codigo === select.value; })[0];
+        filasConv[idx].codigo = op.codigo;
+        filasConv[idx].descripcion = op.descripcion;
+        renderTablaConv();
+      }
+    });
+    inputOtro.addEventListener('input', function () {
+      filasConv[idx].codigo = inputOtro.value;
+    });
+
+    td.appendChild(select);
+    td.appendChild(inputOtro);
+    return td;
+  }
+
   function renderTablaConv() {
     var cuerpo = document.getElementById('cuerpoTablaConv');
     cuerpo.innerHTML = '';
     filasConv.forEach(function (fila, idx) {
       var tr = document.createElement('tr');
       CAMPOS_CONV.forEach(function (campo) {
-        var td = document.createElement('td');
-        var input = document.createElement('input');
-        input.type = 'text';
-        input.value = fila[campo];
-        input.addEventListener('input', function () { filasConv[idx][campo] = input.value; });
-        td.appendChild(input);
+        var td;
+        if (campo === 'codigo') {
+          td = crearCeldaCodigo(fila, idx);
+        } else if (campo === 'material') {
+          td = crearCeldaSelectConOtro(fila, idx, campo, OPCIONES_MATERIAL);
+        } else if (campo === 'lote') {
+          td = crearCeldaSelectConOtro(fila, idx, campo, OPCIONES_LOTE);
+        } else if (campo === 'caducidad' || campo === 'produccion') {
+          td = crearCeldaFecha(fila, idx, campo);
+        } else {
+          td = document.createElement('td');
+          var input = document.createElement('input');
+          input.type = 'text';
+          input.value = fila[campo];
+          input.addEventListener('input', function () { filasConv[idx][campo] = input.value; });
+          td.appendChild(input);
+        }
         tr.appendChild(td);
       });
       var tdBorrar = document.createElement('td');
@@ -665,9 +799,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       [
         ['MATERIAL', fila.material],
         ['LOTE', fila.lote],
-        ['CADUCIDAD', fila.caducidad],
+        ['CADUCIDAD', formatoFechaEtiqueta(fila.caducidad)],
         ['CANTIDAD', fila.cantidad],
-        ['PRODUCCIÓN', fila.produccion],
+        ['PRODUCCIÓN', formatoFechaEtiqueta(fila.produccion)],
       ].forEach(function (par) {
         var filaDato = document.createElement('div');
         filaDato.className = 'fila-dato';
@@ -715,13 +849,25 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     }
     localStorage.setItem('adpack_ip_pi', ip);
 
+    var filasParaEnviar = filasConv.map(function (fila) {
+      return {
+        codigo: fila.codigo,
+        descripcion: fila.descripcion,
+        material: fila.material,
+        lote: fila.lote,
+        caducidad: formatoFechaEtiqueta(fila.caducidad),
+        cantidad: fila.cantidad,
+        produccion: formatoFechaEtiqueta(fila.produccion),
+      };
+    });
+
     estadoZebraConv.style.color = '#666';
     estadoZebraConv.textContent = 'Enviando ' + filasConv.length + ' etiqueta(s)...';
 
     fetch('https://' + ip + ':5000/imprimir-conversion', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filas: filasConv })
+      body: JSON.stringify({ filas: filasParaEnviar })
     })
       .then(function (resp) { return resp.json().then(function (data) { return { status: resp.status, data: data }; }); })
       .then(function (r) {
