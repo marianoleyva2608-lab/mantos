@@ -1,5 +1,5 @@
 import os, io, base64, sqlite3, json, hashlib
-from flask import Flask, request, send_file, jsonify
+from flask import Flask, request, send_file, jsonify, send_from_directory
 from qr_catalog import CATEGORIA_FIJA as QR_CATEGORIA_FIJA, GRUPOS as QR_GRUPOS, PLANTA as QR_PLANTA, PROVEEDORES as QR_PROVEEDORES
 from placeholders_categoria import PLACEHOLDERS_CATEGORIA
 
@@ -1008,9 +1008,25 @@ def index():
     return html, 200, {'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store, no-cache, must-revalidate', 'Pragma':'no-cache'}
 
 @app.route('/etiquetas')
+@app.route('/etiquetas.html')
 def etiquetas():
     html = open('etiquetas.html', encoding='utf-8').read()
     return html, 200, {'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store, no-cache, must-revalidate', 'Pragma':'no-cache'}
+
+# Sirve archivos estaticos sueltos que viven junto a app.py (imagenes, iconos,
+# etc.) para que URLs como /logo-conversion.png funcionen. Solo permite
+# extensiones de archivo seguras/esperadas, nunca .py ni archivos de datos.
+_EXTENSIONES_ESTATICAS_PERMITIDAS = ('.png', '.jpg', '.jpeg', '.svg', '.ico', '.gif', '.webp')
+
+@app.route('/<path:nombre_archivo>')
+def servir_estatico(nombre_archivo):
+    if not nombre_archivo.lower().endswith(_EXTENSIONES_ESTATICAS_PERMITIDAS):
+        return jsonify({'error': 'No encontrado'}), 404
+    directorio = os.path.dirname(os.path.abspath(__file__))
+    ruta_completa = os.path.join(directorio, nombre_archivo)
+    if not os.path.isfile(ruta_completa):
+        return jsonify({'error': 'No encontrado'}), 404
+    return send_from_directory(directorio, nombre_archivo)
 
 @app.route('/generar', methods=['POST'])
 def generar():
