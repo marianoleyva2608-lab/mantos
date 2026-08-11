@@ -456,8 +456,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       ['No. DE PARTE', fila.noParte, false],
       ['LOTE', fila.lote, false],
       ['CANTIDAD', fila.cantidad, false],
-      ['REVISO', fila.reviso, true],
-      ['FECHA', fila.fecha, true],
+      ['REVISO', fila.reviso, false],
+      ['FECHA', fila.fecha, false],
     ].forEach(function (par) {
       var filaDiv = document.createElement('div');
       filaDiv.className = 'etiqueta-termo-fila';
