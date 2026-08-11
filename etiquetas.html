@@ -130,6 +130,39 @@
   .size-zebra75 .etiqueta .qr { flex: 0 0 auto; margin: 0 auto 4mm; }
   .size-zebra75 .etiqueta .texto { font-size: 24px; line-height: 1.5; width: 100%; }
 
+  /* Etiqueta de Termoformado: formato tabla AD-PACK / PLANTA TERMOFORMADO, rollo 3x2in */
+  .size-termo { display: block; padding: 0; border: none; }
+  .etiqueta-termo {
+    width: 76.2mm; height: 50.8mm;
+    margin: 0 auto 6mm;
+    padding: 1.5mm;
+    box-sizing: border-box;
+    overflow: hidden;
+    page-break-after: always;
+    break-after: page;
+    border: 1.5px solid #111;
+    display: flex;
+    flex-direction: column;
+    font-family: Arial, sans-serif;
+    color: #111;
+  }
+  .etiqueta-termo:last-child { margin-bottom: 0; }
+  .etiqueta-termo-header { display: flex; align-items: flex-start; justify-content: space-between; }
+  .etiqueta-termo-header .logo-chico { font-size: 7px; font-weight: 700; white-space: nowrap; }
+  .etiqueta-termo-header .titulo { flex: 1; text-align: center; }
+  .etiqueta-termo-header .titulo .l1 { font-size: 15px; font-weight: 700; }
+  .etiqueta-termo-header .titulo .l2 { font-size: 12px; font-weight: 700; margin-top: 0.5mm; }
+  .etiqueta-termo-hr { border: none; border-top: 1.5px solid #111; margin: 1mm 0; }
+  .etiqueta-termo-tabla { flex: 1; border: 1.5px solid #111; display: flex; flex-direction: column; }
+  .etiqueta-termo-fila { flex: 1; display: flex; border-bottom: 1px solid #111; align-items: stretch; }
+  .etiqueta-termo-fila:last-child { border-bottom: none; }
+  .etiqueta-termo-label {
+    width: 42%; border-right: 1.5px solid #111; font-weight: 700; font-size: 10px;
+    display: flex; align-items: center; padding-left: 1mm;
+  }
+  .etiqueta-termo-valor { width: 58%; font-size: 10px; display: flex; align-items: center; padding-left: 1.5mm; }
+  .etiqueta-termo-valor.grande { justify-content: center; font-weight: 700; font-size: 12px; padding-left: 0; }
+
   .vacio { color: #999; font-size: 13px; padding: 10px; }
 
   .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
@@ -173,8 +206,8 @@
 <p class="subtitulo">Genera etiquetas con código QR a partir de una lista, para imprimir y pegar en los trays/paquetes.</p>
 
 <div class="tabs no-imprimir">
-  <button class="tab-btn activa" id="btnTabTrays">Trays (Motor de Etiquetas)</button>
-  <button class="tab-btn" id="btnTabConversion">Materia Prima (Conversión)</button>
+  <button class="tab-btn activa" id="btnTabTrays">Etiquetas Termoformado</button>
+  <button class="tab-btn" id="btnTabConversion">Etiquetas de Conversión</button>
 </div>
 
 <div id="vistaTrays">
@@ -183,12 +216,11 @@
   <h2>1. Captura tus filas</h2>
   <p class="ayuda">
     Una etiqueta por línea. Puedes pegar directo desde Excel (columnas separadas por tabulador),
-    o escribir separando con comas: <b>Código, Piezas, Fecha, Operador, Copias</b> (Copias es opcional, si no la pones se asume 1).<br>
-    Ejemplo: <code>A1, 50, 17-07-26, OMAR, 3</code>
+    o escribir separando con comas: <b>Cliente, Descripción, No. de Parte, Lote, Cantidad, Revisó, Fecha, Copias</b>
+    (Copias es opcional, si no la pones se asume 1).<br>
+    Ejemplo: <code>ATSUMITEC, TAPA ATSUMITEC, UPPL, ADM-13072026-CO-11, 25, OMAR, 29/07/2026, 2</code>
   </p>
-  <textarea id="entrada" placeholder="A1, 50, 17-07-26, OMAR, 3
-A1, 50, 20-07-26, OMAR
-KH1, 50, 17-07-26, OMAR, 2"></textarea>
+  <textarea id="entrada" placeholder="ATSUMITEC, TAPA ATSUMITEC, UPPL, ADM-13072026-CO-11, 25, OMAR, 29/07/2026, 2"></textarea>
   <div class="fila-controles">
     <button id="btnCargar">Cargar filas a la tabla</button>
   </div>
@@ -198,7 +230,12 @@ KH1, 50, 17-07-26, OMAR, 2"></textarea>
   <h2>2. Revisa / edita antes de generar</h2>
   <table id="tablaFilas">
     <thead>
-      <tr><th style="width:17%">Código (Tray)</th><th style="width:13%">Piezas</th><th style="width:17%">Fecha</th><th style="width:17%">Operador</th><th style="width:12%">Copias</th><th style="width:10%"></th></tr>
+      <tr>
+        <th style="width:13%">Cliente</th><th style="width:16%">Descripción</th>
+        <th style="width:11%">No. de Parte</th><th style="width:14%">Lote</th>
+        <th style="width:9%">Cantidad</th><th style="width:11%">Revisó</th>
+        <th style="width:11%">Fecha</th><th style="width:8%">Copias</th><th style="width:7%"></th>
+      </tr>
     </thead>
     <tbody id="cuerpoTabla"></tbody>
   </table>
@@ -210,16 +247,10 @@ KH1, 50, 17-07-26, OMAR, 2"></textarea>
 <div class="panel no-imprimir">
   <h2>3. Genera e imprime</h2>
   <div class="controles-generar">
-    <label>Tamaño de etiqueta:
-      <select id="tamano">
-        <option value="size-zebra" selected>Impresora Zebra (rollo 75x50mm, 1 por página)</option>
-        <option value="size-zebra75">Impresora Zebra (rollo 75x75mm, 1 por página)</option>
-      </select>
-    </label>
     <button id="btnGenerar">Generar etiquetas</button>
     <button class="secundario" id="btnImprimir">Imprimir</button>
   </div>
-  <p class="ayuda" id="ayudaImpresion">En la impresora Zebra: al imprimir, elige tu impresora Zebra como destino y confirma que el tamaño de papel sea "75 x 50 mm" (no A4/Letter) para que salga una etiqueta por hoja del rollo.</p>
+  <p class="ayuda" id="ayudaImpresion">Rollo fijo de 3 x 2 in (76.2 x 50.8mm). Al imprimir, confirma que el tamaño de papel sea ese (no A4/Letter).</p>
 
   <div class="fila-controles no-imprimir" id="bloqueZebraRed">
     <h2 style="font-size:15px;margin:14px 0 8px;">Enviar directo a la Zebra (red)</h2>
@@ -240,7 +271,7 @@ KH1, 50, 17-07-26, OMAR, 2"></textarea>
 
 <div class="panel">
   <h2 class="no-imprimir">Vista previa</h2>
-  <div id="hoja" class="hoja size-zebra">
+  <div id="hoja" class="hoja size-termo">
     <div class="vacio">Aún no se han generado etiquetas.</div>
   </div>
 </div>
@@ -249,7 +280,7 @@ KH1, 50, 17-07-26, OMAR, 2"></textarea>
 
 <div id="vistaConversion" style="display:none;">
 
-<h1>Materia Prima - Conversión</h1>
+<h1>Etiquetas de Conversión</h1>
 <p class="subtitulo">Etiquetas de material/lote para el área de Conversión. Rollo Zebra 75x75mm.</p>
 
 <div class="panel no-imprimir">
@@ -322,6 +353,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 
 <script>
   var filas = [];
+  var CAMPOS = ['cliente', 'descripcion', 'noParte', 'lote', 'cantidad', 'reviso', 'fecha'];
 
   function parseEntrada(texto) {
     var lineas = texto.split(/\r?\n/).filter(function (l) { return l.trim() !== ''; });
@@ -331,7 +363,10 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       else if (linea.indexOf('|') !== -1) cols = linea.split('|');
       else cols = linea.split(',');
       cols = cols.map(function (c) { return c.trim(); });
-      return { tray: cols[0] || '', piezas: cols[1] || '', fecha: cols[2] || '', operador: cols[3] || '', copias: cols[4] || '1' };
+      var fila = {};
+      CAMPOS.forEach(function (campo, i) { fila[campo] = cols[i] || ''; });
+      fila.copias = cols[7] || '1';
+      return fila;
     });
   }
 
@@ -340,7 +375,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     cuerpo.innerHTML = '';
     filas.forEach(function (fila, idx) {
       var tr = document.createElement('tr');
-      ['tray', 'piezas', 'fecha', 'operador', 'copias'].forEach(function (campo) {
+      CAMPOS.concat(['copias']).forEach(function (campo) {
         var td = document.createElement('td');
         var input = document.createElement('input');
         input.type = campo === 'copias' ? 'number' : 'text';
@@ -371,38 +406,73 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   document.getElementById('btnAgregarFila').addEventListener('click', function () {
-    filas.push({ tray: '', piezas: '', fecha: '', operador: '', copias: '1' });
+    filas.push({ cliente: '', descripcion: '', noParte: '', lote: '', cantidad: '', reviso: '', fecha: '', copias: '1' });
     renderTabla();
   });
 
-  var QR_SIZE_POR_TAMANO = { 'size-zebra': 38, 'size-zebra75': 55, 'size-s': 70, 'size-m': 90, 'size-l': 110 };
-  var AYUDA_POR_TAMANO = {
-    'size-zebra': 'En la impresora Zebra: al imprimir, elige tu impresora Zebra como destino y confirma que el tamaño de papel sea "75 x 50 mm" (no A4/Letter) para que salga una etiqueta por hoja del rollo.',
-    'size-zebra75': 'En la impresora Zebra: al imprimir, elige tu impresora Zebra como destino y confirma que el tamaño de papel sea "75 x 75 mm" (no A4/Letter) para que salga una etiqueta por hoja del rollo.',
-    'size-s': 'Para guardar en PDF: al imprimir, elige "Guardar como PDF" como impresora de destino.',
-    'size-m': 'Para guardar en PDF: al imprimir, elige "Guardar como PDF" como impresora de destino.',
-    'size-l': 'Para guardar en PDF: al imprimir, elige "Guardar como PDF" como impresora de destino.'
-  };
+  // Construye el nodo de UNA etiqueta de Termoformado (formato tabla), igual estructura
+  // que arma el backend en ZPL: encabezado AD-PACK / PLANTA TERMOFORMADO + tabla 7 filas.
+  function crearEtiquetaTermoNodo(fila) {
+    var et = document.createElement('div');
+    et.className = 'etiqueta-termo';
 
-  function actualizarEstiloPagina() {
-    var tamano = document.getElementById('tamano').value;
-    var css;
-    if (tamano === 'size-zebra') css = '@page { size: 75mm 50mm; margin: 0; }';
-    else if (tamano === 'size-zebra75') css = '@page { size: 75mm 75mm; margin: 0; }';
-    else css = '@page { size: auto; margin: 8mm; }';
-    document.getElementById('estiloPagina').textContent = css;
-    document.getElementById('ayudaImpresion').textContent = AYUDA_POR_TAMANO[tamano];
+    var header = document.createElement('div');
+    header.className = 'etiqueta-termo-header';
+    var logoIzq = document.createElement('div');
+    logoIzq.className = 'logo-chico';
+    logoIzq.textContent = 'AD-PACK';
+    var titulo = document.createElement('div');
+    titulo.className = 'titulo';
+    var l1 = document.createElement('div'); l1.className = 'l1'; l1.textContent = 'AD-PACK';
+    var l2 = document.createElement('div'); l2.className = 'l2'; l2.textContent = 'PLANTA TERMOFORMADO';
+    titulo.appendChild(l1); titulo.appendChild(l2);
+    var logoDer = document.createElement('div');
+    logoDer.className = 'logo-chico';
+    logoDer.textContent = 'TERMOFORMADO';
+    header.appendChild(logoIzq); header.appendChild(titulo); header.appendChild(logoDer);
+    et.appendChild(header);
+
+    var hr = document.createElement('hr');
+    hr.className = 'etiqueta-termo-hr';
+    et.appendChild(hr);
+
+    var tabla = document.createElement('div');
+    tabla.className = 'etiqueta-termo-tabla';
+    [
+      ['CLIENTE', fila.cliente, false],
+      ['DESCRIPCION', fila.descripcion, false],
+      ['No. DE PARTE', fila.noParte, false],
+      ['LOTE', fila.lote, false],
+      ['CANTIDAD', fila.cantidad, false],
+      ['REVISO', fila.reviso, true],
+      ['FECHA', fila.fecha, true],
+    ].forEach(function (par) {
+      var filaDiv = document.createElement('div');
+      filaDiv.className = 'etiqueta-termo-fila';
+      var label = document.createElement('div');
+      label.className = 'etiqueta-termo-label';
+      label.textContent = par[0];
+      var valor = document.createElement('div');
+      valor.className = 'etiqueta-termo-valor' + (par[2] ? ' grande' : '');
+      valor.textContent = par[1];
+      filaDiv.appendChild(label);
+      filaDiv.appendChild(valor);
+      tabla.appendChild(filaDiv);
+    });
+    et.appendChild(tabla);
+
+    return et;
   }
 
-  document.getElementById('tamano').addEventListener('change', actualizarEstiloPagina);
+  function actualizarEstiloPagina() {
+    document.getElementById('estiloPagina').textContent = '@page { size: 76.2mm 50.8mm; margin: 0; }';
+  }
 
   document.getElementById('btnGenerar').addEventListener('click', function () {
-    var tamano = document.getElementById('tamano').value;
-    var qrSize = QR_SIZE_POR_TAMANO[tamano] || 90;
     actualizarEstiloPagina();
 
     var hoja = document.getElementById('hoja');
-    hoja.className = 'hoja ' + tamano;
+    hoja.className = 'hoja size-termo';
     hoja.innerHTML = '';
 
     if (filas.length === 0) {
@@ -411,35 +481,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     }
 
     filas.forEach(function (fila) {
-      var linea1 = 'MODELO: ' + fila.tray;
-      var linea2 = 'CANTIDAD: ' + fila.piezas;
-      var linea3 = 'FECHA: ' + fila.fecha;
-      var linea4 = 'OPERARIO: ' + fila.operador;
-      var textoCompleto = [linea1, linea2, linea3, linea4].join('\n');
       var copias = parseInt(fila.copias, 10);
       if (!copias || copias < 1) copias = 1;
 
       for (var c = 0; c < copias; c++) {
-        var etiqueta = document.createElement('div');
-        etiqueta.className = 'etiqueta';
-
-        var qrDiv = document.createElement('div');
-        qrDiv.className = 'qr';
-        etiqueta.appendChild(qrDiv);
-
-        var textoDiv = document.createElement('div');
-        textoDiv.className = 'texto';
-        textoDiv.textContent = textoCompleto;
-        etiqueta.appendChild(textoDiv);
-
-        hoja.appendChild(etiqueta);
-
-        new QRCode(qrDiv, {
-          text: textoCompleto,
-          width: qrSize,
-          height: qrSize,
-          correctLevel: QRCode.CorrectLevel.M
-        });
+        hoja.appendChild(crearEtiquetaTermoNodo(fila));
       }
     });
   });
@@ -462,14 +508,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 
   document.getElementById('btnEnviarZebra').addEventListener('click', function () {
     var ip = inputIpPi.value.trim();
-    var tamanoSel = document.getElementById('tamano').value;
-    var MAPA_TAMANO_ZPL = { 'size-zebra': '75x50', 'size-zebra75': '75x75' };
 
-    if (!MAPA_TAMANO_ZPL[tamanoSel]) {
-      estadoZebra.style.color = '#dc2626';
-      estadoZebra.textContent = 'Elige un tamaño de rollo Zebra (75x50 o 75x75) arriba antes de enviar.';
-      return;
-    }
     if (!ip) {
       estadoZebra.textContent = 'Escribe la IP de la Raspberry Pi.';
       estadoZebra.style.color = '#dc2626';
@@ -482,20 +521,13 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     }
     localStorage.setItem('adpack_ip_pi', ip);
 
-    var filasExpandidas = [];
-    filas.forEach(function (fila) {
-      var copias = parseInt(fila.copias, 10);
-      if (!copias || copias < 1) copias = 1;
-      for (var c = 0; c < copias; c++) filasExpandidas.push(fila);
-    });
-
     estadoZebra.style.color = '#666';
-    estadoZebra.textContent = 'Enviando ' + filasExpandidas.length + ' etiqueta(s) (' + MAPA_TAMANO_ZPL[tamanoSel] + ')...';
+    estadoZebra.textContent = 'Enviando ' + filas.length + ' etiqueta(s)...';
 
     fetch('https://' + ip + ':5000/imprimir', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filas: filasExpandidas, tamano: MAPA_TAMANO_ZPL[tamanoSel] })
+      body: JSON.stringify({ filas: filas })
     })
       .then(function (resp) { return resp.json().then(function (data) { return { status: resp.status, data: data }; }); })
       .then(function (r) {
