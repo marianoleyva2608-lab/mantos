@@ -271,10 +271,10 @@ KH1, 50, 17-07-26, OMAR, 2"></textarea>
   <table id="tablaFilasConv">
     <thead>
       <tr>
-        <th style="width:12%">Código</th><th style="width:20%">Descripción</th>
-        <th style="width:13%">Material</th><th style="width:13%">Lote</th>
-        <th style="width:13%">Caducidad</th><th style="width:10%">Cantidad</th>
-        <th style="width:13%">F. Producción</th><th style="width:6%"></th>
+        <th style="width:11%">Código</th><th style="width:18%">Descripción</th>
+        <th style="width:12%">Material</th><th style="width:12%">Lote</th>
+        <th style="width:12%">Caducidad</th><th style="width:9%">Cantidad</th>
+        <th style="width:12%">F. Producción</th><th style="width:8%">Copias</th><th style="width:6%"></th>
       </tr>
     </thead>
     <tbody id="cuerpoTablaConv"></tbody>
@@ -550,8 +550,26 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       cols = cols.map(function (c) { return c.trim(); });
       var fila = {};
       CAMPOS_CONV.forEach(function (campo, i) { fila[campo] = cols[i] || ''; });
+      fila.copias = '1'; // por default 1 copia; se puede editar en la tabla
       return fila;
     });
+  }
+
+  function crearCeldaCopias(fila, idx) {
+    var td = document.createElement('td');
+    var input = document.createElement('input');
+    input.type = 'number';
+    input.min = '1';
+    input.step = '1';
+    input.style.width = '100%';
+    input.value = fila.copias || '1';
+    input.addEventListener('input', function () {
+      // nunca dejar vacio o menor a 1: la impresora necesita un entero valido
+      var n = parseInt(input.value, 10);
+      filasConv[idx].copias = (isNaN(n) || n < 1) ? '1' : String(n);
+    });
+    td.appendChild(input);
+    return td;
   }
 
   var OPCIONES_LOTE = ['3M13581801', '3M13003748'];
@@ -701,6 +719,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         }
         tr.appendChild(td);
       });
+      tr.appendChild(crearCeldaCopias(fila, idx));
       var tdBorrar = document.createElement('td');
       var btn = document.createElement('button');
       btn.textContent = 'Eliminar';
@@ -722,7 +741,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   document.getElementById('btnAgregarFilaConv').addEventListener('click', function () {
-    filasConv.push({ codigo: '', descripcion: '', material: '', lote: '', caducidad: '', cantidad: '', produccion: '' });
+    filasConv.push({ codigo: '', descripcion: '', material: '', lote: '', caducidad: '', cantidad: '', produccion: '', copias: '1' });
     renderTablaConv();
   });
 
@@ -816,6 +835,16 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       });
       contenido.appendChild(datos);
 
+      var numCopias = parseInt(fila.copias, 10) || 1;
+      if (numCopias > 1) {
+        var badge = document.createElement('div');
+        badge.className = 'badge-copias-conv no-imprimir';
+        badge.textContent = '× ' + numCopias + ' copias';
+        badge.style.cssText = 'position:absolute;top:4px;right:4px;background:#1a3768;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;';
+        etiqueta.style.position = 'relative';
+        etiqueta.appendChild(badge);
+      }
+
       etiqueta.appendChild(contenido);
       hoja.appendChild(etiqueta);
     });
@@ -858,6 +887,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         caducidad: formatoFechaEtiqueta(fila.caducidad),
         cantidad: fila.cantidad,
         produccion: formatoFechaEtiqueta(fila.produccion),
+        copias: fila.copias || '1',
       };
     });
 
