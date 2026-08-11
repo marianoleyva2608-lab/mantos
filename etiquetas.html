@@ -149,6 +149,8 @@
   .etiqueta-termo:last-child { margin-bottom: 0; }
   .etiqueta-termo-header { display: flex; align-items: flex-start; justify-content: space-between; }
   .etiqueta-termo-header .logo-chico { font-size: 7px; font-weight: 700; white-space: nowrap; }
+  .etiqueta-termo-header .logo-img-izq { height: 6mm; width: auto; display: block; flex: 0 0 auto; }
+  .etiqueta-termo-header .logo-img-der { height: 5mm; width: auto; display: block; flex: 0 0 auto; }
   .etiqueta-termo-header .titulo { flex: 1; text-align: center; }
   .etiqueta-termo-header .titulo .l1 { font-size: 15px; font-weight: 700; }
   .etiqueta-termo-header .titulo .l2 { font-size: 12px; font-weight: 700; margin-top: 0.5mm; }
@@ -412,23 +414,33 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 
   // Construye el nodo de UNA etiqueta de Termoformado (formato tabla), igual estructura
   // que arma el backend en ZPL: encabezado AD-PACK / PLANTA TERMOFORMADO + tabla 7 filas.
+  function crearLogoHeaderTermo(src, alt, claseImg) {
+    var img = document.createElement('img');
+    img.className = claseImg;
+    img.alt = alt;
+    img.src = src;
+    img.onerror = function () {
+      var span = document.createElement('span');
+      span.className = 'logo-chico';
+      span.textContent = alt;
+      img.replaceWith(span);
+    };
+    return img;
+  }
+
   function crearEtiquetaTermoNodo(fila) {
     var et = document.createElement('div');
     et.className = 'etiqueta-termo';
 
     var header = document.createElement('div');
     header.className = 'etiqueta-termo-header';
-    var logoIzq = document.createElement('div');
-    logoIzq.className = 'logo-chico';
-    logoIzq.textContent = 'AD-PACK';
+    var logoIzq = crearLogoHeaderTermo('adpack-icon-web.png', 'AD-PACK', 'logo-img-izq');
     var titulo = document.createElement('div');
     titulo.className = 'titulo';
     var l1 = document.createElement('div'); l1.className = 'l1'; l1.textContent = 'AD-PACK';
     var l2 = document.createElement('div'); l2.className = 'l2'; l2.textContent = 'PLANTA TERMOFORMADO';
     titulo.appendChild(l1); titulo.appendChild(l2);
-    var logoDer = document.createElement('div');
-    logoDer.className = 'logo-chico';
-    logoDer.textContent = 'TERMOFORMADO';
+    var logoDer = crearLogoHeaderTermo('termoformado-icon-web.png', 'TERMOFORMADO', 'logo-img-der');
     header.appendChild(logoIzq); header.appendChild(titulo); header.appendChild(logoDer);
     et.appendChild(header);
 
