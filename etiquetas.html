@@ -406,12 +406,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   document.getElementById('tamano').addEventListener('change', actualizarEstiloPagina);
 
   document.getElementById('btnGenerar').addEventListener('click', function () {
-    var tamano = document.getElementById('tamano').value;
-    var qrSize = QR_SIZE_POR_TAMANO[tamano] || 90;
     actualizarEstiloPagina();
-
     var hoja = document.getElementById('hoja');
-    hoja.className = 'hoja ' + tamano;
     hoja.innerHTML = '';
 
     if (filas.length === 0) {
@@ -420,39 +416,59 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     }
 
     filas.forEach(function (fila) {
-      var textoCompleto = [
-        'CLIENTE: ' + fila.cliente,
-        'DESCRIPCIÓN: ' + fila.descripcion,
-        'NUMERO DE PARTE: ' + fila.numero_parte,
-        'LOTE: ' + fila.lote,
-        'CANTIDAD: ' + fila.cantidad,
-        'REVISO: ' + fila.reviso,
-        'FECHA: ' + fila.fecha,
-      ].join('\n');
       var copias = parseInt(fila.copias, 10);
       if (!copias || copias < 1) copias = 1;
 
       for (var c = 0; c < copias; c++) {
         var etiqueta = document.createElement('div');
-        etiqueta.className = 'etiqueta';
-
-        var qrDiv = document.createElement('div');
-        qrDiv.className = 'qr';
-        etiqueta.appendChild(qrDiv);
-
-        var textoDiv = document.createElement('div');
-        textoDiv.className = 'texto';
-        textoDiv.textContent = textoCompleto;
-        etiqueta.appendChild(textoDiv);
-
-        hoja.appendChild(etiqueta);
-
-        new QRCode(qrDiv, {
-          text: textoCompleto,
-          width: qrSize,
-          height: qrSize,
-          correctLevel: QRCode.CorrectLevel.M
+        etiqueta.style.cssText = 'background:white; border:1px solid #333; margin-bottom:1rem; padding:0; font-family:Arial,sans-serif; width:280px; box-shadow:0 2px 6px rgba(0,0,0,0.1);';
+        
+        // Encabezado (simulado)
+        var header = document.createElement('div');
+        header.style.cssText = 'background:#f5f5f5; border-bottom:2px solid #333; padding:8px; text-align:center; font-size:11px; font-weight:bold; color:#333;';
+        header.textContent = 'AD -PACK | PLANTA TERMOFORMADO';
+        etiqueta.appendChild(header);
+        
+        // Tabla de datos (7 campos)
+        var tabla = document.createElement('table');
+        tabla.style.cssText = 'width:100%; border-collapse:collapse; font-size:10px; font-family:Arial,sans-serif;';
+        
+        var campos = [
+          { label: 'CLIENTE:', value: fila.cliente },
+          { label: 'DESCRIPCIÓN:', value: fila.descripcion },
+          { label: 'NÚMERO DE PARTE:', value: fila.numero_parte },
+          { label: 'LOTE:', value: fila.lote },
+          { label: 'CANTIDAD:', value: fila.cantidad },
+          { label: 'REVISÓ:', value: fila.reviso },
+          { label: 'FECHA:', value: fila.fecha }
+        ];
+        
+        campos.forEach(function (campo) {
+          var tr = document.createElement('tr');
+          tr.style.cssText = 'border-bottom:1px solid #333;';
+          
+          var tdLabel = document.createElement('td');
+          tdLabel.style.cssText = 'border-right:1px solid #333; padding:4px 6px; font-weight:bold; background:#f9f9f9; width:50%;';
+          tdLabel.textContent = campo.label;
+          tr.appendChild(tdLabel);
+          
+          var tdValue = document.createElement('td');
+          tdValue.style.cssText = 'padding:4px 6px; width:50%;';
+          tdValue.textContent = campo.value || '(vacío)';
+          tr.appendChild(tdValue);
+          
+          tabla.appendChild(tr);
         });
+        
+        etiqueta.appendChild(tabla);
+        
+        // Pie con info
+        var footer = document.createElement('div');
+        footer.style.cssText = 'font-size:8px; color:#666; text-align:center; padding:4px; border-top:1px solid #ddd; background:#fafafa;';
+        footer.textContent = '75x50mm | Zebra | ' + (c+1) + '/' + copias;
+        etiqueta.appendChild(footer);
+        
+        hoja.appendChild(etiqueta);
       }
     });
   });
