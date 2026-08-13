@@ -205,9 +205,9 @@
 <p class="subtitulo">Genera etiquetas con código QR a partir de una lista, para imprimir y pegar en los trays/paquetes.</p>
 
 <div class="tabs no-imprimir">
-  <button class="tab-btn activa" id="btnTabTrays">Trays (Motor de Etiquetas)</button>
-  <button class="tab-btn" id="btnTabConversion">Materia Prima (Conversión)</button>
-  <button class="tab-btn" id="btnTabBarras">Recibo Proveedor (4x6", Código de Barras)</button>
+  <button class="tab-btn activa" id="btnTabTrays">Etiquetas Termoformado</button>
+  <button class="tab-btn" id="btnTabConversion">Etiquetas Conversión</button>
+  <button class="tab-btn" id="btnTabBarras">Caja Proveedor</button>
 </div>
 
 <div id="vistaTrays">
@@ -263,8 +263,6 @@
     <h2 style="font-size:15px;margin:14px 0 8px;">Enviar directo a la Zebra (red)</h2>
     <p class="ayuda">
       Requiere la Raspberry Pi conectada a la misma red y a la impresora por USB.
-      La primera vez, abre <code>https://[IP-de-la-Pi]:5000/salud</code> en este navegador
-      y acepta el aviso de certificado para poder usar el botón.
     </p>
     <div class="controles-generar">
       <label>IP de la Raspberry Pi:
@@ -401,6 +399,20 @@
   </div>
   <p class="ayuda">Tamaño fijo 4x6 pulgadas. Al imprimir, confirma que el tamaño de papel sea "4 x 6 in" (no A4/Letter).</p>
   <p class="ayuda"><b>Nota:</b> los códigos de barras de esta vista previa (navegador) son solo de referencia visual. Los códigos que salen realmente escaneables se generan en la propia impresora Zebra al imprimir por red (comando nativo de la impresora), no aquí.</p>
+
+  <div class="fila-controles no-imprimir" id="bloqueZebraRedBarras">
+    <h2 style="font-size:15px;margin:14px 0 8px;">Enviar directo a la Zebra (red)</h2>
+    <p class="ayuda">
+      Usa la misma Raspberry Pi configurada en las otras pestañas. Requiere un rollo de 4x6 pulgadas cargado en la impresora.
+    </p>
+    <div class="controles-generar">
+      <label>IP de la Raspberry Pi:
+        <input type="text" id="ipPiBarras" placeholder="192.168.1.50" style="width:140px;">
+      </label>
+      <button id="btnEnviarZebraBarras">Enviar a Zebra</button>
+      <span id="estadoZebraBarras" class="ayuda" style="margin:0;"></span>
+    </div>
+  </div>
 </div>
 
 <div class="panel">
@@ -610,6 +622,16 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   var inputIpPi = document.getElementById('ipPi');
   var estadoZebra = document.getElementById('estadoZebra');
 
+  // Verifica si la Raspberry Pi responde antes de mandar a imprimir.
+  function verificarConexionZebra(ip, timeoutMs) {
+    timeoutMs = timeoutMs || 3000;
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+    return fetch('http://' + ip + ':5000/salud', { signal: controller.signal })
+      .then(function (resp) { clearTimeout(timer); return resp.ok; })
+      .catch(function () { clearTimeout(timer); return false; });
+  }
+
   // recordar la última IP usada
   var IP_PI_POR_DEFECTO = '100.87.53.113';
   inputIpPi.value = localStorage.getItem('adpack_ip_pi') || IP_PI_POR_DEFECTO;
@@ -653,27 +675,38 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     });
 
     estadoZebra.style.color = '#666';
-    estadoZebra.textContent = 'Enviando ' + totalEtiquetas + ' etiqueta(s)...';
+    estadoZebra.textContent = 'Verificando conexión con la Pi...';
 
-    fetch('https://' + ip + ':5000/imprimir', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filas: filasParaEnviar })
-    })
-      .then(function (resp) { return resp.json().then(function (data) { return { status: resp.status, data: data }; }); })
-      .then(function (r) {
-        if (r.data && r.data.ok) {
-          estadoZebra.style.color = '#16a34a';
-          estadoZebra.textContent = 'Enviado a la Zebra correctamente.';
-        } else {
-          estadoZebra.style.color = '#dc2626';
-          estadoZebra.textContent = 'Error: ' + (r.data && r.data.error ? r.data.error : 'desconocido');
-        }
-      })
-      .catch(function (err) {
+    verificarConexionZebra(ip).then(function (conectado) {
+      if (!conectado) {
         estadoZebra.style.color = '#dc2626';
-        estadoZebra.textContent = 'No se pudo conectar con la Pi (' + err.message + '). Revisa la IP y que hayas aceptado el certificado en /salud.';
-      });
+        estadoZebra.textContent = 'No conectado: no se alcanza la Raspberry Pi en ' + ip + ':5000. Revisa la IP y que esté encendida en la misma red.';
+        return;
+      }
+
+      estadoZebra.style.color = '#666';
+      estadoZebra.textContent = 'Conectado. Enviando ' + totalEtiquetas + ' etiqueta(s)...';
+
+      fetch('http://' + ip + ':5000/imprimir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filas: filasParaEnviar })
+      })
+        .then(function (resp) { return resp.json().then(function (data) { return { status: resp.status, data: data }; }); })
+        .then(function (r) {
+          if (r.data && r.data.ok) {
+            estadoZebra.style.color = '#16a34a';
+            estadoZebra.textContent = 'Enviado a la Zebra correctamente.';
+          } else {
+            estadoZebra.style.color = '#dc2626';
+            estadoZebra.textContent = 'Error: ' + (r.data && r.data.error ? r.data.error : 'desconocido');
+          }
+        })
+        .catch(function (err) {
+          estadoZebra.style.color = '#dc2626';
+          estadoZebra.textContent = 'No se pudo enviar el trabajo de impresión (' + err.message + ').';
+        });
+    });
   });
 
   // =======================================================================
@@ -958,6 +991,78 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   document.getElementById('btnImprimirBarras').addEventListener('click', function () {
     document.getElementById('estiloPagina').textContent = '@page { size: 4in 6in; margin: 0; }';
     window.print();
+  });
+
+  // ---- Envío directo a la Zebra para Recibo Proveedor (4x6") ----
+  var inputIpPiBarras = document.getElementById('ipPiBarras');
+  var estadoZebraBarras = document.getElementById('estadoZebraBarras');
+
+  inputIpPiBarras.value = localStorage.getItem('adpack_ip_pi') || IP_PI_POR_DEFECTO;
+  inputIpPiBarras.addEventListener('change', function () {
+    localStorage.setItem('adpack_ip_pi', inputIpPiBarras.value.trim());
+  });
+
+  document.getElementById('btnEnviarZebraBarras').addEventListener('click', function () {
+    var ip = inputIpPiBarras.value.trim();
+    if (!ip) {
+      estadoZebraBarras.textContent = 'Escribe la IP de la Raspberry Pi.';
+      estadoZebraBarras.style.color = '#dc2626';
+      return;
+    }
+    if (filasBarras.length === 0) {
+      estadoZebraBarras.textContent = 'No hay filas cargadas. Ve al paso 1.';
+      estadoZebraBarras.style.color = '#dc2626';
+      return;
+    }
+    localStorage.setItem('adpack_ip_pi', ip);
+
+    var filasParaEnviar = filasBarras.map(function (fila) {
+      return {
+        cliente: fila.cliente,
+        numero_parte: fila.numero_parte,
+        descripcion: fila.descripcion,
+        cantidad: fila.cantidad,
+        unidad: fila.unidad,
+        caducidad: formatoFechaEtiqueta(fila.caducidad),
+        lote: fila.lote,
+        produccion: formatoFechaEtiqueta(fila.produccion),
+        copias: fila.copias,
+      };
+    });
+
+    estadoZebraBarras.style.color = '#666';
+    estadoZebraBarras.textContent = 'Verificando conexión con la Pi...';
+
+    verificarConexionZebra(ip).then(function (conectado) {
+      if (!conectado) {
+        estadoZebraBarras.style.color = '#dc2626';
+        estadoZebraBarras.textContent = 'No conectado: no se alcanza la Raspberry Pi en ' + ip + ':5000. Revisa la IP y que esté encendida en la misma red.';
+        return;
+      }
+
+      estadoZebraBarras.style.color = '#666';
+      estadoZebraBarras.textContent = 'Conectado. Enviando ' + filasBarras.length + ' etiqueta(s)...';
+
+      fetch('http://' + ip + ':5000/imprimir-recibo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filas: filasParaEnviar })
+      })
+        .then(function (resp) { return resp.json().then(function (data) { return { status: resp.status, data: data }; }); })
+        .then(function (r) {
+          if (r.data && r.data.ok) {
+            estadoZebraBarras.style.color = '#16a34a';
+            estadoZebraBarras.textContent = 'Impreso: ' + (r.data.etiquetas_impresas || filasBarras.length) + ' etiqueta(s).';
+          } else {
+            estadoZebraBarras.style.color = '#dc2626';
+            estadoZebraBarras.textContent = 'Error: ' + (r.data && r.data.error ? r.data.error : 'desconocido');
+          }
+        })
+        .catch(function (err) {
+          estadoZebraBarras.style.color = '#dc2626';
+          estadoZebraBarras.textContent = 'No se pudo enviar el trabajo de impresión (' + err.message + ').';
+        });
+    });
   });
 
   // =======================================================================
@@ -1288,27 +1393,38 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     });
 
     estadoZebraConv.style.color = '#666';
-    estadoZebraConv.textContent = 'Enviando ' + filasConv.length + ' etiqueta(s)...';
+    estadoZebraConv.textContent = 'Verificando conexión con la Pi...';
 
-    fetch('https://' + ip + ':5000/imprimir-conversion', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filas: filasParaEnviar })
-    })
-      .then(function (resp) { return resp.json().then(function (data) { return { status: resp.status, data: data }; }); })
-      .then(function (r) {
-        if (r.data && r.data.ok) {
-          estadoZebraConv.style.color = '#16a34a';
-          estadoZebraConv.textContent = 'Impreso: ' + r.data.etiquetas_impresas + ' etiqueta(s).';
-        } else {
-          estadoZebraConv.style.color = '#dc2626';
-          estadoZebraConv.textContent = 'Error: ' + (r.data && r.data.error ? r.data.error : 'desconocido');
-        }
-      })
-      .catch(function (err) {
+    verificarConexionZebra(ip).then(function (conectado) {
+      if (!conectado) {
         estadoZebraConv.style.color = '#dc2626';
-        estadoZebraConv.textContent = 'No se pudo conectar con la Pi (' + err.message + '). Revisa la IP y que hayas aceptado el certificado en /salud.';
-      });
+        estadoZebraConv.textContent = 'No conectado: no se alcanza la Raspberry Pi en ' + ip + ':5000. Revisa la IP y que esté encendida en la misma red.';
+        return;
+      }
+
+      estadoZebraConv.style.color = '#666';
+      estadoZebraConv.textContent = 'Conectado. Enviando ' + filasConv.length + ' etiqueta(s)...';
+
+      fetch('http://' + ip + ':5000/imprimir-conversion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filas: filasParaEnviar })
+      })
+        .then(function (resp) { return resp.json().then(function (data) { return { status: resp.status, data: data }; }); })
+        .then(function (r) {
+          if (r.data && r.data.ok) {
+            estadoZebraConv.style.color = '#16a34a';
+            estadoZebraConv.textContent = 'Impreso: ' + r.data.etiquetas_impresas + ' etiqueta(s).';
+          } else {
+            estadoZebraConv.style.color = '#dc2626';
+            estadoZebraConv.textContent = 'Error: ' + (r.data && r.data.error ? r.data.error : 'desconocido');
+          }
+        })
+        .catch(function (err) {
+          estadoZebraConv.style.color = '#dc2626';
+          estadoZebraConv.textContent = 'No se pudo enviar el trabajo de impresión (' + err.message + ').';
+        });
+    });
   });
 </script>
 
