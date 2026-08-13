@@ -185,7 +185,8 @@
     Una etiqueta por línea. Puedes pegar directo desde Excel (columnas separadas por tabulador),
     o escribir separando con comas: <b>Cliente, Descripción, Número de Parte, Lote, Cantidad, Revisó, Fecha, Copias</b>
     (Copias es opcional, si no la pones se asume 1).<br>
-    Ejemplo: <code>ACME, Charola termoformado 12oz, NP-4471, L-2208, 500, JPEREZ, 10 AGO 2026, 3</code>
+    Ejemplo: <code>ACME, Charola termoformado 12oz, NP-4471, L-2208, 500, JPEREZ, 10 AGO 2026, 3</code><br>
+    <b>Tip:</b> en el paso 2 puedes elegir la fecha con un calendario (clic para elegir) — no hace falta escribirla bien aquí.
   </p>
   <textarea id="entrada" placeholder="ACME, Charola termoformado 12oz, NP-4471, L-2208, 500, JPEREZ, 10 AGO 2026, 3"></textarea>
   <div class="fila-controles">
@@ -344,12 +345,28 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     });
   }
 
+  function crearCeldaFechaTray(fila, idx) {
+    var td = document.createElement('td');
+    var input = document.createElement('input');
+    input.type = 'date';
+    input.style.width = '100%';
+    // si el valor guardado ya es ISO (yyyy-mm-dd) lo precarga; si no, se deja vacío para elegir de nuevo
+    input.value = /^\d{4}-\d{2}-\d{2}$/.test(fila.fecha) ? fila.fecha : '';
+    input.addEventListener('input', function () { filas[idx].fecha = input.value; });
+    td.appendChild(input);
+    return td;
+  }
+
   function renderTabla() {
     var cuerpo = document.getElementById('cuerpoTabla');
     cuerpo.innerHTML = '';
     filas.forEach(function (fila, idx) {
       var tr = document.createElement('tr');
       CAMPOS_TRAY.forEach(function (campo) {
+        if (campo === 'fecha') {
+          tr.appendChild(crearCeldaFechaTray(fila, idx));
+          return;
+        }
         var td = document.createElement('td');
         var input = document.createElement('input');
         input.type = campo === 'copias' ? 'number' : 'text';
@@ -407,7 +424,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 
   document.getElementById('btnGenerar').addEventListener('click', function () {
     actualizarEstiloPagina();
+    var tamano = document.getElementById('tamano').value;
     var hoja = document.getElementById('hoja');
+    hoja.className = 'hoja ' + tamano;
     hoja.innerHTML = '';
 
     if (filas.length === 0) {
@@ -421,12 +440,30 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 
       for (var c = 0; c < copias; c++) {
         var etiqueta = document.createElement('div');
-        etiqueta.style.cssText = 'background:white; border:1px solid #333; margin-bottom:1rem; padding:0; font-family:Arial,sans-serif; width:280px; box-shadow:0 2px 6px rgba(0,0,0,0.1);';
+        etiqueta.className = 'etiqueta';
+        etiqueta.style.cssText = 'display:block; background:white; border:1px solid #333; margin-bottom:1rem; padding:0; font-family:Arial,sans-serif; width:280px; box-shadow:0 2px 6px rgba(0,0,0,0.1);';
         
-        // Encabezado (simulado)
+        // Encabezado (logo AD-PACK, título, logo Termoformado)
         var header = document.createElement('div');
-        header.style.cssText = 'background:#f5f5f5; border-bottom:2px solid #333; padding:8px; text-align:center; font-size:11px; font-weight:bold; color:#333;';
-        header.textContent = 'AD -PACK | PLANTA TERMOFORMADO';
+        header.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:3px; background:#f5f5f5; border-bottom:2px solid #333; padding:3px 5px;';
+
+        var logoIzq = document.createElement('img');
+        logoIzq.src = 'adpack-icon-web.png';
+        logoIzq.alt = 'AD-PACK';
+        logoIzq.style.cssText = 'height:20px; width:auto; display:block; flex:0 0 auto;';
+        header.appendChild(logoIzq);
+
+        var tituloHeader = document.createElement('div');
+        tituloHeader.style.cssText = 'font-size:9px; font-weight:bold; color:#333; text-align:center; line-height:1.15; flex:1 1 auto;';
+        tituloHeader.textContent = 'AD -PACK | PLANTA TERMOFORMADO';
+        header.appendChild(tituloHeader);
+
+        var logoDer = document.createElement('img');
+        logoDer.src = 'termoformado-icon-web.png';
+        logoDer.alt = 'TERMOFORMADO';
+        logoDer.style.cssText = 'height:16px; width:auto; display:block; flex:0 0 auto;';
+        header.appendChild(logoDer);
+
         etiqueta.appendChild(header);
         
         // Tabla de datos (7 campos)
@@ -440,7 +477,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
           { label: 'LOTE:', value: fila.lote },
           { label: 'CANTIDAD:', value: fila.cantidad },
           { label: 'REVISÓ:', value: fila.reviso },
-          { label: 'FECHA:', value: fila.fecha }
+          { label: 'FECHA:', value: formatoFechaEtiqueta(fila.fecha) }
         ];
         
         campos.forEach(function (campo) {
@@ -511,13 +548,26 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       return acc + (!c || c < 1 ? 1 : c);
     }, 0);
 
+    var filasParaEnviar = filas.map(function (fila) {
+      return {
+        cliente: fila.cliente,
+        descripcion: fila.descripcion,
+        numero_parte: fila.numero_parte,
+        lote: fila.lote,
+        cantidad: fila.cantidad,
+        reviso: fila.reviso,
+        fecha: formatoFechaEtiqueta(fila.fecha),
+        copias: fila.copias,
+      };
+    });
+
     estadoZebra.style.color = '#666';
     estadoZebra.textContent = 'Enviando ' + totalEtiquetas + ' etiqueta(s)...';
 
     fetch('https://' + ip + ':5000/imprimir', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filas: filas })
+      body: JSON.stringify({ filas: filasParaEnviar })
     })
       .then(function (resp) { return resp.json().then(function (data) { return { status: resp.status, data: data }; }); })
       .then(function (r) {
