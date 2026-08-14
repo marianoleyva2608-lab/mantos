@@ -142,7 +142,7 @@
   /* Modo impresora de etiquetas 4x6 pulgadas (recibo con código de barras) */
   .size-4x6 { display: block; padding: 0; border: none; }
   .size-4x6 .etiqueta {
-    width: 4in; height: 6in;
+    width: 6in; height: 4in;
     display: block;
     padding: 3mm; gap: 0;
     margin: 0 auto 6mm;
@@ -366,7 +366,7 @@
 <div id="vistaBarras" style="display:none;">
 
 <h1>Recibo Proveedor</h1>
-<p class="subtitulo">Etiqueta de recibo de material con código de barras, tamaño 4x6 pulgadas.</p>
+<p class="subtitulo">Etiqueta de recibo de material con código de barras, tamaño 6x4 pulgadas (horizontal).</p>
 
 <div class="panel no-imprimir">
   <h2>1. Captura tus filas</h2>
@@ -408,13 +408,13 @@
     <button id="btnGenerarBarras">Generar etiquetas</button>
     <button class="secundario" id="btnImprimirBarras">Imprimir</button>
   </div>
-  <p class="ayuda">Tamaño fijo 4x6 pulgadas. Al imprimir, confirma que el tamaño de papel sea "4 x 6 in" (no A4/Letter).</p>
+  <p class="ayuda">Tamaño fijo 6x4 pulgadas (horizontal). Al imprimir, confirma que el tamaño de papel sea "6 x 4 in" (no A4/Letter).</p>
   <p class="ayuda"><b>Nota:</b> los códigos de barras de esta vista previa (navegador) son solo de referencia visual. Los códigos que salen realmente escaneables se generan en la propia impresora Zebra al imprimir por red (comando nativo de la impresora), no aquí.</p>
 
   <div class="fila-controles no-imprimir" id="bloqueZebraRedBarras">
     <h2 style="font-size:15px;margin:14px 0 8px;">Enviar directo a la Zebra (red)</h2>
     <p class="ayuda">
-      Usa la misma Raspberry Pi configurada en las otras pestañas. Requiere un rollo de 4x6 pulgadas cargado en la impresora.
+      Usa la misma Raspberry Pi configurada en las otras pestañas. Requiere un rollo de 6x4 pulgadas cargado en la impresora.
     </p>
     <div class="controles-generar">
       <label>IP de la Raspberry Pi:
@@ -1000,7 +1000,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   document.getElementById('btnImprimirBarras').addEventListener('click', function () {
-    document.getElementById('estiloPagina').textContent = '@page { size: 4in 6in; margin: 0; }';
+    document.getElementById('estiloPagina').textContent = '@page { size: 6in 4in; margin: 0; }';
     window.print();
   });
 
