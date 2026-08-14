@@ -178,13 +178,17 @@
   .etiqueta-conv .logo-conv-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 2mm; }
   .etiqueta-conv .logo-conv-img,
   .etiqueta-conv .logo-conv-svg { height: 9mm; width: auto; display: block; }
-  .etiqueta-conv .url-conv { font-size: 9px; color: #1a3768; margin: 0 0 2mm 0; text-align: center; }
   .etiqueta-conv .linea-conv { border: none; border-top: 1.5px solid #111; margin: 1.5mm 0; }
   .etiqueta-conv .codigo-conv { font-size: 17px; font-weight: 700; text-align: center; margin-bottom: 1mm; }
   .etiqueta-conv .desc-conv { font-size: 13px; text-align: center; margin-bottom: 1mm; }
-  .etiqueta-conv .datos-conv { font-size: 12px; line-height: 1.7; }
-  .etiqueta-conv .fila-dato { display: flex; justify-content: space-between; gap: 6px; }
-  .etiqueta-conv .fila-dato .etq { font-weight: 600; }
+  .etiqueta-conv .datos-conv { font-size: 12px; line-height: 1.7; border-top: 1.5px solid #111; }
+  .etiqueta-conv .fila-dato { display: flex; border-bottom: 1.5px solid #111; }
+  .etiqueta-conv .fila-dato:last-child { border-bottom: none; }
+  .etiqueta-conv .fila-dato .etq {
+    font-weight: 600; flex: 0 0 45%; border-right: 1.5px solid #111;
+    padding: 1mm 2mm; box-sizing: border-box;
+  }
+  .etiqueta-conv .fila-dato span:last-child { flex: 1 1 auto; padding: 1mm 2mm; text-align: left; }
 
   @media print {
     body * { visibility: hidden; }
@@ -1301,11 +1305,6 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       logoWrap.className = 'logo-conv-wrap';
       logoWrap.appendChild(crearLogoConvNodo());
       contenido.appendChild(logoWrap);
-
-      var url = document.createElement('div');
-      url.className = 'url-conv';
-      url.textContent = 'https://www.ad-pack.com.mx/conversion';
-      contenido.appendChild(url);
 
       var hr1 = document.createElement('hr');
       hr1.className = 'linea-conv';
