@@ -1013,6 +1013,16 @@ def etiquetas():
     html = open('etiquetas.html', encoding='utf-8').read()
     return html, 200, {'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store, no-cache, must-revalidate', 'Pragma':'no-cache'}
 
+@app.route('/manifest-etiquetas.json')
+def manifest_etiquetas():
+    data = open('manifest-etiquetas.json', encoding='utf-8').read()
+    return data, 200, {'Content-Type': 'application/manifest+json; charset=utf-8'}
+
+@app.route('/sw-etiquetas.js')
+def sw_etiquetas():
+    data = open('sw-etiquetas.js', encoding='utf-8').read()
+    return data, 200, {'Content-Type': 'application/javascript; charset=utf-8', 'Service-Worker-Allowed': '/'}
+
 # Sirve archivos estaticos sueltos que viven junto a app.py (imagenes, iconos,
 # etc.) para que URLs como /logo-conversion.png funcionen. Solo permite
 # extensiones de archivo seguras/esperadas, nunca .py ni archivos de datos.

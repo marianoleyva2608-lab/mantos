@@ -2,7 +2,14 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Motor de Etiquetas - AD-PACK</title>
+<link rel="manifest" href="/manifest-etiquetas.json">
+<meta name="theme-color" content="#2563eb">
+<link rel="icon" href="/icon-etiquetas-192.png">
+<link rel="apple-touch-icon" href="/icon-etiquetas-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Etiquetas AD-PACK">
 <style>
   * { box-sizing: border-box; }
   body {
@@ -1425,6 +1432,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         });
     });
   });
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw-etiquetas.js').catch(function () {});
+    });
+  }
 </script>
 
 </body>

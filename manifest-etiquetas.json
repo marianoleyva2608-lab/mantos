@@ -1,0 +1,25 @@
+{
+  "name": "Motor de Etiquetas - AD-PACK",
+  "short_name": "Etiquetas AD-PACK",
+  "description": "Genera e imprime etiquetas de Termoformado, Conversión y Recibo Proveedor.",
+  "start_url": "/etiquetas.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f2f4f7",
+  "theme_color": "#2563eb",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon-etiquetas-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-etiquetas-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
