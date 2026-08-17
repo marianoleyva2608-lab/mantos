@@ -152,6 +152,27 @@
   }
   .size-4x6 .etiqueta:last-child { margin-bottom: 0; }
 
+  /* Modo compacto para simular/probar en rollo de 3x3 pulgadas */
+  .size-3x3 { display: block; padding: 0; border: none; }
+  .size-3x3 .etiqueta {
+    width: 3in; height: 3in;
+    display: block;
+    padding: 1.5mm; gap: 0;
+    margin: 0 auto 6mm;
+    overflow: hidden;
+    page-break-after: always;
+    break-after: page;
+  }
+  .size-3x3 .etiqueta:last-child { margin-bottom: 0; }
+  .size-3x3 .eb-fila { padding: 1mm 1.5mm; }
+  .size-3x3 .eb-etiqueta { font-size: 6.5px; letter-spacing: 0; }
+  .size-3x3 .eb-valor-grande { font-size: 9px; margin-top: .5mm; }
+  .size-3x3 .eb-celda { padding: 1mm 1.5mm; }
+  .size-3x3 .eb-qty-unidad { font-size: 8px; }
+  .size-3x3 .eb-barcode { margin-top: .8mm; }
+  .size-3x3 .eb-barcode svg { height: 5.5mm; }
+  .size-3x3 .eb-barcode .eb-codigo-txt { font-size: 5.5px; }
+
   .etiqueta-barras {
     width: 100%; height: 100%;
     display: flex; flex-direction: column;
@@ -405,16 +426,22 @@
 <div class="panel no-imprimir">
   <h2>3. Genera e imprime</h2>
   <div class="controles-generar">
+    <label>Tamaño de etiqueta:
+      <select id="tamanoBarras">
+        <option value="size-4x6" selected>6x4 pulgadas (horizontal)</option>
+        <option value="size-3x3">3x3 pulgadas (simulación/prueba)</option>
+      </select>
+    </label>
     <button id="btnGenerarBarras">Generar etiquetas</button>
     <button class="secundario" id="btnImprimirBarras">Imprimir</button>
   </div>
-  <p class="ayuda">Tamaño fijo 6x4 pulgadas (horizontal). Al imprimir, confirma que el tamaño de papel sea "6 x 4 in" (no A4/Letter).</p>
+  <p class="ayuda" id="ayudaBarras">Tamaño 6x4 pulgadas (horizontal). Al imprimir, confirma que el tamaño de papel sea "6 x 4 in" (no A4/Letter).</p>
   <p class="ayuda"><b>Nota:</b> los códigos de barras de esta vista previa (navegador) son solo de referencia visual. Los códigos que salen realmente escaneables se generan en la propia impresora Zebra al imprimir por red (comando nativo de la impresora), no aquí.</p>
 
   <div class="fila-controles no-imprimir" id="bloqueZebraRedBarras">
     <h2 style="font-size:15px;margin:14px 0 8px;">Enviar directo a la Zebra (red)</h2>
     <p class="ayuda">
-      Usa la misma Raspberry Pi configurada en las otras pestañas. Requiere un rollo de 6x4 pulgadas cargado en la impresora.
+      Usa la misma Raspberry Pi configurada en las otras pestañas. Requiere un rollo cargado en la impresora del mismo tamaño elegido arriba.
     </p>
     <div class="controles-generar">
       <label>IP de la Raspberry Pi:
@@ -870,8 +897,10 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   }
 
   document.getElementById('btnGenerarBarras').addEventListener('click', function () {
+    var tamanoBarras = document.getElementById('tamanoBarras').value;
+    var compacta = tamanoBarras === 'size-3x3';
     var hoja = document.getElementById('hojaBarras');
-    hoja.className = 'hoja size-4x6';
+    hoja.className = 'hoja ' + tamanoBarras;
     hoja.innerHTML = '';
 
     if (filasBarras.length === 0) {
@@ -917,7 +946,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         celdaDesc.appendChild(etqDesc);
         var valDesc = document.createElement('div');
         valDesc.className = 'eb-valor-grande';
-        valDesc.style.fontSize = '14px';
+        valDesc.style.fontSize = compacta ? '8px' : '14px';
         valDesc.textContent = fila.descripcion || '(vacío)';
         celdaDesc.appendChild(valDesc);
         grid1.appendChild(celdaDesc);
@@ -955,7 +984,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         celdaExp.appendChild(etqExp);
         var valExp = document.createElement('div');
         valExp.className = 'eb-valor-grande';
-        valExp.style.fontSize = '13px';
+        valExp.style.fontSize = compacta ? '8px' : '13px';
         valExp.textContent = formatoFechaEtiqueta(fila.caducidad) || '(vacío)';
         celdaExp.appendChild(valExp);
         celdaExp.appendChild(nodoBarcode(formatoFechaEtiqueta(fila.caducidad)));
@@ -986,7 +1015,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         celdaMfg.appendChild(etqMfg);
         var valMfg = document.createElement('div');
         valMfg.className = 'eb-valor-grande';
-        valMfg.style.fontSize = '13px';
+        valMfg.style.fontSize = compacta ? '8px' : '13px';
         valMfg.textContent = formatoFechaEtiqueta(fila.produccion) || '(vacío)';
         celdaMfg.appendChild(valMfg);
         celdaMfg.appendChild(nodoBarcode(formatoFechaEtiqueta(fila.produccion)));
@@ -999,8 +1028,18 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     });
   });
 
+  document.getElementById('tamanoBarras').addEventListener('change', function () {
+    var esCompacta = this.value === 'size-3x3';
+    document.getElementById('ayudaBarras').textContent = esCompacta
+      ? 'Tamaño 3x3 pulgadas (simulación/prueba). Al imprimir, confirma que el tamaño de papel sea "3 x 3 in" (no A4/Letter).'
+      : 'Tamaño 6x4 pulgadas (horizontal). Al imprimir, confirma que el tamaño de papel sea "6 x 4 in" (no A4/Letter).';
+  });
+
   document.getElementById('btnImprimirBarras').addEventListener('click', function () {
-    document.getElementById('estiloPagina').textContent = '@page { size: 6in 4in; margin: 0; }';
+    var esCompacta = document.getElementById('tamanoBarras').value === 'size-3x3';
+    document.getElementById('estiloPagina').textContent = esCompacta
+      ? '@page { size: 3in 3in; margin: 0; }'
+      : '@page { size: 6in 4in; margin: 0; }';
     window.print();
   });
 
