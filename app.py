@@ -1013,16 +1013,6 @@ def etiquetas():
     html = open('etiquetas.html', encoding='utf-8').read()
     return html, 200, {'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store, no-cache, must-revalidate', 'Pragma':'no-cache'}
 
-@app.route('/manifest-etiquetas.json')
-def manifest_etiquetas():
-    data = open('manifest-etiquetas.json', encoding='utf-8').read()
-    return data, 200, {'Content-Type': 'application/manifest+json; charset=utf-8'}
-
-@app.route('/sw-etiquetas.js')
-def sw_etiquetas():
-    data = open('sw-etiquetas.js', encoding='utf-8').read()
-    return data, 200, {'Content-Type': 'application/javascript; charset=utf-8', 'Service-Worker-Allowed': '/'}
-
 # Sirve archivos estaticos sueltos que viven junto a app.py (imagenes, iconos,
 # etc.) para que URLs como /logo-conversion.png funcionen. Solo permite
 # extensiones de archivo seguras/esperadas, nunca .py ni archivos de datos.
@@ -2600,6 +2590,22 @@ def export_refacciones_pdf_pedido():
                      download_name=f"Lista_Para_Pedir_{date.today()}.pdf",
                      mimetype='application/pdf')
 
+
+
+@app.route("/imprimir", methods=["POST"])
+def imprimir_proxy():
+    """Proxy: reenvía peticiones de la PWA a la Pi (100.87.53.113:5000)"""
+    try:
+        body = request.get_json(silent=True)
+        response = requests.post(
+            "https://100.87.53.113:5000/imprimir",
+            json=body,
+            verify=False,
+            timeout=10
+        )
+        return response.json(), response.status_code
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"No se pudo conectar con la impresora: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
