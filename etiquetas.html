@@ -171,7 +171,6 @@
   .size-3x3 .eb-qty-unidad { font-size: 8px; }
   .size-3x3 .eb-barcode { margin-top: .8mm; }
   .size-3x3 .eb-barcode svg { height: 5.5mm; }
-  .size-3x3 .eb-barcode .eb-codigo-txt { font-size: 5.5px; }
 
   .etiqueta-barras {
     width: 100%; height: 100%;
@@ -179,18 +178,21 @@
     font-family: Arial, sans-serif; color: #111;
     border: 1.5px solid #111;
   }
-  .eb-fila { border-bottom: 1.5px solid #111; padding: 2mm 3mm; }
+  .eb-fila { border-bottom: 1.5px solid #111; padding: 2.5mm 3mm 4mm; }
   .eb-fila:last-child { border-bottom: none; }
   .eb-etiqueta { font-size: 11px; font-weight: 700; letter-spacing: .5px; }
   .eb-valor-grande { font-size: 17px; font-weight: 700; margin-top: 1mm; }
-  .eb-grid2 { display: grid; grid-template-columns: 1fr 1fr; }
-  .eb-celda { border-right: 1.5px solid #111; padding: 2mm 3mm; }
-  .eb-celda:last-child { border-right: none; }
-  .eb-qty-linea { display: flex; align-items: baseline; gap: 3mm; }
-  .eb-qty-unidad { font-size: 15px; font-weight: 700; }
+  .eb-valor-centrado { text-align: center; }
+  .eb-grids-wrap { position: relative; }
+  .eb-grids-wrap::after { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 1.5px; background: #111; }
+  .eb-grid2 { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1.5px solid #111; }
+  .eb-grid2:last-child { border-bottom: none; }
+  .eb-celda { padding: 2mm 3mm; }
+  .eb-qty-linea { display: flex; align-items: center; gap: 3mm; margin-top: 1.5mm; }
+  .eb-qty-linea .eb-barcode { flex: 1; margin-top: 0; min-width: 0; }
+  .eb-qty-unidad { font-size: 15px; font-weight: 700; white-space: nowrap; }
   .eb-barcode { margin-top: 1.5mm; display: block; }
   .eb-barcode svg { width: 100%; height: 11mm; display: block; }
-  .eb-barcode .eb-codigo-txt { font-size: 9px; text-align: left; margin-top: .5mm; font-family: Consolas, monospace; }
 
   .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
   .tab-btn {
@@ -874,10 +876,6 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     var wrap = document.createElement('div');
     wrap.className = 'eb-barcode';
     wrap.innerHTML = svgBarrasVisual(valor);
-    var txt = document.createElement('div');
-    txt.className = 'eb-codigo-txt';
-    txt.textContent = valor || '';
-    wrap.appendChild(txt);
     return wrap;
   }
 
@@ -922,6 +920,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         // CLIENT (fila completa)
         contenido.appendChild(filaEB('CLIENT:', fila.cliente, false));
 
+        var gridsWrap = document.createElement('div');
+        gridsWrap.className = 'eb-grids-wrap';
+
         // PART NO. | DESCRIPTION
         var grid1 = document.createElement('div');
         grid1.className = 'eb-grid2';
@@ -932,7 +933,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         etqParte.textContent = 'PART NO.';
         celdaParte.appendChild(etqParte);
         var valParte = document.createElement('div');
-        valParte.className = 'eb-valor-grande';
+        valParte.className = 'eb-valor-grande eb-valor-centrado';
         valParte.textContent = fila.numero_parte || '(vacío)';
         celdaParte.appendChild(valParte);
         celdaParte.appendChild(nodoBarcode(fila.numero_parte));
@@ -961,19 +962,18 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         etqQty.className = 'eb-etiqueta';
         etqQty.textContent = 'QTY.';
         celdaQty.appendChild(etqQty);
+        var valQty = document.createElement('div');
+        valQty.className = 'eb-valor-grande eb-valor-centrado';
+        valQty.textContent = fila.cantidad || '(vacío)';
+        celdaQty.appendChild(valQty);
         var lineaQty = document.createElement('div');
         lineaQty.className = 'eb-qty-linea';
-        var valQty = document.createElement('div');
-        valQty.className = 'eb-valor-grande';
-        valQty.style.marginTop = '1mm';
-        valQty.textContent = fila.cantidad || '(vacío)';
-        lineaQty.appendChild(valQty);
+        lineaQty.appendChild(nodoBarcode(fila.cantidad));
         var unidadQty = document.createElement('div');
         unidadQty.className = 'eb-qty-unidad';
         unidadQty.textContent = fila.unidad || '';
         lineaQty.appendChild(unidadQty);
         celdaQty.appendChild(lineaQty);
-        celdaQty.appendChild(nodoBarcode(fila.cantidad));
         grid2.appendChild(celdaQty);
 
         var celdaExp = document.createElement('div');
@@ -983,13 +983,13 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         etqExp.textContent = 'EXP. DATE';
         celdaExp.appendChild(etqExp);
         var valExp = document.createElement('div');
-        valExp.className = 'eb-valor-grande';
+        valExp.className = 'eb-valor-grande eb-valor-centrado';
         valExp.style.fontSize = compacta ? '8px' : '13px';
         valExp.textContent = formatoFechaEtiqueta(fila.caducidad) || '(vacío)';
         celdaExp.appendChild(valExp);
         celdaExp.appendChild(nodoBarcode(formatoFechaEtiqueta(fila.caducidad)));
         grid2.appendChild(celdaExp);
-        contenido.appendChild(grid2);
+        gridsWrap.appendChild(grid2);
 
         // BATCH/SERIAL | MFG. DATE
         var grid3 = document.createElement('div');
@@ -1001,7 +1001,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         etqLote.textContent = 'BATCH/ SERIAL';
         celdaLote.appendChild(etqLote);
         var valLote = document.createElement('div');
-        valLote.className = 'eb-valor-grande';
+        valLote.className = 'eb-valor-grande eb-valor-centrado';
         valLote.textContent = fila.lote || '(vacío)';
         celdaLote.appendChild(valLote);
         celdaLote.appendChild(nodoBarcode(fila.lote));
@@ -1014,13 +1014,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         etqMfg.textContent = 'MFG. DATE';
         celdaMfg.appendChild(etqMfg);
         var valMfg = document.createElement('div');
-        valMfg.className = 'eb-valor-grande';
+        valMfg.className = 'eb-valor-grande eb-valor-centrado';
         valMfg.style.fontSize = compacta ? '8px' : '13px';
         valMfg.textContent = formatoFechaEtiqueta(fila.produccion) || '(vacío)';
         celdaMfg.appendChild(valMfg);
         celdaMfg.appendChild(nodoBarcode(formatoFechaEtiqueta(fila.produccion)));
         grid3.appendChild(celdaMfg);
-        contenido.appendChild(grid3);
+        gridsWrap.appendChild(grid3);
+        contenido.appendChild(gridsWrap);
 
         etiqueta.appendChild(contenido);
         hoja.appendChild(etiqueta);
