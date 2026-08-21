@@ -449,6 +449,7 @@
       <label>IP de la Raspberry Pi:
         <input type="text" id="ipPiBarras" placeholder="192.168.1.50" style="width:140px;">
       </label>
+      <label><input type="checkbox" id="conLogoBarras"> Con logo de Conversión</label>
       <button id="btnEnviarZebraBarras">Enviar a Zebra</button>
       <span id="estadoZebraBarras" class="ayuda" style="margin:0;"></span>
     </div>
@@ -1067,6 +1068,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     }
     localStorage.setItem('adpack_ip_pi', ip);
 
+    var conLogo = document.getElementById('conLogoBarras').checked;
     var filasParaEnviar = filasBarras.map(function (fila) {
       return {
         cliente: fila.cliente,
@@ -1078,6 +1080,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         lote: fila.lote,
         produccion: formatoFechaEtiqueta(fila.produccion),
         copias: fila.copias,
+        con_logo: conLogo,
       };
     });
 
