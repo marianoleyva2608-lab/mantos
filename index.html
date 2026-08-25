@@ -305,6 +305,7 @@ window._jsQRLoaded=false;
 
 <div id="page-home" class="page active">
   <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button id="tabbtn-etiquetas" class="back" onclick="window.location.href='/etiquetas'" style="font-size:20px;margin-right:6px" title="Etiquetas">&#127991;&#65039;</button><button id="tabbtn-req" class="back" onclick="showPage('req');if(typeof loadReqList==='function')loadReqList();" style="font-size:20px;margin-right:6px" title="Requisiciones">&#128722;</button><button id="tabbtn-orden" class="back" onclick="showPage('orden')" style="font-size:20px;margin-right:6px" title="Órdenes de Trabajo">&#128203;</button><button id="tabbtn-rsp" class="back" onclick="showPage('rsp');if(typeof loadRspList==='function')loadRspList();" style="font-size:20px;margin-right:6px" title="Respuesta a Solución de Problemas">&#128227;</button><button id="tabbtn-reports" class="back" onclick="showPage('reports')" style="font-size:20px;margin-right:6px" title="Reportes">&#128196;</button><button id="tabbtn-refacciones" class="back" onclick="showPage('refacciones');loadRefacciones();" style="font-size:20px;margin-right:6px" title="Refacciones">&#128230;</button><button id="tabbtn-settings" class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
+  <div id="tabs-panel" style="display:none;padding:16px 16px 0"></div>
   <div class="home-c" id="home-c"></div>
 </div>
 
@@ -2113,13 +2114,13 @@ window.showPage = function(p) {
 var currentUser = JSON.parse(localStorage.getItem('mantos_user') || 'null');
 
 var TABS_CONTROLADAS = [
-  {id:'etiquetas', label:'Etiquetas'},
-  {id:'req', label:'Requisiciones'},
-  {id:'orden', label:'Órdenes de Trabajo'},
-  {id:'rsp', label:'Respuesta a Solución de Problemas'},
-  {id:'reports', label:'Reportes'},
-  {id:'refacciones', label:'Refacciones'},
-  {id:'settings', label:'Configuración'}
+  {id:'etiquetas', label:'Etiquetas', icon:'&#127991;&#65039;', action:function(){window.location.href='/etiquetas';}},
+  {id:'req', label:'Requisiciones', icon:'&#128722;', action:function(){showPage('req'); if(typeof loadReqList==='function')loadReqList();}},
+  {id:'orden', label:'Órdenes de Trabajo', icon:'&#128203;', action:function(){showPage('orden');}},
+  {id:'rsp', label:'Respuesta a Solución de Problemas', icon:'&#128227;', action:function(){showPage('rsp'); if(typeof loadRspList==='function')loadRspList();}},
+  {id:'reports', label:'Reportes', icon:'&#128196;', action:function(){showPage('reports');}},
+  {id:'refacciones', label:'Refacciones', icon:'&#128230;', action:function(){showPage('refacciones'); if(typeof loadRefacciones==='function')loadRefacciones();}},
+  {id:'settings', label:'Configuración', icon:'&#9881;&#65039;', action:function(){showPage('settings');}}
 ];
 
 function userTabPermisos() {
@@ -2130,6 +2131,31 @@ function userTabPermisos() {
 function userIsAdmin() {
   return !!currentUser && currentUser.rol === 'admin';
 }
+function activateTab(id) {
+  var t = TABS_CONTROLADAS.find(function(x){return x.id === id;});
+  if (t && t.action) t.action();
+}
+function renderTabsPanel() {
+  var panel = document.getElementById('tabs-panel');
+  if (!panel) return;
+  var perms = userTabPermisos();
+  var visibles = TABS_CONTROLADAS.filter(function(t){
+    return perms === 'all' || perms.indexOf(t.id) !== -1;
+  });
+  if (!currentUser || !visibles.length) {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    return;
+  }
+  panel.style.display = 'block';
+  panel.innerHTML = '<div class="area-lbl">&#128203; Accesos</div><div class="mgrid">' +
+    visibles.map(function(t){
+      return '<div class="mcard" onclick="activateTab(\'' + t.id + '\')">' +
+        '<div class="micon">' + t.icon + '</div>' +
+        '<div class="minfo"><div class="mname">' + t.label + '</div></div>' +
+        '<div class="marr">&#8250;</div></div>';
+    }).join('') + '</div>';
+}
 function applyTabAccess() {
   var perms = userTabPermisos();
   TABS_CONTROLADAS.forEach(function(t){
@@ -2138,6 +2164,7 @@ function applyTabAccess() {
     var allowed = perms === 'all' || perms.indexOf(t.id) !== -1;
     btn.style.display = allowed ? '' : 'none';
   });
+  renderTabsPanel();
 }
 
 function authInit() {
