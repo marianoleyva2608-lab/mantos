@@ -2118,6 +2118,7 @@ window.showPage = function(p) {
 var currentUser = JSON.parse(localStorage.getItem('mantos_user') || 'null');
 
 var TABS_CONTROLADAS = [
+  {id:'home', label:'Mantenimiento Preventivo', icon:'&#128295;', action:function(){showPage('home');}},
   {id:'etiquetas', label:'Etiquetas', icon:'&#127991;&#65039;', action:function(){window.location.href='/etiquetas';}},
   {id:'req', label:'Requisiciones', icon:'&#128722;', action:function(){showPage('req'); if(typeof loadReqList==='function')loadReqList();}},
   {id:'orden', label:'Órdenes de Trabajo', icon:'&#128203;', action:function(){showPage('orden');}},
@@ -2150,12 +2151,7 @@ function renderTabsPanel() {
   var visibles = TABS_CONTROLADAS.filter(function(t){
     return perms === 'all' || perms.indexOf(t.id) !== -1;
   });
-  var homeCard = '<div class="mcard" onclick="showPage(\'home\')">' +
-    '<div class="micon">&#128295;</div>' +
-    '<div class="minfo"><div class="mname">Mantenimiento Preventivo</div></div>' +
-    '<div class="marr">&#8250;</div></div>';
   panel.innerHTML = '<div class="area-lbl">&#128203; Accesos</div><div class="mgrid">' +
-    homeCard +
     visibles.map(function(t){
       return '<div class="mcard" onclick="activateTab(\'' + t.id + '\')">' +
         '<div class="micon">' + t.icon + '</div>' +

@@ -204,7 +204,7 @@ def _norm(s):
 def hash_pin(pin):
     return hashlib.sha256(pin.encode()).hexdigest()
 
-TABS_VALIDAS = ('etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'settings')
+TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'settings')
 
 def _normalizar_permisos(permisos):
     if isinstance(permisos, list):
