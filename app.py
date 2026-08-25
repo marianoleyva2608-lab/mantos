@@ -1,4 +1,5 @@
-import os, io, base64, sqlite3, json, hashlib
+import os, io, base64, json, hashlib
+import requests
 from flask import Flask, request, send_file, jsonify, send_from_directory
 from qr_catalog import CATEGORIA_FIJA as QR_CATEGORIA_FIJA, GRUPOS as QR_GRUPOS, PLANTA as QR_PLANTA, PROVEEDORES as QR_PROVEEDORES
 from placeholders_categoria import PLACEHOLDERS_CATEGORIA
@@ -94,35 +95,92 @@ def extraer_datos_refaccion():
  
 DATA_DIR = os.environ.get('DATA_DIR', '/app/data')
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, 'reports.db')
+DB_PATH = os.path.join(DATA_DIR, 'reports.db')  # ya no se usa para leer/escribir; solo referencia historica
 
-def get_db():
-    con = sqlite3.connect(DB_PATH)
-    con.row_factory = sqlite3.Row
-    return con
+# Postgres (Supabase) no es alcanzable por TCP directo desde este contenedor
+# (solo Kong, el gateway HTTP, esta en la red compartida). Todo el acceso a
+# datos pasa por la API REST de Supabase (PostgREST) a traves de Kong.
+SB_URL = os.environ.get('SUPABASE_INTERNAL_URL', 'http://manto_supabase_kong:8000').rstrip('/')
+SB_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
+
+class SB:
+    """Cliente minimo para la API REST de Supabase (PostgREST) via Kong."""
+    def __init__(self):
+        self.base = SB_URL + '/rest/v1'
+        self.headers = {
+            'apikey': SB_KEY,
+            'Authorization': f'Bearer {SB_KEY}',
+            'Content-Type': 'application/json',
+        }
+
+    def select(self, table, select='*', order=None, limit=None, **filters):
+        params = {'select': select}
+        params.update(filters)
+        if order:
+            params['order'] = order
+        if limit:
+            params['limit'] = limit
+        r = requests.get(f'{self.base}/{table}', headers=self.headers, params=params, timeout=15)
+        r.raise_for_status()
+        return r.json()
+
+    def insert(self, table, data, upsert=False, on_conflict=None, return_rows=True):
+        headers = dict(self.headers)
+        pref = []
+        if return_rows:
+            pref.append('return=representation')
+        if upsert:
+            pref.append('resolution=merge-duplicates')
+        if pref:
+            headers['Prefer'] = ','.join(pref)
+        params = {'on_conflict': on_conflict} if on_conflict else {}
+        r = requests.post(f'{self.base}/{table}', headers=headers, params=params, json=data, timeout=15)
+        r.raise_for_status()
+        return r.json() if return_rows and r.text else None
+
+    def update(self, table, data, return_rows=True, **filters):
+        headers = dict(self.headers)
+        if return_rows:
+            headers['Prefer'] = 'return=representation'
+        r = requests.patch(f'{self.base}/{table}', headers=headers, params=filters, json=data, timeout=15)
+        r.raise_for_status()
+        return r.json() if return_rows and r.text else None
+
+    def delete(self, table, return_rows=True, **filters):
+        headers = dict(self.headers)
+        if return_rows:
+            headers['Prefer'] = 'return=representation'
+        r = requests.delete(f'{self.base}/{table}', headers=headers, params=filters, timeout=15)
+        r.raise_for_status()
+        return r.json() if return_rows and r.text else None
+
+sb = SB()
 
 def init_db():
+    pass  # el esquema se crea una sola vez con schema.sql en Supabase Studio
+
+def _init_db_OLD():
     con = get_db()
     con.execute('CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY, machine_id TEXT, fecha TEXT, data TEXT)')
     con.execute('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)')
     con.execute('''CREATE TABLE IF NOT EXISTS respuestas_problemas (
-                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   id SERIAL PRIMARY KEY,
                    folio TEXT, fecha TEXT, equipo TEXT, seccion TEXT,
                    descripcion_falla TEXT, hora_inicio TEXT,
                    mttr_estimado TEXT, tiempo_real TEXT,
                    areas_notificadas TEXT, acciones_tomadas TEXT,
                    causa_raiz TEXT, tiempo_total_paro TEXT, elaboro TEXT,
                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    con.execute('CREATE TABLE IF NOT EXISTS work_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, numero TEXT NOT NULL, solicitante TEXT, fecha TEXT, equipo TEXT, planta TEXT, tipo TEXT, estatus TEXT, hora_inicio TEXT, hora_termino TEXT, tiempo_paro TEXT, descripcion_falla TEXT, actividad_realizada TEXT, refaccion TEXT, observaciones TEXT, firma_solicitante TEXT, firma_recibe TEXT, firma_liberacion TEXT, fotos TEXT, created_at TEXT DEFAULT (datetime(\'now\')))')
+    con.execute("CREATE TABLE IF NOT EXISTS work_orders (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, solicitante TEXT, fecha TEXT, equipo TEXT, planta TEXT, tipo TEXT, estatus TEXT, hora_inicio TEXT, hora_termino TEXT, tiempo_paro TEXT, descripcion_falla TEXT, actividad_realizada TEXT, refaccion TEXT, observaciones TEXT, firma_solicitante TEXT, firma_recibe TEXT, firma_liberacion TEXT, fotos TEXT, created_at TEXT DEFAULT (to_char(now(), 'YYYY-MM-DD HH24:MI:SS')))")
     # Migrate: add fotos column if missing
     try:
-        con.execute('ALTER TABLE work_orders ADD COLUMN fotos TEXT DEFAULT "[]"')
+        con.execute("ALTER TABLE work_orders ADD COLUMN fotos TEXT DEFAULT '[]'")
         con.commit()
     except Exception:
         pass  # column already exists
 
     con.execute('''CREATE TABLE IF NOT EXISTS refacciones (
-                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   id SERIAL PRIMARY KEY,
                    nombre TEXT, descripcion TEXT, marca TEXT, modelo TEXT,
                    categoria TEXT, criticidad TEXT DEFAULT 'MEDIA', seccion TEXT,
                    cant_min INTEGER DEFAULT 1, stock_actual INTEGER DEFAULT 0,
@@ -135,7 +193,7 @@ def init_db():
     _seed = _jc.loads(_b64c.b64decode("W1siUmVsw6kgdMOpcm1pY28gQ0hJTlQgTlIyLTI1IDIuNUEiLCAiUmVsZXZhZG9yIiwgIkFMVEEiLCAiRWxlY3RyaWNvIC8gQ29udHJvbCIsIDEsIDEsICIx4oCTMiBkw61hcyIsICJFTE1FU0kiLCAiRXN0YW50ZTogQ09OVEFDVE9SRVMiLCAzMjAuMCwgIiIsICJDSElOVCBOUjItM0UiLCAiMjA5MTA2Il0sIFsiU1NSIEpNUCBKTy0zNEYgOTBBIDQ4MFZBQyIsICJTU1IiLCAiQUxUQSIsICJFbGVjdHJpY28gLyBDb250cm9sIiwgMSwgMSwgIjPigJM1IGTDrWFzIiwgIkpNUCAvIENPSU5TQSIsICJFc3RhbnRlOiBIRVJSQU1JRU5UQSIsIDE4MDAuMCwgIkVxdWlwb3MgZ3JhbmRlcyIsICJKTVAgSkctMzRGIEQtNDgwQTUwWlMtTCIsICIiXSwgWyJSZWxldmFkb3IgRmluZGVyIDYwLjEyIDEwQSAyMzBWQUMgOC1waW4iLCAiUmVsZXZhZG9yIiwgIk1FRElBIiwgIkVsZWN0cmljbyAvIENvbnRyb2wiLCA0LCA0LCAiMeKAkzIgZMOtYXMiLCAiRUxNRVNJIC8gQ09JTlNBIiwgIkVzdGFudGU6IEVMRUNUUk8gVsOBTFZVTEFTIiwgMTgwLjAsICJWYXJpb3Mg4pyTIiwgIkZpbmRlciIsICJPbXJvbiJdLCBbIkZ1ZW50ZSAyNFZEQyBNb2VsbGVyIGVhc3k0MDAtUE9XIiwgIkZ1ZW50ZSBEQyIsICJBTFRBIiwgIkVsZWN0cmljbyAvIENvbnRyb2wiLCAxLCAxLCAiNeKAkzcgZMOtYXMiLCAiRUxNRVNJIiwgIkVzdGFudGU6IEhFUlJBTUlFTlRBIiwgMjIwMC4wLCAiIiwgIk1vZWxsZXIgZWFzeTQwMC1QT1ciLCAiIl0sIFsiTWljcm9zd2l0Y2ggbMOtbWl0ZSAxNUEgMTI1LTQ4MFYiLCAiRmluIGRlIGNhcnJlcmEiLCAiTUVESUEiLCAiRWxlY3RyaWNvIC8gQ29udHJvbCIsIDIsIDMsICIy4oCTMyBkw61hcyIsICJKTVAgLyBDT0lOU0EiLCAiRXN0YW50ZTogSEVSUkFNSUVOVEEiLCAzODAuMCwgIjMgdWRzIOKckyIsICJKTVAgTW9kZWxvIDExNi0yMDMiLCAiIl0sIFsiS2l0IHRlcm1pbmFsZXMgYWlzbGFkYXMgVm9sdGVjayA1NSBwaWV6YXMiLCAiVGVybWluYWwiLCAiQkFKQSIsICJFbGVjdHJpY28gLyBDb250cm9sIiwgMiwgMiwgIjEgZMOtYSIsICJUdWsgLyBPZmZpY2UgRGVwb3QiLCAiRXN0YW50ZTogQ09OVEFDVE9SRVMiLCA4NS4wLCAiIiwgIlZvbHRlYyIsICJUdWsiXSwgWyJSZXNpc3RlbmNpYSB0dWJ1bGFyIHRpcG8gVSAyMjBWQUMgI0JOLTEiLCAiUmVzaXN0ZW5jaWEiLCAiQUxUQSIsICJSZXNpc3RlbmNpYXMgLyBDYWxlZmFjY2lvbiIsIDUsIDIwLCAiNeKAkzEwIGTDrWFzIiwgIlRDUiIsICJFc3RhbnRlOiBSRVNJU1RFTkNJQVMiLCAzODAuMCwgIkNhamEgfjIwIHB6YXMg4pyTIiwgIlRDUiIsICJTQUwwMDAwMiJdLCBbIlJlc2lzdGVuY2lhIHBsYW5hIDY1MFcgdGVybW9wYXIgSyAyNXg2LjVjbSIsICJSZXNpc3RlbmNpYSIsICJBTFRBIiwgIlJlc2lzdGVuY2lhcyAvIENhbGVmYWNjaW9uIiwgMSwgMSwgIjXigJMxMCBkw61hcyIsICJUQ1IiLCAiRXN0YW50ZTogUkVTSVNURU5DSUFTIiwgNjUwLjAsICIiLCAiVENSIFNBTDAwMDAyIiwgIiJdLCBbIlJlc2lzdGVuY2lhIHBsYW5hIDYyNVcgdGVybW9wYXIgSyAyNXg2LjVjbSIsICJSZXNpc3RlbmNpYSIsICJBTFRBIiwgIlJlc2lzdGVuY2lhcyAvIENhbGVmYWNjaW9uIiwgMSwgMSwgIjXigJMxMCBkw61hcyIsICJUQ1IiLCAiRXN0YW50ZTogUkVTSVNURU5DSUFTIiwgNjIwLjAsICIiLCAiVENSIFNBTDAwMDAyIE5FR1UiLCAiIl0sIFsiUmVzaXN0ZW5jaWEgY2Vyw6FtaWNhIDM1MFcgdGVybW9wYXIgSyAxMng2LjVjbSIsICJSZXNpc3RlbmNpYSIsICJBTFRBIiwgIlJlc2lzdGVuY2lhcyAvIENhbGVmYWNjaW9uIiwgMSwgMSwgIjXigJMxMCBkw61hcyIsICJUQ1IiLCAiRXN0YW50ZTogUkVTSVNURU5DSUFTIiwgMzUwLjAsICIiLCAiVENSIiwgIiJdLCBbIlRlcm1pbmFsIGRlIGNlcsOhbWljYSBwYXJhIHJlc2lzdGVuY2lhIiwgIkNvbnN1bWlibGUiLCAiTUVESUEiLCAiUmVzaXN0ZW5jaWFzIC8gQ2FsZWZhY2Npb24iLCAxMCwgMTAsICIz4oCTNSBkw61hcyIsICJUQ1IgLyBDT0lOU0EiLCAiRXN0YW50ZTogVEVSTS4gQ0VSw4FNSUNBIiwgNDUuMCwgIiIsICJHZW7DqXJpY28iLCAiIl0sIFsiVGVybW9wYXIgdGlwbyBLIGRlIHJlcHVlc3RvIiwgIlNlbnNvciIsICJBTFRBIiwgIlJlc2lzdGVuY2lhcyAvIENhbGVmYWNjaW9uIiwgNCwgMiwgIjPigJM1IGTDrWFzIiwgIkNPSU5TQSAvIEF1dG9uaWNzIiwgIkVzdGFudGU6IElUTSBURU1QLiIsIDI4MC4wLCAiIiwgIkdlbsOpcmljbyIsICJBdXRvbmljcyJdLCBbIlbDoWx2dWxhIHNvbGVub2lkZSBERSBXSVQgMlctMjUtTkMtRS1WSTUgMVwiIE5DIiwgIkVsZWN0cm92w6FsdnVsYSIsICJBTFRBIiwgIk5ldW1hdGljbyAvIEhpZHJhdWxpY28iLCAyLCAxLCAiM+KAkzUgZMOtYXMiLCAiREUgV0lUIC8gQ09JTlNBIiwgIkVzdGFudGU6IEVMRUNUUk8gVsOBTFZVTEFTIiwgOTUwLjAsICJOQyDinJMiLCAiREUgV0lUIDJXLTI1LU5DLUUtVkk1IiwgIiJdLCBbIkVsZWN0cm92w6FsdnVsYSBuZXVtw6F0aWNhIDQvMiB2w61hcyAyNFZEQyIsICJFbGVjdHJvdsOhbHZ1bGEiLCAiQUxUQSIsICJOZXVtYXRpY28gLyBIaWRyYXVsaWNvIiwgMiwgMSwgIjPigJM1IGTDrWFzIiwgIlNNQyAvIENPSU5TQSIsICJFc3RhbnRlOiBFTEVDVFJPIFbDgUxWVUxBUyIsIDc4MC4wLCAiIiwgIlNwb3J0cm9uaWMiLCAiU01DIl0sIFsiTWFuw7NtZXRybyBnbGljZXJpbmEgMOKAkzEwIGJhciAxLzRcIiIsICJJbnN0cnVtZW50byIsICJCQUpBIiwgIk5ldW1hdGljbyAvIEhpZHJhdWxpY28iLCAyLCAyLCAiMuKAkzMgZMOtYXMiLCAiQ09JTlNBIiwgIkVzdGFudGU6IE1BTk9NRVRST1MiLCAyMjAuMCwgIuKckyIsICJXaWthIiwgIlZhcmlvcyJdLCBbIkNvbmRlbnNhZG9yIGRlIG1hcmNoYSBtb3RvciAxMTBWIDUwLzYwSHoiLCAiQ2FwYWNpdG9yIiwgIk1FRElBIiwgIk5ldW1hdGljbyAvIEhpZHJhdWxpY28iLCAzLCAzLCAiMuKAkzMgZMOtYXMiLCAiQ09JTlNBIC8gR3JhaW5nZXIiLCAiRXN0YW50ZTogRUxFQ1RSTyBWw4FMVlVMQVMiLCAxODAuMCwgIuKckyIsICJHZW7DqXJpY28iLCAiIl0sIFsiUm9kYW1pZW50byAvIGJhbGVybyBVUkIgUlVNIiwgIlJvZGFtaWVudG8iLCAiTUVESUEiLCAiTmV1bWF0aWNvIC8gSGlkcmF1bGljbyIsIDIsIDEsICIz4oCTNSBkw61hcyIsICJEaXN0cmlidWlkb3JhIFNLRiIsICJFc3RhbnRlOiBST0RBTUlFTlRPUyIsIDI1MC4wLCAiVmVyaWZpY2FyICMgYW50ZXMgZGUgcGVkaXIiLCAiVVJCIFJVTSIsICIiXSwgWyJGaXR0aW5nIG5ldW3DoXRpY28gcHVzaC10by1jb25uZWN0IHN1cnRpZG8iLCAiRml0dGluZyIsICJCQUpBIiwgIk5ldW1hdGljbyAvIEhpZHJhdWxpY28iLCAxMCwgMTAsICIx4oCTMiBkw61hcyIsICJTTUMgLyBDT0lOU0EiLCAiRXN0YW50ZTogRUxFQ1RSTyBWw4FMVlVMQVMiLCA0NS4wLCAi4pyTIiwgIlNNQyIsICJQYXJrZXIiXSwgWyJTb2xkYWR1cmEgZXN0YcOxbyBUcnVwZXIgNjAvNDAgMW1tIDQ1MGciLCAiQ29uc3VtaWJsZSIsICJCQUpBIiwgIkNvbnN1bWlibGVzIC8gSW5zdW1vcyIsIDEsIDIsICIxIGTDrWEiLCAiVHJ1cGVyIC8gZmVycmV0ZXLDrWEiLCAiRXN0YW50ZTogSEVSUkFNSUVOVEEiLCAxODAuMCwgIlZhcmlvcyByb2xsb3Mg4pyTIiwgIlRydXBlciA2MCIsICI0MCJdLCBbIkNpbnRhIGFpc2xhbnRlIFBWQyBhbWFyaWxsYSIsICJDb25zdW1pYmxlIiwgIkJBSkEiLCAiQ29uc3VtaWJsZXMgLyBJbnN1bW9zIiwgNCwgMywgIjEgZMOtYSIsICJPZmZpY2UgRGVwb3QiLCAiRXN0YW50ZTogQ09OVEFDVE9SRVMiLCAzNS4wLCAiIiwgIlZvbHRlYyIsICIzTSJdLCBbIkNpbnRhIGZpYnJhIGRlIHZpZHJpbyBhbHRhIHRlbXAuIiwgIkNvbnN1bWlibGUiLCAiTUVESUEiLCAiQ29uc3VtaWJsZXMgLyBJbnN1bW9zIiwgMiwgMSwgIjPigJM1IGTDrWFzIiwgIkNPSU5TQSIsICJFc3RhbnRlOiBSRVNJU1RFTkNJQVMiLCAxMjAuMCwgIlBhcmEgcmVzaXN0ZW5jaWFzIiwgIkdlbsOpcmljbyIsICIiXSwgWyJDaW50YSB0ZWZsw7NuIDEvMlwiIiwgIkNvbnN1bWlibGUiLCAiQkFKQSIsICJDb25zdW1pYmxlcyAvIEluc3Vtb3MiLCA1LCAzLCAiMSBkw61hIiwgIkZlcnJldGVyw61hIiwgIkVzdGFudGU6IEhFUlJBTUlFTlRBIiwgMTguMCwgIiIsICJHZW7DqXJpY28iLCAiIl0sIFsiUGVnYW1lbnRvIGluc3RhbnTDoW5lbyBzdXBlciBnbHVlIiwgIkNvbnN1bWlibGUiLCAiQkFKQSIsICJDb25zdW1pYmxlcyAvIEluc3Vtb3MiLCAyLCAyLCAiMSBkw61hIiwgIkZlcnJldGVyw61hIiwgIkVzdGFudGU6IENPTlRBQ1RPUkVTIiwgNDUuMCwgIuKckyIsICJMb2N0aXRlIiwgIkdlbsOpcmljbyJdLCBbIkx1YnJpY2FudGUgYW50aS1hZ2Fycm90YW1pZW50byBMQiA3NzEiLCAiTHVicmljYW50ZSIsICJCQUpBIiwgIkNvbnN1bWlibGVzIC8gSW5zdW1vcyIsIDEsIDEsICI14oCTNyBkw61hcyIsICJHcmFpbmdlciIsICJFc3RhbnRlOiBSRVNJU1RFTkNJQVMiLCAzODAuMCwgIkxhdGEg4pyTIiwgIkxCIDc3MSIsICJKZXQtTHViZSJdLCBbIkFjZWl0ZSByZWZyaWdlcmFudGUgV8O8cnRoIDUwMG1sIHNwcmF5IiwgIkx1YnJpY2FudGUiLCAiQkFKQSIsICJDb25zdW1pYmxlcyAvIEluc3Vtb3MiLCAyLCAxLCAiM+KAkzUgZMOtYXMiLCAiV8O8cnRoIE1YIiwgIkVzdGFudGU6IFJPREFNSUVOVE9TIiwgMjgwLjAsICIiLCAiV8O8cnRoIDUyMCIsICIiXSwgWyJDb21wdWVzdG8gdMOpcm1pY28gQXJjdGljIiwgIkNvbnN1bWlibGUiLCAiQkFKQSIsICJDb25zdW1pYmxlcyAvIEluc3Vtb3MiLCAxLCAxLCAiM+KAkzUgZMOtYXMiLCAiQW1hem9uIiwgIkVzdGFudGU6IEhFUlJBTUlFTlRBIiwgMTUwLjAsICIiLCAiQXJjdGljIiwgIiJdLCBbIkNhYmxlIGNvbmR1Y3RvciBWaWFrb24gLyBDb25kdW1leCAocm9sbG8pIiwgIkNhYmxlIiwgIk1FRElBIiwgIkNvbnN1bWlibGVzIC8gSW5zdW1vcyIsIDEsIDEsICIz4oCTNSBkw61hcyIsICJWaWFrb24gLyBFTE1FU0kiLCAiRXN0YW50ZTogUkVTSVNURU5DSUFTIiwgMTIwMC4wLCAiQ2FsLiBzZWfDum4gYXBsaWNhY2nDs24iLCAiVmlha29uIiwgIkNvbmR1bWV4Il0sIFsiQ29udGFjdG9yIENISU5UIE5YQy0zMiAzMkEgMjIwViIsICJDb250YWN0b3IiLCAiQUxUQSIsICJFbGVjdHJpY28gLyBDb250cm9sIiwgMiwgNCwgIjEtMiBkaWFzIiwgIkVMTUVTSSAvIENPSU5TQSIsICJFc3RhbnRlOiBDT05UQUNUT1JFUyIsIDAsICIiLCAiQ0hJTlQiLCAiTlhDLTMyIDkyNTIxMyJdLCBbIlJlbGV2YWRvciBBc2lhb24gMTBBIDI1MFZBQyIsICJSZWxldmFkb3IiLCAiTUVESUEiLCAiRWxlY3RyaWNvIC8gQ29udHJvbCIsIDIsIDEsICIxLTIgZGlhcyIsICJFTE1FU0kiLCAiRXN0YW50ZTogQ09OVEFDVE9SRVMiLCAwLCAiIiwgIkFzaWFvbiIsICI5MC4yLTEtMjIiXSwgWyJTU1IgR29sZCBTQVA0OTUwRCA1MEEiLCAiU1NSIiwgIkFMVEEiLCAiRWxlY3RyaWNvIC8gQ29udHJvbCIsIDEsIDEsICIzLTUgZGlhcyIsICJDT0lOU0EiLCAiRXN0YW50ZTogSEVSUkFNSUVOVEEiLCAwLCAiIiwgIkdvbGQiLCAiU0FQNDk1MEQiXSwgWyJQdWxzYWRvciBuZWdybyAyMm1tIE5DIiwgIlB1bHNhZG9yIiwgIkJBSkEiLCAiRWxlY3RyaWNvIC8gQ29udHJvbCIsIDIsIDQsICIxLTIgZGlhcyIsICJDT0lOU0EgLyBFTE1FU0kiLCAiRXN0YW50ZTogQ09OVEFDVE9SRVMiLCAwLCAiIiwgIlNjaG5laWRlciAvIFpCMiIsICJaQjItQkEzIl0sIFsiUHVsc2Fkb3IgYW1hcmlsbG8gMjJtbSBpbHVtaW5hZG8iLCAiUHVsc2Fkb3IiLCAiQkFKQSIsICJFbGVjdHJpY28gLyBDb250cm9sIiwgMSwgMSwgIjEtMiBkaWFzIiwgIkNPSU5TQSAvIEVMTUVTSSIsICJFc3RhbnRlOiBDT05UQUNUT1JFUyIsIDAsICIiLCAiU2NobmVpZGVyIC8gWkIyIiwgIlpCMi1CVzM1Il0sIFsiUHVsc2Fkb3IgYXp1bCAyMm1tIGlsdW1pbmFkbyIsICJQdWxzYWRvciIsICJCQUpBIiwgIkVsZWN0cmljbyAvIENvbnRyb2wiLCAxLCAxLCAiMS0yIGRpYXMiLCAiQ09JTlNBIC8gRUxNRVNJIiwgIkVzdGFudGU6IENPTlRBQ1RPUkVTIiwgMCwgIiIsICJTY2huZWlkZXIgLyBaQjIiLCAiWkIyLUJXMzYiXSwgWyJTZWxlY3RvciAyIHBvc2ljaW9uZXMgbGxhdmUgMjJtbSIsICJTZWxlY3RvciIsICJCQUpBIiwgIkVsZWN0cmljbyAvIENvbnRyb2wiLCAxLCAxLCAiMS0yIGRpYXMiLCAiQ09JTlNBIC8gRUxNRVNJIiwgIkVzdGFudGU6IENPTlRBQ1RPUkVTIiwgMCwgIiIsICJTY2huZWlkZXIgLyBaQjIiLCAiWkIyLUJHMiJdLCBbIlRlcm1vbWV0cm8gZGlnaXRhbCBUcmFjZWFibGUgYy9zb25kYSIsICJJbnN0cnVtZW50byIsICJNRURJQSIsICJFbGVjdHJpY28gLyBDb250cm9sIiwgMSwgMSwgIjUtNyBkaWFzIiwgIkZpc2hlciAvIEdyYWluZ2VyIiwgIkVzdGFudGU6IEhFUlJBTUlFTlRBIiwgMCwgIlBhcmEgdmVyaWZpY2FjaW9uIGRlIHRlbXBlcmF0dXJhIiwgIlRyYWNlYWJsZSIsICJUL0MiXSwgWyJDb250YWRvciBkaWdpdGFsIEF1dG9uaWNzIExFQk4iLCAiUmVzaXN0ZW5jaWEiLCAiQUxUQSIsICJSZXNpc3RlbmNpYXMgLyBDYWxlZmFjY2lvbiIsIDEsIDEsICI1LTEwIGRpYXMiLCAiQUVTQSAvIFRDUiIsICJFc3RhbnRlOiBSRVNJU1RFTkNJQVMiLCAwLCAiQ2VyYW1pYyBJbmZyYXJlZCBIZWF0ZXIiLCAiQUVTQSIsICIiXSwgWyJSZXNpc3RlbmNpYSBwbGFuYSAzMDBXIHRlcm1vcGFyIEsgMTJ4Ni41Y20iLCAiUmVzaXN0ZW5jaWEiLCAiQUxUQSIsICJSZXNpc3RlbmNpYXMgLyBDYWxlZmFjY2lvbiIsIDEsIDEsICI1LTEwIGRpYXMiLCAiVENSIiwgIkVzdGFudGU6IFJFU0lTVEVOQ0lBUyIsIDAsICIzIHBpZXphcyIsICJUQ1IiLCAiMjIwVkFDLzIzMCAzMjVXIl0sIFsiVmFsdnVsYSBzb2xlbm9pZGUgbmV1bWF0aWNhIDUvMiB2aWFzIG1hbmlmb2xkIiwgIkVsZWN0cm92YWx2dWxhIiwgIkFMVEEiLCAiTmV1bWF0aWNvIC8gSGlkcmF1bGljbyIsIDIsIDIsICIzLTUgZGlhcyIsICJTTUMgLyBDT0lOU0EiLCAiRXN0YW50ZTogRUxFQ1RSTyBWQUxWVUxBUyIsIDAsICJDb24gYm9iaW5hIDIyMFZBQyIsICJTTUMgLyBIVVlPIiwgIiJdLCBbIlbDoWx2dWxhIHNlZ3VyaWRhZCBLb21hdHN1IFNhZmUgVmFsdmUiLCAiVmFsdnVsYSIsICJBTFRBIiwgIk5ldW1hdGljbyAvIEhpZHJhdWxpY28iLCAxLCAxLCAiNy0xNCBkaWFzIiwgIktvbWF0c3UiLCAiRXN0YW50ZTogSEVSUkFNSUVOVEEiLCAwLCAiUGFydCBOby4gMDgwMTktMDA0OTgtMTAwIiwgIktvbWF0c3UiLCAiMDgwMTktMDA0OTgtMTAwIl0sIFsiTWFuw7NtZXRybyBBc2hjcm9mdCA2M21tIHZhY8OtbyIsICJJbnN0cnVtZW50byIsICJCQUpBIiwgIk5ldW1hdGljbyAvIEhpZHJhdWxpY28iLCAxLCAxLCAiMy01IGRpYXMiLCAiQ09JTlNBIC8gR3JhaW5nZXIiLCAiRXN0YW50ZTogTUFOT01FVFJPUyIsIDAsICI2MyAxMDA4IEEgMDJMIFhMSlpDIFZBQyIsICJBc2hjcm9mdCIsICI2MyAxMDA4Il0sIFsiTG9jdGl0ZSBMQiA3NzEgTmlja2VsIEFudGktU2VpemUgNDUzZyIsICJMdWJyaWNhbnRlIiwgIk1FRElBIiwgIkNvbnN1bWlibGVzIC8gSW5zdW1vcyIsIDEsIDEsICIzLTUgZGlhcyIsICJHcmFpbmdlciAvIEhlbmtlbCIsICJFc3RhbnRlOiBSRVNJU1RFTkNJQVMiLCAwLCAiQW50aWFnYXJyb3RhbWllbnRvIGhhc3RhIDEzMTVDIiwgIkxvY3RpdGUiLCAiTEIgNzcxIDEzNTU0MyJdLCBbIlNTUiBGb3RlayBTU1ItMjVWQSAyNUEiLCAiU1NSIiwgIkFMVEEiLCAiRWxlY3RyaWNvIC8gQ29udHJvbCIsIDIsIDEsICIzLTUgZGlhcyIsICJDT0lOU0EgLyBGb3RlayIsICJFc3RhbnRlOiBDT05UQUNUT1JFUyIsIDAsICJMb3RlIDIzM0YsIDMgdW5pZGFkZXMgZGlzcG9uaWJsZXMiLCAiRm90ZWsiLCAiU1NSLTI1VkEiXSwgWyJDb25kZW5zYWRvciBhcnJhbnF1ZS9tYXJjaGEgbW90b3IgMjIwVkFDIiwgIkNvbmRlbnNhZG9yIiwgIkFMVEEiLCAiRWxlY3RyaWNvIC8gQ29udHJvbCIsIDEsIDEsICIzLTUgZGlhcyIsICJFTE1FU0kgLyBHcmFpbmdlciIsICJFc3RhbnRlOiBIRVJSQU1JRU5UQSIsIDAsICJDYXBhY2l0b3IgZWxlY3Ryb2xpdGljbyBkZSBtb3RvciIsICJHZW5lcmljbyIsICIiXSwgWyJGdXNpYmxlcyBzdXJ0aWRvcyAoY2FqYSkiLCAiRnVzaWJsZSIsICJBTFRBIiwgIkVsZWN0cmljbyAvIENvbnRyb2wiLCA1LCAyMCwgIjEtMiBkaWFzIiwgIkVMTUVTSSAvIEZlcnJldGVyaWEiLCAiRXN0YW50ZTogSEVSUkFNSUVOVEEiLCAwLCAiRnVzaWJsZXMgZGUgdmlkcmlvIHkgY2VyYW1pY2Egc3VydGlkb3MiLCAiU3VydGlkbyIsICIiXSwgWyJDYWJsZSBNaWNhIFRhcGUgR2xhc3MgQnJhaWQgMTBBV0cgNTAwwrBDIDEwMG0iLCAiQ2FibGUiLCAiQUxUQSIsICJDb25zdW1pYmxlcyAvIEluc3Vtb3MiLCAxLCAyLCAiNS0xMCBkaWFzIiwgIlByb3ZlZWRvciBlc3BlY2lhbCIsICJFc3RhbnRlOiBURVJNSU5BTEVTIiwgMCwgIk1JQ0EvUFRGRSBUQVBFLCBQdXJlIE5pY2tlbCwgcm9sbG8gMTAwbSwgNC1KVU4tMjAyNSIsICJHZW5lcmljbyIsICIxMEFXRyA3NC8wLjMgNTAwQyJdLCBbIkNhYmxlIFZpYWtvbiBYWEkgUm9IUyAxNCBBV0cgbmVncm8gMTAwbSIsICJDYWJsZSIsICJNRURJQSIsICJDb25zdW1pYmxlcyAvIEluc3Vtb3MiLCAxLCAxLCAiMS0yIGRpYXMiLCAiVmlha29uIC8gQ29uZHVjdG9yZXMgTVRZIiwgIkVzdGFudGU6IFRFUk1JTkFMRVMiLCAwLCAiVEhXLUxTLCA5MEMsIHJvbGxvIDEwMG0iLCAiVmlha29uIiwgIlhYSSBSb0hTIDE0QVdHIl0sIFsiQ2FibGUgVmlha29uIDE2QVdHIG5lZ3JvIDEwMG0iLCAiQ2FibGUiLCAiTUVESUEiLCAiQ29uc3VtaWJsZXMgLyBJbnN1bW9zIiwgMSwgMSwgIjEtMiBkaWFzIiwgIlZpYWtvbiAvIENvbmR1Y3RvcmVzIE1UWSIsICJFc3RhbnRlOiBURVJNSU5BTEVTIiwgMCwgIjYwMFYgOTBDLCByb2xsbyAxMDBtLCBDYXQgMTI3MzA4IiwgIlZpYWtvbiIsICJURi1MUyAxNiAxMjczMDgiXSwgWyJDYWJsZSBWaWFrb24gMTIgQVdHIHJvam8gOTBDIDEwMG0iLCAiQ2FibGUiLCAiTUVESUEiLCAiQ29uc3VtaWJsZXMgLyBJbnN1bW9zIiwgMSwgMSwgIjEtMiBkaWFzIiwgIlZpYWtvbiAvIENvbmR1Y3RvcmVzIE1UWSIsICJFc3RhbnRlOiBURVJNSU5BTEVTIiwgMCwgIlRIVy1MUyBUSEhXLUxTLCA5MEMiLCAiVmlha29uIiwgIlhYSSAxMkFXRyByb2pvIl0sIFsiUm9kYW1pZW50byBVUkIgUGlsbG93IEJsb2NrIEJlYXJpbmciLCAiUm9kYW1pZW50byIsICJNRURJQSIsICJOZXVtYXRpY28gLyBIaWRyYXVsaWNvIiwgMSwgMSwgIjMtNSBkaWFzIiwgIkRpc3RyaWJ1aWRvcmEgTVRZIiwgIkVzdGFudGU6IFJPREFNSUVOVE9TIiwgMCwgIkV4cG9ydCB0byBHZXJtYW55LCBJU08gOTAwMSIsICJVUkIgLyBSVU0iLCAiUGlsbG93IEJsb2NrIl0sIFsiV8O8cnRoIFctTW90byBMdWJlIGdyYXNhIGNhZGVuYXMgMzAwbWwiLCAiTHVicmljYW50ZSIsICJCQUpBIiwgIkNvbnN1bWlibGVzIC8gSW5zdW1vcyIsIDEsIDEsICIzLTUgZGlhcyIsICJXdXJ0aCIsICJFc3RhbnRlOiBIRVJSQU1JRU5UQSIsIDAsICJMdWJyaWNhbnRlLWFudGljb3Jyb3Npdm8gcGFyYSBjYWRlbmFzIiwgIld1cnRoIiwgIlctTW90byBMdWJlIl0sIFsiV3VydGggQWNlaXRlIFJlZnJpZ2VyYW50ZSBjb3J0ZSA0MDBtbCIsICJMdWJyaWNhbnRlIiwgIkJBSkEiLCAiQ29uc3VtaWJsZXMgLyBJbnN1bW9zIiwgMSwgMSwgIjMtNSBkaWFzIiwgIld1cnRoIiwgIkVzdGFudGU6IEhFUlJBTUlFTlRBIiwgMCwgIkx1YnJpY2EsIHJlZnJpZ2VyYSB5IGNvbnNlcnZhIGhlcnJhbWllbnRhIGRlIGNvcnRlIiwgIld1cnRoIiwgIkFjZWl0ZSBSZWZyaWdlcmFudGUiXSwgWyJQYXN0YSBmbHV4IGRlIHNvbGRhZHVyYSBPbWVnYSAoZnJhc2NvIGFtYXJpbGxvKSIsICJDb25zdW1pYmxlIiwgIkJBSkEiLCAiQ29uc3VtaWJsZXMgLyBJbnN1bW9zIiwgMSwgMSwgIjEtMiBkaWFzIiwgIkZlcnJldGVyaWEgbG9jYWwiLCAiRXN0YW50ZTogSEVSUkFNSUVOVEEiLCAwLCAiRmx1eCBkZWNhcGFudGUgcGFyYSBzb2xkYWR1cmEgZWxlY3Ryb25pY2EiLCAiT21lZ2EiLCAiIl0sIFsiUGVnYW1lbnRvIGluc3RhbnTDoW5lbyBjaWFub2FjcmlsYXRvIiwgIkNvbnN1bWlibGUiLCAiQkFKQSIsICJDb25zdW1pYmxlcyAvIEluc3Vtb3MiLCAxLCAxLCAiMS0yIGRpYXMiLCAiRmVycmV0ZXJpYSBsb2NhbCIsICJCb2RlZ2EiLCAwLCAiU3VwZXIgYWRoZXNpdm8iLCAiR2VuZXJpY28iLCAiIl0sIFsiQ29uZWN0b3JlcyBwdXNoLXRvLWNvbm5lY3QgbmV1bcOhdGljb3Mgc3VydGlkbyIsICJDb25lY3RvciIsICJNRURJQSIsICJOZXVtYXRpY28gLyBIaWRyYXVsaWNvIiwgNSwgMTUsICIxLTMgZGlhcyIsICJDT0lOU0EgLyBGZXN0byAvIFNNQyIsICJFc3RhbnRlOiBFTEVDVFJPIFZBTFZVTEFTIiwgMCwgIlB1c2gtaW4gcGxhc3RpY28geSBsYXRvbiwgdmFyaWFzIG1lZGlkYXMgNi0xMm1tIiwgIlNNQyAvIFBhcmtlciIsICJQdXNoLWluIl0sIFsiVGVybWluYWxlcyBkZSBhcmdvbGxhIGRlc251ZGFzIHN1cnRpZG8gKGNhamEpIiwgIlRlcm1pbmFsIiwgIkJBSkEiLCAiQ29uc3VtaWJsZXMgLyBJbnN1bW9zIiwgNSwgMzAsICIxIGRpYSIsICJGZXJyZXRlcmlhIiwgIkVzdGFudGU6IFRFUk1JTkFMRVMiLCAwLCAiVGVybWluYWxlcyBkZSBjb2JyZSBzaW4gZm9ycm8gdmFyaW9zIGNhbGlicmVzIiwgIkdlbmVyaWNvIiwgIiJdLCBbIkJsb3F1ZXMgY2Vyw6FtaWNvcyB0ZXJtaW5hbGVzIDVUIiwgIlRlcm1pbmFsIiwgIk1FRElBIiwgIlJlc2lzdGVuY2lhcyAvIENhbGVmYWNjaW9uIiwgNSwgMTUsICIzLTUgZGlhcyIsICJUQ1IgLyBQcm92ZWVkb3IiLCAiRXN0YW50ZTogVEVSTUlOQUxFUyIsIDAsICJQYXJhIGNvbmV4aW9uIGRlIHJlc2lzdGVuY2lhcywgYWx0YSB0ZW1wZXJhdHVyYSIsICJHZW5lcmljbyIsICI1VCBjZXJhbWljIl0sIFsiQ2ludGEgZmlicmEgZGUgdmlkcmlvIGFpc2xhbnRlIChyb2xsbykiLCAiQ29uc3VtaWJsZSIsICJNRURJQSIsICJSZXNpc3RlbmNpYXMgLyBDYWxlZmFjY2lvbiIsIDEsIDEsICIzLTUgZGlhcyIsICJQcm92ZWVkb3IgZXNwZWNpYWwiLCAiRXN0YW50ZTogUkVTSVNURU5DSUFTIiwgMCwgIlBhcmEgYWlzbGFtaWVudG8gZGUgcmVzaXN0ZW5jaWFzIGFsdGEgdGVtcGVyYXR1cmEiLCAiR2VuZXJpY28iLCAiRWxlY3RyaWNhbCBmaWJlcmdsYXNzIl0sIFsiQ2ludGEgZmlicmEgZGUgdmlkcmlvIGFsdGEgdGVtcGVyYXR1cmEgKHJvbGxvKSIsICJFbMOpY3RyaWNvIiwgIkFsdGEiLCAiQWxtYWPDqW4iLCAxLCA1LCAiMy01IGTDrWFzIiwgIkF1dG9uaWNzIiwgIkVzdGFudGUtQXV0b25pY3MiLCAwLCAiVGVtcGVyYXR1cmUgbXVsdGktc2Vuc29yIHJlbGF5K1NTUiAxMDAtMjQwVkFDIiwgIkF1dG9uaWNzIiwgIlRDTjRTLTI0UiJdLCBbIlRpbWVyIEF1dG9uaWNzIEFUOE4gMTAwLTI0MFZBQyIsICJFbMOpY3RyaWNvIiwgIk1lZGlhIiwgIkFsbWFjw6luIiwgMiwgMiwgIjMtNSBkw61hcyIsICJBdXRvbmljcyIsICJFc3RhbnRlLUF1dG9uaWNzIiwgMCwgIlRpbWVyIG11bHRpZnVuY2nDs24gMTAwLTI0MFZBQy8yNC0yNDBWREMiLCAiQXV0b25pY3MiLCAiQVQ4TiJdLCBbIkNvbnRhY3RvciBGdWppIEVsZWN0cmljIFNDLTQtMSIsICJFbMOpY3RyaWNvIiwgIk1lZGlhIiwgIkFsbWFjw6luIiwgMSwgMSwgIjUtNyBkw61hcyIsICJGdWppIEVsZWN0cmljIiwgIkVzdGFudGUtQ29udGFjdG9yZXMiLCAwLCAiMjQwViA0a1cgLyA0NDBWIDcuNWtXIC8gNTUwViA5a1ciLCAiRnVqaSIsICJTQy00LTEiXSwgWyJJbnRlcnJ1cHRvciB0ZXJtb21hZ27DqXRpY28gTW9lbGxlciBYcG9sZSBDMiAyQSIsICJFbMOpY3RyaWNvIiwgIk1lZGlhIiwgIkFsbWFjw6luIiwgMSwgMSwgIjUtNyBkw61hcyIsICJNb2VsbGVyIiwgIkVzdGFudGUtQ29udGFjdG9yZXMiLCAwLCAiMSBwb2xvIDJBIGN1cnZhIEMgY2FycmlsIERJTiIsICJNb2VsbGVyIiwgIlBMU00tQzIiXSwgWyJJbnRlcnJ1cHRvciBhdXRvbcOhdGljbyBTaWVtZW5zIDJQIDEwQSIsICJFbMOpY3RyaWNvIiwgIk1lZGlhIiwgIkFsbWFjw6luIiwgMSwgMiwgIjUtNyBkw61hcyIsICJTaWVtZW5zIiwgIkVzdGFudGUtQ29udGFjdG9yZXMiLCAwLCAiMiBwb2xvcyBjYXJyaWwgRElOIiwgIlNpZW1lbnMiLCAiIl0sIFsiSW50ZXJydXB0b3IgYXV0b23DoXRpY28gU2NobmVpZGVyIGlDNjBOIiwgIkVsw6ljdHJpY28iLCAiTWVkaWEiLCAiQWxtYWPDqW4iLCAxLCAxLCAiNS03IGTDrWFzIiwgIlNjaG5laWRlciIsICJFc3RhbnRlLUNvbnRhY3RvcmVzIiwgMCwgImlDNjBOIGNhcnJpbCBESU4iLCAiU2NobmVpZGVyIiwgImlDNjBOIl0sIFsiUmVzaXN0ZW5jaWEgY2Vyw6FtaWNhIEFFU0EgMzI1VyIsICJSZWZhY2Npb25lcyIsICJBbHRhIiwgIkFsbWFjw6luIiwgMiwgMiwgIjUtNyBkw61hcyIsICJBRVNBMiIsICJFc3RhbnRlLVJlc2lzdGVuY2lhcyIsIDAsICJDZXJhbWljIEluZnJhcmVkIEhlYXRlciAyMjAvMjMwVkFDIDMyNVciLCAiQUVTQTIiLCAiIl0sIFsiUmVzaXN0ZW5jaWEgY2Vyw6FtaWNhIENlcmFtaWN4IDMyNVcgMTJ4Ni41Y20iLCAiUmVmYWNjaW9uZXMiLCAiQWx0YSIsICJBbG1hY8OpbiIsIDEsIDEsICI1LTcgZMOtYXMiLCAiQ2VyYW1pY3giLCAiRXN0YW50ZS1SZXNpc3RlbmNpYXMiLCAwLCAiSW5mcmFyZWQgZm9yIGluZHVzdHJ5IDIyMC8yMzBWQUMgMzI1VyAxMng2LjVjbSIsICJDZXJhbWljeCIsICIiXSwgWyJSZXNpc3RlbmNpYSBwbGFuYSAzMjVXIHRlcm1vcGFyIEsgMTJ4Ni41Y20iLCAiUmVmYWNjaW9uZXMiLCAiQWx0YSIsICJBbG1hY8OpbiIsIDIsIDQsICI1LTcgZMOtYXMiLCAiVENSIiwgIkVzdGFudGUtUmVzaXN0ZW5jaWFzIiwgMCwgIjIyMC8yMzBWQUMgMzI1VyBjb24gdGVybW9wYXIgSyAxMng2LjVjbSByZWYgU0FMMDAwMDIiLCAiVENSIiwgIlNBTDAwMDAyIl0sIFsiVsOhbHZ1bGEgc29sZW5vaWRlIERFIFdJVCAyVy0yNS1OQy1FLVZUNSIsICJOZXVtw6F0aWNvIiwgIkFsdGEiLCAiQWxtYWPDqW4iLCAxLCAxLCAiNS03IGTDrWFzIiwgIkRFIFdJVCIsICJFc3RhbnRlLUVsZWN0cm92YWx2dWxhcyIsIDAsICJTb2xlbm9pZGUgMiB2w61hcyBub3JtYWxtZW50ZSBjZXJyYWRhIDEgcHVsZ2FkYSIsICJERSBXSVQiLCAiMlctMjUtTkMtRS1WVDUiXSwgWyJUZXJtw7NtZXRybyBkaWdpdGFsIHBvcnTDoXRpbCBUcmFjZWFibGUiLCAiSW5zdHJ1bWVudGFjacOzbiIsICJNZWRpYSIsICJBbG1hY8OpbiIsIDEsIDEsICI1LTcgZMOtYXMiLCAiVHJhY2VhYmxlIiwgIkVzdGFudGUtSW5zdHJ1bWVudG9zIiwgMCwgIkNvbiBzb25kYSB0aXBvIGFndWphIGRpc3BsYXkgTENEIHRlcm1vcGFyIEsvSiIsICJUcmFjZWFibGUiLCAiIl0sIFsiTWFuw7NtZXRybyBhbmFsw7NnaWNvIG5ldW3DoXRpY28gY2lyY3VsYXIiLCAiSW5zdHJ1bWVudGFjacOzbiIsICJNZWRpYSIsICJBbG1hY8OpbiIsIDEsIDEsICI1LTcgZMOtYXMiLCAiR2Vuw6lyaWNvIiwgIkVzdGFudGUtTWFub21ldHJvcyIsIDAsICJNYW7Ds21ldHJvIGRlIHByZXNpw7NuIGRpYWwgY2lyY3VsYXIgYW5hbMOzZ2ljbyIsICJHZW7DqXJpY28iLCAiIl0sIFsiTWFuaWZvbGQgbmV1bcOhdGljbyA1LzIgU01DIGNvbiBzb2xlbm9pZGVzIiwgIk5ldW3DoXRpY28iLCAiQWx0YSIsICJBbG1hY8OpbiIsIDEsIDIsICI1LTcgZMOtYXMiLCAiU01DIiwgIkVzdGFudGUtRWxlY3Ryb3ZhbHZ1bGFzIiwgMCwgIk1hbmlmb2xkIDUgcG9zaWNpb25lcy8yIHbDrWFzIGNvbiBib2JpbmFzIDIyMFZBQyIsICJTTUMiLCAiIl0sIFsiQ29uZWN0b3JlcyBwdXNoLXRvLWNvbm5lY3QgbmV1bcOhdGljb3Mgc3VydGlkbyIsICJOZXVtw6F0aWNvIiwgIk1lZGlhIiwgIkFsbWFjw6luIiwgMTAsIDEsICIzLTUgZMOtYXMiLCAiR2Vuw6lyaWNvIiwgIkVzdGFudGUtRWxlY3Ryb3ZhbHZ1bGFzIiwgMCwgIlN1cnRpZG8gY29kb3MsIFQsIHJlY3RvcyA2LTgtMTBtbSB5IGFjZXJvIiwgIkdlbsOpcmljbyIsICIiXSwgWyJWw6FsdnVsYXMgZGUgYm9sYSAxLzQgbGF0w7NuIG1pbmkiLCAiTmV1bcOhdGljbyIsICJNZWRpYSIsICJBbG1hY8OpbiIsIDUsIDEwLCAiMy01IGTDrWFzIiwgIkdlbsOpcmljbyIsICJFc3RhbnRlLUVsZWN0cm92YWx2dWxhcyIsIDAsICJWw6FsdnVsYSBkZSBib2xhIDEvNCBsYXTDs24gcGFyYSBuZXVtw6F0aWNhIiwgIkdlbsOpcmljbyIsICIiXSwgWyJCb2JpbmEgc29sZW5vaWRlIGNvbmVjdG9yIERJTiBncmlzIDIyMFZBQyIsICJOZXVtw6F0aWNvIiwgIk1lZGlhIiwgIkFsbWFjw6luIiwgMiwgMiwgIjMtNSBkw61hcyIsICJHZW7DqXJpY28iLCAiRXN0YW50ZS1FbGVjdHJvdmFsdnVsYXMiLCAwLCAiQm9iaW5hIHJlcHVlc3RvIHbDoWx2dWxhIHNvbGVub2lkZSBjb25lY3RvciBESU4gZ3JpcyIsICJHZW7DqXJpY28iLCAiIl0sIFsiVsOhbHZ1bGEgc29sZW5vaWRlIEhVWVUgMjRWREMgcGFyYSBtYW5pZm9sZCIsICJOZXVtw6F0aWNvIiwgIk1lZGlhIiwgIkFsbWFjw6luIiwgMSwgMSwgIjUtNyBkw61hcyIsICJIVVlVIiwgIkVzdGFudGUtRWxlY3Ryb3ZhbHZ1bGFzIiwgMCwgIjI0VkRDIG1vbnRhamUgZW4gbWFuaWZvbGQiLCAiSFVZVSIsICIiXSwgWyJDYWJsZSBWaWFrb24gTm8uMTQgcm9qbyAxMDBtIiwgIkVsw6ljdHJpY28iLCAiQWx0YSIsICJBbG1hY8OpbiIsIDEsIDEsICIzLTUgZMOtYXMiLCAiVmlha29uIiwgIkVzdGFudGUtQ2FibGVzIiwgMCwgIkNvbmR1Y3RvciBlbMOpY3RyaWNvIDE0QVdHIHJvam8gOTDCsEMgMTAwbSIsICJWaWFrb24iLCAiTm8uMTQiXSwgWyJDaW50YSBhaXNsYW50ZSBlbMOpY3RyaWNhIDNNIiwgIkNvbnN1bWlibGUiLCAiQmFqYSIsICJBbG1hY8OpbiIsIDIsIDIsICIxLTMgZMOtYXMiLCAiM00iLCAiRXN0YW50ZS1Db25zdW1pYmxlcyIsIDAsICJDaW50YSBhaXNsYW50ZSBuZWdyYSB5IGJsYW5jYSAzTSIsICIzTSIsICIiXSwgWyJDaW50YSBmaWJyYSBkZSB2aWRyaW8gZWzDqWN0cmljYSIsICJDb25zdW1pYmxlIiwgIk1lZGlhIiwgIkFsbWFjw6luIiwgMSwgMSwgIjMtNSBkw61hcyIsICJHZW7DqXJpY28iLCAiRXN0YW50ZS1Db25zdW1pYmxlcyIsIDAsICJDaW50YSBmaWJyYSB2aWRyaW8gcGFyYSByZXNpc3RlbmNpYXMvYWx0YSB0ZW1wZXJhdHVyYSIsICJHZW7DqXJpY28iLCAiIl0sIFsiUm9kYW1pZW50byBkZSBib2xhcyBaU0cgc2VsbGFkbyIsICJNZWPDoW5pY28iLCAiTWVkaWEiLCAiQWxtYWPDqW4iLCAyLCA0LCAiMy01IGTDrWFzIiwgIlpTRyIsICJFc3RhbnRlLVJvZGFtaWVudG9zIiwgMCwgIlJvZGFtaWVudG8gYm9sYXMgWlNHIGNhamEgYXp1bCBzZWxsYWRvIiwgIlpTRyIsICIiXSwgWyJCbG9xdWUgY29udGFjdG8gWkIyLUJFMTAxIE5PIDEwQSIsICJFbMOpY3RyaWNvIiwgIk1lZGlhIiwgIkFsbWFjw6luIiwgMywgMywgIjMtNSBkw61hcyIsICJHZW7DqXJpY28iLCAiRXN0YW50ZS1Cb3RvbmVzIiwgMCwgIkJsb3F1ZSBjb250YWN0byBub3JtYWxtZW50ZSBhYmllcnRvIDIybW0iLCAiU2NobmVpZGVyL0NvbXAiLCAiWkIyLUJFMTAxIl0sIFsiQ29uZGVuc2Fkb3IgZGUgYXJyYW5xdWUgbW90b3IiLCAiRWzDqWN0cmljbyIsICJNZWRpYSIsICJBbG1hY8OpbiIsIDEsIDEsICI1LTcgZMOtYXMiLCAiR2Vuw6lyaWNvIiwgIkVzdGFudGUtVmFyaW9zIiwgMCwgIkNvbmRlbnNhZG9yIGVsZWN0cm9sw610aWNvIGNpbMOtbmRyaWNvIHBhcmEgYXJyYW5xdWUgZGUgbW90b3IiLCAiR2Vuw6lyaWNvIiwgIiJdLCBbIlRvcm5pbGxlcsOtYSBhdXRvcnJvc2NhbnRlIHN1cnRpZGEgKGJvbHNhKSIsICJDb25zdW1pYmxlIiwgIkJhamEiLCAiQWxtYWPDqW4iLCAyMCwgMjAwLCAiMS0yIGTDrWFzIiwgIkdlbsOpcmljbyIsICJFc3RhbnRlLUNvbnN1bWlibGVzIiwgMCwgIlRvcm5pbGxvcyBhdXRvLXBlcmZvcmFudGVzIGhleGFnb25hbGVzIHZhcmlvcyB0YW1hw7FvcyBlbiBib2xzYXMiLCAiR2Vuw6lyaWNvIiwgIiJdLCBbIlBhc3RhIHTDqXJtaWNhIEFyY3RpYyBNWC00IiwgIkNvbnN1bWlibGUiLCAiQmFqYSIsICJBbG1hY8OpbiIsIDEsIDIsICIzLTUgZMOtYXMiLCAiQXJjdGljIiwgIkVzdGFudGUtQ29uc3VtaWJsZXMiLCAwLCAiQ29tcHVlc3RvIHTDqXJtaWNvIGFsdGEgY29uZHVjdGl2aWRhZCB0dWJvIDRnIiwgIkFyY3RpYyIsICJNWC00Il0sIFsiQmxvcXVlcyB0ZXJtaW5hbGVzIFBMQyB2ZXJkZXMgY2FycmlsIERJTiIsICJFbMOpY3RyaWNvIiwgIk1lZGlhIiwgIkFsbWFjw6luIiwgMSwgMSwgIjMtNSBkw61hcyIsICJHZW7DqXJpY28iLCAiRXN0YW50ZS1UZXJtaW5hbGVzIiwgMCwgIkJsb3F1ZXMgdGVybWluYWxlcyB0aXBvIGNsYW1wIHZlcmRlcyBwYXJhIGNhcnJpbCBESU4iLCAiR2Vuw6lyaWNvIiwgIiJdXQ==").decode("utf-8"))
     for _r in _seed:
         try:
-            con.execute("INSERT OR IGNORE INTO refacciones (nombre,categoria,criticidad,seccion,cant_min,stock_actual,tiempo_entrega,proveedor,ubicacion,costo,notas,marca,modelo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", _r)
+            con.execute("INSERT INTO refacciones (nombre,categoria,criticidad,seccion,cant_min,stock_actual,tiempo_entrega,proveedor,ubicacion,costo,notas,marca,modelo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", _r)
         except: pass
     con.commit()  # seed limpio 83 items
     # -- Deduplicar refacciones: fusionar duplicados por nombre sumando stock --
@@ -156,52 +214,31 @@ def init_db():
     con.commit(); con.close()
 
 def init_users_db():
-    con = get_db()
-    con.execute(
-        """CREATE TABLE IF NOT EXISTS users
-        (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL,
-         email TEXT NOT NULL UNIQUE, pin_hash TEXT NOT NULL,
-         created_at TEXT DEFAULT (datetime('now')))"""
-    )
-    con.commit(); con.close()
+    pass  # tabla 'users' creada por schema.sql en Supabase Studio
 
 def init_proveedores_db():
-    con = get_db()
-    con.execute(
-        """CREATE TABLE IF NOT EXISTS proveedores_extra
-        (codigo TEXT PRIMARY KEY, nombre TEXT NOT NULL,
-         created_at TEXT DEFAULT (datetime('now')))"""
-    )
-    con.commit(); con.close()
+    pass  # tabla 'proveedores_extra' creada por schema.sql en Supabase Studio
 
 init_db()
 init_users_db()
 init_proveedores_db()
 
-# Migracion: agregar rol y permisos a usuarios (control de acceso a pestañas)
+# Seed usuario admin por defecto (upsert por email, no pisa el PIN si ya existe)
 try:
-    _rcon = get_db()
-    _rcon.execute("ALTER TABLE users ADD COLUMN rol TEXT DEFAULT 'usuario'")
-    _rcon.commit(); _rcon.close()
-except Exception:
-    pass
-try:
-    _pcon = get_db()
-    _pcon.execute("ALTER TABLE users ADD COLUMN permisos TEXT DEFAULT ''")
-    _pcon.commit(); _pcon.close()
-except Exception:
-    pass
-
-# Seed usuario admin por defecto
-try:
-    import hashlib as _hl
-    _con = get_db()
-    _con.execute("INSERT OR IGNORE INTO users (nombre, email, pin_hash) VALUES (?,?,?)",
-                 ("Mariano Leyva", "marianoleyva2608@gmail.com", _hl.sha256("260881".encode()).hexdigest()))
-    _con.execute("UPDATE users SET rol='admin', permisos='all' WHERE email=?",
-                 ("marianoleyva2608@gmail.com",))
-    _con.commit(); _con.close()
-except: pass
+    _admin_existente = sb.select('users', select='id', email='eq.marianoleyva2608@gmail.com')
+    if not _admin_existente:
+        sb.insert('users', {
+            'nombre': 'Mariano Leyva',
+            'email': 'marianoleyva2608@gmail.com',
+            'pin_hash': hashlib.sha256('260881'.encode()).hexdigest(),
+            'rol': 'admin',
+            'permisos': 'all',
+        }, return_rows=False)
+    else:
+        sb.update('users', {'rol': 'admin', 'permisos': 'all'}, return_rows=False,
+                  email='eq.marianoleyva2608@gmail.com')
+except Exception as _e:
+    print(f'[seed admin] error: {_e}')
 
 # Migración: agregar imagen_url si no existe
 try:
@@ -228,15 +265,7 @@ try:
 except: pass
 
 def init_estantes_db():
-    con = get_db()
-    con.execute(
-        """CREATE TABLE IF NOT EXISTS estantes
-        (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE,
-         created_at TEXT DEFAULT (datetime('now')))"""
-    )
-    con.execute("INSERT OR IGNORE INTO estantes (nombre) VALUES ('Almacén Estante 2')")
-    con.execute("INSERT OR IGNORE INTO estantes (nombre) VALUES ('Estante de herramientas')")
-    con.commit(); con.close()
+    pass  # tabla 'estantes' creada por schema.sql en Supabase Studio
 
 init_estantes_db()
 
@@ -278,7 +307,7 @@ def _restaurar_cantidades_20260701():
         con.execute("UPDATE refacciones SET cant_min=?, stock_actual=? WHERE id=?",
                     (item['cant_min'], item['stock_actual'], ids[0]))
         actualizadas += 1
-    con.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", (_CANTIDADES_REF_FLAG, 'done'))
+    con.execute("INSERT INTO app_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (_CANTIDADES_REF_FLAG, 'done'))
     con.commit()
     con.close()
     print(f"[restaurar cantidades 2026-07-01] actualizadas={actualizadas} sin_match={len(sin_match)} ambiguas={len(ambiguas)}")
@@ -318,7 +347,7 @@ def _asignar_fotos_referencia_por_categoria():
             continue
         con.execute("UPDATE refacciones SET foto_b64=? WHERE id=?", (b64, row['id']))
         asignadas += 1
-    con.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", (_PLACEHOLDER_FLAG, 'done'))
+    con.execute("INSERT INTO app_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (_PLACEHOLDER_FLAG, 'done'))
     con.commit()
     con.close()
     print(f"[fotos referencia por categoria] asignadas={asignadas} de {len(pendientes)} pendientes")
@@ -363,7 +392,7 @@ def _restaurar_cantidades_20260702():
             con.execute("UPDATE refacciones SET cant_min=?, stock_actual=? WHERE id=?",
                         (item['cant_min'], item['stock_actual'], rid))
             actualizadas += 1
-    con.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", (_CANTIDADES_REF_FLAG_2, 'done'))
+    con.execute("INSERT INTO app_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (_CANTIDADES_REF_FLAG_2, 'done'))
     con.commit(); con.close()
     print(f"[cantidades 2026-07-02] actualizadas={actualizadas} sin_match={len(sin_match)}")
     if sin_match:
@@ -509,14 +538,16 @@ def register_user():
     if not nombre or not email or not pin or len(pin) < 4:
         return jsonify({'error': 'Nombre, email y PIN (minimo 4 caracteres) requeridos'}), 400
     try:
-        con = get_db()
-        con.execute('INSERT INTO users (nombre, email, pin_hash, rol, permisos) VALUES (?,?,?,?,?)',
-                    (nombre, email, hash_pin(pin), rol, permisos))
-        con.commit(); con.close()
+        sb.insert('users', {
+            'nombre': nombre, 'email': email, 'pin_hash': hash_pin(pin),
+            'rol': rol, 'permisos': permisos,
+        }, return_rows=False)
         return jsonify({'ok': True, 'nombre': nombre, 'email': email, 'rol': rol, 'permisos': permisos})
-    except Exception as e:
-        if 'UNIQUE' in str(e):
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None and e.response.status_code == 409:
             return jsonify({'error': 'Este email ya esta registrado'}), 409
+        return jsonify({'error': str(e)}), 500
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/users/login', methods=['POST'])
@@ -524,12 +555,11 @@ def login_user():
     d = request.json
     email = d.get('email','').strip().lower()
     pin   = d.get('pin','').strip()
-    con = get_db()
-    row = con.execute('SELECT id, nombre, email, rol, permisos FROM users WHERE email=? AND pin_hash=?',
-                      (email, hash_pin(pin))).fetchone()
-    con.close()
-    if not row:
+    rows = sb.select('users', select='id,nombre,email,rol,permisos',
+                      email='eq.' + email, pin_hash='eq.' + hash_pin(pin))
+    if not rows:
         return jsonify({'error': 'Email o PIN incorrecto'}), 401
+    row = rows[0]
     return jsonify({'ok': True, 'id': row['id'], 'nombre': row['nombre'], 'email': row['email'],
                      'rol': row['rol'] or 'usuario', 'permisos': row['permisos'] or ''})
 
@@ -538,63 +568,49 @@ def verify_user():
     d = request.json
     email = d.get('email','').strip().lower()
     pin   = d.get('pin','').strip()
-    con = get_db()
-    row = con.execute('SELECT id, nombre, email, rol, permisos FROM users WHERE email=? AND pin_hash=?',
-                      (email, hash_pin(pin))).fetchone()
-    con.close()
-    if not row:
+    rows = sb.select('users', select='id,nombre,email,rol,permisos',
+                      email='eq.' + email, pin_hash='eq.' + hash_pin(pin))
+    if not rows:
         return jsonify({'ok': False, 'error': 'PIN incorrecto'}), 200
+    row = rows[0]
     return jsonify({'ok': True, 'nombre': row['nombre'], 'email': row['email'],
                      'rol': row['rol'] or 'usuario', 'permisos': row['permisos'] or ''})
 
 @app.route('/api/users', methods=['GET'])
 def list_users():
-    con = get_db()
-    rows = con.execute('SELECT id, nombre, email, rol, permisos, created_at FROM users ORDER BY nombre').fetchall()
-    con.close()
-    return jsonify([dict(r) for r in rows])
+    rows = sb.select('users', select='id,nombre,email,rol,permisos,created_at', order='nombre.asc')
+    return jsonify(rows)
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
 def update_user(user_id):
     d = request.json or {}
-    con = get_db()
-    row = con.execute('SELECT id, email FROM users WHERE id=?', (user_id,)).fetchone()
-    if not row:
-        con.close()
+    rows = sb.select('users', select='id,email', id='eq.' + str(user_id))
+    if not rows:
         return jsonify({'error': 'Usuario no encontrado'}), 404
-    fields, values = [], []
+    row = rows[0]
+    data = {}
     if 'nombre' in d and d['nombre'].strip():
-        fields.append('nombre=?'); values.append(d['nombre'].strip())
+        data['nombre'] = d['nombre'].strip()
     if 'rol' in d:
         rol = d['rol'] if d['rol'] in ('admin', 'usuario') else 'usuario'
         if row['email'] == 'marianoleyva2608@gmail.com' and rol != 'admin':
-            con.close()
             return jsonify({'error': 'No se puede quitar el rol de administrador a la cuenta principal'}), 400
-        fields.append('rol=?'); values.append(rol)
+        data['rol'] = rol
     if 'permisos' in d:
-        fields.append('permisos=?'); values.append(_normalizar_permisos(d['permisos']))
-    if not fields:
-        con.close()
+        data['permisos'] = _normalizar_permisos(d['permisos'])
+    if not data:
         return jsonify({'error': 'Nada que actualizar'}), 400
-    values.append(user_id)
-    con.execute(f'UPDATE users SET {", ".join(fields)} WHERE id=?', values)
-    con.commit()
-    urow = con.execute('SELECT id, nombre, email, rol, permisos FROM users WHERE id=?', (user_id,)).fetchone()
-    con.close()
-    return jsonify({'ok': True, **dict(urow)})
+    updated = sb.update('users', data, id='eq.' + str(user_id))
+    return jsonify({'ok': True, **updated[0]})
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
-    con = get_db()
-    row = con.execute('SELECT email FROM users WHERE id=?', (user_id,)).fetchone()
-    if not row:
-        con.close()
+    rows = sb.select('users', select='email', id='eq.' + str(user_id))
+    if not rows:
         return jsonify({'error': 'Usuario no encontrado'}), 404
-    if row['email'] == 'marianoleyva2608@gmail.com':
-        con.close()
+    if rows[0]['email'] == 'marianoleyva2608@gmail.com':
         return jsonify({'error': 'No se puede eliminar la cuenta administradora principal'}), 400
-    con.execute('DELETE FROM users WHERE id=?', (user_id,))
-    con.commit(); con.close()
+    sb.delete('users', return_rows=False, id='eq.' + str(user_id))
     return jsonify({'ok': True})
 
 def _parse_refacciones_excel(file):
@@ -890,14 +906,10 @@ def change_pin_user():
         return jsonify({'error': 'Email, PIN actual y PIN nuevo son requeridos'}), 400
     if len(pin_nuevo) < 4:
         return jsonify({'error': 'El PIN nuevo debe tener minimo 4 caracteres'}), 400
-    con = get_db()
-    row = con.execute('SELECT id FROM users WHERE email=? AND pin_hash=?',
-                       (email, hash_pin(pin_actual))).fetchone()
-    if not row:
-        con.close()
+    rows = sb.select('users', select='id', email='eq.' + email, pin_hash='eq.' + hash_pin(pin_actual))
+    if not rows:
         return jsonify({'error': 'Email o PIN actual incorrecto'}), 401
-    con.execute('UPDATE users SET pin_hash=? WHERE id=?', (hash_pin(pin_nuevo), row['id']))
-    con.commit(); con.close()
+    sb.update('users', {'pin_hash': hash_pin(pin_nuevo)}, return_rows=False, id='eq.' + str(rows[0]['id']))
     return jsonify({'ok': True})
 
 try:
@@ -1069,7 +1081,7 @@ def api_import_reports():
     imported = 0
     for r in reports:
         try:
-            con.execute('INSERT OR IGNORE INTO reports (id, machine_id, fecha, data) VALUES (?,?,?,?)',
+            con.execute('INSERT INTO reports (id, machine_id, fecha, data) VALUES (?,?,?,?) ON CONFLICT (id) DO NOTHING',
                         (r['id'], r.get('machineId',''), r.get('fecha',''), json.dumps(r)))
             imported += 1
         except Exception:
@@ -1184,7 +1196,7 @@ def api_save_work_order():
          data.get('firma_solicitante',''), data.get('firma_recibe',''), data.get('firma_liberacion',''), data.get('fotos','[]'))
     )
     con.commit()
-    new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0]
+    new_id = con.execute('SELECT lastval()').fetchone()[0]
     con.close()
     return jsonify({'ok': True, 'id': new_id, 'numero': numero})
 
@@ -1235,7 +1247,7 @@ def api_create_respuesta_problema():
          d.get('tiempo_real',''), d.get('areas_notificadas',''), d.get('acciones_tomadas',''),
          d.get('causa_raiz',''), d.get('tiempo_total_paro',''), d.get('elaboro','')))
     con.commit()
-    new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0]
+    new_id = con.execute('SELECT lastval()').fetchone()[0]
     con.close()
     return jsonify({'ok': True, 'id': new_id})
 
@@ -1487,18 +1499,7 @@ def api_orden_pdf(order_id):
 # ══════════════════════════════════════════════════════════
 
 def init_req_db():
-    con = get_db()
-    con.execute('''CREATE TABLE IF NOT EXISTS requisiciones
-        (id TEXT PRIMARY KEY,
-         folio INTEGER,
-         fecha TEXT,
-         solicitante TEXT,
-         planta TEXT,
-         departamento TEXT,
-         tipo TEXT,
-         data TEXT,
-         created_at TEXT DEFAULT (datetime('now')))''')
-    con.commit(); con.close()
+    pass  # tabla 'requisiciones' creada por schema.sql en Supabase Studio
 
 init_req_db()
 
@@ -1527,9 +1528,13 @@ def save_requisicion():
         folio = (last['m'] or 0) + 1
         d['id'] = d.get('id') or (str(folio).zfill(4))
     d['folio'] = folio
-    con.execute('''INSERT OR REPLACE INTO requisiciones
+    con.execute('''INSERT INTO requisiciones
         (id, folio, fecha, solicitante, planta, departamento, tipo, data)
-        VALUES (?,?,?,?,?,?,?,?)''',
+        VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT (id) DO UPDATE SET
+            folio=EXCLUDED.folio, fecha=EXCLUDED.fecha, solicitante=EXCLUDED.solicitante,
+            planta=EXCLUDED.planta, departamento=EXCLUDED.departamento, tipo=EXCLUDED.tipo,
+            data=EXCLUDED.data''',
         (d['id'], folio, d.get('fecha',''), d.get('solicitante',''),
          d.get('planta',''), d.get('departamento',''), d.get('tipo','Normal'),
          json.dumps(d, ensure_ascii=False)))
@@ -1790,7 +1795,7 @@ def api_create_refaccion():
          float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64',''),d.get('imagen_url',''),
          numero_parte,d.get('estante_nombre','')))
     con.commit()
-    new_id = con.execute('SELECT last_insert_rowid()').fetchone()[0]
+    new_id = con.execute('SELECT lastval()').fetchone()[0]
     con.close()
     return jsonify({'ok': True, 'id': new_id, 'numero_parte': numero_parte})
 
