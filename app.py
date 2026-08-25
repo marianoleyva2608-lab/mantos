@@ -1,4 +1,4 @@
-import os, io, base64, json, hashlib
+import os, io, base64, json, hashlib, datetime
 import requests
 from flask import Flask, request, send_file, jsonify, send_from_directory
 from qr_catalog import CATEGORIA_FIJA as QR_CATEGORIA_FIJA, GRUPOS as QR_GRUPOS, PLANTA as QR_PLANTA, PROVEEDORES as QR_PROVEEDORES
@@ -240,276 +240,21 @@ try:
 except Exception as _e:
     print(f'[seed admin] error: {_e}')
 
-# Migración: agregar imagen_url si no existe
-try:
-    _mcon = get_db()
-    _mcon.execute("ALTER TABLE refacciones ADD COLUMN imagen_url TEXT DEFAULT ''")
-    _mcon.commit(); _mcon.close()
-except: pass
-
-# Migración: agregar numero_parte (para QR) si no existe.
-# Las refacciones ya existentes quedan con numero_parte='' (no se tocan/regeneran).
-try:
-    _npcon = get_db()
-    _npcon.execute("ALTER TABLE refacciones ADD COLUMN numero_parte TEXT DEFAULT ''")
-    _npcon.commit(); _npcon.close()
-except: pass
-
-# Migración: agregar estante_nombre (nombre del estante/almacén, ej. "Estante
-# de herramientas") si no existe. Es independiente del codigo Area-Estante-
-# Posicion que ya se guarda en 'ubicacion'.
-try:
-    _escon = get_db()
-    _escon.execute("ALTER TABLE refacciones ADD COLUMN estante_nombre TEXT DEFAULT ''")
-    _escon.commit(); _escon.close()
-except: pass
-
 def init_estantes_db():
     pass  # tabla 'estantes' creada por schema.sql en Supabase Studio
 
 init_estantes_db()
 
-# ---------------------------------------------------------------------------
-# Migracion de UNA SOLA VEZ: restaurar cant_min y stock_actual segun el
-# respaldo "Lista_Refacciones_2026-07-01.xlsx" que el usuario proporciono
-# (se emparejan por nombre EXACTO). Solo toca esos dos campos, nada mas.
-# Se controla con app_meta para que NUNCA vuelva a correr despues (para no
-# pisar cantidades que el usuario ajuste manualmente mas adelante).
-# ---------------------------------------------------------------------------
-_CANTIDADES_REF_FLAG = 'cantidades_restauradas_20260701'
-
-def _restaurar_cantidades_20260701():
-    con = get_db()
-    ya_corrio = con.execute("SELECT value FROM app_meta WHERE key=?", (_CANTIDADES_REF_FLAG,)).fetchone()
-    if ya_corrio:
-        con.close()
-        return
-    ref_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_cantidades_ref_20260701.json')
-    try:
-        with open(ref_path, encoding='utf-8') as f:
-            referencia = json.load(f)
-    except FileNotFoundError:
-        con.close()
-        return
-    actuales = con.execute("SELECT id, nombre FROM refacciones").fetchall()
-    por_nombre = {}
-    for row in actuales:
-        por_nombre.setdefault(row['nombre'], []).append(row['id'])
-    actualizadas, sin_match, ambiguas = 0, [], []
-    for item in referencia:
-        ids = por_nombre.get(item['nombre'])
-        if not ids:
-            sin_match.append(item['nombre'])
-            continue
-        if len(ids) > 1:
-            ambiguas.append(item['nombre'])
-            continue
-        con.execute("UPDATE refacciones SET cant_min=?, stock_actual=? WHERE id=?",
-                    (item['cant_min'], item['stock_actual'], ids[0]))
-        actualizadas += 1
-    con.execute("INSERT INTO app_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (_CANTIDADES_REF_FLAG, 'done'))
-    con.commit()
-    con.close()
-    print(f"[restaurar cantidades 2026-07-01] actualizadas={actualizadas} sin_match={len(sin_match)} ambiguas={len(ambiguas)}")
-    if sin_match:
-        print(f"[restaurar cantidades 2026-07-01] SIN COINCIDENCIA (revisar manualmente): {sin_match}")
-    if ambiguas:
-        print(f"[restaurar cantidades 2026-07-01] NOMBRES DUPLICADOS (no se tocaron): {ambiguas}")
-
-try:
-    _restaurar_cantidades_20260701()
-except Exception as _e:
-    print(f"[restaurar cantidades 2026-07-01] error: {_e}")
-
-# ---------------------------------------------------------------------------
-# Migracion de UNA SOLA VEZ: asignar una imagen de referencia GENERICA (no es
-# la foto real de la pieza) a las refacciones que aun no tienen ninguna foto,
-# segun su categoria. Nunca sobreescribe una foto ya subida por el usuario,
-# y esta controlada con app_meta para no volver a correr en el futuro (asi
-# si luego subes la foto real, esta migracion no la vuelve a pisar).
-# ---------------------------------------------------------------------------
-_PLACEHOLDER_FLAG = 'fotos_referencia_categoria_v1'
-
-def _asignar_fotos_referencia_por_categoria():
-    con = get_db()
-    ya_corrio = con.execute("SELECT value FROM app_meta WHERE key=?", (_PLACEHOLDER_FLAG,)).fetchone()
-    if ya_corrio:
-        con.close()
-        return
-    pendientes = con.execute(
-        "SELECT id, categoria FROM refacciones WHERE (foto_b64='' OR foto_b64 IS NULL) AND (imagen_url='' OR imagen_url IS NULL)"
-    ).fetchall()
-    asignadas = 0
-    for row in pendientes:
-        cat = (row['categoria'] or '').strip()
-        b64 = PLACEHOLDERS_CATEGORIA.get(cat) or PLACEHOLDERS_CATEGORIA.get('Otro')
-        if not b64:
-            continue
-        con.execute("UPDATE refacciones SET foto_b64=? WHERE id=?", (b64, row['id']))
-        asignadas += 1
-    con.execute("INSERT INTO app_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (_PLACEHOLDER_FLAG, 'done'))
-    con.commit()
-    con.close()
-    print(f"[fotos referencia por categoria] asignadas={asignadas} de {len(pendientes)} pendientes")
-
-# DESACTIVADA por peticion del usuario (2026-07-14): no ejecutar todavia,
-# para revisar primero cuantas refacciones ya tienen foto real en produccion.
-# try:
-#     _asignar_fotos_referencia_por_categoria()
-# except Exception as _e:
-#     print(f"[fotos referencia por categoria] error: {_e}")
-
-# ---------------------------------------------------------------------------
-# Migracion 2026-07-02: actualizar stock_actual y cant_min segun Excel
-# Lista_Refacciones_2026-07-02.xlsx. Empareja por nombre exacto.
-# ---------------------------------------------------------------------------
-_CANTIDADES_REF_FLAG_2 = 'cantidades_restauradas_20260702'
-
-def _restaurar_cantidades_20260702():
-    con = get_db()
-    ya_corrio = con.execute("SELECT value FROM app_meta WHERE key=?", (_CANTIDADES_REF_FLAG_2,)).fetchone()
-    if ya_corrio:
-        con.close()
-        return
-    ref_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_cantidades_ref_20260702.json')
-    try:
-        with open(ref_path, encoding='utf-8') as f:
-            referencia = json.load(f)
-    except FileNotFoundError:
-        con.close()
-        return
-    actuales = con.execute("SELECT id, nombre FROM refacciones").fetchall()
-    por_nombre = {}
-    for row in actuales:
-        por_nombre.setdefault(row['nombre'], []).append(row['id'])
-    actualizadas, sin_match = 0, []
-    for item in referencia:
-        ids = por_nombre.get(item['nombre'])
-        if not ids:
-            sin_match.append(item['nombre'])
-            continue
-        for rid in ids:
-            con.execute("UPDATE refacciones SET cant_min=?, stock_actual=? WHERE id=?",
-                        (item['cant_min'], item['stock_actual'], rid))
-            actualizadas += 1
-    con.execute("INSERT INTO app_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (_CANTIDADES_REF_FLAG_2, 'done'))
-    con.commit(); con.close()
-    print(f"[cantidades 2026-07-02] actualizadas={actualizadas} sin_match={len(sin_match)}")
-    if sin_match:
-        print(f"[cantidades 2026-07-02] SIN MATCH: {sin_match}")
-
-try:
-    _restaurar_cantidades_20260702()
-except Exception as _e:
-    print(f"[cantidades 2026-07-02] error: {_e}")
-
-# ---------------------------------------------------------------------------
-# Migracion (una sola vez, idempotente): asignar numero_parte a refacciones
-# que YA EXISTIAN antes de este cambio y que aun no tienen codigo. No toca
-# stock_actual, cant_min, ni ningun otro campo; solo llena numero_parte.
-# Mapea la 'categoria' de texto libre ya usada en la app al Grupo/Categoria
-# del catalogo QR (mejor esfuerzo), y el 'proveedor' de texto libre al
-# codigo de proveedor mas parecido; si no encuentra coincidencia usa A0
-# (ADPACK) como proveedor generico.
-# ---------------------------------------------------------------------------
+# Las migraciones historicas de una sola vez (restaurar cantidades desde
+# excels viejos, fotos placeholder por categoria, asignar numero_parte a
+# refacciones antiguas) ya no aplican: el inventario ahora se recarga
+# completo con el importador de Excel de la app.
 import unicodedata as _ud
 
 def _norm(s):
     s = (s or '').strip().upper()
     s = _ud.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii')
     return s
-
-_CATEGORIA_QR_MAP = {
-    'SSR': ('Eléctrico', 'SSR'),
-    'TIMER': ('Eléctrico', 'Timer'),
-    'FUENTE DC': ('Eléctrico', 'Fuente DC'),
-    'RESISTENCIA': ('Calentamiento', 'Resistencia'),
-    'ELECTROVALVULA': ('Hidráulico', 'Electrovalvula'),
-    'INSTRUMENTO': ('Eléctrico', 'Instrumento'),
-    'LUBRICANTE': ('Mecánico', 'Lubricante'),
-    'CABLE': ('Eléctrico', 'Cable'),
-    'TERMINAL': ('Eléctrico', 'Terminal'),
-    'CONECTOR': ('Eléctrico', 'Conector'),
-    'FUSIBLE': ('Eléctrico', 'Fusible'),
-    'PULSADOR': ('Eléctrico', 'Pulsador'),
-    'SELECTOR': ('Eléctrico', 'Otro'),
-    'PROTECCION': ('Eléctrico', 'Protección'),
-    'RODAMIENTO': ('Mecánico', 'Rodamiento'),
-    'RODAMIENTOS': ('Mecánico', 'Rodamiento'),
-    'MANGUERA': ('Hidráulico', 'Manguera'),
-    'VALVULA': ('Hidráulico', 'Válvula'),
-    'HERRAMIENTA': ('Mecánico', 'Otro'),
-    'CONDENSADOR': ('Eléctrico', 'Condensador'),
-    'INSTRUMENTACION': ('Eléctrico', 'Instrumentación'),
-    'MECANICO': ('Mecánico', 'Otro'),
-    'REFACCIONES': ('Mecánico', 'Otro'),
-    'SENSOR': ('Eléctrico', 'Instrumento'),
-    'BANDAS': ('Mecánico', 'Otro'),
-    'CADENAS': ('Mecánico', 'Otro'),
-    'SELLOS': ('Mecánico', 'Otro'),
-    'FILTROS': ('Hidráulico', 'Otro'),
-    'ELECTRICO': ('Eléctrico', 'Otro'),
-    'HIDRAULICO': ('Hidráulico', 'Otro'),
-    'NEUMATICO': ('Hidráulico', 'Otro'),
-    'TORNILLERIA': ('Mecánico', 'Otro'),
-    'CONSUMIBLE': ('Mecánico', 'Otro'),
-    'CONSUMIBLES': ('Mecánico', 'Otro'),
-    'CONTROL TEMP.': ('Eléctrico', 'Instrumento'),
-    'CONTACTOR': ('Eléctrico', 'Otro'),
-    'RELEVADOR': ('Eléctrico', 'Otro'),
-    'OTRO': ('Mecánico', 'Otro'),
-}
-_CATEGORIA_QR_DEFAULT = ('Mecánico', 'Otro')
-
-def _match_proveedor_cod(proveedor_texto):
-    t = _norm(proveedor_texto)
-    if not t:
-        return 'A0'
-    for cod, nombre in QR_PROVEEDORES.items():
-        n = _norm(nombre)
-        if t == n or t in n or n in t:
-            return cod
-    return 'A0'  # ADPACK como proveedor generico si no hay coincidencia
-
-def _migrar_numero_parte_existentes():
-    con = get_db()
-    pendientes = con.execute(
-        "SELECT id, categoria, proveedor FROM refacciones WHERE numero_parte='' OR numero_parte IS NULL"
-    ).fetchall()
-    asignados, sin_espacio = 0, []
-    for row in pendientes:
-        grupo, categoria_qr = _CATEGORIA_QR_MAP.get(_norm(row['categoria']), _CATEGORIA_QR_DEFAULT)
-        prov_cod = _match_proveedor_cod(row['proveedor'])
-        try:
-            numero = _build_numero_parte(con, 'A0', grupo, categoria_qr, prov_cod)
-        except ValueError:
-            sin_espacio.append(row['id'])
-            continue
-        con.execute("UPDATE refacciones SET numero_parte=? WHERE id=?", (numero, row['id']))
-        asignados += 1
-    con.commit()
-    con.close()
-    if asignados or sin_espacio:
-        print(f"[migracion numero_parte] asignados={asignados} sin_espacio={sin_espacio}")
-
-
-
-# Seed imágenes de productos (UPDATE por nombre LIKE)
-try:
-    _icon = get_db()
-    _img_seeds = [
-        ('%TCN4S-24R%',   'https://ce8dc832c.cloudimg.io/v7/_cdn_/6A/12/90/00/0/598438_1.jpg'),
-        ('%AT8N%',         'https://ce8dc832c.cloudimg.io/v7/_cdn_/08/E1/90/00/0/597632_1.jpg'),
-        ('%NXC-32%',       'https://www.sparegenie.com/cdn/shop/products/10001699.jpg?v=1657890170'),
-        ('%NR2-25%',       'https://media.rs-online.com/image/upload/b_auto,c_pad,dpr_1,f_auto,h_399,q_auto,w_399/R1948771-01'),
-        ('%SC-4-1%',       'https://www.yuengkao.com/images/products/1385961666_mc_sc-4-1_2.jpg'),
-        ('%60.12.8.230%',  'https://ce8dc832c.cloudimg.io/v7/_cdn_/C8/2C/50/00/0/377484_1.jpg'),
-        ('%ZB2-BE101%',    'https://ce8dc832c.cloudimg.io/v7/_cdn_/6D/5F/50/00/0/390614_1.jpg'),
-    ]
-    for _pat, _url in _img_seeds:
-        _icon.execute("UPDATE refacciones SET imagen_url=? WHERE nombre LIKE ? AND (imagen_url IS NULL OR imagen_url='')", (_url, _pat))
-    _icon.commit(); _icon.close()
-except: pass
 
 def hash_pin(pin):
     return hashlib.sha256(pin.encode()).hexdigest()
@@ -747,11 +492,11 @@ def _norm_key(s):
     return ''.join((s or '').strip().lower().split())
 
 
-def _contar_nuevas_actualizadas(con, parsed):
+def _contar_nuevas_actualizadas(parsed):
     """Para cada item parseado, dice si ya existe (se actualizaria) o es
     nuevo (se agregaria). Tambien cuenta cuantas refacciones actuales NO
     vienen en el archivo (esas se eliminarian). No modifica nada."""
-    existing = con.execute('SELECT id, nombre, marca, modelo FROM refacciones').fetchall()
+    existing = sb.select('refacciones', select='id,nombre,marca,modelo')
     existing_by_name = {}
     existing_by_marca_modelo = {}
     for e in existing:
@@ -793,9 +538,7 @@ def preview_import_refacciones_excel():
     if error:
         return jsonify({'error': error}), 400
 
-    con = get_db()
-    nuevas, actualizadas, total_actual, a_eliminar_nombres = _contar_nuevas_actualizadas(con, parsed)
-    con.close()
+    nuevas, actualizadas, total_actual, a_eliminar_nombres = _contar_nuevas_actualizadas(parsed)
 
     return jsonify({
         'ok': True,
@@ -822,8 +565,7 @@ def import_refacciones_excel():
     if error:
         return jsonify({'error': error}), 400
 
-    con = get_db()
-    existing = con.execute('SELECT id, nombre, marca, modelo, imagen_url, foto_b64, numero_parte FROM refacciones').fetchall()
+    existing = sb.select('refacciones', select='id,nombre,marca,modelo,imagen_url,foto_b64,numero_parte')
     existing_by_name = {}
     existing_by_marca_modelo = {}
     for e in existing:
@@ -837,28 +579,27 @@ def import_refacciones_excel():
     nuevas = 0
     actualizadas = 0
     matched_ids = set()
-    update_sql = ('UPDATE refacciones SET nombre=?, marca=?, modelo=?, categoria=?, criticidad=?, seccion=?, '
-                  'cant_min=?, stock_actual=?, tiempo_entrega=?, proveedor=?, ubicacion=?, costo=?, notas=?, '
-                  'updated_at=CURRENT_TIMESTAMP WHERE id=?')
-    insert_sql = ('INSERT INTO refacciones (nombre, marca, modelo, categoria, criticidad, seccion, cant_min, '
-                  'stock_actual, tiempo_entrega, proveedor, ubicacion, costo, notas) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
     for item in parsed:
         name_key = _norm_key(item['nombre'])
         mm_key = (_norm_key(item['marca']), _norm_key(item['modelo']))
         prev = existing_by_name.get(name_key)
         if not prev and mm_key != ('', ''):
             prev = existing_by_marca_modelo.get(mm_key)
-        vals = (item['nombre'], item['marca'], item['modelo'], item['categoria'], item['criticidad'],
-                item['seccion'], item['cant_min'], item['stock_actual'], item['tiempo_entrega'],
-                item['proveedor'], item['ubicacion'], item['costo'], item['notas'])
+        data = {
+            'nombre': item['nombre'], 'marca': item['marca'], 'modelo': item['modelo'],
+            'categoria': item['categoria'], 'criticidad': item['criticidad'], 'seccion': item['seccion'],
+            'cant_min': item['cant_min'], 'stock_actual': item['stock_actual'],
+            'tiempo_entrega': item['tiempo_entrega'], 'proveedor': item['proveedor'],
+            'ubicacion': item['ubicacion'], 'costo': item['costo'], 'notas': item['notas'],
+        }
         if prev:
             # Refaccion ya existente: se actualizan sus datos pero se
-            # CONSERVAN foto y numero_parte (no estan en el UPDATE).
-            con.execute(update_sql, vals + (prev['id'],))
+            # CONSERVAN foto y numero_parte (no se tocan esos campos).
+            sb.update('refacciones', data, return_rows=False, id='eq.' + str(prev['id']))
             actualizadas += 1
             matched_ids.add(prev['id'])
         else:
-            con.execute(insert_sql, vals)
+            sb.insert('refacciones', data, return_rows=False)
             nuevas += 1
 
     # Las refacciones que YA NO vienen en este archivo se eliminan (para que
@@ -867,11 +608,9 @@ def import_refacciones_excel():
     eliminadas = 0
     sobrantes_ids = [e['id'] for e in existing if e['id'] not in matched_ids]
     if sobrantes_ids:
-        placeholders = ','.join('?' * len(sobrantes_ids))
-        cur = con.execute(f'DELETE FROM refacciones WHERE id IN ({placeholders})', sobrantes_ids)
-        eliminadas = cur.rowcount
-
-    con.commit(); con.close()
+        ids_filter = 'in.(' + ','.join(str(i) for i in sobrantes_ids) + ')'
+        borradas = sb.delete('refacciones', id=ids_filter)
+        eliminadas = len(borradas) if borradas else 0
 
     return jsonify({
         'ok': True,
@@ -889,11 +628,9 @@ def bulk_delete_refacciones():
     ids = [int(i) for i in ids if str(i).isdigit()]
     if not ids:
         return jsonify({'error': 'No se recibieron ids validos'}), 400
-    con = get_db()
-    placeholders = ','.join('?' * len(ids))
-    cur = con.execute('DELETE FROM refacciones WHERE id IN (%s)' % placeholders, ids)
-    deleted = cur.rowcount
-    con.commit(); con.close()
+    ids_filter = 'in.(' + ','.join(str(i) for i in ids) + ')'
+    borradas = sb.delete('refacciones', id=ids_filter)
+    deleted = len(borradas) if borradas else 0
     return jsonify({'ok': True, 'deleted': deleted})
 
 @app.route('/api/users/change-pin', methods=['POST'])
@@ -1764,15 +1501,12 @@ def requisicion_pdf(rid):
 
 @app.route('/api/refacciones', methods=['GET'])
 def api_get_refacciones():
-    con = get_db()
-    rows = con.execute('SELECT * FROM refacciones ORDER BY seccion, nombre').fetchall()
-    con.close()
-    return jsonify([dict(r) for r in rows])
+    rows = sb.select('refacciones', select='*', order='seccion.asc,nombre.asc')
+    return jsonify(rows)
 
 @app.route('/api/refacciones', methods=['POST'])
 def api_create_refaccion():
     d = request.json
-    con = get_db()
     # Numero de parte / QR: solo se genera si el usuario eligio categoria,
     # clasificacion y proveedor (codigos del catalogo). Es opcional y no
     # afecta a las refacciones existentes, que conservan numero_parte=''.
@@ -1783,40 +1517,39 @@ def api_create_refaccion():
     prov_cod = d.get('proveedor_cod', '')
     if planta_cod and grupo and categoria_qr and prov_cod:
         try:
-            numero_parte = _build_numero_parte(con, planta_cod, grupo, categoria_qr, prov_cod)
+            numero_parte = _build_numero_parte(planta_cod, grupo, categoria_qr, prov_cod)
         except ValueError as e:
-            con.close()
             return jsonify({'error': str(e)}), 409
-    con.execute("INSERT INTO refacciones (nombre,descripcion,marca,modelo,categoria,criticidad,seccion,cant_min,stock_actual,tiempo_entrega,proveedor,ubicacion,costo,notas,foto_b64,imagen_url,numero_parte,estante_nombre) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
-         d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
-         int(d.get('cant_min',1)),int(d.get('stock_actual',0)),
-         d.get('tiempo_entrega',''),d.get('proveedor',''),d.get('ubicacion',''),
-         float(d.get('costo',0)),d.get('notas',''),d.get('foto_b64',''),d.get('imagen_url',''),
-         numero_parte,d.get('estante_nombre','')))
-    con.commit()
-    new_id = con.execute('SELECT lastval()').fetchone()[0]
-    con.close()
-    return jsonify({'ok': True, 'id': new_id, 'numero_parte': numero_parte})
+    nueva = sb.insert('refacciones', {
+        'nombre': d.get('nombre',''), 'descripcion': d.get('descripcion',''),
+        'marca': d.get('marca',''), 'modelo': d.get('modelo',''),
+        'categoria': d.get('categoria',''), 'criticidad': d.get('criticidad','MEDIA'),
+        'seccion': d.get('seccion',''), 'cant_min': int(d.get('cant_min',1)),
+        'stock_actual': int(d.get('stock_actual',0)), 'tiempo_entrega': d.get('tiempo_entrega',''),
+        'proveedor': d.get('proveedor',''), 'ubicacion': d.get('ubicacion',''),
+        'costo': float(d.get('costo',0)), 'notas': d.get('notas',''),
+        'foto_b64': d.get('foto_b64',''), 'imagen_url': d.get('imagen_url',''),
+        'numero_parte': numero_parte, 'estante_nombre': d.get('estante_nombre',''),
+    })
+    return jsonify({'ok': True, 'id': nueva[0]['id'], 'numero_parte': numero_parte})
 
 @app.route('/api/refacciones/<int:ref_id>', methods=['PUT'])
 def api_update_refaccion(ref_id):
     d = request.json
-    con = get_db()
     # Patch parcial (solo foto_b64)
     if d.get('_patch'):
-        fields=[]; vals=[]
+        data = {}
         for col in ['foto_b64','imagen_url','stock_actual','cant_min']:
-            if col in d: fields.append(col+'=?'); vals.append(d[col])
-        if fields:
-            vals.append(ref_id)
-            con.execute('UPDATE refacciones SET '+','.join(fields)+',updated_at=CURRENT_TIMESTAMP WHERE id=?', vals)
-            con.commit(); con.close()
+            if col in d: data[col] = d[col]
+        if data:
+            data['updated_at'] = datetime.datetime.now().isoformat()
+            sb.update('refacciones', data, return_rows=False, id='eq.' + str(ref_id))
         return jsonify({'ok': True})
 
     # Numero de parte: SOLO se asigna si la refaccion aun no tiene uno.
     # Si ya tiene, se conserva tal cual (nunca se sobreescribe/regenera).
-    row = con.execute('SELECT numero_parte, foto_b64 FROM refacciones WHERE id=?', (ref_id,)).fetchone()
+    rows = sb.select('refacciones', select='numero_parte,foto_b64', id='eq.' + str(ref_id))
+    row = rows[0] if rows else None
     numero_parte_actual = row['numero_parte'] if row else ''
     numero_parte_final = numero_parte_actual
     if not numero_parte_actual:
@@ -1826,32 +1559,31 @@ def api_update_refaccion(ref_id):
         prov_cod = d.get('proveedor_cod', '')
         if planta_cod and grupo and categoria_qr and prov_cod:
             try:
-                numero_parte_final = _build_numero_parte(con, planta_cod, grupo, categoria_qr, prov_cod)
+                numero_parte_final = _build_numero_parte(planta_cod, grupo, categoria_qr, prov_cod)
             except ValueError as e:
-                con.close()
                 return jsonify({'error': str(e)}), 409
 
     # Foto: si no llega una foto NUEVA en el request, se conserva la que ya
     # habia en la base de datos (nunca se borra por omision/bug del frontend).
     foto_b64_final = d.get('foto_b64') or (row['foto_b64'] if row else '')
 
-    con.execute("UPDATE refacciones SET nombre=?,descripcion=?,marca=?,modelo=?,categoria=?,criticidad=?,seccion=?,cant_min=?,stock_actual=?,tiempo_entrega=?,proveedor=?,ubicacion=?,costo=?,notas=?,foto_b64=?,imagen_url=?,numero_parte=?,estante_nombre=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
-        (d.get('nombre',''),d.get('descripcion',''),d.get('marca',''),d.get('modelo',''),
-         d.get('categoria',''),d.get('criticidad','MEDIA'),d.get('seccion',''),
-         int(d.get('cant_min',1)),int(d.get('stock_actual',0)),
-         d.get('tiempo_entrega',''),d.get('proveedor',''),d.get('ubicacion',''),
-         float(d.get('costo',0)),d.get('notas',''),foto_b64_final,d.get('imagen_url',''),
-         numero_parte_final,d.get('estante_nombre',''),ref_id))
-    con.commit()
-    con.close()
+    sb.update('refacciones', {
+        'nombre': d.get('nombre',''), 'descripcion': d.get('descripcion',''),
+        'marca': d.get('marca',''), 'modelo': d.get('modelo',''),
+        'categoria': d.get('categoria',''), 'criticidad': d.get('criticidad','MEDIA'),
+        'seccion': d.get('seccion',''), 'cant_min': int(d.get('cant_min',1)),
+        'stock_actual': int(d.get('stock_actual',0)), 'tiempo_entrega': d.get('tiempo_entrega',''),
+        'proveedor': d.get('proveedor',''), 'ubicacion': d.get('ubicacion',''),
+        'costo': float(d.get('costo',0)), 'notas': d.get('notas',''),
+        'foto_b64': foto_b64_final, 'imagen_url': d.get('imagen_url',''),
+        'numero_parte': numero_parte_final, 'estante_nombre': d.get('estante_nombre',''),
+        'updated_at': datetime.datetime.now().isoformat(),
+    }, return_rows=False, id='eq.' + str(ref_id))
     return jsonify({'ok': True, 'numero_parte': numero_parte_final})
 
 @app.route('/api/refacciones/<int:ref_id>', methods=['DELETE'])
 def api_delete_refaccion(ref_id):
-    con = get_db()
-    con.execute('DELETE FROM refacciones WHERE id=?', (ref_id,))
-    con.commit()
-    con.close()
+    sb.delete('refacciones', return_rows=False, id='eq.' + str(ref_id))
     return jsonify({'ok': True})
 
 
@@ -1863,20 +1595,20 @@ def api_delete_refaccion(ref_id):
 
 _LETRAS_PROVEEDOR = "ABCDEFGHIJKLMN" + "Ñ" + "OPQRSTUVWXYZ"
 
-def _todos_proveedores(con):
+def _todos_proveedores():
     """Combina el catalogo fijo de proveedores (qr_catalog.py) con los
     proveedores agregados dinamicamente desde la app (tabla proveedores_extra)."""
     combinado = dict(QR_PROVEEDORES)
-    rows = con.execute("SELECT codigo, nombre FROM proveedores_extra").fetchall()
+    rows = sb.select('proveedores_extra', select='codigo,nombre')
     for r in rows:
         combinado[r['codigo']] = r['nombre']
     return combinado
 
-def _siguiente_codigo_proveedor(con):
+def _siguiente_codigo_proveedor():
     """Genera el siguiente codigo libre (letra+numero) siguiendo la misma
     secuencia del catalogo fijo: A0..A9, B0..B9, ..., N0..N9, Ñ0..Ñ9, O0..O9, ..."""
     usados = set(QR_PROVEEDORES.keys())
-    rows = con.execute("SELECT codigo FROM proveedores_extra").fetchall()
+    rows = sb.select('proveedores_extra', select='codigo')
     usados |= {r['codigo'] for r in rows}
     for letra in _LETRAS_PROVEEDOR:
         for digito in range(10):
@@ -1895,32 +1627,25 @@ def api_add_proveedor():
     nombre = (d.get('nombre') or '').strip()
     if not nombre:
         return jsonify({'error': 'Falta el nombre del proveedor'}), 400
-    con = get_db()
-    todos = _todos_proveedores(con)
+    todos = _todos_proveedores()
     nombre_norm = _norm(nombre)
     for cod, nom in todos.items():
         if _norm(nom) == nombre_norm:
-            con.close()
             return jsonify({'ok': True, 'codigo': cod, 'nombre': nom, 'existente': True})
-    codigo = _siguiente_codigo_proveedor(con)
-    con.execute("INSERT INTO proveedores_extra (codigo, nombre) VALUES (?,?)", (codigo, nombre))
-    con.commit()
-    con.close()
+    codigo = _siguiente_codigo_proveedor()
+    sb.insert('proveedores_extra', {'codigo': codigo, 'nombre': nombre}, return_rows=False)
     return jsonify({'ok': True, 'codigo': codigo, 'nombre': nombre, 'existente': False})
 
 @app.route('/api/qr-catalogo', methods=['GET'])
 def api_qr_catalogo():
-    con = get_db()
-    proveedores = _todos_proveedores(con)
-    con.close()
+    proveedores = _todos_proveedores()
     return jsonify({'grupos': QR_GRUPOS, 'planta': QR_PLANTA, 'proveedores': proveedores})
 
 @app.route('/api/estantes', methods=['GET'])
 def api_list_estantes():
-    con = get_db()
-    rows = con.execute("SELECT nombre FROM estantes ORDER BY nombre COLLATE NOCASE").fetchall()
-    con.close()
-    return jsonify({'estantes': [r['nombre'] for r in rows]})
+    rows = sb.select('estantes', select='nombre')
+    nombres = sorted((r['nombre'] for r in rows), key=lambda s: s.lower())
+    return jsonify({'estantes': nombres})
 
 @app.route('/api/estantes', methods=['POST'])
 def api_add_estante():
@@ -1930,21 +1655,16 @@ def api_add_estante():
     nombre = (d.get('nombre') or '').strip()
     if not nombre:
         return jsonify({'error': 'Falta el nombre del estante'}), 400
-    con = get_db()
-    existente = con.execute(
-        "SELECT nombre FROM estantes WHERE nombre = ? COLLATE NOCASE", (nombre,)
-    ).fetchone()
-    if existente:
-        con.close()
-        return jsonify({'ok': True, 'nombre': existente['nombre'], 'existente': True})
-    con.execute("INSERT INTO estantes (nombre) VALUES (?)", (nombre,))
-    con.commit()
-    con.close()
+    existentes = sb.select('estantes', select='nombre')
+    for e in existentes:
+        if e['nombre'].strip().lower() == nombre.lower():
+            return jsonify({'ok': True, 'nombre': e['nombre'], 'existente': True})
+    sb.insert('estantes', {'nombre': nombre}, return_rows=False)
     return jsonify({'ok': True, 'nombre': nombre, 'existente': False})
 
 
 
-def _build_numero_parte(con, planta_cod, grupo, categoria, prov_cod):
+def _build_numero_parte(planta_cod, grupo, categoria, prov_cod):
     """Genera un numero_parte de 8 caracteres:
        [Planta/Condicion 2][Categoria fija=8][Proveedor 2][Codigo categoria+consecutivo 3]
        Ejemplo: A08C0241 = A0 (CONDICION NORMAL) + 8 (fijo, Mantenimiento)
@@ -1956,17 +1676,18 @@ def _build_numero_parte(con, planta_cod, grupo, categoria, prov_cod):
         raise ValueError(f"Codigo de planta/condicion invalido: {planta_cod}")
     if grupo not in QR_GRUPOS or categoria not in QR_GRUPOS[grupo]:
         raise ValueError(f"Categoria invalida: {grupo} / {categoria}")
-    if prov_cod not in _todos_proveedores(con):
+    if prov_cod not in _todos_proveedores():
         raise ValueError(f"Codigo de proveedor invalido: {prov_cod}")
     rango = QR_GRUPOS[grupo][categoria]
     desde, hasta = rango['desde'], rango['hasta']
-    rows = con.execute(
-        "SELECT numero_parte FROM refacciones WHERE length(numero_parte)=8"
-    ).fetchall()
+    rows = sb.select('refacciones', select='numero_parte')
     usados = set()
     for r in rows:
         try:
-            n = int(r['numero_parte'][-3:])
+            np = r['numero_parte'] or ''
+            if len(np) != 8:
+                continue
+            n = int(np[-3:])
             if desde <= n <= hasta:
                 usados.add(n)
         except (ValueError, TypeError, IndexError):
@@ -1977,12 +1698,6 @@ def _build_numero_parte(con, planta_cod, grupo, categoria, prov_cod):
     raise ValueError(f"Se agotaron los codigos disponibles para {grupo} / {categoria} ({desde}-{hasta})")
 
 
-# Ejecutar migracion de numero_parte para refacciones existentes (idempotente:
-# solo toca las que tienen numero_parte vacio, no afecta stock/otros datos).
-try:
-    _migrar_numero_parte_existentes()
-except Exception as _e:
-    print(f"[migracion numero_parte] error: {_e}")
 
 
 @app.route('/api/refacciones/preview-numero', methods=['GET'])
@@ -1993,21 +1708,16 @@ def api_preview_numero_parte():
     prov_cod = request.args.get('proveedor_cod', '')
     if not (planta_cod and grupo and categoria and prov_cod):
         return jsonify({'error': 'Faltan planta_cod, grupo, categoria o proveedor_cod'}), 400
-    con = get_db()
     try:
-        numero = _build_numero_parte(con, planta_cod, grupo, categoria, prov_cod)
+        numero = _build_numero_parte(planta_cod, grupo, categoria, prov_cod)
     except ValueError as e:
-        con.close()
         return jsonify({'error': str(e)}), 409
-    con.close()
     return jsonify({'numero_parte': numero})
 
 
 @app.route('/api/refacciones/export/excel-a9f2', methods=['GET'])
 def export_refacciones_excel_a9f2():
-    con = get_db()
-    rows = con.execute('SELECT * FROM refacciones ORDER BY seccion, nombre').fetchall()
-    con.close()
+    rows = sb.select('refacciones', select='*', order='seccion.asc,nombre.asc')
 
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
@@ -2142,9 +1852,7 @@ def export_refacciones_excel_a9f2():
 
 @app.route('/api/refacciones/export/excel', methods=['GET'])
 def export_refacciones_excel():
-    con = get_db()
-    rows = con.execute('SELECT * FROM refacciones ORDER BY seccion, nombre').fetchall()
-    con.close()
+    rows = sb.select('refacciones', select='*', order='seccion.asc,nombre.asc')
 
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
@@ -2269,9 +1977,7 @@ def export_refacciones_pdf():
     from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
     from datetime import date
 
-    con = get_db()
-    rows = con.execute('SELECT * FROM refacciones ORDER BY seccion, nombre').fetchall()
-    con.close()
+    rows = sb.select('refacciones', select='*', order='seccion.asc,nombre.asc')
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
@@ -2405,9 +2111,7 @@ def export_refacciones_pdf_a9f2():
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from datetime import date
 
-    con = get_db()
-    rows = con.execute('SELECT * FROM refacciones ORDER BY seccion, nombre').fetchall()
-    con.close()
+    rows = sb.select('refacciones', select='*', order='seccion.asc,nombre.asc')
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
@@ -2566,11 +2270,8 @@ def export_refacciones_pdf_pedido():
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from datetime import date
 
-    con = get_db()
-    rows = con.execute(
-        'SELECT * FROM refacciones WHERE stock_actual < cant_min ORDER BY proveedor, nombre'
-    ).fetchall()
-    con.close()
+    todas = sb.select('refacciones', select='*', order='proveedor.asc,nombre.asc')
+    rows = [r for r in todas if (r.get('stock_actual') or 0) < (r.get('cant_min') or 0)]
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
