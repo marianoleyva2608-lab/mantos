@@ -178,12 +178,28 @@ init_db()
 init_users_db()
 init_proveedores_db()
 
+# Migracion: agregar rol y permisos a usuarios (control de acceso a pestañas)
+try:
+    _rcon = get_db()
+    _rcon.execute("ALTER TABLE users ADD COLUMN rol TEXT DEFAULT 'usuario'")
+    _rcon.commit(); _rcon.close()
+except Exception:
+    pass
+try:
+    _pcon = get_db()
+    _pcon.execute("ALTER TABLE users ADD COLUMN permisos TEXT DEFAULT ''")
+    _pcon.commit(); _pcon.close()
+except Exception:
+    pass
+
 # Seed usuario admin por defecto
 try:
     import hashlib as _hl
     _con = get_db()
     _con.execute("INSERT OR IGNORE INTO users (nombre, email, pin_hash) VALUES (?,?,?)",
                  ("Mariano Leyva", "marianoleyva2608@gmail.com", _hl.sha256("260881".encode()).hexdigest()))
+    _con.execute("UPDATE users SET rol='admin', permisos='all' WHERE email=?",
+                 ("marianoleyva2608@gmail.com",))
     _con.commit(); _con.close()
 except: pass
 
@@ -469,20 +485,35 @@ except: pass
 def hash_pin(pin):
     return hashlib.sha256(pin.encode()).hexdigest()
 
+TABS_VALIDAS = ('etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'settings')
+
+def _normalizar_permisos(permisos):
+    if isinstance(permisos, list):
+        permisos = ','.join(permisos)
+    permisos = (permisos or '').strip()
+    if permisos == 'all':
+        return 'all'
+    partes = [p.strip() for p in permisos.split(',') if p.strip() in TABS_VALIDAS]
+    return ','.join(partes)
+
 @app.route('/api/users/register', methods=['POST'])
 def register_user():
     d = request.json
-    nombre = d.get('nombre','').strip()
-    email  = d.get('email','').strip().lower()
-    pin    = d.get('pin','').strip()
+    nombre   = d.get('nombre','').strip()
+    email    = d.get('email','').strip().lower()
+    pin      = d.get('pin','').strip()
+    rol      = d.get('rol','usuario').strip() or 'usuario'
+    if rol not in ('admin', 'usuario'):
+        rol = 'usuario'
+    permisos = _normalizar_permisos(d.get('permisos', ''))
     if not nombre or not email or not pin or len(pin) < 4:
         return jsonify({'error': 'Nombre, email y PIN (minimo 4 caracteres) requeridos'}), 400
     try:
         con = get_db()
-        con.execute('INSERT INTO users (nombre, email, pin_hash) VALUES (?,?,?)',
-                    (nombre, email, hash_pin(pin)))
+        con.execute('INSERT INTO users (nombre, email, pin_hash, rol, permisos) VALUES (?,?,?,?,?)',
+                    (nombre, email, hash_pin(pin), rol, permisos))
         con.commit(); con.close()
-        return jsonify({'ok': True, 'nombre': nombre, 'email': email})
+        return jsonify({'ok': True, 'nombre': nombre, 'email': email, 'rol': rol, 'permisos': permisos})
     except Exception as e:
         if 'UNIQUE' in str(e):
             return jsonify({'error': 'Este email ya esta registrado'}), 409
@@ -494,12 +525,13 @@ def login_user():
     email = d.get('email','').strip().lower()
     pin   = d.get('pin','').strip()
     con = get_db()
-    row = con.execute('SELECT id, nombre, email FROM users WHERE email=? AND pin_hash=?',
+    row = con.execute('SELECT id, nombre, email, rol, permisos FROM users WHERE email=? AND pin_hash=?',
                       (email, hash_pin(pin))).fetchone()
     con.close()
     if not row:
         return jsonify({'error': 'Email o PIN incorrecto'}), 401
-    return jsonify({'ok': True, 'id': row['id'], 'nombre': row['nombre'], 'email': row['email']})
+    return jsonify({'ok': True, 'id': row['id'], 'nombre': row['nombre'], 'email': row['email'],
+                     'rol': row['rol'] or 'usuario', 'permisos': row['permisos'] or ''})
 
 @app.route('/api/users/verify', methods=['POST'])
 def verify_user():
@@ -507,19 +539,63 @@ def verify_user():
     email = d.get('email','').strip().lower()
     pin   = d.get('pin','').strip()
     con = get_db()
-    row = con.execute('SELECT id, nombre, email FROM users WHERE email=? AND pin_hash=?',
+    row = con.execute('SELECT id, nombre, email, rol, permisos FROM users WHERE email=? AND pin_hash=?',
                       (email, hash_pin(pin))).fetchone()
     con.close()
     if not row:
         return jsonify({'ok': False, 'error': 'PIN incorrecto'}), 200
-    return jsonify({'ok': True, 'nombre': row['nombre'], 'email': row['email']})
+    return jsonify({'ok': True, 'nombre': row['nombre'], 'email': row['email'],
+                     'rol': row['rol'] or 'usuario', 'permisos': row['permisos'] or ''})
 
 @app.route('/api/users', methods=['GET'])
 def list_users():
     con = get_db()
-    rows = con.execute('SELECT id, nombre, email, created_at FROM users ORDER BY nombre').fetchall()
+    rows = con.execute('SELECT id, nombre, email, rol, permisos, created_at FROM users ORDER BY nombre').fetchall()
     con.close()
     return jsonify([dict(r) for r in rows])
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    d = request.json or {}
+    con = get_db()
+    row = con.execute('SELECT id, email FROM users WHERE id=?', (user_id,)).fetchone()
+    if not row:
+        con.close()
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+    fields, values = [], []
+    if 'nombre' in d and d['nombre'].strip():
+        fields.append('nombre=?'); values.append(d['nombre'].strip())
+    if 'rol' in d:
+        rol = d['rol'] if d['rol'] in ('admin', 'usuario') else 'usuario'
+        if row['email'] == 'marianoleyva2608@gmail.com' and rol != 'admin':
+            con.close()
+            return jsonify({'error': 'No se puede quitar el rol de administrador a la cuenta principal'}), 400
+        fields.append('rol=?'); values.append(rol)
+    if 'permisos' in d:
+        fields.append('permisos=?'); values.append(_normalizar_permisos(d['permisos']))
+    if not fields:
+        con.close()
+        return jsonify({'error': 'Nada que actualizar'}), 400
+    values.append(user_id)
+    con.execute(f'UPDATE users SET {", ".join(fields)} WHERE id=?', values)
+    con.commit()
+    urow = con.execute('SELECT id, nombre, email, rol, permisos FROM users WHERE id=?', (user_id,)).fetchone()
+    con.close()
+    return jsonify({'ok': True, **dict(urow)})
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    con = get_db()
+    row = con.execute('SELECT email FROM users WHERE id=?', (user_id,)).fetchone()
+    if not row:
+        con.close()
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+    if row['email'] == 'marianoleyva2608@gmail.com':
+        con.close()
+        return jsonify({'error': 'No se puede eliminar la cuenta administradora principal'}), 400
+    con.execute('DELETE FROM users WHERE id=?', (user_id,))
+    con.commit(); con.close()
+    return jsonify({'ok': True})
 
 def _parse_refacciones_excel(file):
     """Lee un archivo Excel de refacciones y devuelve (parsed, col_map, error).

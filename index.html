@@ -245,7 +245,7 @@ window._jsQRLoaded=false;
       .then(function(d){
         if(d.ok){
           // Guardar sesión (misma clave que authInit)
-          var sess={id:d.id||'',nombre:d.nombre||e,email:e};
+          var sess={id:d.id||'',nombre:d.nombre||e,email:e,rol:d.rol||'usuario',permisos:d.permisos||''};
           localStorage.setItem('mantos_user', JSON.stringify(sess));
           currentUser=sess;
           document.getElementById('ap-login').style.display='none';
@@ -304,7 +304,7 @@ window._jsQRLoaded=false;
 
 
 <div id="page-home" class="page active">
-  <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button class="back" onclick="window.location.href='/etiquetas'" style="font-size:20px;margin-right:6px" title="Etiquetas">&#127991;&#65039;</button><button class="back" onclick="showPage('req');if(typeof loadReqList==='function')loadReqList();" style="font-size:20px;margin-right:6px" title="Requisiciones">&#128722;</button><button class="back" onclick="showPage('orden')" style="font-size:20px;margin-right:6px" title="Órdenes de Trabajo">&#128203;</button><button class="back" onclick="showPage('rsp');if(typeof loadRspList==='function')loadRspList();" style="font-size:20px;margin-right:6px" title="Respuesta a Solución de Problemas">&#128227;</button><button class="back" onclick="showPage('reports')" style="font-size:20px;margin-right:6px" title="Reportes">&#128196;</button><button class="back" onclick="showPage('refacciones');loadRefacciones();" style="font-size:20px;margin-right:6px" title="Refacciones">&#128230;</button><button class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
+  <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button id="tabbtn-etiquetas" class="back" onclick="window.location.href='/etiquetas'" style="font-size:20px;margin-right:6px" title="Etiquetas">&#127991;&#65039;</button><button id="tabbtn-req" class="back" onclick="showPage('req');if(typeof loadReqList==='function')loadReqList();" style="font-size:20px;margin-right:6px" title="Requisiciones">&#128722;</button><button id="tabbtn-orden" class="back" onclick="showPage('orden')" style="font-size:20px;margin-right:6px" title="Órdenes de Trabajo">&#128203;</button><button id="tabbtn-rsp" class="back" onclick="showPage('rsp');if(typeof loadRspList==='function')loadRspList();" style="font-size:20px;margin-right:6px" title="Respuesta a Solución de Problemas">&#128227;</button><button id="tabbtn-reports" class="back" onclick="showPage('reports')" style="font-size:20px;margin-right:6px" title="Reportes">&#128196;</button><button id="tabbtn-refacciones" class="back" onclick="showPage('refacciones');loadRefacciones();" style="font-size:20px;margin-right:6px" title="Refacciones">&#128230;</button><button id="tabbtn-settings" class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
   <div class="home-c" id="home-c"></div>
 </div>
 
@@ -332,13 +332,20 @@ window._jsQRLoaded=false;
     <div style="background:#fff;margin:12px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.12);overflow:hidden">
       <div style="background:#1a5c2a;color:#fff;padding:10px 16px;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:space-between">
         <span>&#128100; Usuarios con Firma Digital</span>
-        <button onclick="showAddUserForm()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:4px 12px;border-radius:20px;font-size:12px;cursor:pointer">+ Registrar</button>
+        <button id="btn-add-user" onclick="showAddUserForm()" style="display:none;background:rgba(255,255,255,.2);border:none;color:#fff;padding:4px 12px;border-radius:20px;font-size:12px;cursor:pointer">+ Registrar</button>
       </div>
       <div id="add-user-form" style="display:none;padding:14px;border-bottom:1px solid #f0f0f0;background:#f9fff9">
         <div style="font-size:12px;font-weight:700;color:#1a5c2a;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Nueva cuenta de firma</div>
         <input id="nu-nombre" type="text" placeholder="Nombre completo" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:8px;box-sizing:border-box">
         <input id="nu-email" type="email" placeholder="Correo electrónico" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:8px;box-sizing:border-box">
         <input id="nu-pin" type="password" placeholder="PIN (mínimo 4 dígitos)" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+        <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Rol</div>
+        <select id="nu-rol" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+          <option value="usuario">Usuario</option>
+          <option value="admin">Administrador (acceso a todo)</option>
+        </select>
+        <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Pestañas permitidas</div>
+        <div id="nu-permisos" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
         <div style="display:flex;gap:8px">
           <button onclick="submitAddUser()" style="flex:1;background:#1a5c2a;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#10003; Registrar usuario</button>
           <button onclick="document.getElementById('add-user-form').style.display='none'" style="background:#eee;border:none;padding:10px 16px;border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
@@ -347,6 +354,28 @@ window._jsQRLoaded=false;
       </div>
       <div id="users-list" style="padding:8px 0">
         <div style="text-align:center;padding:16px;color:#999;font-size:13px">⏳ Cargando usuarios...</div>
+      </div>
+    </div>
+
+    <!-- MODAL: EDITAR ROL Y PERMISOS DE USUARIO -->
+    <div id="edit-user-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:6000;align-items:center;justify-content:center" onclick="if(event.target===this)closeEditUserForm()">
+      <div style="background:#fff;border-radius:14px;padding:22px 20px;max-width:360px;width:90%;max-height:85vh;overflow-y:auto;position:relative">
+        <button onclick="closeEditUserForm()" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:#555">&times;</button>
+        <div style="font-size:14px;font-weight:700;color:#1a5c2a;margin-bottom:4px">&#9881;&#65039; Editar acceso</div>
+        <div id="eu-nombre-display" style="font-size:12px;color:#888;margin-bottom:12px;word-break:break-all"></div>
+        <input type="hidden" id="eu-id">
+        <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Rol</div>
+        <select id="eu-rol" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+          <option value="usuario">Usuario</option>
+          <option value="admin">Administrador (acceso a todo)</option>
+        </select>
+        <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Pestañas permitidas</div>
+        <div id="eu-permisos" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
+        <div style="display:flex;gap:8px">
+          <button onclick="submitEditUser()" style="flex:1;background:#1a5c2a;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#10003; Guardar</button>
+          <button onclick="submitDeleteUser()" style="background:#c62828;color:#fff;border:none;padding:10px 14px;border-radius:8px;font-size:14px;cursor:pointer">&#128465;</button>
+        </div>
+        <div id="edit-user-err" style="margin-top:8px;font-size:12px;color:#c62828;text-align:center"></div>
       </div>
     </div>
 
@@ -1244,22 +1273,40 @@ function getPasswords(){
   const d = JSON.parse(localStorage.getItem('mtto_passwords')||'{}');
   return {tecnico: d.tecnico||'1234', supervisor: d.supervisor||'5678'};
 }
+function renderPermisosCheckboxes(containerId, checkedList){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  el.innerHTML = TABS_CONTROLADAS.map(t=>`
+    <label style="display:flex;align-items:center;gap:5px;background:#fff;border:1.5px solid #ddd;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+      <input type="checkbox" value="${t.id}" ${checkedList.indexOf(t.id)!==-1?'checked':''} style="margin:0">${t.label}
+    </label>`).join('');
+}
+function readPermisosCheckboxes(containerId){
+  const el = document.getElementById(containerId);
+  if(!el) return [];
+  return Array.from(el.querySelectorAll('input[type=checkbox]:checked')).map(c=>c.value);
+}
+
 function showAddUserForm(){
   document.getElementById('add-user-form').style.display='block';
   document.getElementById('nu-nombre').focus();
   document.getElementById('add-user-err').textContent='';
+  document.getElementById('nu-rol').value='usuario';
+  renderPermisosCheckboxes('nu-permisos', []);
 }
 
 async function submitAddUser(){
   const nombre = document.getElementById('nu-nombre').value.trim();
   const email  = document.getElementById('nu-email').value.trim();
   const pin    = document.getElementById('nu-pin').value.trim();
+  const rol    = document.getElementById('nu-rol').value;
+  const permisos = readPermisosCheckboxes('nu-permisos');
   const err    = document.getElementById('add-user-err');
   if(!nombre||!email||!pin){err.textContent='Completa todos los campos';return;}
   if(pin.length<4){err.textContent='El PIN debe tener mínimo 4 caracteres';return;}
   err.textContent='⏳ Registrando...'; err.style.color='#666';
   try{
-    const res = await fetch('/api/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,email,pin})});
+    const res = await fetch('/api/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,email,pin,rol,permisos})});
     const d = await res.json();
     if(d.error){err.style.color='#c62828';err.textContent=d.error;return;}
     err.style.color='#2e7d32';
@@ -1271,6 +1318,53 @@ async function submitAddUser(){
       document.getElementById('add-user-form').style.display='none';
       loadUsersList();
     },1000);
+  }catch(e){err.style.color='#c62828';err.textContent='❌ Error de conexión';}
+}
+
+let _editUserData=null;
+function showEditUserForm(user){
+  _editUserData=user;
+  document.getElementById('eu-id').value=user.id;
+  document.getElementById('eu-nombre-display').textContent=user.nombre+' — '+user.email;
+  document.getElementById('eu-rol').value=user.rol||'usuario';
+  const permisos = (user.permisos==='all') ? TABS_CONTROLADAS.map(t=>t.id) : (user.permisos||'').split(',').map(s=>s.trim()).filter(Boolean);
+  renderPermisosCheckboxes('eu-permisos', permisos);
+  document.getElementById('edit-user-err').textContent='';
+  document.getElementById('edit-user-modal').style.display='flex';
+}
+function closeEditUserForm(){
+  document.getElementById('edit-user-modal').style.display='none';
+  _editUserData=null;
+}
+async function submitEditUser(){
+  const id = document.getElementById('eu-id').value;
+  const rol = document.getElementById('eu-rol').value;
+  const permisos = readPermisosCheckboxes('eu-permisos');
+  const err = document.getElementById('edit-user-err');
+  err.style.color='#666'; err.textContent='⏳ Guardando...';
+  try{
+    const res = await fetch('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rol,permisos})});
+    const d = await res.json();
+    if(d.error){err.style.color='#c62828';err.textContent=d.error;return;}
+    if(currentUser && String(currentUser.id)===String(id)){
+      currentUser.rol=d.rol; currentUser.permisos=d.permisos;
+      localStorage.setItem('mantos_user', JSON.stringify(currentUser));
+      applyTabAccess();
+    }
+    closeEditUserForm();
+    loadUsersList();
+  }catch(e){err.style.color='#c62828';err.textContent='❌ Error de conexión';}
+}
+async function submitDeleteUser(){
+  if(!_editUserData) return;
+  if(!confirm('¿Eliminar la cuenta de '+_editUserData.nombre+'? Esta acción no se puede deshacer.')) return;
+  const err = document.getElementById('edit-user-err');
+  try{
+    const res = await fetch('/api/users/'+_editUserData.id,{method:'DELETE'});
+    const d = await res.json();
+    if(d.error){err.style.color='#c62828';err.textContent=d.error;return;}
+    closeEditUserForm();
+    loadUsersList();
   }catch(e){err.style.color='#c62828';err.textContent='❌ Error de conexión';}
 }
 
@@ -1305,17 +1399,30 @@ async function submitChangePin(){
     setTimeout(closeChangePinForm,900);
   }catch(e){err.style.color='#c62828';err.textContent='Error de conexion';}
 }
+let _usersCache=[];
 async function loadUsersList(){
   const el = document.getElementById('users-list');
   if(!el) return;
+  const addBtn = document.getElementById('btn-add-user');
+  if(addBtn) addBtn.style.display = userIsAdmin() ? '' : 'none';
   try{
     const res = await fetch('/api/users');
     const users = await res.json();
+    _usersCache = users;
     if(!users.length){
       el.innerHTML='<div style="text-align:center;padding:16px;color:#999;font-size:13px">Sin usuarios registrados</div>';
       return;
     }
-    el.innerHTML = users.map(u=>`
+    const isAdmin = userIsAdmin();
+    el.innerHTML = users.map(u=>{
+      const esAdminU = u.rol==='admin';
+      const rolBadge = esAdminU
+        ? '<div style="font-size:9px;background:#fff3e0;color:#e65100;padding:3px 8px;border-radius:20px;font-weight:700">&#9733; Admin</div>'
+        : '<div style="font-size:9px;background:#e8f5e9;color:#2e7d32;padding:3px 8px;border-radius:20px;font-weight:700">&#10003; Usuario</div>';
+      const editBtn = isAdmin
+        ? `<button onclick='showEditUserForm(${JSON.stringify(u).replace(/'/g,"&#39;")})' style="font-size:10px;background:#fff;color:#1a5c2a;border:1px solid #1a5c2a;border-radius:14px;padding:2px 10px;cursor:pointer">&#9881;&#65039; Acceso</button>`
+        : '';
+      return `
       <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f5f5f5">
         <div style="width:34px;height:34px;background:#e8f5e9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">&#128100;</div>
         <div style="flex:1;min-width:0">
@@ -1324,10 +1431,12 @@ async function loadUsersList(){
           <div style="font-size:10px;color:#aaa;margin-top:2px">Desde: ${u.created_at||''}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-          <div style="font-size:9px;background:#e8f5e9;color:#2e7d32;padding:3px 8px;border-radius:20px;font-weight:700">&#10003; PKI activo</div>
+          ${rolBadge}
           <button onclick="showChangePinForm('${u.email.replace(/'/g,"\\'")}')" style="font-size:10px;background:#fff;color:#1565C0;border:1px solid #1565C0;border-radius:14px;padding:2px 10px;cursor:pointer">&#128273; Cambiar PIN</button>
+          ${editBtn}
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }catch(e){
     el.innerHTML='<div style="padding:14px;color:#c62828;font-size:12px">❌ Error cargando usuarios</div>';
   }
@@ -2003,18 +2112,45 @@ window.showPage = function(p) {
 // ── Auth ──────────────────────────────────────────────────────────
 var currentUser = JSON.parse(localStorage.getItem('mantos_user') || 'null');
 
+var TABS_CONTROLADAS = [
+  {id:'etiquetas', label:'Etiquetas'},
+  {id:'req', label:'Requisiciones'},
+  {id:'orden', label:'Órdenes de Trabajo'},
+  {id:'rsp', label:'Respuesta a Solución de Problemas'},
+  {id:'reports', label:'Reportes'},
+  {id:'refacciones', label:'Refacciones'},
+  {id:'settings', label:'Configuración'}
+];
+
+function userTabPermisos() {
+  if (!currentUser) return [];
+  if (currentUser.rol === 'admin' || currentUser.permisos === 'all') return 'all';
+  return (currentUser.permisos || '').split(',').map(function(s){return s.trim();}).filter(Boolean);
+}
+function userIsAdmin() {
+  return !!currentUser && currentUser.rol === 'admin';
+}
+function applyTabAccess() {
+  var perms = userTabPermisos();
+  TABS_CONTROLADAS.forEach(function(t){
+    var btn = document.getElementById('tabbtn-' + t.id);
+    if (!btn) return;
+    var allowed = perms === 'all' || perms.indexOf(t.id) !== -1;
+    btn.style.display = allowed ? '' : 'none';
+  });
+}
+
 function authInit() {
   if (!currentUser) {
-    document.getElementById('auth-modal').style.display = 'flex';
     document.getElementById('user-bar').style.display = 'none';
     document.body.classList.remove('user-logged');
   } else {
-    document.getElementById('auth-modal').style.display = 'none';
     document.getElementById('user-bar').style.display = 'flex';
     document.body.classList.add('user-logged');
     document.getElementById('user-bar-name').textContent = currentUser.nombre;
     document.getElementById('user-bar-email').textContent = currentUser.email;
   }
+  applyTabAccess();
 }
 
 function showLogin() {
@@ -2038,7 +2174,7 @@ function doLogin() {
     .then(r => r.json())
     .then(d => {
       if (d.error) { document.getElementById('auth-err').textContent = d.error; return; }
-      currentUser = {id: d.id, nombre: d.nombre, email: d.email};
+      currentUser = {id: d.id, nombre: d.nombre, email: d.email, rol: d.rol||'usuario', permisos: d.permisos||''};
       localStorage.setItem('mantos_user', JSON.stringify(currentUser));
       authInit();
     });
