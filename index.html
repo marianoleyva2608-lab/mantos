@@ -303,9 +303,13 @@ window._jsQRLoaded=false;
 </script>
 
 
-<div id="page-home" class="page active">
-  <div class="hdr"><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div><button id="tabbtn-etiquetas" class="back" onclick="window.location.href='/etiquetas'" style="font-size:20px;margin-right:6px" title="Etiquetas">&#127991;&#65039;</button><button id="tabbtn-req" class="back" onclick="showPage('req');if(typeof loadReqList==='function')loadReqList();" style="font-size:20px;margin-right:6px" title="Requisiciones">&#128722;</button><button id="tabbtn-orden" class="back" onclick="showPage('orden')" style="font-size:20px;margin-right:6px" title="Órdenes de Trabajo">&#128203;</button><button id="tabbtn-rsp" class="back" onclick="showPage('rsp');if(typeof loadRspList==='function')loadRspList();" style="font-size:20px;margin-right:6px" title="Respuesta a Solución de Problemas">&#128227;</button><button id="tabbtn-reports" class="back" onclick="showPage('reports')" style="font-size:20px;margin-right:6px" title="Reportes">&#128196;</button><button id="tabbtn-refacciones" class="back" onclick="showPage('refacciones');loadRefacciones();" style="font-size:20px;margin-right:6px" title="Refacciones">&#128230;</button><button id="tabbtn-settings" class="back" onclick="showPage('settings')" style="font-size:20px">&#9881;&#65039;</button></div>
-  <div id="tabs-panel" style="display:none;padding:16px 16px 0"></div>
+<div id="page-menu" class="page active">
+  <div class="hdr"><div style="flex:1"><h1>&#127968; Inicio</h1><div class="sub">AD-PACK Mantenimiento</div></div></div>
+  <div id="tabs-panel" style="padding:16px"></div>
+</div>
+
+<div id="page-home" class="page">
+  <div class="hdr"><button class="back" onclick="showPage('menu')" title="Menú principal">&#8249;</button><div style="flex:1"><h1>&#128295; Mantenimiento Preventivo</h1><div class="sub">Selecciona el equipo a inspeccionar</div></div></div>
   <div class="home-c" id="home-c"></div>
 </div>
 
@@ -2138,17 +2142,20 @@ function activateTab(id) {
 function renderTabsPanel() {
   var panel = document.getElementById('tabs-panel');
   if (!panel) return;
+  if (!currentUser) {
+    panel.innerHTML = '';
+    return;
+  }
   var perms = userTabPermisos();
   var visibles = TABS_CONTROLADAS.filter(function(t){
     return perms === 'all' || perms.indexOf(t.id) !== -1;
   });
-  if (!currentUser || !visibles.length) {
-    panel.style.display = 'none';
-    panel.innerHTML = '';
-    return;
-  }
-  panel.style.display = 'block';
+  var homeCard = '<div class="mcard" onclick="showPage(\'home\')">' +
+    '<div class="micon">&#128295;</div>' +
+    '<div class="minfo"><div class="mname">Mantenimiento Preventivo</div></div>' +
+    '<div class="marr">&#8250;</div></div>';
   panel.innerHTML = '<div class="area-lbl">&#128203; Accesos</div><div class="mgrid">' +
+    homeCard +
     visibles.map(function(t){
       return '<div class="mcard" onclick="activateTab(\'' + t.id + '\')">' +
         '<div class="micon">' + t.icon + '</div>' +
@@ -2157,13 +2164,6 @@ function renderTabsPanel() {
     }).join('') + '</div>';
 }
 function applyTabAccess() {
-  var perms = userTabPermisos();
-  TABS_CONTROLADAS.forEach(function(t){
-    var btn = document.getElementById('tabbtn-' + t.id);
-    if (!btn) return;
-    var allowed = perms === 'all' || perms.indexOf(t.id) !== -1;
-    btn.style.display = allowed ? '' : 'none';
-  });
   renderTabsPanel();
 }
 
