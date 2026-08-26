@@ -375,10 +375,10 @@
   <table id="tablaFilasConv">
     <thead>
       <tr>
-        <th style="width:12%">Código</th><th style="width:20%">Descripción</th>
-        <th style="width:13%">Material</th><th style="width:13%">Lote</th>
-        <th style="width:13%">Caducidad</th><th style="width:10%">Cantidad</th>
-        <th style="width:13%">F. Producción</th><th style="width:6%"></th>
+        <th style="width:11%">Código</th><th style="width:18%">Descripción</th>
+        <th style="width:12%">Material</th><th style="width:12%">Lote</th>
+        <th style="width:12%">Caducidad</th><th style="width:9%">Cantidad</th>
+        <th style="width:12%">F. Producción</th><th style="width:8%">Copias</th><th style="width:6%"></th>
       </tr>
     </thead>
     <tbody id="cuerpoTablaConv"></tbody>
@@ -678,6 +678,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     filas.forEach(function (fila) {
       var copias = parseInt(fila.copias, 10);
       if (!copias || copias < 1) copias = 1;
+
+      var badgeTrays = document.createElement('div');
+      badgeTrays.className = 'badge-copias-h60';
+      badgeTrays.textContent = 'x' + copias + ' copias';
+      hoja.appendChild(badgeTrays);
 
       for (var c = 0; c < copias; c++) {
         var etiqueta = document.createElement('div');
@@ -1013,6 +1018,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       var copias = parseInt(fila.copias, 10);
       if (!copias || copias < 1) copias = 1;
 
+      var badgeBarras = document.createElement('div');
+      badgeBarras.className = 'badge-copias-h60';
+      badgeBarras.textContent = 'x' + copias + ' copias';
+      hoja.appendChild(badgeBarras);
+
       for (var c = 0; c < copias; c++) {
         var etiqueta = document.createElement('div');
         etiqueta.className = 'etiqueta';
@@ -1225,7 +1235,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   // Materia Prima - Conversión
   // =======================================================================
   var filasConv = [];
-  var CAMPOS_CONV = ['codigo', 'descripcion', 'material', 'lote', 'caducidad', 'cantidad', 'produccion'];
+  var CAMPOS_CONV = ['codigo', 'descripcion', 'material', 'lote', 'caducidad', 'cantidad', 'produccion', 'copias'];
 
   function parseEntradaConv(texto) {
     var lineas = texto.split(/\r?\n/).filter(function (l) { return l.trim() !== ''; });
@@ -1237,6 +1247,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       cols = cols.map(function (c) { return c.trim(); });
       var fila = {};
       CAMPOS_CONV.forEach(function (campo, i) { fila[campo] = cols[i] || ''; });
+      if (!fila.copias) fila.copias = '1';
       return fila;
     });
   }
@@ -1409,7 +1420,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   document.getElementById('btnAgregarFilaConv').addEventListener('click', function () {
-    filasConv.push({ codigo: '', descripcion: '', material: '', lote: '', caducidad: '', cantidad: '', produccion: '' });
+    filasConv.push({ codigo: '', descripcion: '', material: '', lote: '', caducidad: '', cantidad: '', produccion: '', copias: '1' });
     renderTablaConv();
   });
 
@@ -1447,6 +1458,12 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     }
 
     filasConv.forEach(function (fila) {
+      var copiasConv = parseInt(fila.copias, 10) || 1;
+      var badgeConv = document.createElement('div');
+      badgeConv.className = 'badge-copias-h60';
+      badgeConv.textContent = 'x' + copiasConv + ' copias';
+      hoja.appendChild(badgeConv);
+
       var etiqueta = document.createElement('div');
       etiqueta.className = 'etiqueta';
 
@@ -1540,6 +1557,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         caducidad: formatoFechaEtiqueta(fila.caducidad),
         cantidad: fila.cantidad,
         produccion: formatoFechaEtiqueta(fila.produccion),
+        copias: fila.copias,
       };
     });
 
@@ -1813,12 +1831,10 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     contenido.appendChild(cuerpo);
 
     var copias = parseInt(fila.copias, 10) || 1;
-    if (copias > 2) {
-      var badge = document.createElement('div');
-      badge.className = 'badge-copias-h60';
-      badge.textContent = 'x' + copias + ' copias';
-      hoja.appendChild(badge);
-    }
+    var badge = document.createElement('div');
+    badge.className = 'badge-copias-h60';
+    badge.textContent = 'x' + copias + ' copias';
+    hoja.appendChild(badge);
 
     var etiqueta = document.createElement('div');
     etiqueta.className = 'etiqueta';
