@@ -1392,8 +1392,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         } else {
           td = document.createElement('td');
           var input = document.createElement('input');
-          input.type = 'text';
-          input.value = fila[campo];
+          input.type = campo === 'copias' ? 'number' : 'text';
+          if (campo === 'copias') { input.min = '1'; input.style.width = '70px'; }
+          input.value = campo === 'copias' ? (fila.copias || '1') : fila[campo];
           input.addEventListener('input', function () { filasConv[idx][campo] = input.value; });
           td.appendChild(input);
         }
@@ -1620,11 +1621,16 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     filasH60.forEach(function (fila, idx) {
       var tr = document.createElement('tr');
       CAMPOS_H60.forEach(function (campo) {
+        if (campo === 'caducidad' || campo === 'produccion') {
+          tr.appendChild(crearCeldaFecha(fila, idx, campo));
+          return;
+        }
         var td = document.createElement('td');
         var input = document.createElement('input');
-        input.type = 'text';
+        input.type = campo === 'copias' ? 'number' : 'text';
+        if (campo === 'copias') { input.min = '1'; input.style.width = '70px'; }
         input.value = fila[campo] || '';
-        input.style.width = '100%';
+        if (campo !== 'copias') input.style.width = '100%';
         input.addEventListener('input', function () { filasH60[idx][campo] = input.value; });
         td.appendChild(input);
         tr.appendChild(td);
