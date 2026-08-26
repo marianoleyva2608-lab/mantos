@@ -220,6 +220,29 @@
   }
   .etiqueta-conv .fila-dato span:last-child { flex: 1 1 auto; padding: 1mm 2mm; text-align: left; }
 
+  .etiqueta-h60 {
+    display: flex; flex-direction: column; width: 100%; height: 100%;
+    font-family: Arial, sans-serif; color: #111; border: 1.5px solid #111; box-sizing: border-box;
+  }
+  .etiqueta-h60 .logo-h60-wrap { display: flex; align-items: center; justify-content: center; padding: 3mm 3mm 1mm; }
+  .etiqueta-h60 .logo-h60-img,
+  .etiqueta-h60 .logo-h60-svg { height: 12mm; width: auto; display: block; }
+  .etiqueta-h60 .url-h60 { font-size: 12px; text-align: center; }
+  .etiqueta-h60 .desc-h60 { font-size: 12px; font-weight: 700; text-align: center; margin-bottom: 1mm; }
+  .etiqueta-h60 .cuerpo-h60 { display: flex; flex: 1; border-top: 1.5px solid #111; }
+  .etiqueta-h60 .datos-h60 { flex: 1 1 auto; font-size: 12px; line-height: 1.6; }
+  .etiqueta-h60 .fila-dato-h60 { display: flex; border-bottom: 1.5px solid #111; }
+  .etiqueta-h60 .fila-dato-h60:last-child { border-bottom: none; }
+  .etiqueta-h60 .fila-dato-h60 .etq {
+    font-weight: 700; flex: 0 0 45%; border-right: 1.5px solid #111;
+    padding: 1mm 2mm; box-sizing: border-box;
+  }
+  .etiqueta-h60 .fila-dato-h60 span:last-child { flex: 1 1 auto; padding: 1mm 2mm; text-align: left; }
+  .etiqueta-h60 .pieza-h60-wrap {
+    flex: 0 0 26mm; border-left: 1.5px solid #111; display: flex; align-items: center; justify-content: center; padding: 2mm;
+  }
+  .etiqueta-h60 .pieza-h60-img { max-width: 100%; max-height: 100%; display: block; }
+
   @media print {
     body * { visibility: hidden; }
     .hoja, .hoja * { visibility: visible; }
@@ -505,17 +528,26 @@
 <div class="panel no-imprimir">
   <h2>3. Genera y visualiza</h2>
   <p class="ayuda">
-    Genera una vista previa de la primera fila de la tabla (usa el visor público de Labelary para renderizar el ZPL tal como saldría en la impresora).
+    Genera una vista previa en pantalla (el diseño real de la impresora puede variar levemente en tipografía, pero la posición y el contenido de los datos son los mismos).
   </p>
+  <div class="controles-generar">
+    <button id="btnGenerarH60">Generar vista previa</button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="hoja size-4x6" id="hojaH60"><div class="vacio">Todavía no se ha generado nada.</div></div>
+</div>
+
+<div class="panel no-imprimir">
+  <h2>4. Envía a la Zebra</h2>
   <div class="controles-generar">
     <label>IP de la Raspberry Pi:
       <input type="text" id="ipPiH60" placeholder="192.168.1.50" style="width:140px;">
     </label>
-    <button id="btnGenerarVisualizarH60">Generar y visualizar</button>
     <button id="btnEnviarZebraH60">Enviar a Zebra</button>
     <span id="estadoZebraH60" class="ayuda" style="margin:0;"></span>
   </div>
-  <div id="previsualizacionH60" style="margin-top:12px;"></div>
 </div>
 
 </div><!-- /vistaH60 -->
@@ -1662,79 +1694,103 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     });
   });
 
-  var previsualizacionH60 = document.getElementById('previsualizacionH60');
-  document.getElementById('btnGenerarVisualizarH60').addEventListener('click', function () {
-    var ip = inputIpPiH60.value.trim();
-    if (!ip) {
-      estadoZebraH60.textContent = 'Escribe la IP de la Raspberry Pi.';
-      estadoZebraH60.style.color = '#dc2626';
-      return;
-    }
+  // Logo H60: mismo archivo que usa la pestaña Conversión; si no existe cae a SVG.
+  function crearLogoH60Nodo() {
+    var img = document.createElement('img');
+    img.className = 'logo-h60-img';
+    img.alt = 'CONVERSION';
+    img.src = 'logo-conversion.png';
+    img.onerror = function () {
+      var wrap = document.createElement('span');
+      wrap.innerHTML = logoConversionSVG().replace('logo-conv-svg', 'logo-h60-svg');
+      img.replaceWith(wrap.firstElementChild);
+    };
+    return img;
+  }
+
+  // Imagen de la pieza H60: intenta cargar "pieza-h60.png" junto a la pagina;
+  // si no existe, cae a un icono generico dibujado en SVG.
+  function crearPiezaH60Nodo() {
+    var img = document.createElement('img');
+    img.className = 'pieza-h60-img';
+    img.alt = 'pieza';
+    img.src = 'pieza-h60.png';
+    img.onerror = function () {
+      var wrap = document.createElement('span');
+      wrap.innerHTML = '<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" class="pieza-h60-img">' +
+        '<rect x="8" y="8" width="44" height="44" fill="none" stroke="#888" stroke-width="3"/>' +
+        '<path d="M8 8 L52 52 M52 8 L8 52" stroke="#ccc" stroke-width="2"/>' +
+        '</svg>';
+      img.replaceWith(wrap.firstElementChild);
+    };
+    return img;
+  }
+
+  document.getElementById('btnGenerarH60').addEventListener('click', function () {
+    var hoja = document.getElementById('hojaH60');
+    hoja.innerHTML = '';
+
     if (filasH60.length === 0) {
-      estadoZebraH60.textContent = 'No hay filas cargadas. Ve al paso 1.';
-      estadoZebraH60.style.color = '#dc2626';
+      hoja.innerHTML = '<div class="vacio">No hay filas cargadas. Ve al paso 1.</div>';
       return;
     }
-    localStorage.setItem('adpack_ip_pi', ip);
 
     var fila = filasH60[0];
-    previsualizacionH60.innerHTML = '';
-    estadoZebraH60.style.color = '#666';
-    estadoZebraH60.textContent = 'Generando ZPL en la Pi...';
 
-    fetch('http://' + ip + ':5000/zpl-h60', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filas: [{
-          codigo: fila.codigo,
-          material: fila.material,
-          lote: fila.lote,
-          caducidad: fila.caducidad,
-          cantidad: fila.cantidad,
-          produccion: fila.produccion,
-        }]
-      })
-    })
-      .then(function (resp) { return resp.json(); })
-      .then(function (r) {
-        if (!r.ok) {
-          estadoZebraH60.style.color = '#dc2626';
-          estadoZebraH60.textContent = 'Error generando ZPL: ' + (r.error || 'desconocido');
-          return;
-        }
-        estadoZebraH60.textContent = 'Renderizando vista previa (Labelary)...';
-        // Content-Type NO se fija a proposito: si se manda "application/x-zpl"
-        // el navegador hace un preflight OPTIONS que Labelary no responde bien
-        // y el fetch truena con "Failed to fetch". Dejando el body como string
-        // el navegador manda text/plain, que es un content-type "simple" y no
-        // dispara preflight.
-        return fetch('https://api.labelary.com/v1/printers/8dpmm/labels/4x6/0/', {
-          method: 'POST',
-          headers: { 'Accept': 'image/png' },
-          body: r.zpl
-        });
-      })
-      .then(function (resp) {
-        if (!resp) return;
-        if (!resp.ok) throw new Error('Labelary respondió ' + resp.status);
-        return resp.blob();
-      })
-      .then(function (blob) {
-        if (!blob) return;
-        var img = document.createElement('img');
-        img.src = URL.createObjectURL(blob);
-        img.style.maxWidth = '100%';
-        img.style.border = '1px solid #ddd';
-        img.style.borderRadius = '6px';
-        previsualizacionH60.appendChild(img);
-        estadoZebraH60.style.color = '#16a34a';
-        estadoZebraH60.textContent = 'Vista previa generada.';
-      })
-      .catch(function (err) {
-        estadoZebraH60.style.color = '#dc2626';
-        estadoZebraH60.textContent = 'No se pudo generar la vista previa (' + err.message + ').';
-      });
+    var contenido = document.createElement('div');
+    contenido.className = 'etiqueta-h60';
+
+    var logoWrap = document.createElement('div');
+    logoWrap.className = 'logo-h60-wrap';
+    logoWrap.appendChild(crearLogoH60Nodo());
+    contenido.appendChild(logoWrap);
+
+    var url = document.createElement('div');
+    url.className = 'url-h60';
+    url.textContent = 'https://www.ad-pack.com.mx/conversion';
+    contenido.appendChild(url);
+
+    var desc = document.createElement('div');
+    desc.className = 'desc-h60';
+    desc.textContent = 'L21CDS Tape 1  AD-PACK  3MGT7112';
+    contenido.appendChild(desc);
+
+    var cuerpo = document.createElement('div');
+    cuerpo.className = 'cuerpo-h60';
+
+    var datos = document.createElement('div');
+    datos.className = 'datos-h60';
+    [
+      ['MATERIAL', fila.material],
+      ['LOTE', fila.lote],
+      ['FECHA DE CADUCIDAD', formatoFechaEtiqueta(fila.caducidad)],
+      ['CANTIDAD', fila.cantidad],
+      ['FECHA DE PRODUCCION', formatoFechaEtiqueta(fila.produccion)],
+    ].forEach(function (par) {
+      var filaDato = document.createElement('div');
+      filaDato.className = 'fila-dato-h60';
+      var etq = document.createElement('span');
+      etq.className = 'etq';
+      etq.textContent = par[0] + ':';
+      var val = document.createElement('span');
+      val.textContent = par[1];
+      filaDato.appendChild(etq);
+      filaDato.appendChild(val);
+      datos.appendChild(filaDato);
+    });
+    cuerpo.appendChild(datos);
+
+    var piezaWrap = document.createElement('div');
+    piezaWrap.className = 'pieza-h60-wrap';
+    piezaWrap.appendChild(crearPiezaH60Nodo());
+    cuerpo.appendChild(piezaWrap);
+
+    contenido.appendChild(cuerpo);
+
+    var etiqueta = document.createElement('div');
+    etiqueta.className = 'etiqueta';
+    etiqueta.appendChild(contenido);
+    hoja.appendChild(etiqueta);
   });
 </script>
 
