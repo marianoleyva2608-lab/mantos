@@ -1704,9 +1704,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
           return;
         }
         estadoZebraH60.textContent = 'Renderizando vista previa (Labelary)...';
+        // Content-Type NO se fija a proposito: si se manda "application/x-zpl"
+        // el navegador hace un preflight OPTIONS que Labelary no responde bien
+        // y el fetch truena con "Failed to fetch". Dejando el body como string
+        // el navegador manda text/plain, que es un content-type "simple" y no
+        // dispara preflight.
         return fetch('https://api.labelary.com/v1/printers/8dpmm/labels/4x6/0/', {
           method: 'POST',
-          headers: { 'Accept': 'image/png', 'Content-Type': 'application/x-zpl' },
+          headers: { 'Accept': 'image/png' },
           body: r.zpl
         });
       })
