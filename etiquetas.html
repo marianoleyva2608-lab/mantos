@@ -230,7 +230,8 @@
   .etiqueta-h60 .url-h60 { font-size: 12px; text-align: center; }
   .etiqueta-h60 .codigo-h60 { font-size: 15px; font-weight: 700; text-align: center; }
   .etiqueta-h60 .desc-h60 { font-size: 12px; font-weight: 700; text-align: center; margin-bottom: 1mm; }
-  .etiqueta-h60 .cuerpo-h60 { display: flex; align-items: flex-start; border-top: 1.5px solid #111; }
+  .etiqueta-h60 .cuerpo-h60 { display: flex; align-items: flex-start; border-top: 1.5px solid #111; position: relative; }
+  .etiqueta-h60 .cuerpo-h60::after { content: ''; position: absolute; top: 0; bottom: 0; left: 55%; width: 1.5px; background: #111; }
   .etiqueta-h60 .datos-h60 { flex: 1 1 auto; font-size: 12px; line-height: 1.6; }
   .etiqueta-h60 .fila-dato-h60 { display: flex; border-bottom: 1.5px solid #111; }
   .etiqueta-h60 .fila-dato-h60 .etq {
@@ -239,7 +240,7 @@
   }
   .etiqueta-h60 .fila-dato-h60 span:last-child { flex: 1 1 auto; padding: 1mm 2mm; text-align: left; }
   .etiqueta-h60 .pieza-h60-wrap {
-    flex: 0 0 26mm; border-left: 1.5px solid #111; display: flex; align-items: center; justify-content: center; padding: 2mm;
+    flex: 0 0 26mm; display: flex; align-items: center; justify-content: center; padding: 2mm;
   }
   .etiqueta-h60 .pieza-h60-img { max-width: 100%; max-height: 100%; display: block; }
 
