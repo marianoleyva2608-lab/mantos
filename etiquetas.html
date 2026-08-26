@@ -1708,19 +1708,29 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     return img;
   }
 
-  // Imagen de la pieza H60: intenta cargar "pieza-h60.png" junto a la pagina;
-  // si no existe, cae a un icono generico dibujado en SVG.
+  // Imagen de la pieza H60: dibujo isometrico (bloque en U) que coincide con
+  // la pieza real de esta etiqueta, hecho en SVG (no depende de subir ningun
+  // archivo). Si algun dia se sube un "pieza-h60.png" real junto a la pagina,
+  // ese archivo tiene prioridad y se usa en su lugar.
+  function piezaH60SVG() {
+    return '<svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg" class="pieza-h60-img">' +
+      '<polygon points="50,4 92,26 50,48 8,26" fill="#8ec6de"/>' +
+      '<polygon points="8,26 33,39 33,84 8,71" fill="#4f7f96"/>' +
+      '<polygon points="33,39 50,48 50,93 33,84" fill="#6ba7c2"/>' +
+      '<polygon points="50,48 50,93 62,86 62,54" fill="#5a8fa8"/>' +
+      '<polygon points="62,54 62,86 92,71 92,39" fill="#4f7f96"/>' +
+      '<polygon points="50,48 62,54 92,39 92,26" fill="#8ec6de"/>' +
+      '</svg>';
+  }
+
   function crearPiezaH60Nodo() {
     var img = document.createElement('img');
     img.className = 'pieza-h60-img';
     img.alt = 'pieza';
-    img.src = 'pieza-h60.png';
+    img.src = 'pieza_h60.png';
     img.onerror = function () {
       var wrap = document.createElement('span');
-      wrap.innerHTML = '<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" class="pieza-h60-img">' +
-        '<rect x="8" y="8" width="44" height="44" fill="none" stroke="#888" stroke-width="3"/>' +
-        '<path d="M8 8 L52 52 M52 8 L8 52" stroke="#ccc" stroke-width="2"/>' +
-        '</svg>';
+      wrap.innerHTML = piezaH60SVG();
       img.replaceWith(wrap.firstElementChild);
     };
     return img;
