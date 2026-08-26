@@ -243,6 +243,11 @@
   }
   .etiqueta-h60 .pieza-h60-img { max-width: 100%; max-height: 100%; display: block; }
 
+  .badge-copias-h60 {
+    display: inline-block; background: #2563eb; color: #fff; font-size: 12px; font-weight: 700;
+    padding: 3px 10px; border-radius: 4px; margin-bottom: 8px;
+  }
+
   /* La vista previa de H60 solo necesita mostrar el contenido: se recorta
      al alto real en vez de forzar las 4in completas del rollo fisico. */
   #hojaH60.size-4x6 .etiqueta { height: auto; }
@@ -1806,6 +1811,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     cuerpo.appendChild(piezaWrap);
 
     contenido.appendChild(cuerpo);
+
+    var copias = parseInt(fila.copias, 10) || 1;
+    if (copias > 2) {
+      var badge = document.createElement('div');
+      badge.className = 'badge-copias-h60';
+      badge.textContent = 'x' + copias + ' copias';
+      hoja.appendChild(badge);
+    }
 
     var etiqueta = document.createElement('div');
     etiqueta.className = 'etiqueta';
