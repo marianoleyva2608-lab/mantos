@@ -228,6 +228,7 @@
   .etiqueta-h60 .logo-h60-img,
   .etiqueta-h60 .logo-h60-svg { height: 12mm; width: auto; display: block; }
   .etiqueta-h60 .url-h60 { font-size: 12px; text-align: center; }
+  .etiqueta-h60 .codigo-h60 { font-size: 15px; font-weight: 700; text-align: center; }
   .etiqueta-h60 .desc-h60 { font-size: 12px; font-weight: 700; text-align: center; margin-bottom: 1mm; }
   .etiqueta-h60 .cuerpo-h60 { display: flex; align-items: flex-start; border-top: 1.5px solid #111; }
   .etiqueta-h60 .datos-h60 { flex: 1 1 auto; font-size: 12px; line-height: 1.6; }
@@ -241,6 +242,11 @@
     flex: 0 0 26mm; border-left: 1.5px solid #111; display: flex; align-items: center; justify-content: center; padding: 2mm;
   }
   .etiqueta-h60 .pieza-h60-img { max-width: 100%; max-height: 100%; display: block; }
+
+  /* La vista previa de H60 solo necesita mostrar el contenido: se recorta
+     al alto real en vez de forzar las 4in completas del rollo fisico. */
+  #hojaH60.size-4x6 .etiqueta { height: auto; }
+  #hojaH60 .etiqueta-h60 { height: auto; }
 
   @media print {
     body * { visibility: hidden; }
@@ -1758,6 +1764,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     url.className = 'url-h60';
     url.textContent = 'https://www.ad-pack.com.mx/conversion';
     contenido.appendChild(url);
+
+    var codigo = document.createElement('div');
+    codigo.className = 'codigo-h60';
+    codigo.textContent = fila.codigo;
+    contenido.appendChild(codigo);
 
     var desc = document.createElement('div');
     desc.className = 'desc-h60';
