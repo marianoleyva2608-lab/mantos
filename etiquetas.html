@@ -503,17 +503,19 @@
 </div>
 
 <div class="panel no-imprimir">
-  <h2>3. Envía a la Zebra</h2>
+  <h2>3. Genera y visualiza</h2>
   <p class="ayuda">
-    Esta etiqueta solo se puede imprimir enviándola directo a la Raspberry Pi (no tiene vista previa de navegador, se genera con texto real en la propia impresora).
+    Genera una vista previa de la primera fila de la tabla (usa el visor público de Labelary para renderizar el ZPL tal como saldría en la impresora).
   </p>
   <div class="controles-generar">
     <label>IP de la Raspberry Pi:
       <input type="text" id="ipPiH60" placeholder="192.168.1.50" style="width:140px;">
     </label>
+    <button id="btnGenerarVisualizarH60">Generar y visualizar</button>
     <button id="btnEnviarZebraH60">Enviar a Zebra</button>
     <span id="estadoZebraH60" class="ayuda" style="margin:0;"></span>
   </div>
+  <div id="previsualizacionH60" style="margin-top:12px;"></div>
 </div>
 
 </div><!-- /vistaH60 -->
@@ -1658,6 +1660,76 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
           estadoZebraH60.textContent = 'No se pudo enviar el trabajo de impresión (' + err.message + ').';
         });
     });
+  });
+
+  var previsualizacionH60 = document.getElementById('previsualizacionH60');
+  document.getElementById('btnGenerarVisualizarH60').addEventListener('click', function () {
+    var ip = inputIpPiH60.value.trim();
+    if (!ip) {
+      estadoZebraH60.textContent = 'Escribe la IP de la Raspberry Pi.';
+      estadoZebraH60.style.color = '#dc2626';
+      return;
+    }
+    if (filasH60.length === 0) {
+      estadoZebraH60.textContent = 'No hay filas cargadas. Ve al paso 1.';
+      estadoZebraH60.style.color = '#dc2626';
+      return;
+    }
+    localStorage.setItem('adpack_ip_pi', ip);
+
+    var fila = filasH60[0];
+    previsualizacionH60.innerHTML = '';
+    estadoZebraH60.style.color = '#666';
+    estadoZebraH60.textContent = 'Generando ZPL en la Pi...';
+
+    fetch('http://' + ip + ':5000/zpl-h60', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filas: [{
+          codigo: fila.codigo,
+          material: fila.material,
+          lote: fila.lote,
+          caducidad: fila.caducidad,
+          cantidad: fila.cantidad,
+          produccion: fila.produccion,
+        }]
+      })
+    })
+      .then(function (resp) { return resp.json(); })
+      .then(function (r) {
+        if (!r.ok) {
+          estadoZebraH60.style.color = '#dc2626';
+          estadoZebraH60.textContent = 'Error generando ZPL: ' + (r.error || 'desconocido');
+          return;
+        }
+        estadoZebraH60.textContent = 'Renderizando vista previa (Labelary)...';
+        return fetch('https://api.labelary.com/v1/printers/8dpmm/labels/4x6/0/', {
+          method: 'POST',
+          headers: { 'Accept': 'image/png', 'Content-Type': 'application/x-zpl' },
+          body: r.zpl
+        });
+      })
+      .then(function (resp) {
+        if (!resp) return;
+        if (!resp.ok) throw new Error('Labelary respondió ' + resp.status);
+        return resp.blob();
+      })
+      .then(function (blob) {
+        if (!blob) return;
+        var img = document.createElement('img');
+        img.src = URL.createObjectURL(blob);
+        img.style.maxWidth = '100%';
+        img.style.border = '1px solid #ddd';
+        img.style.borderRadius = '6px';
+        previsualizacionH60.appendChild(img);
+        estadoZebraH60.style.color = '#16a34a';
+        estadoZebraH60.textContent = 'Vista previa generada.';
+      })
+      .catch(function (err) {
+        estadoZebraH60.style.color = '#dc2626';
+        estadoZebraH60.textContent = 'No se pudo generar la vista previa (' + err.message + ').';
+      });
   });
 </script>
 
