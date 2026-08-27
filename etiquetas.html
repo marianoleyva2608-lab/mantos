@@ -1855,9 +1855,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     [
       ['MATERIAL', fila.material],
       ['LOTE', fila.lote],
-      ['FECHA DE CADUCIDAD', formatoFechaEtiqueta(fila.caducidad)],
+      ['FECHA DE CADUCIDAD', formatoFechaEtiqueta(fila.caducidad) || 'N/A'],
       ['CANTIDAD', fila.cantidad],
-      ['FECHA DE PRODUCCION', formatoFechaEtiqueta(fila.produccion)],
+      ['FECHA DE PRODUCCION', formatoFechaEtiqueta(fila.produccion) || 'N/A'],
     ].forEach(function (par) {
       var filaDato = document.createElement('div');
       filaDato.className = 'fila-dato-h60';
