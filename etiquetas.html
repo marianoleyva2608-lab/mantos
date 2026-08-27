@@ -502,16 +502,16 @@
 <div id="vistaH60" style="display:none;">
 
 <h1>Etiqueta H60</h1>
-<p class="subtitulo">Etiqueta H60 (Conversión), tamaño 6x4 pulgadas (horizontal). Logo, URL, descripción e imagen de la pieza son fijos.</p>
+<p class="subtitulo">Etiqueta H60 (Conversión), tamaño 6x4 pulgadas (horizontal). Logo, URL e imagen de la pieza son fijos.</p>
 
 <div class="panel no-imprimir">
   <h2>1. Captura tus filas</h2>
   <p class="ayuda">
-    Una etiqueta por línea, separando con comas: <b>Código, Material, Lote, Fecha Caducidad, Cantidad, Fecha Producción, Copias</b>
+    Una etiqueta por línea, separando con comas: <b>Código, Descripción, Material, Lote, Fecha Caducidad, Cantidad, Fecha Producción, Copias</b>
     (Copias es opcional, si no la pones se asume 1).<br>
-    Ejemplo: <code>0101090052, FOAM, 1437, N/A, 1200 PZAS, 09 DE AGO 2026, 1</code>
+    Ejemplo: <code>0101090052, L21CDS Tape 1 AD-PACK 3MGT7112, FOAM, 1437, N/A, 1200 PZAS, 09 DE AGO 2026, 1</code>
   </p>
-  <textarea id="entradaH60" placeholder="0101090052, FOAM, 1437, N/A, 1200 PZAS, 09 DE AGO 2026, 1"></textarea>
+  <textarea id="entradaH60" placeholder="0101090052, L21CDS Tape 1 AD-PACK 3MGT7112, FOAM, 1437, N/A, 1200 PZAS, 09 DE AGO 2026, 1"></textarea>
   <div class="fila-controles">
     <button id="btnCargarH60">Cargar filas a la tabla</button>
   </div>
@@ -522,9 +522,9 @@
   <table id="tablaFilasH60">
     <thead>
       <tr>
-        <th style="width:14%">Código</th><th style="width:14%">Material</th>
-        <th style="width:14%">Lote</th><th style="width:16%">Caducidad</th>
-        <th style="width:14%">Cantidad</th><th style="width:16%">Producción</th>
+        <th style="width:12%">Código</th><th style="width:18%">Descripción</th><th style="width:12%">Material</th>
+        <th style="width:12%">Lote</th><th style="width:14%">Caducidad</th>
+        <th style="width:12%">Cantidad</th><th style="width:14%">Producción</th>
         <th style="width:6%">Copias</th><th style="width:6%"></th>
       </tr>
     </thead>
@@ -567,7 +567,19 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 </script>
 
 <script>
-  var filas = [];
+  // Guardado automatico en el navegador (localStorage) de las filas
+  // capturadas en cada pestaña, para que no se pierdan al recargar/cerrar.
+  function guardarFilas(key, arr) {
+    try { localStorage.setItem(key, JSON.stringify(arr)); } catch (e) {}
+  }
+  function cargarFilas(key) {
+    try {
+      var v = localStorage.getItem(key);
+      return v ? JSON.parse(v) : [];
+    } catch (e) { return []; }
+  }
+
+  var filas = cargarFilas('adpack_filas_trays');
   var CAMPOS_TRAY = ['cliente', 'descripcion', 'numero_parte', 'lote', 'cantidad', 'reviso', 'fecha', 'copias'];
 
   function parseEntrada(texto) {
@@ -613,7 +625,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         input.type = campo === 'copias' ? 'number' : 'text';
         if (campo === 'copias') { input.min = '1'; input.style.width = '70px'; }
         input.value = campo === 'copias' ? (fila.copias || '1') : fila[campo];
-        input.addEventListener('input', function () { filas[idx][campo] = input.value; });
+        input.addEventListener('input', function () { filas[idx][campo] = input.value; guardarFilas('adpack_filas_trays', filas); });
         td.appendChild(input);
         tr.appendChild(td);
       });
@@ -629,7 +641,16 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       tr.appendChild(tdBorrar);
       cuerpo.appendChild(tr);
     });
+    guardarFilas('adpack_filas_trays', filas);
   }
+  renderTabla();
+  // Delegacion: cualquier cambio en un input/select de esta tabla se guarda,
+  // sin importar que funcion haya creado esa celda.
+  ['input', 'change'].forEach(function (ev) {
+    document.getElementById('cuerpoTabla').addEventListener(ev, function () {
+      guardarFilas('adpack_filas_trays', filas);
+    });
+  });
 
   document.getElementById('btnCargar').addEventListener('click', function () {
     var nuevas = parseEntrada(document.getElementById('entrada').value);
@@ -883,7 +904,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   // =======================================================================
   // Recibo Proveedor - 4x6" con código de barras
   // =======================================================================
-  var filasBarras = [];
+  var filasBarras = cargarFilas('adpack_filas_barras');
   var CAMPOS_BARRAS = ['cliente', 'numero_parte', 'descripcion', 'cantidad', 'unidad', 'caducidad', 'lote', 'produccion', 'copias'];
 
   function parseEntradaBarras(texto) {
@@ -943,7 +964,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       tr.appendChild(tdBorrar);
       cuerpo.appendChild(tr);
     });
+    guardarFilas('adpack_filas_barras', filasBarras);
   }
+  renderTablaBarras();
+  ['input', 'change'].forEach(function (ev) {
+    document.getElementById('cuerpoTablaBarras').addEventListener(ev, function () {
+      guardarFilas('adpack_filas_barras', filasBarras);
+    });
+  });
 
   document.getElementById('btnCargarBarras').addEventListener('click', function () {
     var nuevas = parseEntradaBarras(document.getElementById('entradaBarras').value);
@@ -1234,7 +1262,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   // =======================================================================
   // Materia Prima - Conversión
   // =======================================================================
-  var filasConv = [];
+  var filasConv = cargarFilas('adpack_filas_conv');
   var CAMPOS_CONV = ['codigo', 'descripcion', 'material', 'lote', 'caducidad', 'cantidad', 'produccion', 'copias'];
 
   function parseEntradaConv(texto) {
@@ -1412,7 +1440,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       tr.appendChild(tdBorrar);
       cuerpo.appendChild(tr);
     });
+    guardarFilas('adpack_filas_conv', filasConv);
   }
+  renderTablaConv();
+  ['input', 'change'].forEach(function (ev) {
+    document.getElementById('cuerpoTablaConv').addEventListener(ev, function () {
+      guardarFilas('adpack_filas_conv', filasConv);
+    });
+  });
 
   document.getElementById('btnCargarConv').addEventListener('click', function () {
     var nuevas = parseEntradaConv(document.getElementById('entradaConv').value);
@@ -1600,8 +1635,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   // =======================================================================
   // Etiqueta H60 (Conversion, logo/pieza fijos)
   // =======================================================================
-  var filasH60 = [];
-  var CAMPOS_H60 = ['codigo', 'material', 'lote', 'caducidad', 'cantidad', 'produccion', 'copias'];
+  var filasH60 = cargarFilas('adpack_filas_h60');
+  var CAMPOS_H60 = ['codigo', 'descripcion', 'material', 'lote', 'caducidad', 'cantidad', 'produccion', 'copias'];
 
   function parseEntradaH60(texto) {
     var lineas = texto.split(/\r?\n/).filter(function (l) { return l.trim() !== ''; });
@@ -1647,7 +1682,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       tr.appendChild(tdBorrar);
       cuerpo.appendChild(tr);
     });
+    guardarFilas('adpack_filas_h60', filasH60);
   }
+  renderTablaH60();
+  ['input', 'change'].forEach(function (ev) {
+    document.getElementById('cuerpoTablaH60').addEventListener(ev, function () {
+      guardarFilas('adpack_filas_h60', filasH60);
+    });
+  });
 
   document.getElementById('btnCargarH60').addEventListener('click', function () {
     var nuevas = parseEntradaH60(document.getElementById('entradaH60').value);
@@ -1656,7 +1698,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   document.getElementById('btnAgregarFilaH60').addEventListener('click', function () {
-    filasH60.push({ codigo: '', material: '', lote: '', caducidad: '', cantidad: '', produccion: '', copias: '1' });
+    filasH60.push({ codigo: '', descripcion: '', material: '', lote: '', caducidad: '', cantidad: '', produccion: '', copias: '1' });
     renderTablaH60();
   });
 
@@ -1684,6 +1726,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     var filasParaEnviar = filasH60.map(function (fila) {
       return {
         codigo: fila.codigo,
+        descripcion: fila.descripcion,
         material: fila.material,
         lote: fila.lote,
         caducidad: fila.caducidad,
@@ -1801,7 +1844,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 
     var desc = document.createElement('div');
     desc.className = 'desc-h60';
-    desc.textContent = 'L21CDS Tape 1  AD-PACK  3MGT7112';
+    desc.textContent = fila.descripcion;
     contenido.appendChild(desc);
 
     var cuerpo = document.createElement('div');
