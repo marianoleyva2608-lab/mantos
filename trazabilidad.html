@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trazabilidad de Producción · AD-PACK</title>
+<style>
+  :root{
+    --verde:#1a5c2a; --verde-claro:#e8f5e9; --rojo:#c62828; --amber:#f9a825;
+    --bg:#f4f6f5; --card:#fff; --line:#e0e0e0; --txt:#1c1c1c; --muted:#666;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--txt);font-size:14px}
+  header{background:var(--verde);color:#fff;padding:12px 18px;display:flex;
+         flex-wrap:wrap;gap:12px;align-items:center}
+  header h1{font-size:16px;margin:0;font-weight:700;flex:1;min-width:180px}
+  header select,header input,button{font:inherit;padding:6px 10px;border-radius:6px;border:1px solid #0003}
+  button{background:#fff;color:var(--verde);font-weight:600;cursor:pointer}
+  button.primary{background:var(--amber);color:#000;border-color:#0003}
+  main{padding:18px;max-width:1100px;margin:0 auto}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .kpi .v{font-size:26px;font-weight:800;color:var(--verde)}
+  .kpi .l{font-size:12px;color:var(--muted);margin-top:2px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:18px}
+  .card h2{font-size:14px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  canvas{width:100%;height:220px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);font-size:13px}
+  th{color:var(--muted);font-weight:600}
+  .tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700}
+  .tag.sin_marcha{background:#ffe0e0;color:var(--rojo)}
+  .tag.gap_ciclos{background:#fff3d6;color:#8a6100}
+  .form-row{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+  .form-row label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:3px}
+  .form-row input{padding:6px 8px;border:1px solid var(--line);border-radius:6px;font:inherit}
+  .muted{color:var(--muted)}
+  .activa{background:var(--verde-claro);border-color:#a5d6a7}
+  .scroll{overflow-x:auto}
+  @media(prefers-color-scheme:dark){
+    :root{--bg:#141715;--card:#1e211f;--line:#333;--txt:#eee;--muted:#9aa;--verde-claro:#1f3a26}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Trazabilidad de Producción</h1>
+  <select id="maquina"></select>
+  <input type="date" id="fecha">
+  <button onclick="cargar()">Actualizar</button>
+</header>
+
+<main>
+  <div class="kpis">
+    <div class="kpi"><div class="v" id="k_piezas">–</div><div class="l">Piezas hoy</div></div>
+    <div class="kpi"><div class="v" id="k_paros">–</div><div class="l">Paros hoy</div></div>
+    <div class="kpi"><div class="v" id="k_tparo">–</div><div class="l">Tiempo de paro (min)</div></div>
+    <div class="kpi"><div class="v" id="k_ultima">–</div><div class="l">Última pieza</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Producción por hora</h2>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="card" id="cardOrden">
+    <h2>Orden activa</h2>
+    <div id="ordenActiva" class="muted">—</div>
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
+    <div class="form-row">
+      <label>Orden <input id="f_orden" placeholder="OP-1234"></label>
+      <label>Lote material <input id="f_lote" placeholder="RESINA-..."></label>
+      <label>Molde <input id="f_molde"></label>
+      <label>Operador <input id="f_operador"></label>
+      <label>Turno <input id="f_turno" type="number" min="1" max="3" style="width:60px"></label>
+      <button class="primary" onclick="abrirOrden()">Abrir orden</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Paros del día</h2>
+    <div class="scroll">
+      <table id="tParos"><thead><tr>
+        <th>Inicio</th><th>Fin</th><th>Duración</th><th>Causa</th><th>Motivo</th><th></th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Órdenes recientes</h2>
+    <div class="scroll">
+      <table id="tOrdenes"><thead><tr>
+        <th>Orden</th><th>Lote</th><th>Molde</th><th>Operador</th><th>Turno</th>
+        <th>Inicio</th><th>Fin</th><th>Piezas</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const hoy = () => new Date(Date.now() - 6*3600e3).toISOString().slice(0,10); // UTC-6
+$('#fecha').value = hoy();
+
+function hhmm(iso){ if(!iso) return '—';
+  return new Date(iso).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Mexico_City'}); }
+function dur(seg){ if(seg==null) return '—'; const m=Math.round(seg/60); return m<60? m+' min' : (m/60).toFixed(1)+' h'; }
+
+async function cargarMaquinas(){
+  const r = await fetch('/api/traza/maquinas'); const ms = await r.json();
+  $('#maquina').innerHTML = ms.map(m=>`<option value="${m.id}">${m.id} · ${m.nombre||''}</option>`).join('');
+}
+
+async function cargar(){
+  const maquina = $('#maquina').value, fecha = $('#fecha').value;
+  if(!maquina) return;
+  const r = await fetch(`/api/traza/resumen?maquina=${maquina}&fecha=${fecha}`);
+  const d = await r.json();
+  if(d.error){ alert(d.error); return; }
+
+  $('#k_piezas').textContent = d.piezas_hoy;
+  $('#k_paros').textContent  = d.paros_hoy;
+  $('#k_tparo').textContent  = d.tiempo_paro_min;
+  $('#k_ultima').textContent = hhmm(d.ultima_pieza);
+
+  dibujar(d.por_hora);
+
+  // orden activa
+  const act = d.ordenes.find(o=>!o.fin);
+  $('#ordenActiva').innerHTML = act
+    ? `<b>${act.orden}</b> · lote ${act.lote_material||'—'} · molde ${act.molde||'—'} · ${act.operador||'—'}
+       · desde ${hhmm(act.inicio)} · <b>${act.piezas}</b> pzs
+       <button onclick="cerrarOrden(${act.orden_id})" style="margin-left:8px">Cerrar</button>`
+    : '<span class="muted">Sin orden abierta</span>';
+  $('#cardOrden').classList.toggle('activa', !!act);
+
+  // paros
+  $('#tParos tbody').innerHTML = d.paros.map(p=>`
+    <tr>
+      <td>${hhmm(p.inicio)}</td>
+      <td>${p.fin?hhmm(p.fin):'<b>en curso</b>'}</td>
+      <td>${dur(p.duracion_seg ?? (p.fin?null:(Date.now()-new Date(p.inicio))/1000))}</td>
+      <td><span class="tag ${p.causa}">${p.causa}</span></td>
+      <td><input value="${(p.motivo||'').replace(/"/g,'&quot;')}" id="mot_${p.id}" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:4px"></td>
+      <td><button onclick="guardarMotivo(${p.id})">✓</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" class="muted">Sin paros</td></tr>';
+
+  // ordenes
+  $('#tOrdenes tbody').innerHTML = d.ordenes.map(o=>`
+    <tr>
+      <td>${o.orden}</td><td>${o.lote_material||'—'}</td><td>${o.molde||'—'}</td>
+      <td>${o.operador||'—'}</td><td>${o.turno||'—'}</td>
+      <td>${hhmm(o.inicio)}</td><td>${o.fin?hhmm(o.fin):'<b>abierta</b>'}</td>
+      <td><b>${o.piezas}</b></td>
+    </tr>`).join('') || '<tr><td colspan="8" class="muted">Sin órdenes</td></tr>';
+}
+
+function dibujar(porHora){
+  const c = $('#chart'), dpr = devicePixelRatio||1;
+  const W = c.clientWidth, H = c.clientHeight;
+  c.width = W*dpr; c.height = H*dpr;
+  const x = c.getContext('2d'); x.scale(dpr,dpr);
+  x.clearRect(0,0,W,H);
+  const max = Math.max(1, ...porHora);
+  const pad = 24, bw = (W-pad*2)/24;
+  const css = getComputedStyle(document.documentElement);
+  const verde = css.getPropertyValue('--verde').trim();
+  x.fillStyle = css.getPropertyValue('--muted').trim(); x.font='10px sans-serif';
+  for(let h=0; h<24; h++){
+    const v = porHora[h];
+    const bh = (H-pad-14) * (v/max);
+    x.fillStyle = verde;
+    x.fillRect(pad + h*bw + 1, H-14-bh, bw-2, bh);
+    if(h%3===0){ x.fillStyle = css.getPropertyValue('--muted').trim();
+      x.fillText(String(h).padStart(2,'0'), pad + h*bw, H-3); }
+    if(v>0){ x.fillStyle = css.getPropertyValue('--txt').trim();
+      x.fillText(v, pad + h*bw + 1, H-16-bh); }
+  }
+}
+
+async function abrirOrden(){
+  const body = {
+    maquina: $('#maquina').value,
+    orden: $('#f_orden').value.trim(),
+    lote_material: $('#f_lote').value.trim(),
+    molde: $('#f_molde').value.trim(),
+    operador: $('#f_operador').value.trim(),
+    turno: $('#f_turno').value || null,
+  };
+  if(!body.orden){ alert('Escribe el número de orden'); return; }
+  const r = await fetch('/api/traza/ordenes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d = await r.json();
+  if(d.ok){ ['f_orden','f_lote','f_molde','f_operador','f_turno'].forEach(i=>$('#'+i).value=''); cargar(); }
+  else alert(d.error||'Error');
+}
+async function cerrarOrden(id){
+  if(!confirm('¿Cerrar la orden activa?')) return;
+  await fetch(`/api/traza/ordenes/${id}/cerrar`,{method:'POST'}); cargar();
+}
+async function guardarMotivo(id){
+  await fetch(`/api/traza/paros/${id}/motivo`,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({motivo:$('#mot_'+id).value})});
+}
+
+(async()=>{ await cargarMaquinas(); await cargar();
+  setInterval(cargar, 30000);
+  addEventListener('resize', ()=>cargar());
+})();
+</script>
+</body>
+</html>

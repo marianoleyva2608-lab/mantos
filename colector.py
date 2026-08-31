@@ -75,7 +75,7 @@ def sb_rpc(fn, args):
 # Estado en memoria por maquina
 # ------------------------------------------------------------------
 maquinas = {}   # sn -> fila de 'maquinas'
-estado   = {}   # sn -> {"ultimo_ciclo","marcha","paro_id"}
+estado   = {}   # sn -> {"ultimo_ciclo","marcha","paro_id","ciclo_prev"}
 lock     = threading.Lock()
 
 
@@ -83,7 +83,8 @@ def cargar_maquinas():
     for row in sb_select("maquinas"):
         maquinas[row["dingtian_sn"]] = row
         estado.setdefault(row["dingtian_sn"],
-                          {"ultimo_ciclo": 0.0, "marcha": False, "paro_id": None})
+                          {"ultimo_ciclo": 0.0, "marcha": False,
+                           "paro_id": None, "ciclo_prev": None})
     print(f"Maquinas cargadas: {[m['id'] for m in maquinas.values()]}", flush=True)
 
 
@@ -161,7 +162,10 @@ def on_message(cli, _u, msg):
                 registrar_equipo(sn, "online" if payload == "online" else "offline")
 
             elif hoja == f"i{m['entrada_ciclo']}":
-                if activo:
+                # cuenta solo el flanco: de inactivo -> activo
+                prev = st["ciclo_prev"]
+                st["ciclo_prev"] = activo
+                if activo and prev is not True:
                     ahora = time.time()
                     if (ahora - st["ultimo_ciclo"]) * 1000 < DEBOUNCE_MS:
                         return
@@ -198,7 +202,10 @@ def vigilar_gaps():
 
 def main():
     cargar_maquinas()
-    cli = mqtt.Client()
+    try:
+        cli = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)   # paho-mqtt 2.x
+    except (AttributeError, TypeError):
+        cli = mqtt.Client()                                   # paho-mqtt 1.x
     cli.username_pw_set(MQTT_USER, MQTT_PASS)
     cli.on_connect = on_connect
     cli.on_message = on_message
