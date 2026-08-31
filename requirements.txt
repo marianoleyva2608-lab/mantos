@@ -1,5 +1,2 @@
-flask
-openpyxl
-Pillow
-reportlab
-requests
+paho-mqtt==1.6.1
+psycopg2-binary==2.9.9
