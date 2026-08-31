@@ -500,16 +500,17 @@
 <hr style="margin:32px 0;">
 
 <h1>Etiqueta Cliente</h1>
-<p class="subtitulo">Etiqueta de caja con logo para cliente final (con marco y datos rotados 90°).</p>
+<p class="subtitulo">Igual que Recibo Proveedor, pero siempre con el logo de Conversión / AD-PACK.</p>
 
 <div class="panel no-imprimir">
   <h2>1. Captura tus filas</h2>
   <p class="ayuda">
-    Una etiqueta por línea, separando con comas: <b>Cliente, Descripción, Cantidad, Unidad, Copias</b>
+    Una etiqueta por línea. Puedes pegar directo desde Excel (columnas separadas por tabulador),
+    o escribir separando con comas: <b>Cliente, Número de Parte, Descripción, Cantidad, Unidad, Fecha Caducidad, Lote/Serie, Fecha Fabricación, Copias</b>
     (Copias es opcional, si no la pones se asume 1).<br>
-    Ejemplo: <code>MATA AUTOMOTIVE DE MEXICO S.R.L. DE C.V., CHE SICOMIN TOP CLEAR 1054, 200, KG, 1</code>
+    Ejemplo: <code>MATA AUTOMOTIVE DE MEXICO S.R.L. DE C.V, 3000154, CHE SICOMIN TOP CLEAR 1054 (200KG), 50, KG, 27 JUN 2027, 123456789, 26 JUN 2026, 1</code>
   </p>
-  <textarea id="entradaCliente" placeholder="MATA AUTOMOTIVE DE MEXICO S.R.L. DE C.V., CHE SICOMIN TOP CLEAR 1054, 200, KG, 1"></textarea>
+  <textarea id="entradaCliente" placeholder="MATA AUTOMOTIVE DE MEXICO S.R.L. DE C.V, 3000154, CHE SICOMIN TOP CLEAR 1054 (200KG), 50, KG, 27 JUN 2027, 123456789, 26 JUN 2026, 1"></textarea>
   <div class="fila-controles">
     <button id="btnCargarCliente">Cargar filas a la tabla</button>
   </div>
@@ -520,9 +521,11 @@
   <table id="tablaFilasCliente">
     <thead>
       <tr>
-        <th style="width:32%">Cliente</th><th style="width:32%">Descripción</th>
-        <th style="width:12%">Cantidad</th><th style="width:12%">Unidad</th>
-        <th style="width:8%">Copias</th><th style="width:4%"></th>
+        <th style="width:14%">Cliente</th><th style="width:9%">No. Parte</th>
+        <th style="width:16%">Descripción</th><th style="width:7%">Cantidad</th>
+        <th style="width:7%">Unidad</th><th style="width:11%">Caducidad</th>
+        <th style="width:11%">Lote / Serie</th><th style="width:11%">F. Fabricación</th>
+        <th style="width:7%">Copias</th><th style="width:6%"></th>
       </tr>
     </thead>
     <tbody id="cuerpoTablaCliente"></tbody>
@@ -533,14 +536,30 @@
 </div>
 
 <div class="panel no-imprimir">
-  <h2>3. Envía a la Zebra</h2>
-  <p class="ayuda">Esta etiqueta usa el diseño fijo con logo (marco, QR/gráficos y etiquetas fijas PART NO., QTY., BATCH/SERIAL, EXP. DATE, MFG. DATE). Se imprime directo en la Zebra; no tiene vista previa en el navegador.</p>
+  <h2>3. Genera e imprime</h2>
+  <div class="controles-generar">
+    <button id="btnGenerarCliente">Generar etiquetas</button>
+    <button class="secundario" id="btnImprimirCliente">Imprimir</button>
+  </div>
+  <p class="ayuda">Tamaño 6x4 pulgadas (horizontal). Al imprimir, confirma que el tamaño de papel sea "6 x 4 in" (no A4/Letter).</p>
+  <p class="ayuda"><b>Nota:</b> los códigos de barras de esta vista previa (navegador) son solo de referencia visual. Los códigos escaneables reales los genera la propia impresora Zebra al imprimir por red.</p>
+
   <div class="fila-controles no-imprimir" id="bloqueZebraRedCliente">
-    <label>IP de la Raspberry Pi:
-      <input type="text" id="ipPiCliente" placeholder="192.168.1.50" style="width:140px;">
-    </label>
-    <button id="btnEnviarZebraCliente">Enviar a Zebra</button>
-    <span id="estadoZebraCliente" class="ayuda" style="margin:0;"></span>
+    <h2 style="font-size:15px;margin:14px 0 8px;">Enviar directo a la Zebra (red)</h2>
+    <div class="controles-generar">
+      <label>IP de la Raspberry Pi:
+        <input type="text" id="ipPiCliente" placeholder="192.168.1.50" style="width:140px;">
+      </label>
+      <button id="btnEnviarZebraCliente">Enviar a Zebra</button>
+      <span id="estadoZebraCliente" class="ayuda" style="margin:0;"></span>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2 class="no-imprimir">Vista previa</h2>
+  <div id="hojaCliente" class="hoja size-4x6">
+    <div class="vacio">Aún no se han generado etiquetas.</div>
   </div>
 </div>
 
@@ -1307,10 +1326,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   // =======================================================================
-  // Etiqueta Cliente (dentro de Caja Proveedor) - con logo, sin vista previa
+  // Etiqueta Cliente (dentro de Caja Proveedor) - igual a Recibo Proveedor
+  // pero siempre con logo (mismos campos, misma vista previa).
   // =======================================================================
   var filasCliente = cargarFilas('adpack_filas_cliente');
-  var CAMPOS_CLIENTE = ['cliente', 'descripcion', 'cantidad', 'unidad', 'copias'];
+  var CAMPOS_CLIENTE = CAMPOS_BARRAS; // mismos 9 campos que Recibo Proveedor
 
   function parseEntradaCliente(texto) {
     var lineas = texto.split(/\r?\n/).filter(function (l) { return l.trim() !== ''; });
@@ -1327,12 +1347,27 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     });
   }
 
+  function crearCeldaFechaCliente(fila, idx, campo) {
+    var td = document.createElement('td');
+    var input = document.createElement('input');
+    input.type = 'date';
+    input.style.width = '100%';
+    input.value = /^\d{4}-\d{2}-\d{2}$/.test(fila[campo]) ? fila[campo] : '';
+    input.addEventListener('input', function () { filasCliente[idx][campo] = input.value; guardarFilas('adpack_filas_cliente', filasCliente); });
+    td.appendChild(input);
+    return td;
+  }
+
   function renderTablaCliente() {
     var cuerpo = document.getElementById('cuerpoTablaCliente');
     cuerpo.innerHTML = '';
     filasCliente.forEach(function (fila, idx) {
       var tr = document.createElement('tr');
       CAMPOS_CLIENTE.forEach(function (campo) {
+        if (campo === 'caducidad' || campo === 'produccion') {
+          tr.appendChild(crearCeldaFechaCliente(fila, idx, campo));
+          return;
+        }
         var td = document.createElement('td');
         var input = document.createElement('input');
         input.type = campo === 'copias' ? 'number' : 'text';
@@ -1365,8 +1400,127 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   document.getElementById('btnAgregarFilaCliente').addEventListener('click', function () {
-    filasCliente.push({ cliente: '', descripcion: '', cantidad: '', unidad: '', copias: '1' });
+    filasCliente.push({ cliente: '', numero_parte: '', descripcion: '', cantidad: '', unidad: '', caducidad: '', lote: '', produccion: '', copias: '1' });
     renderTablaCliente();
+  });
+
+  document.getElementById('btnGenerarCliente').addEventListener('click', function () {
+    var hoja = document.getElementById('hojaCliente');
+    hoja.className = 'hoja size-4x6';
+    hoja.innerHTML = '';
+
+    if (filasCliente.length === 0) {
+      hoja.innerHTML = '<div class="vacio">No hay filas cargadas. Ve al paso 1.</div>';
+      return;
+    }
+
+    filasCliente.forEach(function (fila) {
+      var copias = parseInt(fila.copias, 10);
+      if (!copias || copias < 1) copias = 1;
+
+      var badge = document.createElement('div');
+      badge.className = 'badge-copias-h60';
+      badge.textContent = 'x' + copias + ' copias';
+      hoja.appendChild(badge);
+
+      var etiqueta = document.createElement('div');
+      etiqueta.className = 'etiqueta';
+
+      var contenido = document.createElement('div');
+      contenido.className = 'etiqueta-barras';
+
+      contenido.appendChild(filaEB('CLIENT:', fila.cliente, false));
+
+      var gridsWrap = document.createElement('div');
+      gridsWrap.className = 'eb-grids-wrap';
+
+      var grid1 = document.createElement('div');
+      grid1.className = 'eb-grid2';
+      var celdaParte = document.createElement('div');
+      celdaParte.className = 'eb-celda';
+      celdaParte.innerHTML = '<div class="eb-etiqueta">PART NO.</div>';
+      var valParte = document.createElement('div');
+      valParte.className = 'eb-valor-grande eb-valor-centrado';
+      valParte.textContent = fila.numero_parte || '(vacío)';
+      celdaParte.appendChild(valParte);
+      celdaParte.appendChild(nodoBarcode(fila.numero_parte));
+      grid1.appendChild(celdaParte);
+
+      var celdaDesc = document.createElement('div');
+      celdaDesc.className = 'eb-celda';
+      celdaDesc.innerHTML = '<div class="eb-etiqueta">DESCRIPTION</div>';
+      var valDesc = document.createElement('div');
+      valDesc.className = 'eb-valor-grande';
+      valDesc.style.fontSize = '14px';
+      valDesc.textContent = fila.descripcion || '(vacío)';
+      celdaDesc.appendChild(valDesc);
+      grid1.appendChild(celdaDesc);
+      contenido.appendChild(grid1);
+
+      var grid2 = document.createElement('div');
+      grid2.className = 'eb-grid2';
+      var celdaQty = document.createElement('div');
+      celdaQty.className = 'eb-celda';
+      celdaQty.innerHTML = '<div class="eb-etiqueta">QTY.</div>';
+      var valQty = document.createElement('div');
+      valQty.className = 'eb-valor-grande eb-valor-centrado';
+      valQty.textContent = fila.cantidad || '(vacío)';
+      celdaQty.appendChild(valQty);
+      var lineaQty = document.createElement('div');
+      lineaQty.className = 'eb-qty-linea';
+      lineaQty.appendChild(nodoBarcode(fila.cantidad));
+      var unidadQty = document.createElement('div');
+      unidadQty.className = 'eb-qty-unidad';
+      unidadQty.textContent = fila.unidad || '';
+      lineaQty.appendChild(unidadQty);
+      celdaQty.appendChild(lineaQty);
+      grid2.appendChild(celdaQty);
+
+      var celdaExp = document.createElement('div');
+      celdaExp.className = 'eb-celda';
+      celdaExp.innerHTML = '<div class="eb-etiqueta">EXP. DATE</div>';
+      var valExp = document.createElement('div');
+      valExp.className = 'eb-valor-grande eb-valor-centrado';
+      valExp.style.fontSize = '13px';
+      valExp.textContent = formatoFechaEtiqueta(fila.caducidad) || '(vacío)';
+      celdaExp.appendChild(valExp);
+      celdaExp.appendChild(nodoBarcode(formatoFechaEtiqueta(fila.caducidad)));
+      grid2.appendChild(celdaExp);
+      gridsWrap.appendChild(grid2);
+
+      var grid3 = document.createElement('div');
+      grid3.className = 'eb-grid2';
+      var celdaLote = document.createElement('div');
+      celdaLote.className = 'eb-celda';
+      celdaLote.innerHTML = '<div class="eb-etiqueta">BATCH/ SERIAL</div>';
+      var valLote = document.createElement('div');
+      valLote.className = 'eb-valor-grande eb-valor-centrado';
+      valLote.textContent = fila.lote || '(vacío)';
+      celdaLote.appendChild(valLote);
+      celdaLote.appendChild(nodoBarcode(fila.lote));
+      grid3.appendChild(celdaLote);
+
+      var celdaMfg = document.createElement('div');
+      celdaMfg.className = 'eb-celda';
+      celdaMfg.innerHTML = '<div class="eb-etiqueta">MFG. DATE</div>';
+      var valMfg = document.createElement('div');
+      valMfg.className = 'eb-valor-grande eb-valor-centrado';
+      valMfg.style.fontSize = '13px';
+      valMfg.textContent = formatoFechaEtiqueta(fila.produccion) || '(vacío)';
+      celdaMfg.appendChild(valMfg);
+      celdaMfg.appendChild(nodoBarcode(formatoFechaEtiqueta(fila.produccion)));
+      grid3.appendChild(celdaMfg);
+      gridsWrap.appendChild(grid3);
+      contenido.appendChild(gridsWrap);
+
+      etiqueta.appendChild(contenido);
+      hoja.appendChild(etiqueta);
+    });
+  });
+
+  document.getElementById('btnImprimirCliente').addEventListener('click', function () {
+    document.getElementById('estiloPagina').textContent = '@page { size: 6in 4in; margin: 0; }';
+    window.print();
   });
 
   var inputIpPiCliente = document.getElementById('ipPiCliente');
@@ -1391,6 +1545,21 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     }
     localStorage.setItem('adpack_ip_pi', ip);
 
+    var filasParaEnviar = filasCliente.map(function (fila) {
+      return {
+        cliente: fila.cliente,
+        numero_parte: fila.numero_parte,
+        descripcion: fila.descripcion,
+        cantidad: fila.cantidad,
+        unidad: fila.unidad,
+        caducidad: formatoFechaEtiqueta(fila.caducidad),
+        lote: fila.lote,
+        produccion: formatoFechaEtiqueta(fila.produccion),
+        copias: fila.copias,
+        con_logo: true,
+      };
+    });
+
     estadoZebraCliente.style.color = '#666';
     estadoZebraCliente.textContent = 'Verificando conexión con la Pi...';
 
@@ -1404,10 +1573,10 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       estadoZebraCliente.style.color = '#666';
       estadoZebraCliente.textContent = 'Conectado. Enviando ' + filasCliente.length + ' etiqueta(s)...';
 
-      fetch('http://' + ip + ':5000/imprimir-cliente', {
+      fetch('http://' + ip + ':5000/imprimir-recibo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filas: filasCliente })
+        body: JSON.stringify({ filas: filasParaEnviar })
       })
         .then(function (resp) { return resp.json().then(function (data) { return { status: resp.status, data: data }; }); })
         .then(function (r) {
