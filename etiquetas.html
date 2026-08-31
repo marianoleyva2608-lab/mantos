@@ -220,6 +220,39 @@
   }
   .etiqueta-conv .fila-dato span:last-child { flex: 1 1 auto; padding: 1mm 2mm; text-align: left; }
 
+  .etiqueta-h60 {
+    display: flex; flex-direction: column; width: 100%; height: 100%;
+    font-family: Arial, sans-serif; color: #111; border: 1.5px solid #111; box-sizing: border-box;
+  }
+  .etiqueta-h60 .logo-h60-wrap { display: flex; align-items: center; justify-content: center; padding: 3mm 3mm 1mm; }
+  .etiqueta-h60 .logo-h60-img,
+  .etiqueta-h60 .logo-h60-svg { height: 12mm; width: auto; display: block; }
+  .etiqueta-h60 .url-h60 { font-size: 12px; text-align: center; }
+  .etiqueta-h60 .codigo-h60 { font-size: 15px; font-weight: 700; text-align: center; }
+  .etiqueta-h60 .desc-h60 { font-size: 12px; font-weight: 700; text-align: center; margin-bottom: 1mm; }
+  .etiqueta-h60 .cuerpo-h60 { display: flex; align-items: flex-start; border-top: 1.5px solid #111; }
+  .etiqueta-h60 .datos-h60 { flex: 1 1 auto; font-size: 12px; line-height: 1.6; border-right: 1.5px solid #111; }
+  .etiqueta-h60 .fila-dato-h60 { display: flex; border-bottom: 1.5px solid #111; }
+  .etiqueta-h60 .fila-dato-h60 .etq {
+    font-weight: 700; flex: 0 0 45%; border-right: 1.5px solid #111;
+    padding: 1mm 2mm; box-sizing: border-box;
+  }
+  .etiqueta-h60 .fila-dato-h60 span:last-child { flex: 1 1 auto; padding: 1mm 2mm; text-align: left; }
+  .etiqueta-h60 .pieza-h60-wrap {
+    flex: 0 0 26mm; display: flex; align-items: center; justify-content: center; padding: 2mm;
+  }
+  .etiqueta-h60 .pieza-h60-img { max-width: 100%; max-height: 100%; display: block; }
+
+  .badge-copias-h60 {
+    display: inline-block; background: #2563eb; color: #fff; font-size: 12px; font-weight: 700;
+    padding: 3px 10px; border-radius: 4px; margin-bottom: 8px;
+  }
+
+  /* La vista previa de H60 solo necesita mostrar el contenido: se recorta
+     al alto real en vez de forzar las 4in completas del rollo fisico. */
+  #hojaH60.size-4x6 .etiqueta { height: auto; }
+  #hojaH60 .etiqueta-h60 { height: auto; }
+
   @media print {
     body * { visibility: hidden; }
     .hoja, .hoja * { visibility: visible; }
@@ -242,7 +275,7 @@
   <button class="tab-btn activa" id="btnTabTrays">Etiquetas Termoformado</button>
   <button class="tab-btn" id="btnTabConversion">Etiquetas Conversión</button>
   <button class="tab-btn" id="btnTabBarras">Caja Proveedor</button>
-  <button class="tab-btn" id="btnTabH60">H60</button>
+  <button class="tab-btn" id="btnTabH60">Conversión H60</button>
 </div>
 
 <div id="vistaTrays">
@@ -342,10 +375,10 @@
   <table id="tablaFilasConv">
     <thead>
       <tr>
-        <th style="width:12%">Código</th><th style="width:20%">Descripción</th>
-        <th style="width:13%">Material</th><th style="width:13%">Lote</th>
-        <th style="width:13%">Caducidad</th><th style="width:10%">Cantidad</th>
-        <th style="width:13%">F. Producción</th><th style="width:6%"></th>
+        <th style="width:11%">Código</th><th style="width:18%">Descripción</th>
+        <th style="width:12%">Material</th><th style="width:12%">Lote</th>
+        <th style="width:12%">Caducidad</th><th style="width:9%">Cantidad</th>
+        <th style="width:12%">F. Producción</th><th style="width:8%">Copias</th><th style="width:6%"></th>
       </tr>
     </thead>
     <tbody id="cuerpoTablaConv"></tbody>
@@ -464,21 +497,68 @@
   </div>
 </div>
 
-</div><!-- /vistaBarras -->
+<hr style="margin:32px 0;">
 
-<div id="vistaH60" style="display:none;">
-
-<h1>Etiqueta H60</h1>
-<p class="subtitulo">Etiqueta H60 (Conversión), tamaño 6x4 pulgadas (horizontal). Logo, URL, descripción e imagen de la pieza son fijos.</p>
+<h1>Etiqueta Cliente</h1>
+<p class="subtitulo">Etiqueta de caja con logo para cliente final (con marco y datos rotados 90°).</p>
 
 <div class="panel no-imprimir">
   <h2>1. Captura tus filas</h2>
   <p class="ayuda">
-    Una etiqueta por línea, separando con comas: <b>Código, Material, Lote, Fecha Caducidad, Cantidad, Fecha Producción, Copias</b>
+    Una etiqueta por línea, separando con comas: <b>Cliente, Descripción, Cantidad, Unidad, Copias</b>
     (Copias es opcional, si no la pones se asume 1).<br>
-    Ejemplo: <code>0101090052, FOAM, 1437, N/A, 1200 PZAS, 09 DE AGO 2026, 1</code>
+    Ejemplo: <code>MATA AUTOMOTIVE DE MEXICO S.R.L. DE C.V., CHE SICOMIN TOP CLEAR 1054, 200, KG, 1</code>
   </p>
-  <textarea id="entradaH60" placeholder="0101090052, FOAM, 1437, N/A, 1200 PZAS, 09 DE AGO 2026, 1"></textarea>
+  <textarea id="entradaCliente" placeholder="MATA AUTOMOTIVE DE MEXICO S.R.L. DE C.V., CHE SICOMIN TOP CLEAR 1054, 200, KG, 1"></textarea>
+  <div class="fila-controles">
+    <button id="btnCargarCliente">Cargar filas a la tabla</button>
+  </div>
+</div>
+
+<div class="panel no-imprimir">
+  <h2>2. Revisa / edita antes de generar</h2>
+  <table id="tablaFilasCliente">
+    <thead>
+      <tr>
+        <th style="width:32%">Cliente</th><th style="width:32%">Descripción</th>
+        <th style="width:12%">Cantidad</th><th style="width:12%">Unidad</th>
+        <th style="width:8%">Copias</th><th style="width:4%"></th>
+      </tr>
+    </thead>
+    <tbody id="cuerpoTablaCliente"></tbody>
+  </table>
+  <div class="fila-controles">
+    <button class="secundario" id="btnAgregarFilaCliente">+ Agregar fila</button>
+  </div>
+</div>
+
+<div class="panel no-imprimir">
+  <h2>3. Envía a la Zebra</h2>
+  <p class="ayuda">Esta etiqueta usa el diseño fijo con logo (marco, QR/gráficos y etiquetas fijas PART NO., QTY., BATCH/SERIAL, EXP. DATE, MFG. DATE). Se imprime directo en la Zebra; no tiene vista previa en el navegador.</p>
+  <div class="fila-controles no-imprimir" id="bloqueZebraRedCliente">
+    <label>IP de la Raspberry Pi:
+      <input type="text" id="ipPiCliente" placeholder="192.168.1.50" style="width:140px;">
+    </label>
+    <button id="btnEnviarZebraCliente">Enviar a Zebra</button>
+    <span id="estadoZebraCliente" class="ayuda" style="margin:0;"></span>
+  </div>
+</div>
+
+</div><!-- /vistaBarras -->
+
+<div id="vistaH60" style="display:none;">
+
+<h1>Etiqueta Conversión H60</h1>
+<p class="subtitulo">Etiqueta H60 (Conversión), tamaño 6x4 pulgadas (horizontal). Logo, URL e imagen de la pieza son fijos.</p>
+
+<div class="panel no-imprimir">
+  <h2>1. Captura tus filas</h2>
+  <p class="ayuda">
+    Una etiqueta por línea, separando con comas: <b>Código, Descripción, Material, Lote, Fecha Caducidad, Cantidad, Fecha Producción, Copias</b>
+    (Copias es opcional, si no la pones se asume 1).<br>
+    Ejemplo: <code>0101090052, L21CDS Tape 1 AD-PACK 3MGT7112, FOAM, 1437, N/A, 1200 PZAS, 09 DE AGO 2026, 1</code>
+  </p>
+  <textarea id="entradaH60" placeholder="0101090052, L21CDS Tape 1 AD-PACK 3MGT7112, FOAM, 1437, N/A, 1200 PZAS, 09 DE AGO 2026, 1"></textarea>
   <div class="fila-controles">
     <button id="btnCargarH60">Cargar filas a la tabla</button>
   </div>
@@ -489,9 +569,9 @@
   <table id="tablaFilasH60">
     <thead>
       <tr>
-        <th style="width:14%">Código</th><th style="width:14%">Material</th>
-        <th style="width:14%">Lote</th><th style="width:16%">Caducidad</th>
-        <th style="width:14%">Cantidad</th><th style="width:16%">Producción</th>
+        <th style="width:12%">Código</th><th style="width:18%">Descripción</th><th style="width:12%">Material</th>
+        <th style="width:12%">Lote</th><th style="width:14%">Caducidad</th>
+        <th style="width:12%">Cantidad</th><th style="width:14%">Producción</th>
         <th style="width:6%">Copias</th><th style="width:6%"></th>
       </tr>
     </thead>
@@ -503,10 +583,21 @@
 </div>
 
 <div class="panel no-imprimir">
-  <h2>3. Envía a la Zebra</h2>
+  <h2>3. Genera y visualiza</h2>
   <p class="ayuda">
-    Esta etiqueta solo se puede imprimir enviándola directo a la Raspberry Pi (no tiene vista previa de navegador, se genera con texto real en la propia impresora).
+    Genera una vista previa en pantalla (el diseño real de la impresora puede variar levemente en tipografía, pero la posición y el contenido de los datos son los mismos).
   </p>
+  <div class="controles-generar">
+    <button id="btnGenerarH60">Generar vista previa</button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="hoja size-4x6" id="hojaH60"><div class="vacio">Todavía no se ha generado nada.</div></div>
+</div>
+
+<div class="panel no-imprimir">
+  <h2>4. Envía a la Zebra</h2>
   <div class="controles-generar">
     <label>IP de la Raspberry Pi:
       <input type="text" id="ipPiH60" placeholder="192.168.1.50" style="width:140px;">
@@ -523,7 +614,19 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
 </script>
 
 <script>
-  var filas = [];
+  // Guardado automatico en el navegador (localStorage) de las filas
+  // capturadas en cada pestaña, para que no se pierdan al recargar/cerrar.
+  function guardarFilas(key, arr) {
+    try { localStorage.setItem(key, JSON.stringify(arr)); } catch (e) {}
+  }
+  function cargarFilas(key) {
+    try {
+      var v = localStorage.getItem(key);
+      return v ? JSON.parse(v) : [];
+    } catch (e) { return []; }
+  }
+
+  var filas = cargarFilas('adpack_filas_trays');
   var CAMPOS_TRAY = ['cliente', 'descripcion', 'numero_parte', 'lote', 'cantidad', 'reviso', 'fecha', 'copias'];
 
   function parseEntrada(texto) {
@@ -569,7 +672,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         input.type = campo === 'copias' ? 'number' : 'text';
         if (campo === 'copias') { input.min = '1'; input.style.width = '70px'; }
         input.value = campo === 'copias' ? (fila.copias || '1') : fila[campo];
-        input.addEventListener('input', function () { filas[idx][campo] = input.value; });
+        input.addEventListener('input', function () { filas[idx][campo] = input.value; guardarFilas('adpack_filas_trays', filas); });
         td.appendChild(input);
         tr.appendChild(td);
       });
@@ -585,7 +688,16 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       tr.appendChild(tdBorrar);
       cuerpo.appendChild(tr);
     });
+    guardarFilas('adpack_filas_trays', filas);
   }
+  renderTabla();
+  // Delegacion: cualquier cambio en un input/select de esta tabla se guarda,
+  // sin importar que funcion haya creado esa celda.
+  ['input', 'change'].forEach(function (ev) {
+    document.getElementById('cuerpoTabla').addEventListener(ev, function () {
+      guardarFilas('adpack_filas_trays', filas);
+    });
+  });
 
   document.getElementById('btnCargar').addEventListener('click', function () {
     var nuevas = parseEntrada(document.getElementById('entrada').value);
@@ -635,7 +747,12 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       var copias = parseInt(fila.copias, 10);
       if (!copias || copias < 1) copias = 1;
 
-      for (var c = 0; c < copias; c++) {
+      var badgeTrays = document.createElement('div');
+      badgeTrays.className = 'badge-copias-h60';
+      badgeTrays.textContent = 'x' + copias + ' copias';
+      hoja.appendChild(badgeTrays);
+
+      for (var c = 0; c < 1; c++) {
         var etiqueta = document.createElement('div');
         etiqueta.className = 'etiqueta';
         etiqueta.style.cssText = 'display:block; background:white; border:1px solid #333; margin-bottom:1rem; padding:0; font-family:Arial,sans-serif; width:280px; box-shadow:0 2px 6px rgba(0,0,0,0.1);';
@@ -834,7 +951,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   // =======================================================================
   // Recibo Proveedor - 4x6" con código de barras
   // =======================================================================
-  var filasBarras = [];
+  var filasBarras = cargarFilas('adpack_filas_barras');
   var CAMPOS_BARRAS = ['cliente', 'numero_parte', 'descripcion', 'cantidad', 'unidad', 'caducidad', 'lote', 'produccion', 'copias'];
 
   function parseEntradaBarras(texto) {
@@ -894,7 +1011,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       tr.appendChild(tdBorrar);
       cuerpo.appendChild(tr);
     });
+    guardarFilas('adpack_filas_barras', filasBarras);
   }
+  renderTablaBarras();
+  ['input', 'change'].forEach(function (ev) {
+    document.getElementById('cuerpoTablaBarras').addEventListener(ev, function () {
+      guardarFilas('adpack_filas_barras', filasBarras);
+    });
+  });
 
   document.getElementById('btnCargarBarras').addEventListener('click', function () {
     var nuevas = parseEntradaBarras(document.getElementById('entradaBarras').value);
@@ -969,7 +1093,12 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       var copias = parseInt(fila.copias, 10);
       if (!copias || copias < 1) copias = 1;
 
-      for (var c = 0; c < copias; c++) {
+      var badgeBarras = document.createElement('div');
+      badgeBarras.className = 'badge-copias-h60';
+      badgeBarras.textContent = 'x' + copias + ' copias';
+      hoja.appendChild(badgeBarras);
+
+      for (var c = 0; c < 1; c++) {
         var etiqueta = document.createElement('div');
         etiqueta.className = 'etiqueta';
 
@@ -1178,10 +1307,130 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   // =======================================================================
+  // Etiqueta Cliente (dentro de Caja Proveedor) - con logo, sin vista previa
+  // =======================================================================
+  var filasCliente = cargarFilas('adpack_filas_cliente');
+  var CAMPOS_CLIENTE = ['cliente', 'descripcion', 'cantidad', 'unidad', 'copias'];
+
+  function parseEntradaCliente(texto) {
+    var lineas = texto.split(/\r?\n/).filter(function (l) { return l.trim() !== ''; });
+    return lineas.map(function (linea) {
+      var cols;
+      if (linea.indexOf('\t') !== -1) cols = linea.split('\t');
+      else if (linea.indexOf('|') !== -1) cols = linea.split('|');
+      else cols = linea.split(',');
+      cols = cols.map(function (c) { return c.trim(); });
+      var fila = {};
+      CAMPOS_CLIENTE.forEach(function (campo, i) { fila[campo] = cols[i] || ''; });
+      if (!fila.copias) fila.copias = '1';
+      return fila;
+    });
+  }
+
+  function renderTablaCliente() {
+    var cuerpo = document.getElementById('cuerpoTablaCliente');
+    cuerpo.innerHTML = '';
+    filasCliente.forEach(function (fila, idx) {
+      var tr = document.createElement('tr');
+      CAMPOS_CLIENTE.forEach(function (campo) {
+        var td = document.createElement('td');
+        var input = document.createElement('input');
+        input.type = campo === 'copias' ? 'number' : 'text';
+        if (campo === 'copias') { input.min = '1'; input.style.width = '70px'; }
+        input.value = campo === 'copias' ? (fila.copias || '1') : fila[campo];
+        input.addEventListener('input', function () { filasCliente[idx][campo] = input.value; guardarFilas('adpack_filas_cliente', filasCliente); });
+        td.appendChild(input);
+        tr.appendChild(td);
+      });
+      var tdBorrar = document.createElement('td');
+      var btn = document.createElement('button');
+      btn.textContent = 'Eliminar';
+      btn.className = 'peligro';
+      btn.addEventListener('click', function () {
+        filasCliente.splice(idx, 1);
+        renderTablaCliente();
+      });
+      tdBorrar.appendChild(btn);
+      tr.appendChild(tdBorrar);
+      cuerpo.appendChild(tr);
+    });
+    guardarFilas('adpack_filas_cliente', filasCliente);
+  }
+  renderTablaCliente();
+
+  document.getElementById('btnCargarCliente').addEventListener('click', function () {
+    var nuevas = parseEntradaCliente(document.getElementById('entradaCliente').value);
+    filasCliente = filasCliente.concat(nuevas);
+    renderTablaCliente();
+  });
+
+  document.getElementById('btnAgregarFilaCliente').addEventListener('click', function () {
+    filasCliente.push({ cliente: '', descripcion: '', cantidad: '', unidad: '', copias: '1' });
+    renderTablaCliente();
+  });
+
+  var inputIpPiCliente = document.getElementById('ipPiCliente');
+  var estadoZebraCliente = document.getElementById('estadoZebraCliente');
+
+  inputIpPiCliente.value = localStorage.getItem('adpack_ip_pi') || IP_PI_POR_DEFECTO;
+  inputIpPiCliente.addEventListener('change', function () {
+    localStorage.setItem('adpack_ip_pi', inputIpPiCliente.value.trim());
+  });
+
+  document.getElementById('btnEnviarZebraCliente').addEventListener('click', function () {
+    var ip = inputIpPiCliente.value.trim();
+    if (!ip) {
+      estadoZebraCliente.textContent = 'Escribe la IP de la Raspberry Pi.';
+      estadoZebraCliente.style.color = '#dc2626';
+      return;
+    }
+    if (filasCliente.length === 0) {
+      estadoZebraCliente.textContent = 'No hay filas cargadas. Ve al paso 1.';
+      estadoZebraCliente.style.color = '#dc2626';
+      return;
+    }
+    localStorage.setItem('adpack_ip_pi', ip);
+
+    estadoZebraCliente.style.color = '#666';
+    estadoZebraCliente.textContent = 'Verificando conexión con la Pi...';
+
+    verificarConexionZebra(ip).then(function (conectado) {
+      if (!conectado) {
+        estadoZebraCliente.style.color = '#dc2626';
+        estadoZebraCliente.textContent = 'No conectado: no se alcanza la Raspberry Pi en ' + ip + ':5000. Revisa la IP y que esté encendida en la misma red.';
+        return;
+      }
+
+      estadoZebraCliente.style.color = '#666';
+      estadoZebraCliente.textContent = 'Conectado. Enviando ' + filasCliente.length + ' etiqueta(s)...';
+
+      fetch('http://' + ip + ':5000/imprimir-cliente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filas: filasCliente })
+      })
+        .then(function (resp) { return resp.json().then(function (data) { return { status: resp.status, data: data }; }); })
+        .then(function (r) {
+          if (r.data && r.data.ok) {
+            estadoZebraCliente.style.color = '#16a34a';
+            estadoZebraCliente.textContent = 'Impreso: ' + (r.data.etiquetas_impresas || filasCliente.length) + ' etiqueta(s).';
+          } else {
+            estadoZebraCliente.style.color = '#dc2626';
+            estadoZebraCliente.textContent = 'Error: ' + (r.data && r.data.error ? r.data.error : 'desconocido');
+          }
+        })
+        .catch(function (err) {
+          estadoZebraCliente.style.color = '#dc2626';
+          estadoZebraCliente.textContent = 'No se pudo enviar el trabajo de impresión (' + err.message + ').';
+        });
+    });
+  });
+
+  // =======================================================================
   // Materia Prima - Conversión
   // =======================================================================
-  var filasConv = [];
-  var CAMPOS_CONV = ['codigo', 'descripcion', 'material', 'lote', 'caducidad', 'cantidad', 'produccion'];
+  var filasConv = cargarFilas('adpack_filas_conv');
+  var CAMPOS_CONV = ['codigo', 'descripcion', 'material', 'lote', 'caducidad', 'cantidad', 'produccion', 'copias'];
 
   function parseEntradaConv(texto) {
     var lineas = texto.split(/\r?\n/).filter(function (l) { return l.trim() !== ''; });
@@ -1193,6 +1442,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       cols = cols.map(function (c) { return c.trim(); });
       var fila = {};
       CAMPOS_CONV.forEach(function (campo, i) { fila[campo] = cols[i] || ''; });
+      if (!fila.copias) fila.copias = '1';
       return fila;
     });
   }
@@ -1337,8 +1587,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         } else {
           td = document.createElement('td');
           var input = document.createElement('input');
-          input.type = 'text';
-          input.value = fila[campo];
+          input.type = campo === 'copias' ? 'number' : 'text';
+          if (campo === 'copias') { input.min = '1'; input.style.width = '70px'; }
+          input.value = campo === 'copias' ? (fila.copias || '1') : fila[campo];
           input.addEventListener('input', function () { filasConv[idx][campo] = input.value; });
           td.appendChild(input);
         }
@@ -1356,7 +1607,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       tr.appendChild(tdBorrar);
       cuerpo.appendChild(tr);
     });
+    guardarFilas('adpack_filas_conv', filasConv);
   }
+  renderTablaConv();
+  ['input', 'change'].forEach(function (ev) {
+    document.getElementById('cuerpoTablaConv').addEventListener(ev, function () {
+      guardarFilas('adpack_filas_conv', filasConv);
+    });
+  });
 
   document.getElementById('btnCargarConv').addEventListener('click', function () {
     var nuevas = parseEntradaConv(document.getElementById('entradaConv').value);
@@ -1365,7 +1623,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   document.getElementById('btnAgregarFilaConv').addEventListener('click', function () {
-    filasConv.push({ codigo: '', descripcion: '', material: '', lote: '', caducidad: '', cantidad: '', produccion: '' });
+    filasConv.push({ codigo: '', descripcion: '', material: '', lote: '', caducidad: '', cantidad: '', produccion: '', copias: '1' });
     renderTablaConv();
   });
 
@@ -1403,6 +1661,12 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     }
 
     filasConv.forEach(function (fila) {
+      var copiasConv = parseInt(fila.copias, 10) || 1;
+      var badgeConv = document.createElement('div');
+      badgeConv.className = 'badge-copias-h60';
+      badgeConv.textContent = 'x' + copiasConv + ' copias';
+      hoja.appendChild(badgeConv);
+
       var etiqueta = document.createElement('div');
       etiqueta.className = 'etiqueta';
 
@@ -1496,6 +1760,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         caducidad: formatoFechaEtiqueta(fila.caducidad),
         cantidad: fila.cantidad,
         produccion: formatoFechaEtiqueta(fila.produccion),
+        copias: fila.copias,
       };
     });
 
@@ -1537,8 +1802,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   // =======================================================================
   // Etiqueta H60 (Conversion, logo/pieza fijos)
   // =======================================================================
-  var filasH60 = [];
-  var CAMPOS_H60 = ['codigo', 'material', 'lote', 'caducidad', 'cantidad', 'produccion', 'copias'];
+  var filasH60 = cargarFilas('adpack_filas_h60');
+  var CAMPOS_H60 = ['codigo', 'descripcion', 'material', 'lote', 'caducidad', 'cantidad', 'produccion', 'copias'];
 
   function parseEntradaH60(texto) {
     var lineas = texto.split(/\r?\n/).filter(function (l) { return l.trim() !== ''; });
@@ -1558,11 +1823,16 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     filasH60.forEach(function (fila, idx) {
       var tr = document.createElement('tr');
       CAMPOS_H60.forEach(function (campo) {
+        if (campo === 'caducidad' || campo === 'produccion') {
+          tr.appendChild(crearCeldaFecha(fila, idx, campo));
+          return;
+        }
         var td = document.createElement('td');
         var input = document.createElement('input');
-        input.type = 'text';
+        input.type = campo === 'copias' ? 'number' : 'text';
+        if (campo === 'copias') { input.min = '1'; input.style.width = '70px'; }
         input.value = fila[campo] || '';
-        input.style.width = '100%';
+        if (campo !== 'copias') input.style.width = '100%';
         input.addEventListener('input', function () { filasH60[idx][campo] = input.value; });
         td.appendChild(input);
         tr.appendChild(td);
@@ -1579,7 +1849,14 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       tr.appendChild(tdBorrar);
       cuerpo.appendChild(tr);
     });
+    guardarFilas('adpack_filas_h60', filasH60);
   }
+  renderTablaH60();
+  ['input', 'change'].forEach(function (ev) {
+    document.getElementById('cuerpoTablaH60').addEventListener(ev, function () {
+      guardarFilas('adpack_filas_h60', filasH60);
+    });
+  });
 
   document.getElementById('btnCargarH60').addEventListener('click', function () {
     var nuevas = parseEntradaH60(document.getElementById('entradaH60').value);
@@ -1588,7 +1865,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   document.getElementById('btnAgregarFilaH60').addEventListener('click', function () {
-    filasH60.push({ codigo: '', material: '', lote: '', caducidad: '', cantidad: '', produccion: '', copias: '1' });
+    filasH60.push({ codigo: '', descripcion: '', material: '', lote: '', caducidad: '', cantidad: '', produccion: '', copias: '1' });
     renderTablaH60();
   });
 
@@ -1616,6 +1893,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     var filasParaEnviar = filasH60.map(function (fila) {
       return {
         codigo: fila.codigo,
+        descripcion: fila.descripcion,
         material: fila.material,
         lote: fila.lote,
         caducidad: fila.caducidad,
@@ -1658,6 +1936,126 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
           estadoZebraH60.textContent = 'No se pudo enviar el trabajo de impresión (' + err.message + ').';
         });
     });
+  });
+
+  // Logo H60: mismo archivo que usa la pestaña Conversión; si no existe cae a SVG.
+  function crearLogoH60Nodo() {
+    var img = document.createElement('img');
+    img.className = 'logo-h60-img';
+    img.alt = 'CONVERSION';
+    img.src = 'logo-conversion.png';
+    img.onerror = function () {
+      var wrap = document.createElement('span');
+      wrap.innerHTML = logoConversionSVG().replace('logo-conv-svg', 'logo-h60-svg');
+      img.replaceWith(wrap.firstElementChild);
+    };
+    return img;
+  }
+
+  // Imagen de la pieza H60: dibujo isometrico (bloque en U) que coincide con
+  // la pieza real de esta etiqueta, hecho en SVG (no depende de subir ningun
+  // archivo). Si algun dia se sube un "pieza-h60.png" real junto a la pagina,
+  // ese archivo tiene prioridad y se usa en su lugar.
+  function piezaH60SVG() {
+    return '<svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg" class="pieza-h60-img">' +
+      '<polygon points="50,4 92,26 50,48 8,26" fill="#8ec6de"/>' +
+      '<polygon points="8,26 33,39 33,84 8,71" fill="#4f7f96"/>' +
+      '<polygon points="33,39 50,48 50,93 33,84" fill="#6ba7c2"/>' +
+      '<polygon points="50,48 50,93 62,86 62,54" fill="#5a8fa8"/>' +
+      '<polygon points="62,54 62,86 92,71 92,39" fill="#4f7f96"/>' +
+      '<polygon points="50,48 62,54 92,39 92,26" fill="#8ec6de"/>' +
+      '</svg>';
+  }
+
+  function crearPiezaH60Nodo() {
+    var img = document.createElement('img');
+    img.className = 'pieza-h60-img';
+    img.alt = 'pieza';
+    img.src = 'pieza_h60.png';
+    img.onerror = function () {
+      var wrap = document.createElement('span');
+      wrap.innerHTML = piezaH60SVG();
+      img.replaceWith(wrap.firstElementChild);
+    };
+    return img;
+  }
+
+  document.getElementById('btnGenerarH60').addEventListener('click', function () {
+    var hoja = document.getElementById('hojaH60');
+    hoja.innerHTML = '';
+
+    if (filasH60.length === 0) {
+      hoja.innerHTML = '<div class="vacio">No hay filas cargadas. Ve al paso 1.</div>';
+      return;
+    }
+
+    var fila = filasH60[0];
+
+    var contenido = document.createElement('div');
+    contenido.className = 'etiqueta-h60';
+
+    var logoWrap = document.createElement('div');
+    logoWrap.className = 'logo-h60-wrap';
+    logoWrap.appendChild(crearLogoH60Nodo());
+    contenido.appendChild(logoWrap);
+
+    var url = document.createElement('div');
+    url.className = 'url-h60';
+    url.textContent = 'https://www.ad-pack.com.mx/conversion';
+    contenido.appendChild(url);
+
+    var codigo = document.createElement('div');
+    codigo.className = 'codigo-h60';
+    codigo.textContent = fila.codigo;
+    contenido.appendChild(codigo);
+
+    var desc = document.createElement('div');
+    desc.className = 'desc-h60';
+    desc.textContent = fila.descripcion;
+    contenido.appendChild(desc);
+
+    var cuerpo = document.createElement('div');
+    cuerpo.className = 'cuerpo-h60';
+
+    var datos = document.createElement('div');
+    datos.className = 'datos-h60';
+    [
+      ['MATERIAL', fila.material],
+      ['LOTE', fila.lote],
+      ['FECHA DE CADUCIDAD', formatoFechaEtiqueta(fila.caducidad) || 'N/A'],
+      ['CANTIDAD', fila.cantidad],
+      ['FECHA DE PRODUCCION', formatoFechaEtiqueta(fila.produccion) || 'N/A'],
+    ].forEach(function (par) {
+      var filaDato = document.createElement('div');
+      filaDato.className = 'fila-dato-h60';
+      var etq = document.createElement('span');
+      etq.className = 'etq';
+      etq.textContent = par[0] + ':';
+      var val = document.createElement('span');
+      val.textContent = par[1];
+      filaDato.appendChild(etq);
+      filaDato.appendChild(val);
+      datos.appendChild(filaDato);
+    });
+    cuerpo.appendChild(datos);
+
+    var piezaWrap = document.createElement('div');
+    piezaWrap.className = 'pieza-h60-wrap';
+    piezaWrap.appendChild(crearPiezaH60Nodo());
+    cuerpo.appendChild(piezaWrap);
+
+    contenido.appendChild(cuerpo);
+
+    var copias = parseInt(fila.copias, 10) || 1;
+    var badge = document.createElement('div');
+    badge.className = 'badge-copias-h60';
+    badge.textContent = 'x' + copias + ' copias';
+    hoja.appendChild(badge);
+
+    var etiqueta = document.createElement('div');
+    etiqueta.className = 'etiqueta';
+    etiqueta.appendChild(contenido);
+    hoja.appendChild(etiqueta);
   });
 </script>
 
