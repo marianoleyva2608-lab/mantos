@@ -497,6 +497,53 @@
   </div>
 </div>
 
+<hr style="margin:32px 0;">
+
+<h1>Etiqueta Cliente</h1>
+<p class="subtitulo">Etiqueta de caja con logo para cliente final (con marco y datos rotados 90°).</p>
+
+<div class="panel no-imprimir">
+  <h2>1. Captura tus filas</h2>
+  <p class="ayuda">
+    Una etiqueta por línea, separando con comas: <b>Cliente, Descripción, Cantidad, Unidad, Copias</b>
+    (Copias es opcional, si no la pones se asume 1).<br>
+    Ejemplo: <code>MATA AUTOMOTIVE DE MEXICO S.R.L. DE C.V., CHE SICOMIN TOP CLEAR 1054, 200, KG, 1</code>
+  </p>
+  <textarea id="entradaCliente" placeholder="MATA AUTOMOTIVE DE MEXICO S.R.L. DE C.V., CHE SICOMIN TOP CLEAR 1054, 200, KG, 1"></textarea>
+  <div class="fila-controles">
+    <button id="btnCargarCliente">Cargar filas a la tabla</button>
+  </div>
+</div>
+
+<div class="panel no-imprimir">
+  <h2>2. Revisa / edita antes de generar</h2>
+  <table id="tablaFilasCliente">
+    <thead>
+      <tr>
+        <th style="width:32%">Cliente</th><th style="width:32%">Descripción</th>
+        <th style="width:12%">Cantidad</th><th style="width:12%">Unidad</th>
+        <th style="width:8%">Copias</th><th style="width:4%"></th>
+      </tr>
+    </thead>
+    <tbody id="cuerpoTablaCliente"></tbody>
+  </table>
+  <div class="fila-controles">
+    <button class="secundario" id="btnAgregarFilaCliente">+ Agregar fila</button>
+  </div>
+</div>
+
+<div class="panel no-imprimir">
+  <h2>3. Envía a la Zebra</h2>
+  <p class="ayuda">Esta etiqueta usa el diseño fijo con logo (marco, QR/gráficos y etiquetas fijas PART NO., QTY., BATCH/SERIAL, EXP. DATE, MFG. DATE). Se imprime directo en la Zebra; no tiene vista previa en el navegador.</p>
+  <div class="fila-controles no-imprimir" id="bloqueZebraRedCliente">
+    <label>IP de la Raspberry Pi:
+      <input type="text" id="ipPiCliente" placeholder="192.168.1.50" style="width:140px;">
+    </label>
+    <button id="btnEnviarZebraCliente">Enviar a Zebra</button>
+    <span id="estadoZebraCliente" class="ayuda" style="margin:0;"></span>
+  </div>
+</div>
+
 </div><!-- /vistaBarras -->
 
 <div id="vistaH60" style="display:none;">
@@ -1255,6 +1302,126 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         .catch(function (err) {
           estadoZebraBarras.style.color = '#dc2626';
           estadoZebraBarras.textContent = 'No se pudo enviar el trabajo de impresión (' + err.message + ').';
+        });
+    });
+  });
+
+  // =======================================================================
+  // Etiqueta Cliente (dentro de Caja Proveedor) - con logo, sin vista previa
+  // =======================================================================
+  var filasCliente = cargarFilas('adpack_filas_cliente');
+  var CAMPOS_CLIENTE = ['cliente', 'descripcion', 'cantidad', 'unidad', 'copias'];
+
+  function parseEntradaCliente(texto) {
+    var lineas = texto.split(/\r?\n/).filter(function (l) { return l.trim() !== ''; });
+    return lineas.map(function (linea) {
+      var cols;
+      if (linea.indexOf('\t') !== -1) cols = linea.split('\t');
+      else if (linea.indexOf('|') !== -1) cols = linea.split('|');
+      else cols = linea.split(',');
+      cols = cols.map(function (c) { return c.trim(); });
+      var fila = {};
+      CAMPOS_CLIENTE.forEach(function (campo, i) { fila[campo] = cols[i] || ''; });
+      if (!fila.copias) fila.copias = '1';
+      return fila;
+    });
+  }
+
+  function renderTablaCliente() {
+    var cuerpo = document.getElementById('cuerpoTablaCliente');
+    cuerpo.innerHTML = '';
+    filasCliente.forEach(function (fila, idx) {
+      var tr = document.createElement('tr');
+      CAMPOS_CLIENTE.forEach(function (campo) {
+        var td = document.createElement('td');
+        var input = document.createElement('input');
+        input.type = campo === 'copias' ? 'number' : 'text';
+        if (campo === 'copias') { input.min = '1'; input.style.width = '70px'; }
+        input.value = campo === 'copias' ? (fila.copias || '1') : fila[campo];
+        input.addEventListener('input', function () { filasCliente[idx][campo] = input.value; guardarFilas('adpack_filas_cliente', filasCliente); });
+        td.appendChild(input);
+        tr.appendChild(td);
+      });
+      var tdBorrar = document.createElement('td');
+      var btn = document.createElement('button');
+      btn.textContent = 'Eliminar';
+      btn.className = 'peligro';
+      btn.addEventListener('click', function () {
+        filasCliente.splice(idx, 1);
+        renderTablaCliente();
+      });
+      tdBorrar.appendChild(btn);
+      tr.appendChild(tdBorrar);
+      cuerpo.appendChild(tr);
+    });
+    guardarFilas('adpack_filas_cliente', filasCliente);
+  }
+  renderTablaCliente();
+
+  document.getElementById('btnCargarCliente').addEventListener('click', function () {
+    var nuevas = parseEntradaCliente(document.getElementById('entradaCliente').value);
+    filasCliente = filasCliente.concat(nuevas);
+    renderTablaCliente();
+  });
+
+  document.getElementById('btnAgregarFilaCliente').addEventListener('click', function () {
+    filasCliente.push({ cliente: '', descripcion: '', cantidad: '', unidad: '', copias: '1' });
+    renderTablaCliente();
+  });
+
+  var inputIpPiCliente = document.getElementById('ipPiCliente');
+  var estadoZebraCliente = document.getElementById('estadoZebraCliente');
+
+  inputIpPiCliente.value = localStorage.getItem('adpack_ip_pi') || IP_PI_POR_DEFECTO;
+  inputIpPiCliente.addEventListener('change', function () {
+    localStorage.setItem('adpack_ip_pi', inputIpPiCliente.value.trim());
+  });
+
+  document.getElementById('btnEnviarZebraCliente').addEventListener('click', function () {
+    var ip = inputIpPiCliente.value.trim();
+    if (!ip) {
+      estadoZebraCliente.textContent = 'Escribe la IP de la Raspberry Pi.';
+      estadoZebraCliente.style.color = '#dc2626';
+      return;
+    }
+    if (filasCliente.length === 0) {
+      estadoZebraCliente.textContent = 'No hay filas cargadas. Ve al paso 1.';
+      estadoZebraCliente.style.color = '#dc2626';
+      return;
+    }
+    localStorage.setItem('adpack_ip_pi', ip);
+
+    estadoZebraCliente.style.color = '#666';
+    estadoZebraCliente.textContent = 'Verificando conexión con la Pi...';
+
+    verificarConexionZebra(ip).then(function (conectado) {
+      if (!conectado) {
+        estadoZebraCliente.style.color = '#dc2626';
+        estadoZebraCliente.textContent = 'No conectado: no se alcanza la Raspberry Pi en ' + ip + ':5000. Revisa la IP y que esté encendida en la misma red.';
+        return;
+      }
+
+      estadoZebraCliente.style.color = '#666';
+      estadoZebraCliente.textContent = 'Conectado. Enviando ' + filasCliente.length + ' etiqueta(s)...';
+
+      fetch('http://' + ip + ':5000/imprimir-cliente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filas: filasCliente })
+      })
+        .then(function (resp) { return resp.json().then(function (data) { return { status: resp.status, data: data }; }); })
+        .then(function (r) {
+          if (r.data && r.data.ok) {
+            estadoZebraCliente.style.color = '#16a34a';
+            estadoZebraCliente.textContent = 'Impreso: ' + (r.data.etiquetas_impresas || filasCliente.length) + ' etiqueta(s).';
+          } else {
+            estadoZebraCliente.style.color = '#dc2626';
+            estadoZebraCliente.textContent = 'Error: ' + (r.data && r.data.error ? r.data.error : 'desconocido');
+          }
+        })
+        .catch(function (err) {
+          estadoZebraCliente.style.color = '#dc2626';
+          estadoZebraCliente.textContent = 'No se pudo enviar el trabajo de impresión (' + err.message + ').';
         });
     });
   });
