@@ -46,9 +46,10 @@
 <body>
 <header>
   <h1>Trazabilidad de Producción</h1>
-  <select id="maquina"></select>
+  <select id="maquina" onchange="liveCount=0;cargar()"></select>
   <input type="date" id="fecha">
   <button onclick="cargar()">Actualizar</button>
+  <span id="vivo" style="font-size:12px;font-weight:700">○ conectando</span>
   <span id="reloj" style="font-size:12px;opacity:.85"></span>
 </header>
 
@@ -104,10 +105,57 @@
   </div>
 </main>
 
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const hoy = () => new Date(Date.now() - 6*3600e3).toISOString().slice(0,10); // UTC-6
 $('#fecha').value = hoy();
+
+// --- conexion MQTT en vivo (actualiza en el instante del pulso) ---
+const MQTT_WS = 'wss://manto-mqttws.1umlhy.easypanel.host/';
+let mqc = null, MAQ = {}, liveCount = 0, cicloPrev = {};
+
+function flashPiezas(){
+  const el = $('#k_piezas'); el.style.transition='none'; el.style.color='#f9a825';
+  requestAnimationFrame(()=>{ el.style.transition='color .8s'; el.style.color=''; });
+}
+
+function conectarMQTT(){
+  if (!window.mqtt) { $('#vivo').textContent='○ sin librería'; return; }
+  mqc = window.mqtt.connect(MQTT_WS, {
+    username:'web', password:'WebAdpack2026', reconnectPeriod:3000, resubscribe:true,
+  });
+  mqc.on('connect', ()=>{ $('#vivo').textContent='● en vivo'; $('#vivo').style.color='#2e7d32';
+    mqc.subscribe('dingtian/+/out/#'); });
+  mqc.on('reconnect', ()=>{ $('#vivo').textContent='… reconectando'; $('#vivo').style.color='#f9a825'; });
+  mqc.on('close', ()=>{ $('#vivo').textContent='○ sin conexión'; $('#vivo').style.color='#c62828'; });
+  mqc.on('error', ()=>{});
+  mqc.on('message', (topic, payload)=>{
+    // topic: dingtian/relayXXXXX/out/iN
+    const p = topic.split('/');
+    if (p.length < 4) return;
+    const sn = p[1].replace('relay','');
+    const hoja = p[3];
+    const cfg = MAQ[sn];
+    if (!cfg) return;
+    const val = payload.toString().trim().toUpperCase();
+    const activo = val === String(cfg.estado_activo || 'ON').toUpperCase();
+    if (hoja === 'i'+cfg.entrada_ciclo && cfg.id === $('#maquina').value) {
+      const prev = cicloPrev[sn];
+      cicloPrev[sn] = activo;
+      if (activo && prev !== true) {   // flanco OFF->ON = 1 pieza
+        liveCount++;
+        $('#k_piezas').textContent = liveCount;
+        flashPiezas();
+        const ahora = new Date().toISOString();
+        $('#k_ultima').textContent = hhmmss(ahora);
+        const lst = ($('#ultpiezas').textContent === '—' ? [] : $('#ultpiezas').textContent.split('  ·  '));
+        lst.unshift(hhmmss(ahora));
+        $('#ultpiezas').textContent = lst.slice(0,20).join('  ·  ');
+      }
+    }
+  });
+}
 
 function hhmm(iso){ if(!iso) return '—';
   return new Date(iso).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Mexico_City'}); }
@@ -118,6 +166,7 @@ function dur(seg){ if(seg==null) return '—'; const m=Math.round(seg/60); retur
 async function cargarMaquinas(){
   const r = await fetch('/api/traza/maquinas'); const ms = await r.json();
   $('#maquina').innerHTML = ms.map(m=>`<option value="${m.id}">${m.id} · ${m.nombre||''}</option>`).join('');
+  MAQ = {}; ms.forEach(m=>{ if(m.dingtian_sn) MAQ[m.dingtian_sn] = m; });
 }
 
 async function cargar(){
@@ -127,17 +176,15 @@ async function cargar(){
   const d = await r.json();
   if(d.error){ alert(d.error); return; }
 
-  if (d.piezas_hoy > (window._prevPiezas ?? d.piezas_hoy)) {
-    const el = $('#k_piezas'); el.style.transition='none'; el.style.color='#f9a825';
-    requestAnimationFrame(()=>{ el.style.transition='color .8s'; el.style.color=''; });
-  }
-  window._prevPiezas = d.piezas_hoy;
-  $('#k_piezas').textContent = d.piezas_hoy;
+  // el conteo en vivo (MQTT) manda; el poll solo lo sube si el servidor va adelante
+  if (d.piezas_hoy > liveCount) { liveCount = d.piezas_hoy; flashPiezas(); }
+  $('#k_piezas').textContent = liveCount;
   $('#k_paros').textContent  = d.paros_hoy;
   $('#k_tparo').textContent  = d.tiempo_paro_min;
-  $('#k_ultima').textContent = hhmmss(d.ultima_pieza);
+  if (d.ultima_pieza) $('#k_ultima').textContent = hhmmss(d.ultima_pieza);
   $('#reloj').textContent = 'act. ' + new Date().toLocaleTimeString('es-MX',{hour12:false});
-  $('#ultpiezas').textContent = (d.pulsos_recientes || []).map(hhmmss).join('  ·  ') || '—';
+  if ((d.pulsos_recientes||[]).length)
+    $('#ultpiezas').textContent = d.pulsos_recientes.map(hhmmss).join('  ·  ');
 
   dibujar(d.por_hora);
 
@@ -219,7 +266,8 @@ async function guardarMotivo(id){
 }
 
 (async()=>{ await cargarMaquinas(); await cargar();
-  setInterval(cargar, 1000);
+  conectarMQTT();
+  setInterval(cargar, 10000);   // el MQTT da el instante; el poll sincroniza cada 10s
 })();
 </script>
 </body>
