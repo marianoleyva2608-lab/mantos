@@ -140,8 +140,8 @@ def registrar_equipo(sn, val):
 # MQTT
 # ------------------------------------------------------------------
 def sn_de_topic(topic):
-    # dingtian/relay52862/out/i1 -> ("52862", "i1")
-    partes = topic.split("/")
+    # acepta 'dingtian/relay52862/out/i1' y '/dingtian/relay52862/out/i1'
+    partes = topic.strip("/").split("/")
     if len(partes) < 4:
         return None, None
     return partes[1].replace("relay", ""), partes[-1]
@@ -149,6 +149,7 @@ def sn_de_topic(topic):
 
 def on_connect(cli, *_):
     cli.subscribe("dingtian/+/out/#")
+    cli.subscribe("/dingtian/+/out/#")   # el Dingtian publica con / inicial
     print("MQTT conectado, suscrito a dingtian/+/out/#", flush=True)
 
 

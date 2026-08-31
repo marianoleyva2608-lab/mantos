@@ -126,13 +126,13 @@ function conectarMQTT(){
     username:'web', password:'WebAdpack2026', reconnectPeriod:3000, resubscribe:true,
   });
   mqc.on('connect', ()=>{ $('#vivo').textContent='● en vivo'; $('#vivo').style.color='#2e7d32';
-    mqc.subscribe('dingtian/+/out/#'); });
+    mqc.subscribe('dingtian/+/out/#'); mqc.subscribe('/dingtian/+/out/#'); });
   mqc.on('reconnect', ()=>{ $('#vivo').textContent='… reconectando'; $('#vivo').style.color='#f9a825'; });
   mqc.on('close', ()=>{ $('#vivo').textContent='○ sin conexión'; $('#vivo').style.color='#c62828'; });
   mqc.on('error', ()=>{});
   mqc.on('message', (topic, payload)=>{
-    // topic: dingtian/relayXXXXX/out/iN
-    const p = topic.split('/');
+    // topic: dingtian/relayXXXXX/out/iN  (o con / al inicio)
+    const p = topic.replace(/^\/+/,'').split('/');
     if (p.length < 4) return;
     const sn = p[1].replace('relay','');
     const hoja = p[3];
