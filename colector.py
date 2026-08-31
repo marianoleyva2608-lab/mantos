@@ -84,7 +84,7 @@ def cargar_maquinas():
         maquinas[row["dingtian_sn"]] = row
         estado.setdefault(row["dingtian_sn"],
                           {"ultimo_ciclo": 0.0, "marcha": False,
-                           "paro_id": None, "ciclo_prev": None})
+                           "paro_id": None, "ciclo_prev": None, "orden_id": None})
     print(f"Maquinas cargadas: {[m['id'] for m in maquinas.values()]}", flush=True)
 
 
@@ -95,8 +95,13 @@ def orden_activa(maquina_id):
     return rows[0]["id"] if rows else None
 
 
-def registrar_ciclo(m):
-    minuto = datetime.now(timezone.utc).replace(second=0, microsecond=0).isoformat()
+def registrar_ciclo(m, st):
+    ahora = datetime.now(timezone.utc)
+    # 1 fila por pieza, con hora exacta
+    sb_insert("pulsos", {"maquina": m["id"], "ts": ahora.isoformat(),
+                         "orden_id": st["orden_id"]}, return_rows=False)
+    # cubo por minuto (para graficas rapidas)
+    minuto = ahora.replace(second=0, microsecond=0).isoformat()
     sb_rpc("bump_produccion", {"p_maquina": m["id"], "p_minuto": minuto})
     print(f"{datetime.now():%H:%M:%S}  {m['id']}  ciclo", flush=True)
 
@@ -170,7 +175,7 @@ def on_message(cli, _u, msg):
                     if (ahora - st["ultimo_ciclo"]) * 1000 < DEBOUNCE_MS:
                         return
                     st["ultimo_ciclo"] = ahora
-                    registrar_ciclo(m)
+                    registrar_ciclo(m, st)
                     if st["paro_id"]:
                         cerrar_paro(m, st)
 
@@ -189,9 +194,14 @@ def vigilar_gaps():
     while True:
         time.sleep(5)
         ahora = time.time()
-        with lock:
-            for sn, st in estado.items():
-                m = maquinas[sn]
+        for sn, st in list(estado.items()):
+            m = maquinas[sn]
+            # refresca la orden activa (cache, para no consultar en cada pulso)
+            try:
+                st["orden_id"] = orden_activa(m["id"])
+            except Exception as e:
+                print(f"[orden] {e}", flush=True)
+            with lock:
                 if (st["marcha"] and not st["paro_id"] and st["ultimo_ciclo"]
                         and ahora - st["ultimo_ciclo"] > m["paro_gap_seg"]):
                     try:

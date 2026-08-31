@@ -65,6 +65,11 @@
     <canvas id="chart"></canvas>
   </div>
 
+  <div class="card">
+    <h2>Últimas piezas (hora exacta)</h2>
+    <div id="ultpiezas" class="muted" style="font-family:ui-monospace,monospace;font-size:13px;line-height:1.9">—</div>
+  </div>
+
   <div class="card" id="cardOrden">
     <h2>Orden activa</h2>
     <div id="ordenActiva" class="muted">—</div>
@@ -106,6 +111,8 @@ $('#fecha').value = hoy();
 
 function hhmm(iso){ if(!iso) return '—';
   return new Date(iso).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Mexico_City'}); }
+function hhmmss(iso){ if(!iso) return '—';
+  return new Date(iso).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,timeZone:'America/Mexico_City'}); }
 function dur(seg){ if(seg==null) return '—'; const m=Math.round(seg/60); return m<60? m+' min' : (m/60).toFixed(1)+' h'; }
 
 async function cargarMaquinas(){
@@ -123,8 +130,9 @@ async function cargar(){
   $('#k_piezas').textContent = d.piezas_hoy;
   $('#k_paros').textContent  = d.paros_hoy;
   $('#k_tparo').textContent  = d.tiempo_paro_min;
-  $('#k_ultima').textContent = hhmm(d.ultima_pieza);
+  $('#k_ultima').textContent = hhmmss(d.ultima_pieza);
   $('#reloj').textContent = 'act. ' + new Date().toLocaleTimeString('es-MX',{hour12:false});
+  $('#ultpiezas').textContent = (d.pulsos_recientes || []).map(hhmmss).join('  ·  ') || '—';
 
   dibujar(d.por_hora);
 
@@ -206,7 +214,7 @@ async function guardarMotivo(id){
 }
 
 (async()=>{ await cargarMaquinas(); await cargar();
-  setInterval(cargar, 10000);
+  setInterval(cargar, 5000);
 })();
 </script>
 </body>
