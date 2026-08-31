@@ -204,7 +204,7 @@ def _norm(s):
 def hash_pin(pin):
     return hashlib.sha256(pin.encode()).hexdigest()
 
-TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'settings')
+TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'trazabilidad', 'settings')
 
 def _normalizar_permisos(permisos):
     if isinstance(permisos, list):
@@ -2301,6 +2301,124 @@ def imprimir_proxy():
         return response.json(), response.status_code
     except Exception as e:
         return jsonify({"ok": False, "error": f"No se pudo conectar con la impresora: {str(e)}"}), 500
+
+# ══════════════════════════════════════════════════════════
+#  TRAZABILIDAD DE PRODUCCION  (datos del colector MQTT/Dingtian)
+# ══════════════════════════════════════════════════════════
+from datetime import timedelta as _timedelta, timezone as _tz
+
+TRAZA_TZ = _tz(_timedelta(hours=-6))   # hora local de planta (Mexico, UTC-6)
+
+
+def _traza_rango_dia(fecha_str):
+    """(inicio_utc_iso, fin_utc_iso) para el dia local dado 'YYYY-MM-DD'."""
+    y, m, d = [int(x) for x in fecha_str.split('-')]
+    ini_local = datetime.datetime(y, m, d, 0, 0, 0, tzinfo=TRAZA_TZ)
+    fin_local = ini_local + _timedelta(days=1)
+    return (ini_local.astimezone(_tz.utc).isoformat(),
+            fin_local.astimezone(_tz.utc).isoformat())
+
+
+@app.route('/trazabilidad')
+@app.route('/trazabilidad.html')
+def trazabilidad_page():
+    html = open('trazabilidad.html', encoding='utf-8').read()
+    return html, 200, {'Content-Type': 'text/html; charset=utf-8',
+                       'Cache-Control': 'no-store'}
+
+
+@app.route('/api/traza/maquinas', methods=['GET'])
+def traza_maquinas():
+    return jsonify(sb.select('maquinas', select='*', order='id.asc'))
+
+
+@app.route('/api/traza/resumen', methods=['GET'])
+def traza_resumen():
+    maquina = request.args.get('maquina', '')
+    fecha   = request.args.get('fecha') or datetime.datetime.now(TRAZA_TZ).strftime('%Y-%m-%d')
+    if not maquina:
+        return jsonify({'error': 'falta maquina'}), 400
+    ini, fin = _traza_rango_dia(fecha)
+
+    # PostgREST via el cliente SB solo acepta 1 filtro por campo (kwargs),
+    # asi que traemos desde 'ini' y recortamos 'fin' en python.
+    prod = sb.select('produccion', select='minuto,piezas',
+                     maquina='eq.' + maquina, minuto='gte.' + ini)
+    prod = [p for p in prod if p['minuto'] < fin]
+
+    paros = sb.select('paros', select='*',
+                      maquina='eq.' + maquina,
+                      inicio='gte.' + ini, order='inicio.desc')
+    paros = [p for p in paros if p['inicio'] < fin]
+
+    ordenes = sb.select('v_produccion_por_orden', select='*',
+                        maquina='eq.' + maquina, order='inicio.desc', limit=30)
+
+    por_hora = [0] * 24
+    total = 0
+    ultima = None
+    for p in prod:
+        h = datetime.datetime.fromisoformat(p['minuto']).astimezone(TRAZA_TZ).hour
+        por_hora[h] += p['piezas']
+        total += p['piezas']
+        if ultima is None or p['minuto'] > ultima:
+            ultima = p['minuto']
+
+    ahora = datetime.datetime.now(_tz.utc)
+    paro_seg = 0
+    for p in paros:
+        if p.get('fin'):
+            paro_seg += p.get('duracion_seg') or 0
+        else:
+            ini_p = datetime.datetime.fromisoformat(p['inicio'])
+            paro_seg += int((ahora - ini_p).total_seconds())
+
+    return jsonify({
+        'maquina': maquina,
+        'fecha': fecha,
+        'piezas_hoy': total,
+        'paros_hoy': len(paros),
+        'tiempo_paro_min': round(paro_seg / 60),
+        'ultima_pieza': ultima,
+        'por_hora': por_hora,
+        'paros': paros,
+        'ordenes': ordenes,
+    })
+
+
+@app.route('/api/traza/ordenes', methods=['POST'])
+def traza_crear_orden():
+    d = request.json or {}
+    if not d.get('maquina') or not d.get('orden'):
+        return jsonify({'error': 'maquina y orden requeridos'}), 400
+    # cierra cualquier orden abierta de esa maquina
+    abiertas = sb.select('ordenes', select='id',
+                         maquina='eq.' + d['maquina'], fin='is.null')
+    for o in abiertas:
+        sb.update('ordenes', {'fin': datetime.datetime.now(_tz.utc).isoformat()},
+                  return_rows=False, id='eq.' + str(o['id']))
+    nueva = sb.insert('ordenes', {
+        'maquina': d['maquina'], 'orden': d['orden'],
+        'lote_material': d.get('lote_material', ''), 'molde': d.get('molde', ''),
+        'operador': d.get('operador', ''), 'turno': d.get('turno') or None,
+    })
+    return jsonify({'ok': True, 'id': nueva[0]['id']})
+
+
+@app.route('/api/traza/ordenes/<int:oid>/cerrar', methods=['POST'])
+def traza_cerrar_orden(oid):
+    sb.update('ordenes', {'fin': datetime.datetime.now(_tz.utc).isoformat()},
+              return_rows=False, id='eq.' + str(oid))
+    return jsonify({'ok': True})
+
+
+@app.route('/api/traza/paros/<int:pid>/motivo', methods=['POST'])
+def traza_motivo_paro(pid):
+    d = request.json or {}
+    sb.update('paros', {'motivo': d.get('motivo', '')},
+              return_rows=False, id='eq.' + str(pid))
+    return jsonify({'ok': True})
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)
