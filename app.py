@@ -2354,18 +2354,17 @@ def traza_resumen():
     ordenes = sb.select('v_produccion_por_orden', select='*',
                         maquina='eq.' + maquina, order='inicio.desc', limit=30)
 
-    # pulsos exactos (1 fila por pieza) del dia
-    pulsos = sb.select('pulsos', select='id,ts,orden_id',
-                       maquina='eq.' + maquina, ts='gte.' + ini,
-                       order='ts.desc', limit=5000)
-    pulsos = [p for p in pulsos if p['ts'] < fin]
+    # solo las ultimas piezas para mostrar hora exacta (ligero para polling 1s)
+    pulsos = sb.select('pulsos', select='ts',
+                       maquina='eq.' + maquina, order='ts.desc', limit=20)
 
     por_hora = [0] * 24
+    total = 0
     for p in prod:
         h = datetime.datetime.fromisoformat(p['minuto']).astimezone(TRAZA_TZ).hour
         por_hora[h] += p['piezas']
+        total += p['piezas']
 
-    total = len(pulsos)
     ultima = pulsos[0]['ts'] if pulsos else None
 
     ahora = datetime.datetime.now(_tz.utc)
@@ -2387,7 +2386,7 @@ def traza_resumen():
         'por_hora': por_hora,
         'paros': paros,
         'ordenes': ordenes,
-        'pulsos_recientes': [p['ts'] for p in pulsos[:20]],
+        'pulsos_recientes': [p['ts'] for p in pulsos],
     })
 
 

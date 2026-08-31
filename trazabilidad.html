@@ -127,6 +127,11 @@ async function cargar(){
   const d = await r.json();
   if(d.error){ alert(d.error); return; }
 
+  if (d.piezas_hoy > (window._prevPiezas ?? d.piezas_hoy)) {
+    const el = $('#k_piezas'); el.style.transition='none'; el.style.color='#f9a825';
+    requestAnimationFrame(()=>{ el.style.transition='color .8s'; el.style.color=''; });
+  }
+  window._prevPiezas = d.piezas_hoy;
   $('#k_piezas').textContent = d.piezas_hoy;
   $('#k_paros').textContent  = d.paros_hoy;
   $('#k_tparo').textContent  = d.tiempo_paro_min;
@@ -214,7 +219,7 @@ async function guardarMotivo(id){
 }
 
 (async()=>{ await cargarMaquinas(); await cargar();
-  setInterval(cargar, 5000);
+  setInterval(cargar, 1000);
 })();
 </script>
 </body>
