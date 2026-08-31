@@ -49,6 +49,7 @@
   <select id="maquina"></select>
   <input type="date" id="fecha">
   <button onclick="cargar()">Actualizar</button>
+  <span id="reloj" style="font-size:12px;opacity:.85"></span>
 </header>
 
 <main>
@@ -123,6 +124,7 @@ async function cargar(){
   $('#k_paros').textContent  = d.paros_hoy;
   $('#k_tparo').textContent  = d.tiempo_paro_min;
   $('#k_ultima').textContent = hhmm(d.ultima_pieza);
+  $('#reloj').textContent = 'act. ' + new Date().toLocaleTimeString('es-MX',{hour12:false});
 
   dibujar(d.por_hora);
 
@@ -204,8 +206,7 @@ async function guardarMotivo(id){
 }
 
 (async()=>{ await cargarMaquinas(); await cargar();
-  setInterval(cargar, 30000);
-  addEventListener('resize', ()=>cargar());
+  setInterval(cargar, 10000);
 })();
 </script>
 </body>
