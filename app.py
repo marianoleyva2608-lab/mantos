@@ -204,7 +204,7 @@ def _norm(s):
 def hash_pin(pin):
     return hashlib.sha256(pin.encode()).hexdigest()
 
-TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'settings')
+TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'trazabilidad', 'settings')
 
 def _normalizar_permisos(permisos):
     if isinstance(permisos, list):
@@ -2301,6 +2301,199 @@ def imprimir_proxy():
         return response.json(), response.status_code
     except Exception as e:
         return jsonify({"ok": False, "error": f"No se pudo conectar con la impresora: {str(e)}"}), 500
+
+# ══════════════════════════════════════════════════════════
+#  TRAZABILIDAD DE PRODUCCION  (datos del colector MQTT/Dingtian)
+# ══════════════════════════════════════════════════════════
+from datetime import timedelta as _timedelta, timezone as _tz
+
+TRAZA_TZ = _tz(_timedelta(hours=-6))   # hora local de planta (Mexico, UTC-6)
+
+
+def _traza_rango_dia(fecha_str):
+    """(inicio_utc_iso, fin_utc_iso) para el dia local dado 'YYYY-MM-DD'."""
+    y, m, d = [int(x) for x in fecha_str.split('-')]
+    ini_local = datetime.datetime(y, m, d, 0, 0, 0, tzinfo=TRAZA_TZ)
+    fin_local = ini_local + _timedelta(days=1)
+    return (ini_local.astimezone(_tz.utc).isoformat(),
+            fin_local.astimezone(_tz.utc).isoformat())
+
+
+@app.route('/trazabilidad')
+@app.route('/trazabilidad.html')
+def trazabilidad_page():
+    html = open('trazabilidad.html', encoding='utf-8').read()
+    return html, 200, {'Content-Type': 'text/html; charset=utf-8',
+                       'Cache-Control': 'no-store'}
+
+
+@app.route('/api/traza/maquinas', methods=['GET'])
+def traza_maquinas():
+    return jsonify(sb.select('maquinas', select='*', order='id.asc'))
+
+
+@app.route('/api/traza/resumen', methods=['GET'])
+def traza_resumen():
+    maquina = request.args.get('maquina', '')
+    fecha   = request.args.get('fecha') or datetime.datetime.now(TRAZA_TZ).strftime('%Y-%m-%d')
+    if not maquina:
+        return jsonify({'error': 'falta maquina'}), 400
+    ini, fin = _traza_rango_dia(fecha)
+
+    # 'corte de conteo': si un supervisor firmo un reset hoy, los contadores
+    # (piezas, NG, grafica, ultima pieza) se cuentan desde ese momento.
+    cortes = sb.select('cortes_conteo', select='ts,firmo_nombre',
+                       maquina='eq.' + maquina, ts='gte.' + ini,
+                       order='ts.desc', limit=1)
+    cortes = [c for c in cortes if c['ts'] < fin]
+    desde = cortes[0]['ts'] if cortes else ini
+    ultimo_corte = cortes[0] if cortes else None
+
+    # PostgREST via el cliente SB solo acepta 1 filtro por campo (kwargs),
+    # asi que traemos desde 'desde' y recortamos 'fin' en python.
+    prod = sb.select('produccion', select='minuto,piezas',
+                     maquina='eq.' + maquina, minuto='gte.' + desde)
+    prod = [p for p in prod if p['minuto'] < fin]
+
+    # los paros SI se muestran del dia completo (el corte es solo del conteo)
+    paros = sb.select('paros', select='*',
+                      maquina='eq.' + maquina,
+                      inicio='gte.' + ini, order='inicio.desc')
+    paros = [p for p in paros if p['inicio'] < fin]
+
+    ordenes = sb.select('v_produccion_por_orden', select='*',
+                        maquina='eq.' + maquina, order='inicio.desc', limit=30)
+
+    # solo las ultimas piezas para mostrar hora exacta (ligero para polling 1s)
+    pulsos = sb.select('pulsos', select='ts',
+                       maquina='eq.' + maquina, ts='gte.' + desde,
+                       order='ts.desc', limit=20)
+
+    ng_rows = sb.select('piezas_ng', select='ts',
+                        maquina='eq.' + maquina, ts='gte.' + desde)
+    ng_hoy = len([n for n in ng_rows if n['ts'] < fin])
+
+    por_hora = [0] * 24
+    total = 0
+    for p in prod:
+        h = datetime.datetime.fromisoformat(p['minuto']).astimezone(TRAZA_TZ).hour
+        por_hora[h] += p['piezas']
+        total += p['piezas']
+
+    ultima = pulsos[0]['ts'] if pulsos else None
+
+    ahora = datetime.datetime.now(_tz.utc)
+    paro_seg = 0
+    for p in paros:
+        if p.get('fin'):
+            paro_seg += p.get('duracion_seg') or 0
+        else:
+            ini_p = datetime.datetime.fromisoformat(p['inicio'])
+            paro_seg += int((ahora - ini_p).total_seconds())
+
+    return jsonify({
+        'maquina': maquina,
+        'fecha': fecha,
+        'piezas_hoy': total,
+        'ng_hoy': ng_hoy,
+        'scrap_pct': round(100 * ng_hoy / (total + ng_hoy), 1) if (total + ng_hoy) else 0,
+        'paros_hoy': len(paros),
+        'tiempo_paro_min': round(paro_seg / 60),
+        'ultima_pieza': ultima,
+        'por_hora': por_hora,
+        'ultimo_corte': ultimo_corte,
+        'paros': paros,
+        'ordenes': ordenes,
+        'pulsos_recientes': [p['ts'] for p in pulsos],
+    })
+
+
+@app.route('/api/traza/ordenes', methods=['POST'])
+def traza_crear_orden():
+    d = request.json or {}
+    if not d.get('maquina') or not d.get('orden'):
+        return jsonify({'error': 'maquina y orden requeridos'}), 400
+    # cierra cualquier orden abierta de esa maquina
+    abiertas = sb.select('ordenes', select='id',
+                         maquina='eq.' + d['maquina'], fin='is.null')
+    for o in abiertas:
+        sb.update('ordenes', {'fin': datetime.datetime.now(_tz.utc).isoformat()},
+                  return_rows=False, id='eq.' + str(o['id']))
+    nueva = sb.insert('ordenes', {
+        'maquina': d['maquina'], 'orden': d['orden'],
+        'lote_material': d.get('lote_material', ''), 'molde': d.get('molde', ''),
+        'operador': d.get('operador', ''), 'turno': d.get('turno') or None,
+    })
+    return jsonify({'ok': True, 'id': nueva[0]['id']})
+
+
+@app.route('/api/traza/ordenes/<int:oid>/cerrar', methods=['POST'])
+def traza_cerrar_orden(oid):
+    sb.update('ordenes', {'fin': datetime.datetime.now(_tz.utc).isoformat()},
+              return_rows=False, id='eq.' + str(oid))
+    return jsonify({'ok': True})
+
+
+@app.route('/api/traza/paros/<int:pid>/motivo', methods=['POST'])
+def traza_motivo_paro(pid):
+    d = request.json or {}
+    sb.update('paros', {'motivo': d.get('motivo', '')},
+              return_rows=False, id='eq.' + str(pid))
+    return jsonify({'ok': True})
+
+
+@app.route('/api/traza/ng', methods=['POST'])
+def traza_ng():
+    """Registra 1 pieza NG (boton '+1 NG'). La liga a la orden abierta si hay."""
+    d = request.json or {}
+    maquina = d.get('maquina', '')
+    if not maquina:
+        return jsonify({'error': 'falta maquina'}), 400
+    abiertas = sb.select('ordenes', select='id',
+                         maquina='eq.' + maquina, fin='is.null')
+    fila = sb.insert('piezas_ng', {
+        'maquina': maquina,
+        'orden_id': abiertas[0]['id'] if abiertas else None,
+    })
+    return jsonify({'ok': True, 'id': fila[0]['id']})
+
+
+@app.route('/api/traza/corte', methods=['POST'])
+def traza_corte():
+    """Resetea el conteo del dashboard (no borra datos). Requiere firma admin."""
+    d = request.json or {}
+    maquina = d.get('maquina', '')
+    email = (d.get('email') or '').strip().lower()
+    pin = (d.get('pin') or '').strip()
+    if not maquina:
+        return jsonify({'error': 'falta maquina'}), 400
+    rows = sb.select('users', select='nombre,email,rol',
+                     email='eq.' + email, pin_hash='eq.' + hash_pin(pin))
+    if not rows:
+        return jsonify({'error': 'Correo o PIN incorrecto'}), 401
+    u = rows[0]
+    if (u.get('rol') or '') != 'admin':
+        return jsonify({'error': 'Solo un supervisor/admin puede firmar el corte'}), 403
+    sb.insert('cortes_conteo', {
+        'maquina': maquina,
+        'firmo_nombre': u['nombre'], 'firmo_email': u['email'],
+    }, return_rows=False)
+    return jsonify({'ok': True, 'firmo': u['nombre']})
+
+
+@app.route('/api/traza/ng/ultimo', methods=['DELETE'])
+def traza_ng_undo():
+    """Borra la ultima pieza NG capturada de esa maquina (deshacer)."""
+    maquina = request.args.get('maquina', '')
+    if not maquina:
+        return jsonify({'error': 'falta maquina'}), 400
+    ult = sb.select('piezas_ng', select='id',
+                    maquina='eq.' + maquina, order='ts.desc', limit=1)
+    if not ult:
+        return jsonify({'ok': True, 'borrado': 0})
+    sb.delete('piezas_ng', return_rows=False, id='eq.' + str(ult[0]['id']))
+    return jsonify({'ok': True, 'borrado': 1})
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False)

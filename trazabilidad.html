@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trazabilidad de Producción · AD-PACK</title>
+<style>
+  :root{
+    --verde:#1a5c2a; --verde-claro:#e8f5e9; --rojo:#c62828; --amber:#f9a825;
+    --bg:#f4f6f5; --card:#fff; --line:#e0e0e0; --txt:#1c1c1c; --muted:#666;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--txt);font-size:14px}
+  header{background:var(--verde);color:#fff;padding:12px 18px;display:flex;
+         flex-wrap:wrap;gap:12px;align-items:center}
+  header h1{font-size:16px;margin:0;font-weight:700;flex:1;min-width:180px}
+  header select,header input,button{font:inherit;padding:6px 10px;border-radius:6px;border:1px solid #0003}
+  button{background:#fff;color:var(--verde);font-weight:600;cursor:pointer}
+  button.primary{background:var(--amber);color:#000;border-color:#0003}
+  main{padding:18px;max-width:1100px;margin:0 auto}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .kpi .v{font-size:26px;font-weight:800;color:var(--verde)}
+  .kpi .l{font-size:12px;color:var(--muted);margin-top:2px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:18px}
+  .card h2{font-size:14px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  canvas{width:100%;height:220px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);font-size:13px}
+  th{color:var(--muted);font-weight:600}
+  .tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700}
+  .tag.sin_marcha{background:#ffe0e0;color:var(--rojo)}
+  .tag.gap_ciclos{background:#fff3d6;color:#8a6100}
+  .form-row{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+  .form-row label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:3px}
+  .form-row input{padding:6px 8px;border:1px solid var(--line);border-radius:6px;font:inherit}
+  .muted{color:var(--muted)}
+  .activa{background:var(--verde-claro);border-color:#a5d6a7}
+  .scroll{overflow-x:auto}
+  @media(prefers-color-scheme:dark){
+    :root{--bg:#141715;--card:#1e211f;--line:#333;--txt:#eee;--muted:#9aa;--verde-claro:#1f3a26}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Trazabilidad de Producción</h1>
+  <select id="maquina" onchange="liveCount=0;cargar()"></select>
+  <input type="date" id="fecha">
+  <button onclick="cargar()">Actualizar</button>
+  <button onclick="abrirCorte()" title="Reinicia los contadores (firma de supervisor)">↺ Resetear conteo</button>
+  <span id="vivo" style="font-size:12px;font-weight:700">○ conectando</span>
+  <span id="reloj" style="font-size:12px;opacity:.85"></span>
+  <span id="corteInfo" style="font-size:12px;opacity:.85"></span>
+</header>
+
+<div id="corteModal" style="display:none;position:fixed;inset:0;background:#0007;z-index:999;
+     align-items:center;justify-content:center">
+  <div style="background:var(--card);color:var(--txt);padding:20px;border-radius:12px;max-width:340px;width:90%">
+    <h3 style="margin:0 0 4px">Resetear conteo</h3>
+    <p class="muted" style="margin:0 0 12px;font-size:12px">
+      Requiere firma de un <b>supervisor/admin</b>. No se borra nada: los contadores
+      (piezas, NG, gráfica) se reinician desde este momento; el historial queda intacto.</p>
+    <input id="c_email" type="email" placeholder="Correo" autocomplete="username"
+           style="width:100%;margin-bottom:8px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--txt)">
+    <input id="c_pin" type="password" placeholder="PIN" autocomplete="current-password"
+           style="width:100%;margin-bottom:10px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--txt)">
+    <div id="c_err" style="color:var(--rojo);font-size:12px;min-height:16px;margin-bottom:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="cerrarCorte()">Cancelar</button>
+      <button class="primary" onclick="confirmarCorte()">Firmar y resetear</button>
+    </div>
+  </div>
+</div>
+
+<main>
+  <div class="kpis">
+    <div class="kpi"><div class="v" id="k_piezas">–</div><div class="l">Piezas hoy</div></div>
+    <div class="kpi"><div class="v" id="k_ng" style="color:var(--rojo)">–</div><div class="l">Piezas NG hoy</div></div>
+    <div class="kpi"><div class="v" id="k_scrap" style="color:var(--amber)">–</div><div class="l">% scrap</div></div>
+    <div class="kpi"><div class="v" id="k_paros">–</div><div class="l">Paros hoy</div></div>
+    <div class="kpi"><div class="v" id="k_tparo">–</div><div class="l">Tiempo de paro (min)</div></div>
+    <div class="kpi"><div class="v" id="k_ultima">–</div><div class="l">Última pieza</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Producción por hora</h2>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Últimas piezas (hora exacta)</h2>
+    <div id="ultpiezas" class="muted" style="font-family:ui-monospace,monospace;font-size:13px;line-height:1.9">—</div>
+  </div>
+
+  <div class="card">
+    <h2>Piezas NG (rechazo)</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <button class="primary" style="font-size:20px;padding:14px 28px" onclick="marcarNG()">+1 NG</button>
+      <div><span id="ng_hoy" style="font-size:26px;font-weight:800;color:var(--rojo)">0</span>
+           <span class="muted">NG hoy</span></div>
+      <button onclick="deshacerNG()" style="margin-left:auto">Deshacer último</button>
+    </div>
+  </div>
+
+  <div class="card" id="cardOrden">
+    <h2>Orden activa</h2>
+    <div id="ordenActiva" class="muted">—</div>
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
+    <div class="form-row">
+      <label>Orden <input id="f_orden" placeholder="OP-1234"></label>
+      <label>Lote material <input id="f_lote" placeholder="RESINA-..."></label>
+      <label>Molde <input id="f_molde"></label>
+      <label>Operador <input id="f_operador"></label>
+      <label>Turno <input id="f_turno" type="number" min="1" max="3" style="width:60px"></label>
+      <button class="primary" onclick="abrirOrden()">Abrir orden</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Paros del día</h2>
+    <div class="scroll">
+      <table id="tParos"><thead><tr>
+        <th>Inicio</th><th>Fin</th><th>Duración</th><th>Causa</th><th>Motivo</th><th></th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Órdenes recientes</h2>
+    <div class="scroll">
+      <table id="tOrdenes"><thead><tr>
+        <th>Orden</th><th>Lote</th><th>Molde</th><th>Operador</th><th>Turno</th>
+        <th>Inicio</th><th>Fin</th><th>Piezas</th><th>NG</th><th>% scrap</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+</main>
+
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const hoy = () => new Date(Date.now() - 6*3600e3).toISOString().slice(0,10); // UTC-6
+$('#fecha').value = hoy();
+
+// --- conexion MQTT en vivo (actualiza en el instante del pulso) ---
+const MQTT_WS = 'wss://manto-mqttws.1umlhy.easypanel.host/';
+let mqc = null, MAQ = {}, liveCount = 0, cicloPrev = {};
+
+function flashPiezas(){
+  const el = $('#k_piezas'); el.style.transition='none'; el.style.color='#f9a825';
+  requestAnimationFrame(()=>{ el.style.transition='color .8s'; el.style.color=''; });
+}
+
+function conectarMQTT(){
+  if (!window.mqtt) { $('#vivo').textContent='○ sin librería'; return; }
+  mqc = window.mqtt.connect(MQTT_WS, {
+    username:'web', password:'WebAdpack2026', reconnectPeriod:3000, resubscribe:true,
+  });
+  mqc.on('connect', ()=>{ $('#vivo').textContent='● en vivo'; $('#vivo').style.color='#2e7d32';
+    mqc.subscribe('dingtian/+/out/#'); mqc.subscribe('/dingtian/+/out/#'); });
+  mqc.on('reconnect', ()=>{ $('#vivo').textContent='… reconectando'; $('#vivo').style.color='#f9a825'; });
+  mqc.on('close', ()=>{ $('#vivo').textContent='○ sin conexión'; $('#vivo').style.color='#c62828'; });
+  mqc.on('error', ()=>{});
+  mqc.on('message', (topic, payload)=>{
+    // topic: dingtian/relayXXXXX/out/iN  (o con / al inicio)
+    const p = topic.replace(/^\/+/,'').split('/');
+    if (p.length < 4) return;
+    const sn = p[1].replace('relay','');
+    const hoja = p[3];
+    const cfg = MAQ[sn];
+    if (!cfg) return;
+    const val = payload.toString().trim().toUpperCase();
+    const activo = val === String(cfg.estado_activo || 'ON').toUpperCase();
+    if (hoja === 'i'+cfg.entrada_ciclo && cfg.id === $('#maquina').value) {
+      const prev = cicloPrev[sn];
+      cicloPrev[sn] = activo;
+      if (activo && prev !== true) {   // flanco OFF->ON = 1 pieza
+        liveCount++;
+        $('#k_piezas').textContent = liveCount;
+        flashPiezas();
+        const ahora = new Date().toISOString();
+        $('#k_ultima').textContent = hhmmss(ahora);
+        const lst = ($('#ultpiezas').textContent === '—' ? [] : $('#ultpiezas').textContent.split('  ·  '));
+        lst.unshift(hhmmss(ahora));
+        $('#ultpiezas').textContent = lst.slice(0,20).join('  ·  ');
+      }
+    }
+  });
+}
+
+function hhmm(iso){ if(!iso) return '—';
+  return new Date(iso).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Mexico_City'}); }
+function hhmmss(iso){ if(!iso) return '—';
+  return new Date(iso).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,timeZone:'America/Mexico_City'}); }
+function dur(seg){ if(seg==null) return '—'; const m=Math.round(seg/60); return m<60? m+' min' : (m/60).toFixed(1)+' h'; }
+
+async function cargarMaquinas(){
+  const r = await fetch('/api/traza/maquinas'); const ms = await r.json();
+  $('#maquina').innerHTML = ms.map(m=>`<option value="${m.id}">${m.id} · ${m.nombre||''}</option>`).join('');
+  MAQ = {}; ms.forEach(m=>{ if(m.dingtian_sn) MAQ[m.dingtian_sn] = m; });
+}
+
+async function cargar(){
+  const maquina = $('#maquina').value, fecha = $('#fecha').value;
+  if(!maquina) return;
+  const r = await fetch(`/api/traza/resumen?maquina=${maquina}&fecha=${fecha}`);
+  const d = await r.json();
+  if(d.error){ alert(d.error); return; }
+
+  // el conteo en vivo (MQTT) manda; el poll solo lo sube si el servidor va adelante
+  if (d.piezas_hoy > liveCount) { liveCount = d.piezas_hoy; flashPiezas(); }
+  $('#k_piezas').textContent = liveCount;
+  $('#k_ng').textContent     = d.ng_hoy ?? 0;
+  $('#ng_hoy').textContent   = d.ng_hoy ?? 0;
+  $('#k_scrap').textContent  = (d.scrap_pct ?? 0) + '%';
+  $('#k_paros').textContent  = d.paros_hoy;
+  $('#k_tparo').textContent  = d.tiempo_paro_min;
+  if (d.ultima_pieza) $('#k_ultima').textContent = hhmmss(d.ultima_pieza);
+  $('#reloj').textContent = 'act. ' + new Date().toLocaleTimeString('es-MX',{hour12:false});
+  $('#corteInfo').textContent = d.ultimo_corte
+    ? '· corte ' + hhmm(d.ultimo_corte.ts) + ' · ' + d.ultimo_corte.firmo_nombre : '';
+  if ((d.pulsos_recientes||[]).length)
+    $('#ultpiezas').textContent = d.pulsos_recientes.map(hhmmss).join('  ·  ');
+
+  dibujar(d.por_hora);
+
+  // orden activa
+  const act = d.ordenes.find(o=>!o.fin);
+  $('#ordenActiva').innerHTML = act
+    ? `<b>${act.orden}</b> · lote ${act.lote_material||'—'} · molde ${act.molde||'—'} · ${act.operador||'—'}
+       · desde ${hhmm(act.inicio)} · <b>${act.piezas}</b> pzs · <b style="color:var(--rojo)">${act.ng||0}</b> NG
+       <button onclick="cerrarOrden(${act.orden_id})" style="margin-left:8px">Cerrar</button>`
+    : '<span class="muted">Sin orden abierta</span>';
+  $('#cardOrden').classList.toggle('activa', !!act);
+
+  // paros
+  $('#tParos tbody').innerHTML = d.paros.map(p=>`
+    <tr>
+      <td>${hhmm(p.inicio)}</td>
+      <td>${p.fin?hhmm(p.fin):'<b>en curso</b>'}</td>
+      <td>${dur(p.duracion_seg ?? (p.fin?null:(Date.now()-new Date(p.inicio))/1000))}</td>
+      <td><span class="tag ${p.causa}">${p.causa}</span></td>
+      <td><input value="${(p.motivo||'').replace(/"/g,'&quot;')}" id="mot_${p.id}" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:4px"></td>
+      <td><button onclick="guardarMotivo(${p.id})">✓</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" class="muted">Sin paros</td></tr>';
+
+  // ordenes
+  $('#tOrdenes tbody').innerHTML = d.ordenes.map(o=>{
+    const ng = o.ng||0, tot = (o.piezas||0)+ng;
+    const scrap = tot ? (100*ng/tot).toFixed(1) : '0.0';
+    return `
+    <tr>
+      <td>${o.orden}</td><td>${o.lote_material||'—'}</td><td>${o.molde||'—'}</td>
+      <td>${o.operador||'—'}</td><td>${o.turno||'—'}</td>
+      <td>${hhmm(o.inicio)}</td><td>${o.fin?hhmm(o.fin):'<b>abierta</b>'}</td>
+      <td><b>${o.piezas}</b></td>
+      <td><b style="color:var(--rojo)">${ng}</b></td>
+      <td>${scrap}%</td>
+    </tr>`;}).join('') || '<tr><td colspan="10" class="muted">Sin órdenes</td></tr>';
+}
+
+function dibujar(porHora){
+  const c = $('#chart'), dpr = devicePixelRatio||1;
+  const W = c.clientWidth, H = c.clientHeight;
+  c.width = W*dpr; c.height = H*dpr;
+  const x = c.getContext('2d'); x.scale(dpr,dpr);
+  x.clearRect(0,0,W,H);
+  const max = Math.max(1, ...porHora);
+  const pad = 24, bw = (W-pad*2)/24;
+  const css = getComputedStyle(document.documentElement);
+  const verde = css.getPropertyValue('--verde').trim();
+  x.fillStyle = css.getPropertyValue('--muted').trim(); x.font='10px sans-serif';
+  for(let h=0; h<24; h++){
+    const v = porHora[h];
+    const bh = (H-pad-14) * (v/max);
+    x.fillStyle = verde;
+    x.fillRect(pad + h*bw + 1, H-14-bh, bw-2, bh);
+    if(h%3===0){ x.fillStyle = css.getPropertyValue('--muted').trim();
+      x.fillText(String(h).padStart(2,'0'), pad + h*bw, H-3); }
+    if(v>0){ x.fillStyle = css.getPropertyValue('--txt').trim();
+      x.fillText(v, pad + h*bw + 1, H-16-bh); }
+  }
+}
+
+async function abrirOrden(){
+  const body = {
+    maquina: $('#maquina').value,
+    orden: $('#f_orden').value.trim(),
+    lote_material: $('#f_lote').value.trim(),
+    molde: $('#f_molde').value.trim(),
+    operador: $('#f_operador').value.trim(),
+    turno: $('#f_turno').value || null,
+  };
+  if(!body.orden){ alert('Escribe el número de orden'); return; }
+  const r = await fetch('/api/traza/ordenes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d = await r.json();
+  if(d.ok){ ['f_orden','f_lote','f_molde','f_operador','f_turno'].forEach(i=>$('#'+i).value=''); cargar(); }
+  else alert(d.error||'Error');
+}
+async function cerrarOrden(id){
+  if(!confirm('¿Cerrar la orden activa?')) return;
+  await fetch(`/api/traza/ordenes/${id}/cerrar`,{method:'POST'}); cargar();
+}
+function abrirCorte(){
+  $('#c_err').textContent=''; $('#c_email').value=''; $('#c_pin').value='';
+  $('#corteModal').style.display='flex';
+}
+function cerrarCorte(){ $('#corteModal').style.display='none'; }
+async function confirmarCorte(){
+  const body = { maquina:$('#maquina').value, email:$('#c_email').value.trim(), pin:$('#c_pin').value.trim() };
+  if(!body.maquina){ $('#c_err').textContent='Selecciona una máquina'; return; }
+  if(!body.email || !body.pin){ $('#c_err').textContent='Escribe correo y PIN'; return; }
+  let d;
+  try{
+    const r = await fetch('/api/traza/corte',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    d = await r.json();
+  }catch(e){ $('#c_err').textContent='Error de conexión'; return; }
+  if(d && d.ok){
+    cerrarCorte();
+    liveCount = 0;
+    $('#k_piezas').textContent = '0';
+    $('#ultpiezas').textContent = '—';
+    cargar();
+  } else {
+    $('#c_err').textContent = (d && d.error) || 'No se pudo firmar';
+  }
+}
+
+async function marcarNG(){
+  const maquina = $('#maquina').value;
+  if(!maquina) return;
+  $('#ng_hoy').textContent = (parseInt($('#ng_hoy').textContent)||0) + 1;  // optimista
+  try{
+    await fetch('/api/traza/ng',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({maquina})});
+  }catch(e){}
+  cargar();
+}
+async function deshacerNG(){
+  const maquina = $('#maquina').value;
+  if(!maquina) return;
+  if(!confirm('¿Borrar la última pieza NG registrada?')) return;
+  try{
+    await fetch(`/api/traza/ng/ultimo?maquina=${encodeURIComponent(maquina)}`,{method:'DELETE'});
+  }catch(e){}
+  cargar();
+}
+async function guardarMotivo(id){
+  await fetch(`/api/traza/paros/${id}/motivo`,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({motivo:$('#mot_'+id).value})});
+}
+
+(async()=>{ await cargarMaquinas(); await cargar();
+  conectarMQTT();
+  setInterval(cargar, 10000);   // el MQTT da el instante; el poll sincroniza cada 10s
+})();
+</script>
+</body>
+</html>
