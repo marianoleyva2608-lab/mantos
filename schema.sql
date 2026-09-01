@@ -96,3 +96,114 @@ VALUES (
     'all'
 )
 ON CONFLICT (email) DO UPDATE SET rol = 'admin', permisos = 'all';
+
+-- ============================================================
+--  TRAZABILIDAD DE PRODUCCION (Dingtian por MQTT -> colector)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS maquinas (
+    id             TEXT PRIMARY KEY,           -- 'TF-01'
+    nombre         TEXT,
+    dingtian_sn    TEXT UNIQUE,                -- '52862'
+    entrada_ciclo  INT  NOT NULL DEFAULT 1,    -- input con el pulso de ciclo
+    entrada_marcha INT  NOT NULL DEFAULT 2,    -- input con marcha / automatico
+    estado_activo  TEXT NOT NULL DEFAULT 'ON', -- payload que cuenta como "activo"
+    paro_gap_seg   INT  NOT NULL DEFAULT 25    -- sin ciclos con marcha por > esto = paro
+);
+
+CREATE TABLE IF NOT EXISTS ordenes (
+    id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    maquina       TEXT NOT NULL REFERENCES maquinas(id),
+    orden         TEXT NOT NULL,
+    lote_material TEXT,
+    molde         TEXT,
+    operador      TEXT,
+    turno         INT,
+    inicio        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    fin           TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS ix_ordenes_maq ON ordenes (maquina, inicio DESC);
+
+CREATE TABLE IF NOT EXISTS produccion (
+    maquina TEXT NOT NULL REFERENCES maquinas(id),
+    minuto  TIMESTAMPTZ NOT NULL,
+    piezas  INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (maquina, minuto)
+);
+
+-- 1 fila por pieza, con hora exacta (segundo)
+CREATE TABLE IF NOT EXISTS pulsos (
+    id       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    maquina  TEXT NOT NULL REFERENCES maquinas(id),
+    ts       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    orden_id BIGINT REFERENCES ordenes(id)
+);
+CREATE INDEX IF NOT EXISTS ix_pulsos_maq_ts ON pulsos (maquina, ts DESC);
+
+-- 1 fila por pieza NG (rechazo / scrap). La captura el operador con el
+-- boton "+1 NG" del dashboard; no viene del sensor.
+CREATE TABLE IF NOT EXISTS piezas_ng (
+    id       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    maquina  TEXT NOT NULL REFERENCES maquinas(id),
+    ts       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    orden_id BIGINT REFERENCES ordenes(id)
+);
+CREATE INDEX IF NOT EXISTS ix_ng_maq_ts ON piezas_ng (maquina, ts DESC);
+
+CREATE TABLE IF NOT EXISTS paros (
+    id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    maquina      TEXT NOT NULL REFERENCES maquinas(id),
+    inicio       TIMESTAMPTZ NOT NULL,
+    fin          TIMESTAMPTZ,
+    duracion_seg INT GENERATED ALWAYS AS
+          (CASE WHEN fin IS NOT NULL
+                THEN EXTRACT(EPOCH FROM (fin - inicio))::INT END) STORED,
+    causa        TEXT NOT NULL DEFAULT 'sin_marcha',  -- sin_marcha | gap_ciclos
+    motivo       TEXT,                                -- lo captura el operador
+    orden_id     BIGINT REFERENCES ordenes(id)
+);
+CREATE INDEX IF NOT EXISTS ix_paros_maq ON paros (maquina, inicio DESC);
+
+CREATE TABLE IF NOT EXISTS equipo_estado (
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    ts          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    dingtian_sn TEXT NOT NULL,
+    estado      TEXT NOT NULL                         -- online | offline
+);
+
+-- Conteo atomico de un ciclo (lo llama el colector: POST /rest/v1/rpc/bump_produccion)
+CREATE OR REPLACE FUNCTION bump_produccion(p_maquina TEXT, p_minuto TIMESTAMPTZ)
+RETURNS void
+LANGUAGE sql
+AS $$
+    INSERT INTO produccion (maquina, minuto, piezas)
+    VALUES (p_maquina, date_trunc('minute', p_minuto), 1)
+    ON CONFLICT (maquina, minuto)
+    DO UPDATE SET piezas = produccion.piezas + 1;
+$$;
+
+GRANT EXECUTE ON FUNCTION bump_produccion(TEXT, TIMESTAMPTZ) TO anon, authenticated, service_role;
+
+-- Vistas para el dashboard
+CREATE OR REPLACE VIEW v_produccion_por_orden AS
+SELECT o.id AS orden_id, o.maquina, o.orden, o.lote_material, o.molde,
+       o.operador, o.turno, o.inicio, o.fin,
+       COALESCE(SUM(p.piezas), 0) AS piezas,
+       COALESCE((SELECT COUNT(*) FROM piezas_ng n
+                  WHERE n.maquina = o.maquina
+                    AND n.ts >= o.inicio
+                    AND (o.fin IS NULL OR n.ts < o.fin)), 0) AS ng
+FROM ordenes o
+LEFT JOIN produccion p
+       ON p.maquina = o.maquina
+      AND p.minuto >= o.inicio
+      AND (o.fin IS NULL OR p.minuto < o.fin)
+GROUP BY o.id;
+
+CREATE OR REPLACE VIEW v_paros_abiertos AS
+SELECT * FROM paros WHERE fin IS NULL;
+
+-- Maquina de ejemplo (ajusta entrada_ciclo / entrada_marcha al cablear)
+INSERT INTO maquinas (id, nombre, dingtian_sn, entrada_ciclo, entrada_marcha)
+VALUES ('TF-01', 'Termoformadora 1', '52862', 1, 2)
+ON CONFLICT (id) DO NOTHING;

@@ -56,6 +56,8 @@
 <main>
   <div class="kpis">
     <div class="kpi"><div class="v" id="k_piezas">–</div><div class="l">Piezas hoy</div></div>
+    <div class="kpi"><div class="v" id="k_ng" style="color:var(--rojo)">–</div><div class="l">Piezas NG hoy</div></div>
+    <div class="kpi"><div class="v" id="k_scrap" style="color:var(--amber)">–</div><div class="l">% scrap</div></div>
     <div class="kpi"><div class="v" id="k_paros">–</div><div class="l">Paros hoy</div></div>
     <div class="kpi"><div class="v" id="k_tparo">–</div><div class="l">Tiempo de paro (min)</div></div>
     <div class="kpi"><div class="v" id="k_ultima">–</div><div class="l">Última pieza</div></div>
@@ -69,6 +71,16 @@
   <div class="card">
     <h2>Últimas piezas (hora exacta)</h2>
     <div id="ultpiezas" class="muted" style="font-family:ui-monospace,monospace;font-size:13px;line-height:1.9">—</div>
+  </div>
+
+  <div class="card">
+    <h2>Piezas NG (rechazo)</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <button class="primary" style="font-size:20px;padding:14px 28px" onclick="marcarNG()">+1 NG</button>
+      <div><span id="ng_hoy" style="font-size:26px;font-weight:800;color:var(--rojo)">0</span>
+           <span class="muted">NG hoy</span></div>
+      <button onclick="deshacerNG()" style="margin-left:auto">Deshacer último</button>
+    </div>
   </div>
 
   <div class="card" id="cardOrden">
@@ -99,7 +111,7 @@
     <div class="scroll">
       <table id="tOrdenes"><thead><tr>
         <th>Orden</th><th>Lote</th><th>Molde</th><th>Operador</th><th>Turno</th>
-        <th>Inicio</th><th>Fin</th><th>Piezas</th>
+        <th>Inicio</th><th>Fin</th><th>Piezas</th><th>NG</th><th>% scrap</th>
       </tr></thead><tbody></tbody></table>
     </div>
   </div>
@@ -179,6 +191,9 @@ async function cargar(){
   // el conteo en vivo (MQTT) manda; el poll solo lo sube si el servidor va adelante
   if (d.piezas_hoy > liveCount) { liveCount = d.piezas_hoy; flashPiezas(); }
   $('#k_piezas').textContent = liveCount;
+  $('#k_ng').textContent     = d.ng_hoy ?? 0;
+  $('#ng_hoy').textContent   = d.ng_hoy ?? 0;
+  $('#k_scrap').textContent  = (d.scrap_pct ?? 0) + '%';
   $('#k_paros').textContent  = d.paros_hoy;
   $('#k_tparo').textContent  = d.tiempo_paro_min;
   if (d.ultima_pieza) $('#k_ultima').textContent = hhmmss(d.ultima_pieza);
@@ -192,7 +207,7 @@ async function cargar(){
   const act = d.ordenes.find(o=>!o.fin);
   $('#ordenActiva').innerHTML = act
     ? `<b>${act.orden}</b> · lote ${act.lote_material||'—'} · molde ${act.molde||'—'} · ${act.operador||'—'}
-       · desde ${hhmm(act.inicio)} · <b>${act.piezas}</b> pzs
+       · desde ${hhmm(act.inicio)} · <b>${act.piezas}</b> pzs · <b style="color:var(--rojo)">${act.ng||0}</b> NG
        <button onclick="cerrarOrden(${act.orden_id})" style="margin-left:8px">Cerrar</button>`
     : '<span class="muted">Sin orden abierta</span>';
   $('#cardOrden').classList.toggle('activa', !!act);
@@ -209,13 +224,18 @@ async function cargar(){
     </tr>`).join('') || '<tr><td colspan="6" class="muted">Sin paros</td></tr>';
 
   // ordenes
-  $('#tOrdenes tbody').innerHTML = d.ordenes.map(o=>`
+  $('#tOrdenes tbody').innerHTML = d.ordenes.map(o=>{
+    const ng = o.ng||0, tot = (o.piezas||0)+ng;
+    const scrap = tot ? (100*ng/tot).toFixed(1) : '0.0';
+    return `
     <tr>
       <td>${o.orden}</td><td>${o.lote_material||'—'}</td><td>${o.molde||'—'}</td>
       <td>${o.operador||'—'}</td><td>${o.turno||'—'}</td>
       <td>${hhmm(o.inicio)}</td><td>${o.fin?hhmm(o.fin):'<b>abierta</b>'}</td>
       <td><b>${o.piezas}</b></td>
-    </tr>`).join('') || '<tr><td colspan="8" class="muted">Sin órdenes</td></tr>';
+      <td><b style="color:var(--rojo)">${ng}</b></td>
+      <td>${scrap}%</td>
+    </tr>`;}).join('') || '<tr><td colspan="10" class="muted">Sin órdenes</td></tr>';
 }
 
 function dibujar(porHora){
@@ -259,6 +279,25 @@ async function abrirOrden(){
 async function cerrarOrden(id){
   if(!confirm('¿Cerrar la orden activa?')) return;
   await fetch(`/api/traza/ordenes/${id}/cerrar`,{method:'POST'}); cargar();
+}
+async function marcarNG(){
+  const maquina = $('#maquina').value;
+  if(!maquina) return;
+  $('#ng_hoy').textContent = (parseInt($('#ng_hoy').textContent)||0) + 1;  // optimista
+  try{
+    await fetch('/api/traza/ng',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({maquina})});
+  }catch(e){}
+  cargar();
+}
+async function deshacerNG(){
+  const maquina = $('#maquina').value;
+  if(!maquina) return;
+  if(!confirm('¿Borrar la última pieza NG registrada?')) return;
+  try{
+    await fetch(`/api/traza/ng/ultimo?maquina=${encodeURIComponent(maquina)}`,{method:'DELETE'});
+  }catch(e){}
+  cargar();
 }
 async function guardarMotivo(id){
   await fetch(`/api/traza/paros/${id}/motivo`,{method:'POST',headers:{'Content-Type':'application/json'},

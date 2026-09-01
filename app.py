@@ -2358,6 +2358,10 @@ def traza_resumen():
     pulsos = sb.select('pulsos', select='ts',
                        maquina='eq.' + maquina, order='ts.desc', limit=20)
 
+    ng_rows = sb.select('piezas_ng', select='ts',
+                        maquina='eq.' + maquina, ts='gte.' + ini)
+    ng_hoy = len([n for n in ng_rows if n['ts'] < fin])
+
     por_hora = [0] * 24
     total = 0
     for p in prod:
@@ -2380,6 +2384,8 @@ def traza_resumen():
         'maquina': maquina,
         'fecha': fecha,
         'piezas_hoy': total,
+        'ng_hoy': ng_hoy,
+        'scrap_pct': round(100 * ng_hoy / (total + ng_hoy), 1) if (total + ng_hoy) else 0,
         'paros_hoy': len(paros),
         'tiempo_paro_min': round(paro_seg / 60),
         'ultima_pieza': ultima,
@@ -2422,6 +2428,36 @@ def traza_motivo_paro(pid):
     sb.update('paros', {'motivo': d.get('motivo', '')},
               return_rows=False, id='eq.' + str(pid))
     return jsonify({'ok': True})
+
+
+@app.route('/api/traza/ng', methods=['POST'])
+def traza_ng():
+    """Registra 1 pieza NG (boton '+1 NG'). La liga a la orden abierta si hay."""
+    d = request.json or {}
+    maquina = d.get('maquina', '')
+    if not maquina:
+        return jsonify({'error': 'falta maquina'}), 400
+    abiertas = sb.select('ordenes', select='id',
+                         maquina='eq.' + maquina, fin='is.null')
+    fila = sb.insert('piezas_ng', {
+        'maquina': maquina,
+        'orden_id': abiertas[0]['id'] if abiertas else None,
+    })
+    return jsonify({'ok': True, 'id': fila[0]['id']})
+
+
+@app.route('/api/traza/ng/ultimo', methods=['DELETE'])
+def traza_ng_undo():
+    """Borra la ultima pieza NG capturada de esa maquina (deshacer)."""
+    maquina = request.args.get('maquina', '')
+    if not maquina:
+        return jsonify({'error': 'falta maquina'}), 400
+    ult = sb.select('piezas_ng', select='id',
+                    maquina='eq.' + maquina, order='ts.desc', limit=1)
+    if not ult:
+        return jsonify({'ok': True, 'borrado': 0})
+    sb.delete('piezas_ng', return_rows=False, id='eq.' + str(ult[0]['id']))
+    return jsonify({'ok': True, 'borrado': 1})
 
 
 if __name__ == '__main__':
