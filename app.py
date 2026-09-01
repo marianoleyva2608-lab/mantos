@@ -2340,12 +2340,22 @@ def traza_resumen():
         return jsonify({'error': 'falta maquina'}), 400
     ini, fin = _traza_rango_dia(fecha)
 
+    # 'corte de conteo': si un supervisor firmo un reset hoy, los contadores
+    # (piezas, NG, grafica, ultima pieza) se cuentan desde ese momento.
+    cortes = sb.select('cortes_conteo', select='ts,firmo_nombre',
+                       maquina='eq.' + maquina, ts='gte.' + ini,
+                       order='ts.desc', limit=1)
+    cortes = [c for c in cortes if c['ts'] < fin]
+    desde = cortes[0]['ts'] if cortes else ini
+    ultimo_corte = cortes[0] if cortes else None
+
     # PostgREST via el cliente SB solo acepta 1 filtro por campo (kwargs),
-    # asi que traemos desde 'ini' y recortamos 'fin' en python.
+    # asi que traemos desde 'desde' y recortamos 'fin' en python.
     prod = sb.select('produccion', select='minuto,piezas',
-                     maquina='eq.' + maquina, minuto='gte.' + ini)
+                     maquina='eq.' + maquina, minuto='gte.' + desde)
     prod = [p for p in prod if p['minuto'] < fin]
 
+    # los paros SI se muestran del dia completo (el corte es solo del conteo)
     paros = sb.select('paros', select='*',
                       maquina='eq.' + maquina,
                       inicio='gte.' + ini, order='inicio.desc')
@@ -2356,10 +2366,11 @@ def traza_resumen():
 
     # solo las ultimas piezas para mostrar hora exacta (ligero para polling 1s)
     pulsos = sb.select('pulsos', select='ts',
-                       maquina='eq.' + maquina, order='ts.desc', limit=20)
+                       maquina='eq.' + maquina, ts='gte.' + desde,
+                       order='ts.desc', limit=20)
 
     ng_rows = sb.select('piezas_ng', select='ts',
-                        maquina='eq.' + maquina, ts='gte.' + ini)
+                        maquina='eq.' + maquina, ts='gte.' + desde)
     ng_hoy = len([n for n in ng_rows if n['ts'] < fin])
 
     por_hora = [0] * 24
@@ -2390,6 +2401,7 @@ def traza_resumen():
         'tiempo_paro_min': round(paro_seg / 60),
         'ultima_pieza': ultima,
         'por_hora': por_hora,
+        'ultimo_corte': ultimo_corte,
         'paros': paros,
         'ordenes': ordenes,
         'pulsos_recientes': [p['ts'] for p in pulsos],
@@ -2444,6 +2456,29 @@ def traza_ng():
         'orden_id': abiertas[0]['id'] if abiertas else None,
     })
     return jsonify({'ok': True, 'id': fila[0]['id']})
+
+
+@app.route('/api/traza/corte', methods=['POST'])
+def traza_corte():
+    """Resetea el conteo del dashboard (no borra datos). Requiere firma admin."""
+    d = request.json or {}
+    maquina = d.get('maquina', '')
+    email = (d.get('email') or '').strip().lower()
+    pin = (d.get('pin') or '').strip()
+    if not maquina:
+        return jsonify({'error': 'falta maquina'}), 400
+    rows = sb.select('users', select='nombre,email,rol',
+                     email='eq.' + email, pin_hash='eq.' + hash_pin(pin))
+    if not rows:
+        return jsonify({'error': 'Correo o PIN incorrecto'}), 401
+    u = rows[0]
+    if (u.get('rol') or '') != 'admin':
+        return jsonify({'error': 'Solo un supervisor/admin puede firmar el corte'}), 403
+    sb.insert('cortes_conteo', {
+        'maquina': maquina,
+        'firmo_nombre': u['nombre'], 'firmo_email': u['email'],
+    }, return_rows=False)
+    return jsonify({'ok': True, 'firmo': u['nombre']})
 
 
 @app.route('/api/traza/ng/ultimo', methods=['DELETE'])

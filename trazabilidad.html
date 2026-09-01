@@ -49,9 +49,30 @@
   <select id="maquina" onchange="liveCount=0;cargar()"></select>
   <input type="date" id="fecha">
   <button onclick="cargar()">Actualizar</button>
+  <button onclick="abrirCorte()" title="Reinicia los contadores (firma de supervisor)">↺ Resetear conteo</button>
   <span id="vivo" style="font-size:12px;font-weight:700">○ conectando</span>
   <span id="reloj" style="font-size:12px;opacity:.85"></span>
+  <span id="corteInfo" style="font-size:12px;opacity:.85"></span>
 </header>
+
+<div id="corteModal" style="display:none;position:fixed;inset:0;background:#0007;z-index:999;
+     align-items:center;justify-content:center">
+  <div style="background:var(--card);color:var(--txt);padding:20px;border-radius:12px;max-width:340px;width:90%">
+    <h3 style="margin:0 0 4px">Resetear conteo</h3>
+    <p class="muted" style="margin:0 0 12px;font-size:12px">
+      Requiere firma de un <b>supervisor/admin</b>. No se borra nada: los contadores
+      (piezas, NG, gráfica) se reinician desde este momento; el historial queda intacto.</p>
+    <input id="c_email" type="email" placeholder="Correo" autocomplete="username"
+           style="width:100%;margin-bottom:8px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--txt)">
+    <input id="c_pin" type="password" placeholder="PIN" autocomplete="current-password"
+           style="width:100%;margin-bottom:10px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--txt)">
+    <div id="c_err" style="color:var(--rojo);font-size:12px;min-height:16px;margin-bottom:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="cerrarCorte()">Cancelar</button>
+      <button class="primary" onclick="confirmarCorte()">Firmar y resetear</button>
+    </div>
+  </div>
+</div>
 
 <main>
   <div class="kpis">
@@ -198,6 +219,8 @@ async function cargar(){
   $('#k_tparo').textContent  = d.tiempo_paro_min;
   if (d.ultima_pieza) $('#k_ultima').textContent = hhmmss(d.ultima_pieza);
   $('#reloj').textContent = 'act. ' + new Date().toLocaleTimeString('es-MX',{hour12:false});
+  $('#corteInfo').textContent = d.ultimo_corte
+    ? '· corte ' + hhmm(d.ultimo_corte.ts) + ' · ' + d.ultimo_corte.firmo_nombre : '';
   if ((d.pulsos_recientes||[]).length)
     $('#ultpiezas').textContent = d.pulsos_recientes.map(hhmmss).join('  ·  ');
 
@@ -280,6 +303,31 @@ async function cerrarOrden(id){
   if(!confirm('¿Cerrar la orden activa?')) return;
   await fetch(`/api/traza/ordenes/${id}/cerrar`,{method:'POST'}); cargar();
 }
+function abrirCorte(){
+  $('#c_err').textContent=''; $('#c_email').value=''; $('#c_pin').value='';
+  $('#corteModal').style.display='flex';
+}
+function cerrarCorte(){ $('#corteModal').style.display='none'; }
+async function confirmarCorte(){
+  const body = { maquina:$('#maquina').value, email:$('#c_email').value.trim(), pin:$('#c_pin').value.trim() };
+  if(!body.maquina){ $('#c_err').textContent='Selecciona una máquina'; return; }
+  if(!body.email || !body.pin){ $('#c_err').textContent='Escribe correo y PIN'; return; }
+  let d;
+  try{
+    const r = await fetch('/api/traza/corte',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    d = await r.json();
+  }catch(e){ $('#c_err').textContent='Error de conexión'; return; }
+  if(d && d.ok){
+    cerrarCorte();
+    liveCount = 0;
+    $('#k_piezas').textContent = '0';
+    $('#ultpiezas').textContent = '—';
+    cargar();
+  } else {
+    $('#c_err').textContent = (d && d.error) || 'No se pudo firmar';
+  }
+}
+
 async function marcarNG(){
   const maquina = $('#maquina').value;
   if(!maquina) return;
