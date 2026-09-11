@@ -204,7 +204,7 @@ def _norm(s):
 def hash_pin(pin):
     return hashlib.sha256(pin.encode()).hexdigest()
 
-TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'trazabilidad', 'settings')
+TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'trazabilidad', 'banos', 'settings')
 
 def _normalizar_permisos(permisos):
     if isinstance(permisos, list):
@@ -2493,6 +2493,61 @@ def traza_ng_undo():
         return jsonify({'ok': True, 'borrado': 0})
     sb.delete('piezas_ng', return_rows=False, id='eq.' + str(ult[0]['id']))
     return jsonify({'ok': True, 'borrado': 1})
+
+
+@app.route('/banos')
+@app.route('/banos.html')
+def banos_page():
+    html = open('banos.html', encoding='utf-8').read()
+    return html, 200, {'Content-Type': 'text/html; charset=utf-8',
+                       'Cache-Control': 'no-store'}
+
+@app.route('/api/banos/estado', methods=['GET'])
+def banos_estado():
+    """Quien esta actualmente adentro (sin salida registrada)."""
+    rows = sb.select('banos_registro', select='id,nombre,lugar,entrada',
+                      salida='is.null', order='entrada.asc')
+    return jsonify(rows)
+
+@app.route('/api/banos/historial', methods=['GET'])
+def banos_historial():
+    fecha = request.args.get('fecha') or datetime.datetime.now(TRAZA_TZ).strftime('%Y-%m-%d')
+    desde, hasta = _traza_rango_dia(fecha)
+    rows = sb.select('banos_registro', select='id,nombre,lugar,entrada,salida',
+                      entrada='gte.' + desde, order='entrada.desc', limit=200)
+    rows = [r for r in rows if r['entrada'] < hasta]
+    return jsonify(rows)
+
+@app.route('/api/banos/entrada', methods=['POST'])
+def banos_entrada():
+    d = request.json or {}
+    nombre = (d.get('nombre') or '').strip()
+    lugar = (d.get('lugar') or 'General').strip() or 'General'
+    if not nombre:
+        return jsonify({'error': 'Falta el nombre'}), 400
+    abierto = sb.select('banos_registro', select='id', nombre='eq.' + nombre, salida='is.null')
+    if abierto:
+        return jsonify({'error': f'{nombre} ya tiene una entrada sin registrar salida'}), 409
+    try:
+        row = sb.insert('banos_registro', {'nombre': nombre, 'lugar': lugar})
+        return jsonify({'ok': True, 'registro': row[0] if row else None})
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None and e.response.status_code == 409:
+            return jsonify({'error': f'{nombre} ya tiene una entrada sin registrar salida'}), 409
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/banos/salida', methods=['POST'])
+def banos_salida():
+    d = request.json or {}
+    nombre = (d.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Falta el nombre'}), 400
+    abierto = sb.select('banos_registro', select='id', nombre='eq.' + nombre, salida='is.null')
+    if not abierto:
+        return jsonify({'error': f'{nombre} no tiene una entrada abierta'}), 404
+    row = sb.update('banos_registro', {'salida': datetime.datetime.now(_tz.utc).isoformat()},
+                     id='eq.' + str(abierto[0]['id']))
+    return jsonify({'ok': True, 'registro': row[0] if row else None})
 
 
 if __name__ == '__main__':

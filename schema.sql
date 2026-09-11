@@ -150,6 +150,18 @@ CREATE TABLE IF NOT EXISTS piezas_ng (
 );
 CREATE INDEX IF NOT EXISTS ix_ng_maq_ts ON piezas_ng (maquina, ts DESC);
 
+-- Marca de "corte de conteo": un supervisor/admin firma y los contadores del
+-- dashboard (piezas, NG, grafica por hora) se muestran desde este momento.
+-- NO borra nada: pulsos / produccion / ordenes quedan intactos.
+CREATE TABLE IF NOT EXISTS cortes_conteo (
+    id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    maquina      TEXT NOT NULL REFERENCES maquinas(id),
+    ts           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    firmo_nombre TEXT NOT NULL,
+    firmo_email  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_cortes_maq_ts ON cortes_conteo (maquina, ts DESC);
+
 CREATE TABLE IF NOT EXISTS paros (
     id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     maquina      TEXT NOT NULL REFERENCES maquinas(id),
@@ -207,3 +219,15 @@ SELECT * FROM paros WHERE fin IS NULL;
 INSERT INTO maquinas (id, nombre, dingtian_sn, entrada_ciclo, entrada_marcha)
 VALUES ('TF-01', 'Termoformadora 1', '52862', 1, 2)
 ON CONFLICT (id) DO NOTHING;
+
+-- Control de baños: 1 fila por visita (entrada + salida). Kiosko compartido,
+-- la persona pone su nombre y elige el baño; sin salida = sigue adentro.
+CREATE TABLE IF NOT EXISTS banos_registro (
+    id      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre  TEXT NOT NULL,
+    lugar   TEXT NOT NULL DEFAULT 'General',
+    entrada TIMESTAMPTZ NOT NULL DEFAULT now(),
+    salida  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS ix_banos_entrada ON banos_registro (entrada DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_banos_abierto ON banos_registro (nombre) WHERE salida IS NULL;
