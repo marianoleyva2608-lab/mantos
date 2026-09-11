@@ -2502,6 +2502,11 @@ def banos_page():
     return html, 200, {'Content-Type': 'text/html; charset=utf-8',
                        'Cache-Control': 'no-store'}
 
+@app.route('/api/banos/personal', methods=['GET'])
+def banos_personal():
+    rows = sb.select('banos_personal', select='nombre', order='nombre.asc')
+    return jsonify([r['nombre'] for r in rows])
+
 @app.route('/api/banos/estado', methods=['GET'])
 def banos_estado():
     """Quien esta actualmente adentro (sin salida registrada)."""

@@ -231,3 +231,25 @@ CREATE TABLE IF NOT EXISTS banos_registro (
 );
 CREATE INDEX IF NOT EXISTS ix_banos_entrada ON banos_registro (entrada DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS ix_banos_abierto ON banos_registro (nombre) WHERE salida IS NULL;
+
+-- Personal que aparece en el selector de /banos (editable desde aqui, sin tocar codigo)
+CREATE TABLE IF NOT EXISTS banos_personal (
+    id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre TEXT NOT NULL UNIQUE
+);
+
+INSERT INTO banos_personal (nombre) VALUES
+    ('CASTRO LOPEZ JUAN MANUEL'),
+    ('MORAN SANTOS ERNESTO JAVIER'),
+    ('JOSE DE JESUS RODRIGUEZ'),
+    ('DURON SANCHEZ YAHIR ALEJANDRO'),
+    ('OMAR ELIUTH GUTIERREZ ANDRADE'),
+    ('ELSA URRUTIA MORALES'),
+    ('DEYSI GUADALUPE MORAN'),
+    ('CARLOS ENRIQUE CRUZ BORQUEZ'),
+    ('MILAGROS MORAN SANTOS'),
+    ('MARTIN ESQUIVEL'),
+    ('LILIANA MARES'),
+    ('JUAN MARIANO LEYVA VAZQUEZ'),
+    ('JOSE ROMAN')
+ON CONFLICT (nombre) DO NOTHING;

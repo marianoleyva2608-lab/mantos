@@ -84,22 +84,6 @@
 </main>
 
 <script>
-const NOMBRES = [
-  'CASTRO LOPEZ JUAN MANUEL',
-  'MORAN SANTOS ERNESTO JAVIER',
-  'JOSE DE JESUS RODRIGUEZ',
-  'DURON SANCHEZ YAHIR ALEJANDRO',
-  'OMAR ELIUTH GUTIERREZ ANDRADE',
-  'ELSA URRUTIA MORALES',
-  'DEYSI GUADALUPE MORAN',
-  'CARLOS ENRIQUE CRUZ BORQUEZ',
-  'MILAGROS MORAN SANTOS',
-  'MARTIN ESQUIVEL',
-  'LILIANA MARES',
-  'JUAN MARIANO LEYVA VAZQUEZ',
-  'JOSE ROMAN',
-];
-
 const $ = s => document.querySelector(s);
 const LIMITE_MIN = 15; // min a partir del cual se marca "tarde"
 let ACTIVOS = [];
@@ -113,9 +97,13 @@ function dur(iniIso, finIso){
   return m < 60 ? m+' min' : (m/60).toFixed(1)+' h';
 }
 
-function cargarNombres(){
-  $('#f_nombre').innerHTML = '<option value="">Selecciona tu nombre</option>' +
-    NOMBRES.map(n=>`<option value="${n}">${n}</option>`).join('');
+async function cargarNombres(){
+  try{
+    const r = await fetch('/api/banos/personal');
+    const nombres = await r.json();
+    $('#f_nombre').innerHTML = '<option value="">Selecciona tu nombre</option>' +
+      nombres.map(n=>`<option value="${n}">${n}</option>`).join('');
+  }catch(e){}
 }
 
 function actualizarBotones(){
@@ -181,7 +169,7 @@ async function cargar(){
 function reloj(){ $('#reloj').textContent = new Date().toLocaleTimeString('es-MX',{hour12:false,timeZone:'America/Mexico_City'}); }
 
 (async()=>{
-  cargarNombres();
+  await cargarNombres();
   await cargar();
   actualizarBotones();
   reloj(); setInterval(reloj, 1000);
