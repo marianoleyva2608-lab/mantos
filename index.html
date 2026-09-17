@@ -368,15 +368,17 @@ window._jsQRLoaded=false;
       </div>
     </div>
 
-    <!-- VALIDADOR POR DEFECTO DE REQUISICIONES -->
+    <!-- VALIDADORES POR DEFECTO DE REQUISICIONES -->
     <div style="background:#fff;margin:12px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.12);overflow:hidden">
-      <div style="background:#1a5c2a;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#128231; Quién valida las Requisiciones</div>
+      <div style="background:#1a5c2a;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#128231; Quién Revisa y quién Aprueba las Requisiciones</div>
       <div style="padding:14px">
-        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Correo de la persona que valida</label>
-        <input id="cfg-validador-email" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Correo de quien Revisa</label>
+        <input id="cfg-email-revisor" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Correo de quien Aprueba</label>
+        <input id="cfg-email-aprobador" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
         <button onclick="guardarValidadorDefault()" style="width:100%;background:#1a5c2a;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#10003; Guardar</button>
         <div id="cfg-validador-msg" style="margin-top:8px;font-size:12px;color:#2e7d32;text-align:center"></div>
-        <div style="font-size:11px;color:#999;margin-top:8px">Este correo se llenará automáticamente al crear una Nueva Requisición, para avisarle que debe validarla. Se puede cambiar en cada requisición si hace falta.</div>
+        <div style="font-size:11px;color:#999;margin-top:8px">Estos correos se llenan automáticamente en cada Nueva Requisición; cada persona recibe un aviso justo cuando le toca firmar. Se pueden cambiar en cada requisición si hace falta.</div>
       </div>
     </div>
 
@@ -1533,13 +1535,19 @@ async function clearAllReports(){
 
 function loadSettingsPage(){
   loadUsersList();
-  var el = document.getElementById('cfg-validador-email');
-  if(el){ try{ el.value = localStorage.getItem('adpack_validador_email') || ''; }catch(e){} }
+  var elR = document.getElementById('cfg-email-revisor');
+  if(elR){ try{ elR.value = localStorage.getItem('adpack_email_revisor') || ''; }catch(e){} }
+  var elA = document.getElementById('cfg-email-aprobador');
+  if(elA){ try{ elA.value = localStorage.getItem('adpack_email_aprobador') || ''; }catch(e){} }
 }
 function guardarValidadorDefault(){
-  var el = document.getElementById('cfg-validador-email');
+  var elR = document.getElementById('cfg-email-revisor');
+  var elA = document.getElementById('cfg-email-aprobador');
   var msg = document.getElementById('cfg-validador-msg');
-  try{ localStorage.setItem('adpack_validador_email', el ? el.value.trim() : ''); }catch(e){}
+  try{
+    localStorage.setItem('adpack_email_revisor', elR ? elR.value.trim() : '');
+    localStorage.setItem('adpack_email_aprobador', elA ? elA.value.trim() : '');
+  }catch(e){}
   if(msg){ msg.textContent = 'Guardado'; setTimeout(function(){ msg.textContent=''; }, 1500); }
 }
 
@@ -2637,10 +2645,17 @@ authInit();
       <textarea id="req-justificacion" rows="3" placeholder="Describe por qu&#233; se necesita este material..." style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
     </div>
     <div id="req-sigs-container" style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)"></div>
-    <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
-      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">&#128231; Avisar por correo a (opcional)</label>
-      <input id="req-validador-email" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
-      <div style="font-size:11px;color:#999;margin-top:4px">Al guardar, se le enviará un correo avisando que esta requisición necesita su validación.</div>
+    <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;flex-direction:column;gap:10px">
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">&#128231; Avisos automáticos por correo (opcional)</label>
+      <div>
+        <div style="font-size:12px;color:#555;margin-bottom:3px">Correo de quien debe <b>Revisar</b></div>
+        <input id="req-email-revisor" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
+      </div>
+      <div>
+        <div style="font-size:12px;color:#555;margin-bottom:3px">Correo de quien debe <b>Aprobar</b></div>
+        <input id="req-email-aprobador" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
+      </div>
+      <div style="font-size:11px;color:#999">Se le avisa a cada quien por correo en cuanto le toca firmar: al guardar se avisa a Revisó, cuando Revisó firma se avisa a Aprobó, y cuando Aprobó firma se le avisa al solicitante que ya quedó completa.</div>
     </div>
     <button onclick="guardarReq()" style="width:100%;padding:14px;background:#1a5c2a;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer">&#128190; Guardar Requisici&#243;n</button>
   </div>
@@ -3308,8 +3323,10 @@ function initReqForm(){
   if(norm) norm.checked=true;
   var justEl=document.getElementById('req-justificacion');
   if(justEl) justEl.value='';
-  var valEl=document.getElementById('req-validador-email');
-  if(valEl){ try{ valEl.value = localStorage.getItem('adpack_validador_email') || ''; }catch(e){ valEl.value=''; } }
+  var valRevEl=document.getElementById('req-email-revisor');
+  if(valRevEl){ try{ valRevEl.value = localStorage.getItem('adpack_email_revisor') || ''; }catch(e){ valRevEl.value=''; } }
+  var valApEl=document.getElementById('req-email-aprobador');
+  if(valApEl){ try{ valApEl.value = localStorage.getItem('adpack_email_aprobador') || ''; }catch(e){ valApEl.value=''; } }
   // Limpiar tabla y agregar 3 filas iniciales
   var tbody=document.getElementById('req-items-tbody');
   if(tbody){
@@ -3402,7 +3419,8 @@ async function guardarReq(){
     tipo:tipoEl?tipoEl.value:'Normal',
     items:getReqItems(),
     justificacion:(document.getElementById('req-justificacion')||{}).value||'',
-    validador_email:(document.getElementById('req-validador-email')||{}).value||'',
+    email_revisor:(document.getElementById('req-email-revisor')||{}).value||'',
+    email_aprobador:(document.getElementById('req-email-aprobador')||{}).value||'',
     firmas:_reqSigs
   };
   if(!data.fecha||!data.solicitante){
@@ -3413,7 +3431,7 @@ async function guardarReq(){
     var res=await fetch('/api/requisiciones',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     var j=await res.json();
     if(j.ok){
-      var msgOk='✅ REQ-'+String(j.folio).padStart(4,'0')+' guardada'+(data.validador_email?(j.aviso_enviado?' · aviso enviado':' · no se pudo enviar el aviso'):'');
+      var msgOk='✅ REQ-'+String(j.folio).padStart(4,'0')+' guardada'+(data.email_revisor?(j.aviso_enviado?' · aviso enviado':' · no se pudo enviar el aviso'):'');
       if(typeof showToast==='function') showToast(msgOk);
       setTimeout(function(){
         if(typeof showPage==='function'){showPage('req');loadReqList();}

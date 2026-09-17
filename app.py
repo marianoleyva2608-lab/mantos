@@ -1244,25 +1244,29 @@ def save_requisicion():
         'planta': d.get('planta',''), 'departamento': d.get('departamento',''), 'tipo': d.get('tipo','Normal'),
         'data': json.dumps(d, ensure_ascii=False),
     }, upsert=True, on_conflict='id', return_rows=False)
-    validador = (d.get('validador_email') or '').strip()
-    aviso_enviado = False
-    if validador:
+    def avisar_etapa(o, folio, destinatario, etapa_texto):
+        destinatario = (destinatario or '').strip()
+        if not destinatario:
+            return False
         folio_txt = 'REQ-' + str(folio).zfill(4)
         base_url = request.host_url.rstrip('/')
         cuerpo = (
             '<p>Hola,</p>'
-            '<p>Se registró la requisición <b>' + folio_txt + '</b> y necesita tu validación.</p>'
-            '<p><b>Solicitante:</b> ' + (d.get('solicitante') or '-') + '<br>'
-            '<b>Planta:</b> ' + (d.get('planta') or '-') + '<br>'
-            '<b>Departamento:</b> ' + (d.get('departamento') or '-') + '<br>'
-            '<b>Tipo:</b> ' + (d.get('tipo') or 'Normal') + '</p>'
+            '<p>La requisición <b>' + folio_txt + '</b> necesita que ' + etapa_texto + '.</p>'
+            '<p><b>Solicitante:</b> ' + (o.get('solicitante') or '-') + '<br>'
+            '<b>Planta:</b> ' + (o.get('planta') or '-') + '<br>'
+            '<b>Departamento:</b> ' + (o.get('departamento') or '-') + '<br>'
+            '<b>Tipo:</b> ' + (o.get('tipo') or 'Normal') + '</p>'
             '<p>Entra al sistema para revisarla y firmarla: <a href="' + base_url + '/">' + base_url + '/</a></p>'
         )
-        aviso_enviado, error = enviar_correo(
-            validador, 'Requisición ' + folio_txt + ' pendiente de validar', cuerpo,
-            nombre_remitente=d.get('solicitante') or None,
-            responder_a=d.get('solicitante_email') or None,
+        ok, _err = enviar_correo(
+            destinatario, 'Requisición ' + folio_txt + ' pendiente', cuerpo,
+            nombre_remitente=o.get('solicitante') or None,
+            responder_a=o.get('solicitante_email') or None,
         )
+        return ok
+
+    aviso_enviado = avisar_etapa(d, folio, d.get('email_revisor'), 'la revises')
     return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado})
 
 @app.route('/api/requisicion/<rid>/firmar', methods=['POST'])
@@ -1280,6 +1284,24 @@ def firmar_requisicion(rid):
         o['firmas'] = {}
     o['firmas'][key] = firma
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
+    base_url = request.host_url.rstrip('/')
+    def avisar(destinatario, etapa_texto):
+        destinatario = (destinatario or '').strip()
+        if not destinatario:
+            return
+        cuerpo = (
+            '<p>Hola,</p><p>' + etapa_texto + ' <b>' + folio_txt + '</b>.</p>'
+            '<p><b>Solicitante:</b> ' + (o.get('solicitante') or '-') + '<br>'
+            '<b>Planta:</b> ' + (o.get('planta') or '-') + '<br>'
+            '<b>Departamento:</b> ' + (o.get('departamento') or '-') + '</p>'
+            '<p>Entra al sistema: <a href="' + base_url + '/">' + base_url + '/</a></p>'
+        )
+        enviar_correo(destinatario, 'Requisición ' + folio_txt, cuerpo, nombre_remitente=o.get('solicitante') or None)
+    if key == 'reviso':
+        avisar(o.get('email_aprobador'), 'Ya fue revisada y necesita que la apruebes')
+    elif key == 'aprobo':
+        avisar(o.get('solicitante_email'), 'Ya quedó completamente aprobada')
     return jsonify({'ok': True})
 
 @app.route('/api/requisicion/<rid>/pdf')
