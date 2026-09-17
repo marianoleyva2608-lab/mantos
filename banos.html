@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Control de Baños · AD-PACK</title>
+<link rel="manifest" href="/manifest-banos.json">
+<meta name="theme-color" content="#1a5c2a">
+<link rel="icon" href="/icon-etiquetas-192.png">
+<link rel="apple-touch-icon" href="/icon-etiquetas-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Baños AD-PACK">
 <style>
   :root{
     --verde:#1a5c2a; --verde-claro:#e8f5e9; --rojo:#c62828; --amber:#f9a825;
@@ -175,6 +181,13 @@ function reloj(){ $('#reloj').textContent = new Date().toLocaleTimeString('es-MX
   reloj(); setInterval(reloj, 1000);
   setInterval(async()=>{ await cargar(); actualizarBotones(); }, 10000);
 })();
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw-banos.js').catch(function () {});
+    });
+  }
 </script>
 </body>
 </html>
