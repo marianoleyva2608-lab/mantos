@@ -1,9 +1,39 @@
-import os, io, base64, json, hashlib, datetime
+import os, io, base64, json, hashlib, datetime, smtplib
+from email.mime.text import MIMEText
 import requests
 from flask import Flask, request, send_file, jsonify, send_from_directory
 from qr_catalog import CATEGORIA_FIJA as QR_CATEGORIA_FIJA, GRUPOS as QR_GRUPOS, PLANTA as QR_PLANTA, PROVEEDORES as QR_PROVEEDORES
 
 app = Flask(__name__)
+
+# Envio de avisos por correo (requisiciones, etc.). Credenciales SMTP se
+# configuran como variables de entorno en EasyPanel, nunca en el codigo:
+# SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM.
+def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, responder_a=None):
+    host = os.environ.get('SMTP_HOST', '')
+    user = os.environ.get('SMTP_USER', '')
+    password = os.environ.get('SMTP_PASS', '')
+    if not host or not user or not password or not destinatario:
+        return False, 'SMTP no configurado o falta destinatario'
+    port = int(os.environ.get('SMTP_PORT', '587'))
+    remitente = os.environ.get('SMTP_FROM', user)
+    try:
+        msg = MIMEText(cuerpo_html, 'html', 'utf-8')
+        msg['Subject'] = asunto
+        # El envio siempre se autentica con la cuenta del sistema (SMTP_USER),
+        # pero se muestra con el nombre de quien genero la requisicion; si
+        # responden, la respuesta llega a su correo (Reply-To), no al sistema.
+        msg['From'] = ('"' + nombre_remitente + ' (via Sistema ADPACK)" <' + remitente + '>') if nombre_remitente else remitente
+        msg['To'] = destinatario
+        if responder_a:
+            msg['Reply-To'] = responder_a
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.starttls()
+            server.login(user, password)
+            server.sendmail(remitente, [destinatario], msg.as_string())
+        return True, None
+    except Exception as e:
+        return False, str(e)
  # ══════════════════════════════════════════════════════════
 # EXTRAER DATOS DE REFACCIÓN CON IA — usando OpenAI (agregar a app.py)
 # ══════════════════════════════════════════════════════════
@@ -1214,7 +1244,26 @@ def save_requisicion():
         'planta': d.get('planta',''), 'departamento': d.get('departamento',''), 'tipo': d.get('tipo','Normal'),
         'data': json.dumps(d, ensure_ascii=False),
     }, upsert=True, on_conflict='id', return_rows=False)
-    return jsonify({'ok': True, 'id': d['id'], 'folio': folio})
+    validador = (d.get('validador_email') or '').strip()
+    aviso_enviado = False
+    if validador:
+        folio_txt = 'REQ-' + str(folio).zfill(4)
+        base_url = request.host_url.rstrip('/')
+        cuerpo = (
+            '<p>Hola,</p>'
+            '<p>Se registró la requisición <b>' + folio_txt + '</b> y necesita tu validación.</p>'
+            '<p><b>Solicitante:</b> ' + (d.get('solicitante') or '-') + '<br>'
+            '<b>Planta:</b> ' + (d.get('planta') or '-') + '<br>'
+            '<b>Departamento:</b> ' + (d.get('departamento') or '-') + '<br>'
+            '<b>Tipo:</b> ' + (d.get('tipo') or 'Normal') + '</p>'
+            '<p>Entra al sistema para revisarla y firmarla: <a href="' + base_url + '/">' + base_url + '/</a></p>'
+        )
+        aviso_enviado, error = enviar_correo(
+            validador, 'Requisición ' + folio_txt + ' pendiente de validar', cuerpo,
+            nombre_remitente=d.get('solicitante') or None,
+            responder_a=d.get('solicitante_email') or None,
+        )
+    return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado})
 
 @app.route('/api/requisicion/<rid>/firmar', methods=['POST'])
 def firmar_requisicion(rid):
