@@ -782,9 +782,19 @@ def etiquetas():
 # extensiones de archivo seguras/esperadas, nunca .py ni archivos de datos.
 _EXTENSIONES_ESTATICAS_PERMITIDAS = ('.png', '.jpg', '.jpeg', '.svg', '.ico', '.gif', '.webp')
 
+# Manifests y service workers de las apps instalables (PWA). Se listan por
+# nombre exacto (no por extension) para no abrir /_proveedores.json ni otros
+# .json de datos que viven junto a app.py.
+_ARCHIVOS_PWA_PERMITIDOS = (
+    'manifest-adpack.json', 'sw-adpack.js',
+    'manifest-etiquetas.json', 'sw-etiquetas.js',
+    'manifest-banos.json', 'sw-banos.js',
+    'manifest-inicio.json', 'sw-inicio.js',
+)
+
 @app.route('/<path:nombre_archivo>')
 def servir_estatico(nombre_archivo):
-    if not nombre_archivo.lower().endswith(_EXTENSIONES_ESTATICAS_PERMITIDAS):
+    if nombre_archivo not in _ARCHIVOS_PWA_PERMITIDOS and not nombre_archivo.lower().endswith(_EXTENSIONES_ESTATICAS_PERMITIDAS):
         return jsonify({'error': 'No encontrado'}), 404
     directorio = os.path.dirname(os.path.abspath(__file__))
     ruta_completa = os.path.join(directorio, nombre_archivo)
