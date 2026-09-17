@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Mantenimiento Preventivo</title>
+<link rel="manifest" href="/manifest-adpack.json">
+<meta name="theme-color" content="#1a5c2a">
+<link rel="icon" href="/icon-etiquetas-192.png">
+<link rel="apple-touch-icon" href="/icon-etiquetas-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AD-PACK">
 <style>
 :root{--gd:#1a5c2a;--gm:#2d8a45;--gl:#e8f5e9;--ok:#2e7d32;--okb:#e8f5e9;--ng:#c62828;--ngb:#ffebee;--tx:#212121;--ts:#616161;--sf:#fff;--br:#e0e0e0;--rad:12px;--sh:0 2px 8px rgba(0,0,0,0.12)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -4785,5 +4791,12 @@ function deleteRef(id){
     </div>
   </div>
 </div>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw-adpack.js').catch(function () {});
+    });
+  }
+</script>
 </body>
 </html>

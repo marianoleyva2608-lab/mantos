@@ -1,0 +1,25 @@
+{
+  "name": "AD-PACK - Mantenimiento",
+  "short_name": "AD-PACK",
+  "description": "Mantenimiento Preventivo, Requisiciones, Órdenes de Trabajo, Refacciones, Etiquetas, Trazabilidad y Control de Baños de AD-PACK.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#1a5c2a",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon-etiquetas-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-etiquetas-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
