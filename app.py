@@ -780,14 +780,12 @@ def api_import_reports():
 
 @app.route('/')
 def index():
-    html = open('index.html', encoding='utf-8').read()
-    return html, 200, {'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store, no-cache, must-revalidate', 'Pragma':'no-cache'}
+    return send_file('index.html', mimetype='text/html', max_age=0, conditional=True, last_modified=os.path.getmtime('index.html'))
 
 @app.route('/etiquetas')
 @app.route('/etiquetas.html')
 def etiquetas():
-    html = open('etiquetas.html', encoding='utf-8').read()
-    return html, 200, {'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store, no-cache, must-revalidate', 'Pragma':'no-cache'}
+    return send_file('etiquetas.html', mimetype='text/html', max_age=0, conditional=True, last_modified=os.path.getmtime('etiquetas.html'))
 
 # Sirve archivos estaticos sueltos que viven junto a app.py (imagenes, iconos,
 # etc.) para que URLs como /logo-conversion.png funcionen. Solo permite

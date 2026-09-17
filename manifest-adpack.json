@@ -1,6 +1,6 @@
 {
-  "name": "AD-PACK - Mantenimiento",
-  "short_name": "AD-PACK",
+  "name": "Sistema ADPACK",
+  "short_name": "Sistema ADPACK",
   "description": "Mantenimiento Preventivo, Requisiciones, Órdenes de Trabajo, Refacciones, Etiquetas, Trazabilidad y Control de Baños de AD-PACK.",
   "start_url": "/",
   "scope": "/",
