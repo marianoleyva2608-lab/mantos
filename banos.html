@@ -51,7 +51,7 @@
 </head>
 <body>
 <header>
-  <button onclick="location.href='/'" title="Menú principal" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8249;</button>
+  <button onclick="(document.referrer.indexOf(location.origin)===0 && window.history.length>1) ? history.back() : location.href='/'" title="Menú principal" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8249;</button>
   <h1>🚻 Control de Baños</h1>
   <span id="reloj"></span>
 </header>
