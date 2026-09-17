@@ -407,6 +407,21 @@ window._jsQRLoaded=false;
         <div id="change-pin-err" style="margin-top:8px;font-size:12px;color:#c62828;text-align:center"></div>
       </div>
     </div>
+    <div id="reset-pin-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:6000;align-items:center;justify-content:center" onclick="if(event.target===this)closeResetPinForm()">
+      <div style="background:#fff;border-radius:14px;padding:22px 20px;max-width:340px;width:90%;position:relative">
+        <button onclick="closeResetPinForm()" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:#555">&times;</button>
+        <div style="font-size:14px;font-weight:700;color:#e65100;margin-bottom:4px">&#128273; Restablecer PIN (admin)</div>
+        <div id="rp-email-display" style="font-size:12px;color:#888;margin-bottom:12px;word-break:break-all"></div>
+        <input type="hidden" id="rp-userid">
+        <input id="rp-nuevo" type="password" placeholder="PIN nuevo (mínimo 4 dígitos)" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:8px;box-sizing:border-box">
+        <input id="rp-nuevo2" type="password" placeholder="Confirmar PIN nuevo" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+        <div style="display:flex;gap:8px">
+          <button onclick="submitResetPin()" style="flex:1;background:#e65100;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Restablecer</button>
+          <button onclick="closeResetPinForm()" style="background:#eee;border:none;padding:10px 16px;border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
+        </div>
+        <div id="reset-pin-err" style="margin-top:8px;font-size:12px;color:#c62828;text-align:center"></div>
+      </div>
+    </div>
     <div style="background:#fff;margin:12px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.12);overflow:hidden">
       <div style="background:#1a5c2a;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#128274; Sistema de Firma Digital PKI</div>
       <div style="padding:14px">
@@ -1410,6 +1425,35 @@ async function submitChangePin(){
     setTimeout(closeChangePinForm,900);
   }catch(e){err.style.color='#c62828';err.textContent='Error de conexion';}
 }
+function showResetPinForm(userId,email){
+  document.getElementById('rp-userid').value = userId;
+  document.getElementById('rp-email-display').textContent = email;
+  document.getElementById('rp-nuevo').value='';
+  document.getElementById('rp-nuevo2').value='';
+  document.getElementById('reset-pin-err').textContent='';
+  document.getElementById('reset-pin-modal').style.display='flex';
+}
+function closeResetPinForm(){
+  document.getElementById('reset-pin-modal').style.display='none';
+}
+async function submitResetPin(){
+  const userId  = document.getElementById('rp-userid').value;
+  const nuevo   = document.getElementById('rp-nuevo').value.trim();
+  const nuevo2  = document.getElementById('rp-nuevo2').value.trim();
+  const err     = document.getElementById('reset-pin-err');
+  if(!nuevo||!nuevo2){err.style.color='#c62828';err.textContent='Completa todos los campos';return;}
+  if(nuevo.length<4){err.style.color='#c62828';err.textContent='El PIN nuevo debe tener minimo 4 caracteres';return;}
+  if(nuevo!==nuevo2){err.style.color='#c62828';err.textContent='El PIN nuevo no coincide';return;}
+  err.style.color='#666'; err.textContent='Guardando...';
+  try{
+    const res = await fetch('/api/users/'+userId+'/reset-pin',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pin_nuevo:nuevo})});
+    const d = await res.json();
+    if(d.error){err.style.color='#c62828';err.textContent=d.error;return;}
+    err.style.color='#2e7d32';err.textContent='PIN restablecido';
+    setTimeout(closeResetPinForm,900);
+  }catch(e){err.style.color='#c62828';err.textContent='Error de conexion';}
+}
 let _usersCache=[];
 async function loadUsersList(){
   const el = document.getElementById('users-list');
@@ -1444,6 +1488,7 @@ async function loadUsersList(){
         <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           ${rolBadge}
           <button onclick="showChangePinForm('${u.email.replace(/'/g,"\\'")}')" style="font-size:10px;background:#fff;color:#1565C0;border:1px solid #1565C0;border-radius:14px;padding:2px 10px;cursor:pointer">&#128273; Cambiar PIN</button>
+          ${isAdmin ? `<button onclick="showResetPinForm(${u.id}, '${u.email.replace(/'/g,"\\'")}')" style="font-size:10px;background:#fff;color:#e65100;border:1px solid #e65100;border-radius:14px;padding:2px 10px;cursor:pointer">&#128273; Restablecer PIN</button>` : ''}
           ${editBtn}
         </div>
       </div>`;
