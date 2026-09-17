@@ -293,6 +293,18 @@ def update_user(user_id):
     updated = sb.update('users', data, id='eq.' + str(user_id))
     return jsonify({'ok': True, **updated[0]})
 
+@app.route('/api/users/<int:user_id>/reset-pin', methods=['POST'])
+def reset_pin_user(user_id):
+    d = request.json or {}
+    pin_nuevo = d.get('pin_nuevo', '').strip()
+    if not pin_nuevo or len(pin_nuevo) < 4:
+        return jsonify({'error': 'El PIN nuevo debe tener minimo 4 caracteres'}), 400
+    rows = sb.select('users', select='id', id='eq.' + str(user_id))
+    if not rows:
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+    sb.update('users', {'pin_hash': hash_pin(pin_nuevo)}, return_rows=False, id='eq.' + str(user_id))
+    return jsonify({'ok': True})
+
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
     rows = sb.select('users', select='email', id='eq.' + str(user_id))
