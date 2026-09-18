@@ -2255,6 +2255,15 @@ function authInit() {
     document.getElementById('user-bar-email').textContent = currentUser.email;
   }
   applyTabAccess();
+  abrirDeepLinkReq();
+}
+
+function abrirDeepLinkReq() {
+  if (!currentUser) return;
+  var rid = new URLSearchParams(location.search).get('req');
+  if (!rid) return;
+  if (typeof showPage === 'function') showPage('req-ver');
+  if (typeof verReq === 'function') verReq(rid);
 }
 
 function showLogin() {
@@ -3518,9 +3527,15 @@ async function loadReqList(){
         +'</div>'
         +'<div style="font-size:12px;color:#555;margin-top:4px">&#128197; '+r.fecha+' &nbsp;&#128100; '+(r.solicitante||'&#8212;')+'</div>'
         +'<div style="font-size:12px;color:#888;margin-top:2px">'+cnt+' artículo(s) &nbsp;|&nbsp; '+(r.departamento||'')+'</div>'
+        +(userIsAdmin() ? '<div style="text-align:right;margin-top:8px"><button onclick="event.stopPropagation();reqEliminar(\''+r.id+'\')" style="background:#fff;color:#c62828;border:1px solid #c62828;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer">&#128465; Borrar</button></div>' : '')
         +'</div>';
     }).join('');
   } catch(e){ el.innerHTML='<div style="color:#c62828;padding:20px">Error: '+e.message+'</div>'; }
+}
+
+function reqEliminar(id){
+  if(!confirm('¿Borrar esta requisición? No se puede deshacer.')) return;
+  fetch('/api/requisicion/'+id, {method:'DELETE'}).then(function(){ loadReqList(); });
 }
 
 function verReqFirmar(btn){

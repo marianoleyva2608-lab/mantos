@@ -1297,6 +1297,7 @@ def save_requisicion():
             return False, None
         folio_txt = 'REQ-' + str(folio).zfill(4)
         base_url = request.host_url.rstrip('/')
+        link = base_url + '/?req=' + str(o.get('id') or '')
         cuerpo = (
             '<p>Hola,</p>'
             '<p>La requisición <b>' + folio_txt + '</b> necesita que ' + etapa_texto + '.</p>'
@@ -1304,7 +1305,7 @@ def save_requisicion():
             '<b>Planta:</b> ' + (o.get('planta') or '-') + '<br>'
             '<b>Departamento:</b> ' + (o.get('departamento') or '-') + '<br>'
             '<b>Tipo:</b> ' + (o.get('tipo') or 'Normal') + '</p>'
-            '<p>Entra al sistema para revisarla y firmarla: <a href="' + base_url + '/">' + base_url + '/</a></p>'
+            '<p>Entra al sistema para revisarla y firmarla: <a href="' + link + '">' + link + '</a></p>'
         )
         ok, err = enviar_correo(
             destinatario, 'Requisición ' + folio_txt + ' pendiente', cuerpo,
@@ -1315,6 +1316,11 @@ def save_requisicion():
 
     aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_revisor'), 'la revises')
     return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado, 'aviso_error': aviso_error})
+
+@app.route('/api/requisicion/<rid>', methods=['DELETE'])
+def borrar_requisicion(rid):
+    sb.delete('requisiciones', return_rows=False, id='eq.' + rid)
+    return jsonify({'ok': True})
 
 @app.route('/api/requisicion/<rid>/firmar', methods=['POST'])
 def firmar_requisicion(rid):
@@ -1333,6 +1339,7 @@ def firmar_requisicion(rid):
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
     base_url = request.host_url.rstrip('/')
+    link = base_url + '/?req=' + rid
     def avisar(destinatario, etapa_texto):
         destinatario = (destinatario or '').strip()
         if not destinatario:
@@ -1342,7 +1349,7 @@ def firmar_requisicion(rid):
             '<p><b>Solicitante:</b> ' + (o.get('solicitante') or '-') + '<br>'
             '<b>Planta:</b> ' + (o.get('planta') or '-') + '<br>'
             '<b>Departamento:</b> ' + (o.get('departamento') or '-') + '</p>'
-            '<p>Entra al sistema: <a href="' + base_url + '/">' + base_url + '/</a></p>'
+            '<p>Entra al sistema: <a href="' + link + '">' + link + '</a></p>'
         )
         enviar_correo(destinatario, 'Requisición ' + folio_txt, cuerpo, nombre_remitente=o.get('solicitante') or None)
     if key == 'reviso':
