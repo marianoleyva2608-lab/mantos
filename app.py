@@ -1326,11 +1326,17 @@ def save_requisicion():
         return ok, err
 
     firmas_iniciales = d.get('firmas') or {}
-    reviso_ya_firmado = isinstance(firmas_iniciales.get('reviso'), dict) and firmas_iniciales['reviso'].get('estado') == 'aprobado'
-    if reviso_ya_firmado:
-        aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_aprobador'), 'la apruebes (Compras)')
+    etapa_labels_ini = {'reviso': 'tu supervisor', 'aprobo': 'Compras', 'presidenta': 'Presidencia'}
+    rechazo_key = next((k for k in ('reviso', 'aprobo', 'presidenta')
+                         if isinstance(firmas_iniciales.get(k), dict) and firmas_iniciales[k].get('estado') == 'rechazado'), None)
+    if rechazo_key:
+        aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('solicitante_email'), 'fue RECHAZADA por ' + etapa_labels_ini.get(rechazo_key, rechazo_key))
     else:
-        aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_revisor'), 'la revises')
+        reviso_ya_firmado = isinstance(firmas_iniciales.get('reviso'), dict) and firmas_iniciales['reviso'].get('estado') == 'aprobado'
+        if reviso_ya_firmado:
+            aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_aprobador'), 'la apruebes (Compras)')
+        else:
+            aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_revisor'), 'la revises')
     return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado, 'aviso_error': aviso_error})
 
 @app.route('/api/requisicion/<rid>', methods=['DELETE'])
@@ -1351,6 +1357,12 @@ def firmar_requisicion(rid):
     if not rows:
         return jsonify({'ok': False, 'error': 'No encontrado'}), 404
     o = json.loads(rows[0]['data'])
+    campo_asignado = {'reviso': 'email_revisor', 'aprobo': 'email_aprobador', 'presidenta': 'email_presidenta'}.get(key)
+    if campo_asignado:
+        asignado = (o.get(campo_asignado) or '').strip().lower()
+        firmante = (firma.get('email') or '').strip().lower()
+        if asignado and firmante != asignado:
+            return jsonify({'ok': False, 'error': 'Esta etapa solo la puede firmar la persona asignada (' + asignado + ')'}), 403
     if 'firmas' not in o or not isinstance(o['firmas'], dict):
         o['firmas'] = {}
     firma['estado'] = estado
