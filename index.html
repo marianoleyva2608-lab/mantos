@@ -1375,7 +1375,7 @@ async function submitAddUser(){
   const err    = document.getElementById('add-user-err');
   if(!nombre||!email||!pin){err.textContent='Completa todos los campos';return;}
   if(pin.length<4){err.textContent='El PIN debe tener mínimo 4 caracteres';return;}
-  if(!supervisor_email && (cargo==='Empleado'||cargo==='Supervisor')){err.style.color='#c62828';err.textContent='Asigna un supervisor';return;}
+  if(!supervisor_email && cargo==='Empleado'){err.style.color='#c62828';err.textContent='Asigna un supervisor';return;}
   err.textContent='⏳ Registrando...'; err.style.color='#666';
   try{
     const res = await fetch('/api/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,email,pin,rol,permisos,supervisor_email,cargo})});
@@ -1425,7 +1425,7 @@ async function submitEditUser(){
   const supervisor_email = (document.getElementById('eu-supervisor')||{}).value || '';
   const cargo = (document.getElementById('eu-cargo')||{}).value || 'Empleado';
   const err = document.getElementById('edit-user-err');
-  if(!supervisor_email && (cargo==='Empleado'||cargo==='Supervisor')){err.style.color='#c62828';err.textContent='Asigna un supervisor';return;}
+  if(!supervisor_email && cargo==='Empleado'){err.style.color='#c62828';err.textContent='Asigna un supervisor';return;}
   err.style.color='#666'; err.textContent='⏳ Guardando...';
   try{
     const res = await fetch('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rol,permisos,supervisor_email,cargo})});
@@ -3483,7 +3483,7 @@ async function guardarReq(){
     return;
   }
   var cargoActual=(currentUser&&currentUser.cargo)||'Empleado';
-  if(!data.email_revisor && (cargoActual==='Empleado'||cargoActual==='Supervisor')){
+  if(!data.email_revisor && cargoActual==='Empleado'){
     if(typeof showToast==='function') showToast('⚠️ Tu cuenta no tiene supervisor asignado. Pide a un administrador que te lo asigne en Configuración antes de guardar.');
     return;
   }
