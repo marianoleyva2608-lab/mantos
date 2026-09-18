@@ -302,14 +302,15 @@ def register_user():
     if rol not in ('admin', 'usuario'):
         rol = 'usuario'
     permisos = _normalizar_permisos(d.get('permisos', ''))
+    supervisor_email = (d.get('supervisor_email') or '').strip()
     if not nombre or not email or not pin or len(pin) < 4:
         return jsonify({'error': 'Nombre, email y PIN (minimo 4 caracteres) requeridos'}), 400
     try:
         sb.insert('users', {
             'nombre': nombre, 'email': email, 'pin_hash': hash_pin(pin),
-            'rol': rol, 'permisos': permisos,
+            'rol': rol, 'permisos': permisos, 'supervisor_email': supervisor_email,
         }, return_rows=False)
-        return jsonify({'ok': True, 'nombre': nombre, 'email': email, 'rol': rol, 'permisos': permisos})
+        return jsonify({'ok': True, 'nombre': nombre, 'email': email, 'rol': rol, 'permisos': permisos, 'supervisor_email': supervisor_email})
     except requests.exceptions.HTTPError as e:
         if e.response is not None and e.response.status_code == 409:
             return jsonify({'error': 'Este email ya esta registrado'}), 409

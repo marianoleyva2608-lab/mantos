@@ -357,6 +357,10 @@ window._jsQRLoaded=false;
         </select>
         <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Pestañas permitidas</div>
         <div id="nu-permisos" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+        <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Supervisor (revisa sus requisiciones)</div>
+        <select id="nu-supervisor" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+          <option value="">Sin supervisor asignado</option>
+        </select>
         <div style="display:flex;gap:8px">
           <button onclick="submitAddUser()" style="flex:1;background:#1a5c2a;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#10003; Registrar usuario</button>
           <button onclick="document.getElementById('add-user-form').style.display='none'" style="background:#eee;border:none;padding:10px 16px;border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>
@@ -370,15 +374,15 @@ window._jsQRLoaded=false;
 
     <!-- VALIDADORES POR DEFECTO DE REQUISICIONES (solo administradores) -->
     <div id="panel-validadores-req" style="background:#fff;margin:12px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.12);overflow:hidden">
-      <div style="background:#1a5c2a;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#128231; Quién Revisa y quién Aprueba las Requisiciones</div>
+      <div style="background:#1a5c2a;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#128231; Correos fijos para Requisiciones</div>
       <div style="padding:14px">
-        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Correo de quien Revisa</label>
-        <input id="cfg-email-revisor" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
-        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Correo de quien Aprueba</label>
+        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Correo de Compras (Aprobó)</label>
         <input id="cfg-email-aprobador" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Correo de Presidenta</label>
+        <input id="cfg-email-presidenta" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
         <button onclick="guardarValidadorDefault()" style="width:100%;background:#1a5c2a;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#10003; Guardar</button>
         <div id="cfg-validador-msg" style="margin-top:8px;font-size:12px;color:#2e7d32;text-align:center"></div>
-        <div style="font-size:11px;color:#999;margin-top:8px">Estos correos se llenan automáticamente en cada Nueva Requisición; cada persona recibe un aviso justo cuando le toca firmar. Se pueden cambiar en cada requisición si hace falta.</div>
+        <div style="font-size:11px;color:#999;margin-top:8px">Estos correos se llenan solos en cada Nueva Requisición — ya no hay que escribirlos a mano. El correo de "Revisa" ya no se pone aquí: se toma automáticamente del supervisor asignado a cada usuario (botón "⚙️ Acceso" en la lista de usuarios).</div>
       </div>
     </div>
 
@@ -1337,6 +1341,11 @@ function showAddUserForm(){
   document.getElementById('add-user-err').textContent='';
   document.getElementById('nu-rol').value='usuario';
   renderPermisosCheckboxes('nu-permisos', []);
+  const supSel = document.getElementById('nu-supervisor');
+  if (supSel) {
+    supSel.innerHTML = '<option value="">Sin supervisor asignado</option>' +
+      _usersCache.map(u => '<option value="' + u.email.replace(/"/g,'&quot;') + '">' + u.nombre + ' (' + u.email + ')</option>').join('');
+  }
 }
 
 async function submitAddUser(){
@@ -1345,12 +1354,13 @@ async function submitAddUser(){
   const pin    = document.getElementById('nu-pin').value.trim();
   const rol    = document.getElementById('nu-rol').value;
   const permisos = readPermisosCheckboxes('nu-permisos');
+  const supervisor_email = (document.getElementById('nu-supervisor')||{}).value || '';
   const err    = document.getElementById('add-user-err');
   if(!nombre||!email||!pin){err.textContent='Completa todos los campos';return;}
   if(pin.length<4){err.textContent='El PIN debe tener mínimo 4 caracteres';return;}
   err.textContent='⏳ Registrando...'; err.style.color='#666';
   try{
-    const res = await fetch('/api/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,email,pin,rol,permisos})});
+    const res = await fetch('/api/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,email,pin,rol,permisos,supervisor_email})});
     const d = await res.json();
     if(d.error){err.style.color='#c62828';err.textContent=d.error;return;}
     err.style.color='#2e7d32';
@@ -1550,18 +1560,18 @@ function loadSettingsPage(){
   loadUsersList();
   var panelVal = document.getElementById('panel-validadores-req');
   if (panelVal) panelVal.style.display = userIsAdmin() ? '' : 'none';
-  var elR = document.getElementById('cfg-email-revisor');
-  if(elR){ try{ elR.value = localStorage.getItem('adpack_email_revisor') || ''; }catch(e){} }
   var elA = document.getElementById('cfg-email-aprobador');
   if(elA){ try{ elA.value = localStorage.getItem('adpack_email_aprobador') || ''; }catch(e){} }
+  var elP = document.getElementById('cfg-email-presidenta');
+  if(elP){ try{ elP.value = localStorage.getItem('adpack_email_presidenta') || ''; }catch(e){} }
 }
 function guardarValidadorDefault(){
-  var elR = document.getElementById('cfg-email-revisor');
   var elA = document.getElementById('cfg-email-aprobador');
+  var elP = document.getElementById('cfg-email-presidenta');
   var msg = document.getElementById('cfg-validador-msg');
   try{
-    localStorage.setItem('adpack_email_revisor', elR ? elR.value.trim() : '');
     localStorage.setItem('adpack_email_aprobador', elA ? elA.value.trim() : '');
+    localStorage.setItem('adpack_email_presidenta', elP ? elP.value.trim() : '');
   }catch(e){}
   if(msg){ msg.textContent = 'Guardado'; setTimeout(function(){ msg.textContent=''; }, 1500); }
 }
