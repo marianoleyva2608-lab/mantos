@@ -1247,7 +1247,7 @@ def save_requisicion():
     def avisar_etapa(o, folio, destinatario, etapa_texto):
         destinatario = (destinatario or '').strip()
         if not destinatario:
-            return False
+            return False, None
         folio_txt = 'REQ-' + str(folio).zfill(4)
         base_url = request.host_url.rstrip('/')
         cuerpo = (
@@ -1259,15 +1259,15 @@ def save_requisicion():
             '<b>Tipo:</b> ' + (o.get('tipo') or 'Normal') + '</p>'
             '<p>Entra al sistema para revisarla y firmarla: <a href="' + base_url + '/">' + base_url + '/</a></p>'
         )
-        ok, _err = enviar_correo(
+        ok, err = enviar_correo(
             destinatario, 'Requisición ' + folio_txt + ' pendiente', cuerpo,
             nombre_remitente=o.get('solicitante') or None,
             responder_a=o.get('solicitante_email') or None,
         )
-        return ok
+        return ok, err
 
-    aviso_enviado = avisar_etapa(d, folio, d.get('email_revisor'), 'la revises')
-    return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado})
+    aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_revisor'), 'la revises')
+    return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado, 'aviso_error': aviso_error})
 
 @app.route('/api/requisicion/<rid>/firmar', methods=['POST'])
 def firmar_requisicion(rid):
@@ -2421,6 +2421,21 @@ def trazabilidad_page():
 @app.route('/api/traza/maquinas', methods=['GET'])
 def traza_maquinas():
     return jsonify(sb.select('maquinas', select='*', order='id.asc'))
+
+@app.route('/api/traza/maquinas', methods=['POST'])
+def traza_maquinas_guardar():
+    d = request.json or {}
+    if not d.get('id') or not d.get('nombre'):
+        return jsonify({'error': 'id y nombre son requeridos'}), 400
+    sb.insert('maquinas', {
+        'id': d['id'], 'nombre': d['nombre'],
+        'dingtian_sn': str(d.get('dingtian_sn', '')),
+        'entrada_ciclo': d.get('entrada_ciclo'),
+        'entrada_marcha': d.get('entrada_marcha'),
+        'estado_activo': d.get('estado_activo', 'ON'),
+        'paro_gap_seg': d.get('paro_gap_seg', 25),
+    }, upsert=True, on_conflict='id', return_rows=False)
+    return jsonify({'ok': True})
 
 
 @app.route('/api/traza/resumen', methods=['GET'])
