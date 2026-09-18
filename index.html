@@ -368,8 +368,8 @@ window._jsQRLoaded=false;
       </div>
     </div>
 
-    <!-- VALIDADORES POR DEFECTO DE REQUISICIONES -->
-    <div style="background:#fff;margin:12px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.12);overflow:hidden">
+    <!-- VALIDADORES POR DEFECTO DE REQUISICIONES (solo administradores) -->
+    <div id="panel-validadores-req" style="background:#fff;margin:12px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.12);overflow:hidden">
       <div style="background:#1a5c2a;color:#fff;padding:10px 16px;font-weight:700;font-size:13px">&#128231; Quién Revisa y quién Aprueba las Requisiciones</div>
       <div style="padding:14px">
         <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Correo de quien Revisa</label>
@@ -396,6 +396,10 @@ window._jsQRLoaded=false;
         </select>
         <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Pestañas permitidas</div>
         <div id="eu-permisos" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
+        <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Supervisor (revisa sus requisiciones)</div>
+        <select id="eu-supervisor" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:14px;box-sizing:border-box">
+          <option value="">Sin supervisor asignado</option>
+        </select>
         <div style="display:flex;gap:8px">
           <button onclick="submitEditUser()" style="flex:1;background:#1a5c2a;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#10003; Guardar</button>
           <button onclick="submitDeleteUser()" style="background:#c62828;color:#fff;border:none;padding:10px 14px;border-radius:8px;font-size:14px;cursor:pointer">&#128465;</button>
@@ -1369,6 +1373,14 @@ function showEditUserForm(user){
   document.getElementById('eu-rol').value=user.rol||'usuario';
   const permisos = (user.permisos==='all') ? TABS_CONTROLADAS.map(t=>t.id) : (user.permisos||'').split(',').map(s=>s.trim()).filter(Boolean);
   renderPermisosCheckboxes('eu-permisos', permisos);
+  const supSel = document.getElementById('eu-supervisor');
+  if (supSel) {
+    supSel.innerHTML = '<option value="">Sin supervisor asignado</option>' +
+      _usersCache.filter(u => String(u.id) !== String(user.id)).map(u =>
+        '<option value="' + u.email.replace(/"/g,'&quot;') + '">' + u.nombre + ' (' + u.email + ')</option>'
+      ).join('');
+    supSel.value = user.supervisor_email || '';
+  }
   document.getElementById('edit-user-err').textContent='';
   document.getElementById('edit-user-modal').style.display='flex';
 }
@@ -1380,14 +1392,15 @@ async function submitEditUser(){
   const id = document.getElementById('eu-id').value;
   const rol = document.getElementById('eu-rol').value;
   const permisos = readPermisosCheckboxes('eu-permisos');
+  const supervisor_email = (document.getElementById('eu-supervisor')||{}).value || '';
   const err = document.getElementById('edit-user-err');
   err.style.color='#666'; err.textContent='⏳ Guardando...';
   try{
-    const res = await fetch('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rol,permisos})});
+    const res = await fetch('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rol,permisos,supervisor_email})});
     const d = await res.json();
     if(d.error){err.style.color='#c62828';err.textContent=d.error;return;}
     if(currentUser && String(currentUser.id)===String(id)){
-      currentUser.rol=d.rol; currentUser.permisos=d.permisos;
+      currentUser.rol=d.rol; currentUser.permisos=d.permisos; currentUser.supervisor_email=d.supervisor_email||'';
       localStorage.setItem('mantos_user', JSON.stringify(currentUser));
       applyTabAccess();
     }
@@ -1535,6 +1548,8 @@ async function clearAllReports(){
 
 function loadSettingsPage(){
   loadUsersList();
+  var panelVal = document.getElementById('panel-validadores-req');
+  if (panelVal) panelVal.style.display = userIsAdmin() ? '' : 'none';
   var elR = document.getElementById('cfg-email-revisor');
   if(elR){ try{ elR.value = localStorage.getItem('adpack_email_revisor') || ''; }catch(e){} }
   var elA = document.getElementById('cfg-email-aprobador');
@@ -2287,7 +2302,7 @@ function doLogin() {
     .then(r => r.json())
     .then(d => {
       if (d.error) { document.getElementById('auth-err').textContent = d.error; return; }
-      currentUser = {id: d.id, nombre: d.nombre, email: d.email, rol: d.rol||'usuario', permisos: d.permisos||''};
+      currentUser = {id: d.id, nombre: d.nombre, email: d.email, rol: d.rol||'usuario', permisos: d.permisos||'', supervisor_email: d.supervisor_email||''};
       localStorage.setItem('mantos_user', JSON.stringify(currentUser));
       authInit();
     });
@@ -2657,14 +2672,18 @@ authInit();
     <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;flex-direction:column;gap:10px">
       <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">&#128231; Avisos automáticos por correo (opcional)</label>
       <div>
-        <div style="font-size:12px;color:#555;margin-bottom:3px">Correo de quien debe <b>Revisar</b></div>
+        <div style="font-size:12px;color:#555;margin-bottom:3px">Correo de quien debe <b>Revisar</b> (tu supervisor)</div>
         <input id="req-email-revisor" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
       </div>
       <div>
-        <div style="font-size:12px;color:#555;margin-bottom:3px">Correo de quien debe <b>Aprobar</b></div>
+        <div style="font-size:12px;color:#555;margin-bottom:3px">Correo de quien debe <b>Aprobar</b> (Compras)</div>
         <input id="req-email-aprobador" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
       </div>
-      <div style="font-size:11px;color:#999">Se le avisa a cada quien por correo en cuanto le toca firmar: al guardar se avisa a Revisó, cuando Revisó firma se avisa a Aprobó, y cuando Aprobó firma se le avisa al solicitante que ya quedó completa.</div>
+      <div>
+        <div style="font-size:12px;color:#555;margin-bottom:3px">Correo de <b>Presidenta</b> (visto bueno final)</div>
+        <input id="req-email-presidenta" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
+      </div>
+      <div style="font-size:11px;color:#999">Se le avisa a cada quien por correo en cuanto le toca firmar: al guardar se avisa a Revisó, cuando Revisó firma se avisa a Aprobó (Compras), cuando Compras firma se avisa a Presidenta, y cuando Presidenta firma se avisa al solicitante que ya quedó completa.</div>
     </div>
     <button onclick="guardarReq()" style="width:100%;padding:14px;background:#1a5c2a;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer">&#128190; Guardar Requisici&#243;n</button>
   </div>
@@ -3278,7 +3297,7 @@ function initClocks(){
 </script>
 <script>
 // ── REQUISICIONES (script independiente) ──────────────────
-var _reqSigs={realizo:null,reviso:null,aprobo:null};
+var _reqSigs={realizo:null,reviso:null,aprobo:null,presidenta:null};
 var _reqCurrentId=null;
 var _reqRowCount=1;
 
@@ -3314,7 +3333,7 @@ function reqEliminarFila(n){
 
 function initReqForm(){
   _reqCurrentId=null;
-  _reqSigs={realizo:null,reviso:null,aprobo:null};
+  _reqSigs={realizo:null,reviso:null,aprobo:null,presidenta:null};
   _reqRowCount=0;
   // Fecha hoy
   var d=new Date();
@@ -3333,9 +3352,14 @@ function initReqForm(){
   var justEl=document.getElementById('req-justificacion');
   if(justEl) justEl.value='';
   var valRevEl=document.getElementById('req-email-revisor');
-  if(valRevEl){ try{ valRevEl.value = localStorage.getItem('adpack_email_revisor') || ''; }catch(e){ valRevEl.value=''; } }
+  if(valRevEl){
+    var supEmail = (currentUser && currentUser.supervisor_email) ? currentUser.supervisor_email : '';
+    try{ valRevEl.value = supEmail || localStorage.getItem('adpack_email_revisor') || ''; }catch(e){ valRevEl.value = supEmail; }
+  }
   var valApEl=document.getElementById('req-email-aprobador');
   if(valApEl){ try{ valApEl.value = localStorage.getItem('adpack_email_aprobador') || ''; }catch(e){ valApEl.value=''; } }
+  var valPresEl=document.getElementById('req-email-presidenta');
+  if(valPresEl){ try{ valPresEl.value = localStorage.getItem('adpack_email_presidenta') || ''; }catch(e){ valPresEl.value=''; } }
   // Limpiar tabla y agregar 3 filas iniciales
   var tbody=document.getElementById('req-items-tbody');
   if(tbody){
@@ -3347,7 +3371,7 @@ function initReqForm(){
   var sc=document.getElementById('req-sigs-container');
   if(sc){
     sc.innerHTML='<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:10px">Firmas Digitales</div>';
-    [{k:'realizo',l:'Realizó'},{k:'reviso',l:'Revisó'},{k:'aprobo',l:'Aprobó'}].forEach(function(s){
+    [{k:'realizo',l:'Realizó'},{k:'reviso',l:'Revisó'},{k:'aprobo',l:'Aprobó (Compras)'},{k:'presidenta',l:'Presidenta'}].forEach(function(s){
       sc.innerHTML+='<div style="border:1px solid #e0e0e0;border-radius:8px;padding:10px;margin-bottom:8px">'
         +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">'+s.l+'</div>'
         +'<div id="req-sig-done-'+s.k+'"></div>'
@@ -3391,6 +3415,7 @@ function reqFirmarBtn(btn){
           +'<span style="font-weight:700;color:#2e7d32">Estado:</span><span>&#9989; Verificado</span>'
           +'</div></div>';
         if(typeof showToast==='function') showToast('✅ Firmado — '+res.nombre);
+        if(key==='realizo') guardarReq();
       } else {
         if(pinEl){pinEl.value='';pinEl.style.borderColor='#f44336';}
         btn.disabled=false;btn.innerHTML='&#128274;&nbsp; Firmar';
@@ -3430,6 +3455,7 @@ async function guardarReq(){
     justificacion:(document.getElementById('req-justificacion')||{}).value||'',
     email_revisor:(document.getElementById('req-email-revisor')||{}).value||'',
     email_aprobador:(document.getElementById('req-email-aprobador')||{}).value||'',
+    email_presidenta:(document.getElementById('req-email-presidenta')||{}).value||'',
     firmas:_reqSigs
   };
   if(!data.fecha||!data.solicitante){
@@ -3541,44 +3567,54 @@ function reqEliminar(id){
 function verReqFirmar(btn){
   var reqId=btn.getAttribute('data-reqid');
   var key=btn.getAttribute('data-sigkey');
+  var estado=btn.getAttribute('data-estado')||'aprobado';
   var emailEl=document.getElementById('ver-sig-email-'+key);
   var pinEl=document.getElementById('ver-sig-pin-'+key);
+  var comEl=document.getElementById('ver-sig-comentario-'+key);
   var email=emailEl?emailEl.value.trim():'';
   var pin=pinEl?pinEl.value.trim():'';
+  var comentario=comEl?comEl.value.trim():'';
   if(!email){if(typeof showToast==='function')showToast('Ingresa tu correo');if(emailEl)emailEl.focus();return;}
   if(!pin){if(typeof showToast==='function')showToast('Ingresa tu PIN');if(pinEl)pinEl.focus();return;}
+  if(estado==='rechazado' && !comentario){if(typeof showToast==='function')showToast('Escribe el motivo del rechazo');if(comEl)comEl.focus();return;}
+  var txtOriginal=btn.innerHTML;
   btn.disabled=true;btn.textContent='Verificando...';
   fetch('/api/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,pin:pin})})
     .then(function(r){return r.json();}).then(function(res){
       if(!res.ok){
         if(pinEl){pinEl.value='';pinEl.style.borderColor='#f44336';}
-        btn.disabled=false;btn.innerHTML='&#128274; Firmar';
+        btn.disabled=false;btn.innerHTML=txtOriginal;
         setTimeout(function(){if(pinEl)pinEl.style.borderColor='';},1500);
         if(typeof showToast==='function')showToast('PIN incorrecto');return;
       }
       var ts=new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
       var cert='PKI-'+Math.random().toString(36).substr(2,9).toUpperCase()+'-'+Date.now().toString(36).toUpperCase();
       var sigData={nombre:res.nombre,email:res.email,fecha:ts,serie:cert};
-      fetch('/api/requisicion/'+reqId+'/firmar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,firma:sigData})})
+      fetch('/api/requisicion/'+reqId+'/firmar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,firma:sigData,estado:estado,comentario:comentario})})
         .then(function(r2){return r2.json();}).then(function(saved){
           if(!saved.ok){if(typeof showToast==='function')showToast('Error al guardar');return;}
           var row=document.getElementById('ver-sig-row-'+key);
           if(row)row.style.display='none';
           var block=document.getElementById('ver-sig-block-'+key);
-          if(block){block.style.border='2px solid #43a047';block.style.borderLeft='4px solid #2e7d32';}
+          var rechazado=estado==='rechazado';
+          if(block){
+            block.style.border=rechazado?'2px solid #c62828':'2px solid #43a047';
+            block.style.borderLeft=rechazado?'4px solid #b71c1c':'4px solid #2e7d32';
+          }
+          var col=rechazado?'#c62828':'#2e7d32';
           var done=document.getElementById('ver-sig-done-'+key);
           if(done)done.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
-            +'<div style="width:26px;height:26px;background:#2e7d32;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px">&#10003;</div>'
-            +'<div><div style="font-size:9px;color:#2e7d32;font-weight:700;text-transform:uppercase">Firma Electrónica Válida</div>'
-            +'<div style="font-size:13px;font-weight:700;color:#1b5e20">'+res.nombre+'</div></div></div>'
-            +'<div style="font-size:10px;color:#555;display:grid;grid-template-columns:65px 1fr;gap:2px 8px;border-top:1px solid #c8e6c9;padding-top:6px">'
-            +'<span style="font-weight:700;color:#2e7d32">Titular:</span><span>'+res.email+'</span>'
-            +'<span style="font-weight:700;color:#2e7d32">Fecha:</span><span>'+ts+'</span>'
-            +'<span style="font-weight:700;color:#2e7d32">Serie X.509:</span><span style="font-family:monospace;font-size:9px">'+cert+'</span>'
-            +'<span style="font-weight:700;color:#2e7d32">Estado:</span><span>&#9989; Verificado</span></div>';
-          if(typeof showToast==='function')showToast('Firmado - '+res.nombre);
-        }).catch(function(){if(typeof showToast==='function')showToast('Error de conexion');btn.disabled=false;btn.innerHTML='&#128274; Firmar';});
-    }).catch(function(){if(typeof showToast==='function')showToast('Error de conexion');btn.disabled=false;btn.innerHTML='&#128274; Firmar';});
+            +'<div style="width:26px;height:26px;background:'+col+';border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px">'+(rechazado?'&#10005;':'&#10003;')+'</div>'
+            +'<div><div style="font-size:9px;color:'+col+';font-weight:700;text-transform:uppercase">'+(rechazado?'Rechazado':'Firma Electrónica Válida')+'</div>'
+            +'<div style="font-size:13px;font-weight:700;color:'+(rechazado?'#b71c1c':'#1b5e20')+'">'+res.nombre+'</div></div></div>'
+            +'<div style="font-size:10px;color:#555;display:grid;grid-template-columns:65px 1fr;gap:2px 8px;border-top:1px solid #eee;padding-top:6px">'
+            +'<span style="font-weight:700;color:'+col+'">Titular:</span><span>'+res.email+'</span>'
+            +'<span style="font-weight:700;color:'+col+'">Fecha:</span><span>'+ts+'</span>'
+            +(rechazado?('<span style="font-weight:700;color:'+col+'">Motivo:</span><span>'+comentario+'</span>'):('<span style="font-weight:700;color:'+col+'">Serie X.509:</span><span style="font-family:monospace;font-size:9px">'+cert+'</span>'+(comentario?('<span style="font-weight:700;color:'+col+'">Comentario:</span><span>'+comentario+'</span>'):'')))
+            +'<span style="font-weight:700;color:'+col+'">Estado:</span><span>'+(rechazado?'&#10060; Rechazado':'&#9989; Verificado')+'</span></div>';
+          if(typeof showToast==='function')showToast(rechazado?('Rechazado - '+res.nombre):('Firmado - '+res.nombre));
+        }).catch(function(){if(typeof showToast==='function')showToast('Error de conexion');btn.disabled=false;btn.innerHTML=txtOriginal;});
+    }).catch(function(){if(typeof showToast==='function')showToast('Error de conexion');btn.disabled=false;btn.innerHTML=txtOriginal;});
 }
 
 function verReqEl(el){
@@ -3628,25 +3664,31 @@ async function verReq(id){
     }
     // Firmas digitales
     var firmas=o.firmas||{};
-    var sigLabels={realizo:'Realizó',reviso:'Revisó',aprobo:'Aprobó'};
-    var hasSigs=firmas.realizo||firmas.reviso||firmas.aprobo;
+    var sigLabels={realizo:'Realizó',reviso:'Revisó',aprobo:'Aprobó (Compras)',presidenta:'Presidenta'};
+    var hasSigs=firmas.realizo||firmas.reviso||firmas.aprobo||firmas.presidenta;
     h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
       +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Firmas Digitales</div>'
       +'<div style="padding:10px">';
-    ['realizo','reviso','aprobo'].forEach(function(key){
+    ['realizo','reviso','aprobo','presidenta'].forEach(function(key){
       var sig=firmas[key];
       var label=sigLabels[key];
+      var permiteRechazo=(key!=='realizo');
       if(sig){
-        h+='<div style="border:2px solid #43a047;border-radius:8px;padding:10px;margin-bottom:8px;border-left:4px solid #2e7d32">'
+        var rechazado=sig.estado==='rechazado';
+        var col=rechazado?'#c62828':'#2e7d32';
+        h+='<div style="border:2px solid '+(rechazado?'#c62828':'#43a047')+';border-radius:8px;padding:10px;margin-bottom:8px;border-left:4px solid '+(rechazado?'#b71c1c':'#2e7d32')+'">'
           +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
-          +'<div style="width:26px;height:26px;background:#2e7d32;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;flex-shrink:0">&#10003;</div>'
-          +'<div><div style="font-size:9px;color:#2e7d32;font-weight:700;text-transform:uppercase;letter-spacing:.5px">'+label+' — Firma Electrónica Válida</div>'
-          +'<div style="font-size:13px;font-weight:700;color:#1b5e20">'+sig.nombre+'</div></div></div>'
-          +'<div style="font-size:10px;color:#555;display:grid;grid-template-columns:65px 1fr;gap:2px 8px;border-top:1px solid #c8e6c9;padding-top:6px">'
-          +'<span style="font-weight:700;color:#2e7d32">Titular:</span><span>'+sig.email+'</span>'
-          +'<span style="font-weight:700;color:#2e7d32">Fecha:</span><span>'+sig.fecha+'</span>'
-          +'<span style="font-weight:700;color:#2e7d32">Serie X.509:</span><span style="font-family:monospace;font-size:9px">'+sig.serie+'</span>'
-          +'<span style="font-weight:700;color:#2e7d32">Estado:</span><span>&#9989; Verificado</span>'
+          +'<div style="width:26px;height:26px;background:'+col+';border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;flex-shrink:0">'+(rechazado?'&#10005;':'&#10003;')+'</div>'
+          +'<div><div style="font-size:9px;color:'+col+';font-weight:700;text-transform:uppercase;letter-spacing:.5px">'+label+' — '+(rechazado?'Rechazado':'Firma Electrónica Válida')+'</div>'
+          +'<div style="font-size:13px;font-weight:700;color:'+(rechazado?'#b71c1c':'#1b5e20')+'">'+sig.nombre+'</div></div></div>'
+          +'<div style="font-size:10px;color:#555;display:grid;grid-template-columns:65px 1fr;gap:2px 8px;border-top:1px solid #eee;padding-top:6px">'
+          +'<span style="font-weight:700;color:'+col+'">Titular:</span><span>'+sig.email+'</span>'
+          +'<span style="font-weight:700;color:'+col+'">Fecha:</span><span>'+sig.fecha+'</span>'
+          +(rechazado
+            ? ('<span style="font-weight:700;color:'+col+'">Motivo:</span><span>'+(sig.comentario||'')+'</span>')
+            : ('<span style="font-weight:700;color:'+col+'">Serie X.509:</span><span style="font-family:monospace;font-size:9px">'+sig.serie+'</span>'
+               +(sig.comentario?('<span style="font-weight:700;color:'+col+'">Comentario:</span><span>'+sig.comentario+'</span>'):'')))
+          +'<span style="font-weight:700;color:'+col+'">Estado:</span><span>'+(rechazado?'&#10060; Rechazado':'&#9989; Verificado')+'</span>'
           +'</div></div>';
       } else {
         h+='<div id="ver-sig-block-'+key+'" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-bottom:8px">'
@@ -3654,9 +3696,13 @@ async function verReq(id){
           +'<div id="ver-sig-done-'+key+'"></div>'
           +'<div id="ver-sig-row-'+key+'">'
           +'<input id="ver-sig-email-'+key+'" type="email" placeholder="Tu correo electrónico" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +'<input id="ver-sig-pin-'+key+'" type="password" placeholder="PIN personal" maxlength="20" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:3px;box-sizing:border-box;margin-bottom:6px">'
+          +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (opcional si apruebas, obligatorio si rechazas)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
           +'<div style="display:flex;gap:6px">'
-          +'<input id="ver-sig-pin-'+key+'" type="password" placeholder="PIN personal" maxlength="20" style="flex:1;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:3px;box-sizing:border-box">'
-          +'<button data-reqid="'+id+'" data-sigkey="'+key+'" onclick="verReqFirmar(this)" style="padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128274; Firmar</button>'
+          +(permiteRechazo
+            ? ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="rechazado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; Rechazar</button>'
+               +'<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 10px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128274; Aprobar</button>')
+            : ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128274; Firmar</button>'))
           +'</div></div></div>';
       }
     });

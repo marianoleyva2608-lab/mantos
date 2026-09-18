@@ -322,13 +322,14 @@ def login_user():
     d = request.json
     email = d.get('email','').strip().lower()
     pin   = d.get('pin','').strip()
-    rows = sb.select('users', select='id,nombre,email,rol,permisos',
+    rows = sb.select('users', select='id,nombre,email,rol,permisos,supervisor_email',
                       email='eq.' + email, pin_hash='eq.' + hash_pin(pin))
     if not rows:
         return jsonify({'error': 'Email o PIN incorrecto'}), 401
     row = rows[0]
     return jsonify({'ok': True, 'id': row['id'], 'nombre': row['nombre'], 'email': row['email'],
-                     'rol': row['rol'] or 'usuario', 'permisos': row['permisos'] or ''})
+                     'rol': row['rol'] or 'usuario', 'permisos': row['permisos'] or '',
+                     'supervisor_email': row.get('supervisor_email') or ''})
 
 @app.route('/api/users/verify', methods=['POST'])
 def verify_user():
@@ -345,7 +346,7 @@ def verify_user():
 
 @app.route('/api/users', methods=['GET'])
 def list_users():
-    rows = sb.select('users', select='id,nombre,email,rol,permisos,created_at', order='nombre.asc')
+    rows = sb.select('users', select='id,nombre,email,rol,permisos,supervisor_email,created_at', order='nombre.asc')
     return jsonify(rows)
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
@@ -365,6 +366,8 @@ def update_user(user_id):
         data['rol'] = rol
     if 'permisos' in d:
         data['permisos'] = _normalizar_permisos(d['permisos'])
+    if 'supervisor_email' in d:
+        data['supervisor_email'] = (d['supervisor_email'] or '').strip()
     if not data:
         return jsonify({'error': 'Nada que actualizar'}), 400
     updated = sb.update('users', data, id='eq.' + str(user_id))
@@ -1325,9 +1328,11 @@ def borrar_requisicion(rid):
 @app.route('/api/requisicion/<rid>/firmar', methods=['POST'])
 def firmar_requisicion(rid):
     d = request.json
-    key = d.get('key')   # 'realizo', 'reviso', 'aprobo'
+    key = d.get('key')   # 'realizo', 'reviso', 'aprobo', 'presidenta'
     firma = d.get('firma')
-    if key not in ('realizo','reviso','aprobo') or not firma:
+    estado = d.get('estado', 'aprobado')   # 'aprobado' | 'rechazado'
+    comentario = (d.get('comentario') or '').strip()
+    if key not in ('realizo','reviso','aprobo','presidenta') or not firma or estado not in ('aprobado','rechazado'):
         return jsonify({'ok': False, 'error': 'Datos inválidos'}), 400
     rows = sb.select('requisiciones', select='data', id='eq.' + rid)
     if not rows:
@@ -1335,26 +1340,35 @@ def firmar_requisicion(rid):
     o = json.loads(rows[0]['data'])
     if 'firmas' not in o or not isinstance(o['firmas'], dict):
         o['firmas'] = {}
+    firma['estado'] = estado
+    firma['comentario'] = comentario
     o['firmas'][key] = firma
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
     base_url = request.host_url.rstrip('/')
     link = base_url + '/?req=' + rid
+    etapa_labels = {'reviso': 'tu supervisor', 'aprobo': 'Compras', 'presidenta': 'Presidencia'}
     def avisar(destinatario, etapa_texto):
         destinatario = (destinatario or '').strip()
         if not destinatario:
             return
         cuerpo = (
             '<p>Hola,</p><p>' + etapa_texto + ' <b>' + folio_txt + '</b>.</p>'
-            '<p><b>Solicitante:</b> ' + (o.get('solicitante') or '-') + '<br>'
+            + ('<p><b>Comentario:</b> ' + comentario + '</p>' if comentario else '')
+            + '<p><b>Solicitante:</b> ' + (o.get('solicitante') or '-') + '<br>'
             '<b>Planta:</b> ' + (o.get('planta') or '-') + '<br>'
             '<b>Departamento:</b> ' + (o.get('departamento') or '-') + '</p>'
             '<p>Entra al sistema: <a href="' + link + '">' + link + '</a></p>'
         )
         enviar_correo(destinatario, 'Requisición ' + folio_txt, cuerpo, nombre_remitente=o.get('solicitante') or None)
+    if estado == 'rechazado':
+        avisar(o.get('solicitante_email'), 'Fue RECHAZADA por ' + etapa_labels.get(key, key))
+        return jsonify({'ok': True})
     if key == 'reviso':
-        avisar(o.get('email_aprobador'), 'Ya fue revisada y necesita que la apruebes')
+        avisar(o.get('email_aprobador'), 'Ya fue revisada y necesita que la apruebes (Compras)')
     elif key == 'aprobo':
+        avisar(o.get('email_presidenta'), 'Ya fue aprobada por Compras y necesita tu visto bueno final')
+    elif key == 'presidenta':
         avisar(o.get('solicitante_email'), 'Ya quedó completamente aprobada')
     return jsonify({'ok': True})
 
