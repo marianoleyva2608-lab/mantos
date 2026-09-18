@@ -282,6 +282,7 @@ def hash_pin(pin):
     return hashlib.sha256(pin.encode()).hexdigest()
 
 TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'trazabilidad', 'banos', 'settings')
+CARGOS_VALIDOS = ('Empleado', 'Supervisor', 'Compras', 'Dirección/Presidencia')
 
 def _normalizar_permisos(permisos):
     if isinstance(permisos, list):
@@ -303,14 +304,17 @@ def register_user():
         rol = 'usuario'
     permisos = _normalizar_permisos(d.get('permisos', ''))
     supervisor_email = (d.get('supervisor_email') or '').strip()
+    cargo = (d.get('cargo') or 'Empleado').strip()
+    if cargo not in CARGOS_VALIDOS:
+        cargo = 'Empleado'
     if not nombre or not email or not pin or len(pin) < 4:
         return jsonify({'error': 'Nombre, email y PIN (minimo 4 caracteres) requeridos'}), 400
     try:
         sb.insert('users', {
             'nombre': nombre, 'email': email, 'pin_hash': hash_pin(pin),
-            'rol': rol, 'permisos': permisos, 'supervisor_email': supervisor_email,
+            'rol': rol, 'permisos': permisos, 'supervisor_email': supervisor_email, 'cargo': cargo,
         }, return_rows=False)
-        return jsonify({'ok': True, 'nombre': nombre, 'email': email, 'rol': rol, 'permisos': permisos, 'supervisor_email': supervisor_email})
+        return jsonify({'ok': True, 'nombre': nombre, 'email': email, 'rol': rol, 'permisos': permisos, 'supervisor_email': supervisor_email, 'cargo': cargo})
     except requests.exceptions.HTTPError as e:
         if e.response is not None and e.response.status_code == 409:
             return jsonify({'error': 'Este email ya esta registrado'}), 409
@@ -323,14 +327,14 @@ def login_user():
     d = request.json
     email = d.get('email','').strip().lower()
     pin   = d.get('pin','').strip()
-    rows = sb.select('users', select='id,nombre,email,rol,permisos,supervisor_email',
+    rows = sb.select('users', select='id,nombre,email,rol,permisos,supervisor_email,cargo',
                       email='eq.' + email, pin_hash='eq.' + hash_pin(pin))
     if not rows:
         return jsonify({'error': 'Email o PIN incorrecto'}), 401
     row = rows[0]
     return jsonify({'ok': True, 'id': row['id'], 'nombre': row['nombre'], 'email': row['email'],
                      'rol': row['rol'] or 'usuario', 'permisos': row['permisos'] or '',
-                     'supervisor_email': row.get('supervisor_email') or ''})
+                     'supervisor_email': row.get('supervisor_email') or '', 'cargo': row.get('cargo') or 'Empleado'})
 
 @app.route('/api/users/verify', methods=['POST'])
 def verify_user():
@@ -347,7 +351,7 @@ def verify_user():
 
 @app.route('/api/users', methods=['GET'])
 def list_users():
-    rows = sb.select('users', select='id,nombre,email,rol,permisos,supervisor_email,created_at', order='nombre.asc')
+    rows = sb.select('users', select='id,nombre,email,rol,permisos,supervisor_email,cargo,created_at', order='nombre.asc')
     return jsonify(rows)
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
@@ -369,6 +373,9 @@ def update_user(user_id):
         data['permisos'] = _normalizar_permisos(d['permisos'])
     if 'supervisor_email' in d:
         data['supervisor_email'] = (d['supervisor_email'] or '').strip()
+    if 'cargo' in d:
+        cargo = (d['cargo'] or 'Empleado').strip()
+        data['cargo'] = cargo if cargo in CARGOS_VALIDOS else 'Empleado'
     if not data:
         return jsonify({'error': 'Nada que actualizar'}), 400
     updated = sb.update('users', data, id='eq.' + str(user_id))
@@ -1318,7 +1325,12 @@ def save_requisicion():
         )
         return ok, err
 
-    aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_revisor'), 'la revises')
+    firmas_iniciales = d.get('firmas') or {}
+    reviso_ya_firmado = isinstance(firmas_iniciales.get('reviso'), dict) and firmas_iniciales['reviso'].get('estado') == 'aprobado'
+    if reviso_ya_firmado:
+        aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_aprobador'), 'la apruebes (Compras)')
+    else:
+        aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_revisor'), 'la revises')
     return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado, 'aviso_error': aviso_error})
 
 @app.route('/api/requisicion/<rid>', methods=['DELETE'])

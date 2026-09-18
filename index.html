@@ -357,6 +357,13 @@ window._jsQRLoaded=false;
         </select>
         <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Pestañas permitidas</div>
         <div id="nu-permisos" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+        <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Cargo</div>
+        <select id="nu-cargo" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+          <option value="Empleado">Empleado</option>
+          <option value="Supervisor">Supervisor</option>
+          <option value="Compras">Compras</option>
+          <option value="Dirección/Presidencia">Dirección/Presidencia</option>
+        </select>
         <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Supervisor (revisa sus requisiciones)</div>
         <select id="nu-supervisor" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
           <option value="">Sin supervisor asignado</option>
@@ -400,6 +407,13 @@ window._jsQRLoaded=false;
         </select>
         <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Pestañas permitidas</div>
         <div id="eu-permisos" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
+        <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Cargo</div>
+        <select id="eu-cargo" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+          <option value="Empleado">Empleado</option>
+          <option value="Supervisor">Supervisor</option>
+          <option value="Compras">Compras</option>
+          <option value="Dirección/Presidencia">Dirección/Presidencia</option>
+        </select>
         <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Supervisor (revisa sus requisiciones)</div>
         <select id="eu-supervisor" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:14px;box-sizing:border-box">
           <option value="">Sin supervisor asignado</option>
@@ -1340,6 +1354,8 @@ function showAddUserForm(){
   document.getElementById('nu-nombre').focus();
   document.getElementById('add-user-err').textContent='';
   document.getElementById('nu-rol').value='usuario';
+  var nuCargo=document.getElementById('nu-cargo');
+  if(nuCargo) nuCargo.value='Empleado';
   renderPermisosCheckboxes('nu-permisos', []);
   const supSel = document.getElementById('nu-supervisor');
   if (supSel) {
@@ -1355,12 +1371,14 @@ async function submitAddUser(){
   const rol    = document.getElementById('nu-rol').value;
   const permisos = readPermisosCheckboxes('nu-permisos');
   const supervisor_email = (document.getElementById('nu-supervisor')||{}).value || '';
+  const cargo = (document.getElementById('nu-cargo')||{}).value || 'Empleado';
   const err    = document.getElementById('add-user-err');
   if(!nombre||!email||!pin){err.textContent='Completa todos los campos';return;}
   if(pin.length<4){err.textContent='El PIN debe tener mínimo 4 caracteres';return;}
+  if(!supervisor_email && (cargo==='Empleado'||cargo==='Supervisor')){err.style.color='#c62828';err.textContent='Asigna un supervisor';return;}
   err.textContent='⏳ Registrando...'; err.style.color='#666';
   try{
-    const res = await fetch('/api/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,email,pin,rol,permisos,supervisor_email})});
+    const res = await fetch('/api/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,email,pin,rol,permisos,supervisor_email,cargo})});
     const d = await res.json();
     if(d.error){err.style.color='#c62828';err.textContent=d.error;return;}
     err.style.color='#2e7d32';
@@ -1381,6 +1399,8 @@ function showEditUserForm(user){
   document.getElementById('eu-id').value=user.id;
   document.getElementById('eu-nombre-display').textContent=user.nombre+' — '+user.email;
   document.getElementById('eu-rol').value=user.rol||'usuario';
+  var cargoSel=document.getElementById('eu-cargo');
+  if(cargoSel) cargoSel.value=user.cargo||'Empleado';
   const permisos = (user.permisos==='all') ? TABS_CONTROLADAS.map(t=>t.id) : (user.permisos||'').split(',').map(s=>s.trim()).filter(Boolean);
   renderPermisosCheckboxes('eu-permisos', permisos);
   const supSel = document.getElementById('eu-supervisor');
@@ -1403,10 +1423,12 @@ async function submitEditUser(){
   const rol = document.getElementById('eu-rol').value;
   const permisos = readPermisosCheckboxes('eu-permisos');
   const supervisor_email = (document.getElementById('eu-supervisor')||{}).value || '';
+  const cargo = (document.getElementById('eu-cargo')||{}).value || 'Empleado';
   const err = document.getElementById('edit-user-err');
+  if(!supervisor_email && (cargo==='Empleado'||cargo==='Supervisor')){err.style.color='#c62828';err.textContent='Asigna un supervisor';return;}
   err.style.color='#666'; err.textContent='⏳ Guardando...';
   try{
-    const res = await fetch('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rol,permisos,supervisor_email})});
+    const res = await fetch('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rol,permisos,supervisor_email,cargo})});
     const d = await res.json();
     if(d.error){err.style.color='#c62828';err.textContent=d.error;return;}
     if(currentUser && String(currentUser.id)===String(id)){
@@ -2312,7 +2334,7 @@ function doLogin() {
     .then(r => r.json())
     .then(d => {
       if (d.error) { document.getElementById('auth-err').textContent = d.error; return; }
-      currentUser = {id: d.id, nombre: d.nombre, email: d.email, rol: d.rol||'usuario', permisos: d.permisos||'', supervisor_email: d.supervisor_email||''};
+      currentUser = {id: d.id, nombre: d.nombre, email: d.email, rol: d.rol||'usuario', permisos: d.permisos||'', supervisor_email: d.supervisor_email||'', cargo: d.cargo||'Empleado'};
       localStorage.setItem('mantos_user', JSON.stringify(currentUser));
       authInit();
     });
@@ -2623,7 +2645,7 @@ authInit();
       <div>
         <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Planta</label>
         <select id="req-planta" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;background:#fff">
-          <option value="Termoformado">Termoformado</option>
+          <option value="Tepezalá">Tepezalá</option>
           <option value="Conversión">Conversión</option>
         </select>
       </div>
@@ -2679,22 +2701,6 @@ authInit();
       <textarea id="req-justificacion" rows="3" placeholder="Describe por qu&#233; se necesita este material..." style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
     </div>
     <div id="req-sigs-container" style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)"></div>
-    <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;flex-direction:column;gap:10px">
-      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">&#128231; Avisos automáticos por correo (opcional)</label>
-      <div>
-        <div style="font-size:12px;color:#555;margin-bottom:3px">Correo de quien debe <b>Revisar</b> (tu supervisor)</div>
-        <input id="req-email-revisor" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
-      </div>
-      <div>
-        <div style="font-size:12px;color:#555;margin-bottom:3px">Correo de quien debe <b>Aprobar</b> (Compras)</div>
-        <input id="req-email-aprobador" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
-      </div>
-      <div>
-        <div style="font-size:12px;color:#555;margin-bottom:3px">Correo de <b>Presidenta</b> (visto bueno final)</div>
-        <input id="req-email-presidenta" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
-      </div>
-      <div style="font-size:11px;color:#999">Se le avisa a cada quien por correo en cuanto le toca firmar: al guardar se avisa a Revisó, cuando Revisó firma se avisa a Aprobó (Compras), cuando Compras firma se avisa a Presidenta, y cuando Presidenta firma se avisa al solicitante que ya quedó completa.</div>
-    </div>
     <button onclick="guardarReq()" style="width:100%;padding:14px;background:#1a5c2a;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer">&#128190; Guardar Requisici&#243;n</button>
   </div>
 </div>
@@ -3409,7 +3415,11 @@ function reqFirmarBtn(btn){
       if(res.ok){
         var ts=new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
         var cert='PKI-'+Math.random().toString(36).substr(2,9).toUpperCase()+'-'+Date.now().toString(36).toUpperCase();
-        _reqSigs[key]={nombre:res.nombre,email:res.email,fecha:ts,serie:cert};
+        _reqSigs[key]={nombre:res.nombre,email:res.email,fecha:ts,serie:cert,estado:'aprobado',comentario:''};
+        if(key==='realizo' && currentUser && currentUser.cargo==='Supervisor'){
+          var cert2='PKI-'+Math.random().toString(36).substr(2,9).toUpperCase()+'-'+Date.now().toString(36).toUpperCase();
+          _reqSigs['reviso']={nombre:res.nombre,email:res.email,fecha:ts,serie:cert2,estado:'aprobado',comentario:'Firma automática: el solicitante es su propio supervisor'};
+        }
         var row=document.getElementById('req-sig-row-'+key);
         if(row) row.style.display='none';
         var done=document.getElementById('req-sig-done-'+key);
@@ -3463,13 +3473,18 @@ async function guardarReq(){
     tipo:tipoEl?tipoEl.value:'Normal',
     items:getReqItems(),
     justificacion:(document.getElementById('req-justificacion')||{}).value||'',
-    email_revisor:(document.getElementById('req-email-revisor')||{}).value||'',
-    email_aprobador:(document.getElementById('req-email-aprobador')||{}).value||'',
-    email_presidenta:(document.getElementById('req-email-presidenta')||{}).value||'',
+    email_revisor:(currentUser && currentUser.supervisor_email) || '',
+    email_aprobador:(function(){ try{ return localStorage.getItem('adpack_email_aprobador')||''; }catch(e){ return ''; } })(),
+    email_presidenta:(function(){ try{ return localStorage.getItem('adpack_email_presidenta')||''; }catch(e){ return ''; } })(),
     firmas:_reqSigs
   };
   if(!data.fecha||!data.solicitante){
     if(typeof showToast==='function') showToast('Completa fecha y solicitante');
+    return;
+  }
+  var cargoActual=(currentUser&&currentUser.cargo)||'Empleado';
+  if(!data.email_revisor && (cargoActual==='Empleado'||cargoActual==='Supervisor')){
+    if(typeof showToast==='function') showToast('⚠️ Tu cuenta no tiene supervisor asignado. Pide a un administrador que te lo asigne en Configuración antes de guardar.');
     return;
   }
   try{
