@@ -9,24 +9,71 @@ app = Flask(__name__)
 # Envio de avisos por correo (requisiciones, etc.). Credenciales SMTP se
 # configuran como variables de entorno en EasyPanel, nunca en el codigo:
 # SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM.
+def _graph_oauth_token():
+    tenant = os.environ.get('GRAPH_TENANT_ID', '')
+    client_id = os.environ.get('GRAPH_CLIENT_ID', '')
+    client_secret = os.environ.get('GRAPH_CLIENT_SECRET', '')
+    if not tenant or not client_id or not client_secret:
+        return None, 'GRAPH_TENANT_ID/GRAPH_CLIENT_ID/GRAPH_CLIENT_SECRET no configurados'
+    try:
+        r = requests.post(
+            'https://login.microsoftonline.com/' + tenant + '/oauth2/v2.0/token',
+            data={
+                'grant_type': 'client_credentials',
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'scope': 'https://outlook.office365.com/.default',
+            }, timeout=15,
+        )
+        j = r.json()
+        if 'access_token' not in j:
+            return None, 'Error de token: ' + json.dumps(j)
+        return j['access_token'], None
+    except Exception as e:
+        return None, str(e)
+
 def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, responder_a=None):
+    if not destinatario:
+        return False, 'Falta destinatario'
+    remitente = os.environ.get('GRAPH_SENDER_EMAIL', '')
+    usa_graph = bool(remitente and os.environ.get('GRAPH_CLIENT_ID'))
+    msg = MIMEText(cuerpo_html, 'html', 'utf-8')
+    msg['Subject'] = asunto
+    # El envio siempre se autentica con la cuenta del sistema, pero se
+    # muestra con el nombre de quien genero la requisicion; si responden,
+    # la respuesta llega a su correo (Reply-To), no al sistema.
+    msg['From'] = ('"' + nombre_remitente + ' (via Sistema ADPACK)" <' + remitente + '>') if (nombre_remitente and remitente) else remitente
+    msg['To'] = destinatario
+    if responder_a:
+        msg['Reply-To'] = responder_a
+    if usa_graph:
+        token, err = _graph_oauth_token()
+        if not token:
+            return False, err
+        try:
+            xoauth2 = base64.b64encode(
+                ('user=' + remitente + '\x01auth=Bearer ' + token + '\x01\x01').encode('utf-8')
+            ).decode('ascii')
+            with smtplib.SMTP('smtp.office365.com', 587, timeout=15) as server:
+                server.starttls()
+                server.ehlo()
+                code, resp = server.docmd('AUTH', 'XOAUTH2 ' + xoauth2)
+                if code != 235:
+                    return False, 'AUTH XOAUTH2 fallo: ' + str(code) + ' ' + str(resp)
+                server.sendmail(remitente, [destinatario], msg.as_string())
+            return True, None
+        except Exception as e:
+            return False, str(e)
+    # Alternativa: SMTP clasico con usuario/contraseña (SMTP_HOST/USER/PASS/FROM)
     host = os.environ.get('SMTP_HOST', '')
     user = os.environ.get('SMTP_USER', '')
     password = os.environ.get('SMTP_PASS', '')
-    if not host or not user or not password or not destinatario:
-        return False, 'SMTP no configurado o falta destinatario'
+    if not host or not user or not password:
+        return False, 'No hay SMTP ni Microsoft Graph configurados'
     port = int(os.environ.get('SMTP_PORT', '587'))
     remitente = os.environ.get('SMTP_FROM', user)
+    msg.replace_header('From', ('"' + nombre_remitente + ' (via Sistema ADPACK)" <' + remitente + '>') if nombre_remitente else remitente)
     try:
-        msg = MIMEText(cuerpo_html, 'html', 'utf-8')
-        msg['Subject'] = asunto
-        # El envio siempre se autentica con la cuenta del sistema (SMTP_USER),
-        # pero se muestra con el nombre de quien genero la requisicion; si
-        # responden, la respuesta llega a su correo (Reply-To), no al sistema.
-        msg['From'] = ('"' + nombre_remitente + ' (via Sistema ADPACK)" <' + remitente + '>') if nombre_remitente else remitente
-        msg['To'] = destinatario
-        if responder_a:
-            msg['Reply-To'] = responder_a
         with smtplib.SMTP(host, port, timeout=15) as server:
             server.starttls()
             server.login(user, password)
