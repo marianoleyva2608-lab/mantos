@@ -1471,6 +1471,8 @@ def registrar_factura_requisicion(rid):
         return jsonify({'ok': False, 'error': 'Primero hay que registrar al menos un No. de PO'}), 400
     if not isinstance(o.get('facturas'), list):
         o['facturas'] = []
+    if len(o['facturas']) >= len(o['pos']):
+        return jsonify({'ok': False, 'error': 'Ya se registraron todas las facturas necesarias (' + str(len(o['pos'])) + ')'}), 400
     o['facturas'].append({'numero': factura_numero, 'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')})
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
