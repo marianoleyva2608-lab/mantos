@@ -321,6 +321,7 @@ def hash_pin(pin):
 
 TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'trazabilidad', 'banos', 'settings')
 CARGOS_VALIDOS = ('Empleado', 'Supervisor', 'Compras', 'Dirección/Presidencia')
+BASE_URL_PUBLICO = 'https://adpacksystem.cloud'
 
 def _normalizar_permisos(permisos):
     if isinstance(permisos, list):
@@ -1360,7 +1361,7 @@ def save_requisicion():
         if not destinatario:
             return False, None
         folio_txt = 'REQ-' + str(folio).zfill(4)
-        base_url = request.host_url.rstrip('/')
+        base_url = BASE_URL_PUBLICO
         link = base_url + '/?req=' + str(o.get('id') or '')
         cuerpo = (
             '<p>Hola,</p>'
@@ -1399,7 +1400,7 @@ def save_requisicion():
     # Confirmacion al solicitante de que su requisicion se registro, con el estado actual.
     if d.get('solicitante_email'):
         folio_txt = 'REQ-' + str(folio).zfill(4)
-        base_url = request.host_url.rstrip('/')
+        base_url = BASE_URL_PUBLICO
         link = base_url + '/?req=' + str(d['id'])
         cuerpo_confirmacion = (
             '<p>Hola ' + (d.get('solicitante') or '') + ',</p>'
@@ -1444,7 +1445,7 @@ def firmar_requisicion(rid):
     o['firmas'][key] = firma
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
-    base_url = request.host_url.rstrip('/')
+    base_url = BASE_URL_PUBLICO
     link = base_url + '/?req=' + rid
     etapa_labels = {'reviso': 'tu supervisor', 'aprobo': 'Compras', 'presidenta': 'Presidencia'}
     def avisar(destinatario, etapa_texto):
