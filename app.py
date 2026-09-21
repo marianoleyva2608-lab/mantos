@@ -326,6 +326,12 @@ def _norm(s):
 def hash_pin(pin):
     return hashlib.sha256(pin.encode()).hexdigest()
 
+def normalizar_link(url):
+    url = (url or '').strip()
+    if url and not url.lower().startswith(('http://', 'https://')):
+        url = 'https://' + url
+    return url
+
 TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'trazabilidad', 'banos', 'settings')
 CARGOS_VALIDOS = ('Empleado', 'Supervisor', 'Compras', 'Dirección/Presidencia')
 BASE_URL_PUBLICO = 'https://adpacksystem.cloud'
@@ -1425,7 +1431,7 @@ def save_requisicion():
 def registrar_po_requisicion(rid):
     d = request.json or {}
     po_numero = (d.get('po_numero') or '').strip()
-    po_link = (d.get('po_link') or '').strip()
+    po_link = normalizar_link(d.get('po_link'))
     firmante_email = (d.get('firmante_email') or '').strip().lower()
     if not po_numero:
         return jsonify({'ok': False, 'error': 'Falta el No. de PO'}), 400
@@ -1449,7 +1455,7 @@ def registrar_po_requisicion(rid):
 def registrar_factura_requisicion(rid):
     d = request.json or {}
     factura_numero = (d.get('factura_numero') or '').strip()
-    factura_link = (d.get('factura_link') or '').strip()
+    factura_link = normalizar_link(d.get('factura_link'))
     po_numero_liga = (d.get('po_numero') or '').strip()
     firmante_email = (d.get('firmante_email') or '').strip().lower()
     if not factura_numero:
