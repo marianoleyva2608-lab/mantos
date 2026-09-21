@@ -1425,6 +1425,7 @@ def save_requisicion():
 def registrar_po_requisicion(rid):
     d = request.json or {}
     po_numero = (d.get('po_numero') or '').strip()
+    po_link = (d.get('po_link') or '').strip()
     firmante_email = (d.get('firmante_email') or '').strip().lower()
     if not po_numero:
         return jsonify({'ok': False, 'error': 'Falta el No. de PO'}), 400
@@ -1439,24 +1440,16 @@ def registrar_po_requisicion(rid):
         return jsonify({'ok': False, 'error': 'La requisición todavía no tiene el visto bueno de Dirección'}), 400
     if not isinstance(o.get('pos'), list):
         o['pos'] = []
-    o['pos'].append({'numero': po_numero,
+    o['pos'].append({'numero': po_numero, 'link': po_link,
                       'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')})
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
-    folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
-    link = BASE_URL_PUBLICO + '/?req=' + rid
-    if o.get('solicitante_email'):
-        enviar_correo(
-            o['solicitante_email'], 'Requisición ' + folio_txt + ' — Compra registrada',
-            '<p>Hola,</p><p>Ya se registró una compra de tu requisición <b>' + folio_txt + '</b>.</p>'
-            '<p><b>No. de PO:</b> ' + po_numero + '</p>'
-            '<p>Entra al sistema: <a href="' + link + '">' + link + '</a></p>'
-        )
     return jsonify({'ok': True})
 
 @app.route('/api/requisicion/<rid>/factura', methods=['POST'])
 def registrar_factura_requisicion(rid):
     d = request.json or {}
     factura_numero = (d.get('factura_numero') or '').strip()
+    factura_link = (d.get('factura_link') or '').strip()
     po_numero_liga = (d.get('po_numero') or '').strip()
     firmante_email = (d.get('firmante_email') or '').strip().lower()
     if not factura_numero:
@@ -1474,18 +1467,9 @@ def registrar_factura_requisicion(rid):
         o['facturas'] = []
     if len(o['facturas']) >= len(o['pos']):
         return jsonify({'ok': False, 'error': 'Ya se registraron todas las facturas necesarias (' + str(len(o['pos'])) + ')'}), 400
-    o['facturas'].append({'numero': factura_numero, 'po_numero': po_numero_liga,
+    o['facturas'].append({'numero': factura_numero, 'po_numero': po_numero_liga, 'link': factura_link,
                            'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')})
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
-    folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
-    link = BASE_URL_PUBLICO + '/?req=' + rid
-    if o.get('solicitante_email'):
-        enviar_correo(
-            o['solicitante_email'], 'Requisición ' + folio_txt + ' — Factura registrada',
-            '<p>Hola,</p><p>Se registró una factura de tu requisición <b>' + folio_txt + '</b>.</p>'
-            '<p><b>Factura:</b> ' + factura_numero + '</p>'
-            '<p>Entra al sistema: <a href="' + link + '">' + link + '</a></p>'
-        )
     return jsonify({'ok': True})
 
 @app.route('/api/requisiciones/reporte/excel', methods=['GET'])
