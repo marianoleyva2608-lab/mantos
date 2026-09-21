@@ -59,10 +59,10 @@ def _justificacion_html(o):
     if not o.get('justificacion'):
         return ''
     return (
-        '<div style="display:inline-block;max-width:100%;border:2px solid #1a5c2a;padding:14px 16px;margin:12px 0;border-radius:6px">'
+        '<table style="border:2px solid #1a5c2a;border-collapse:collapse;margin:12px 0" cellpadding="0" cellspacing="0"><tr><td style="padding:14px 16px">'
         '<div style="font-size:13px;font-weight:bold;color:#1a5c2a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Justificación</div>'
         '<div style="font-size:16px;line-height:1.5;color:#222">' + o['justificacion'] + '</div>'
-        '</div>'
+        '</td></tr></table>'
     )
 
 def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, responder_a=None):
