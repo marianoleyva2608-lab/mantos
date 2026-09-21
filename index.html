@@ -3425,6 +3425,12 @@ function reqFirmarBtn(btn){
   if(!email){if(typeof showToast==='function')showToast('⚠️ Ingresa tu correo');if(emailEl)emailEl.focus();return;}
   if(!pin){if(typeof showToast==='function')showToast('⚠️ Ingresa tu PIN');if(pinEl)pinEl.focus();return;}
   if(estado==='rechazado' && !comentario){if(typeof showToast==='function')showToast('⚠️ Escribe el motivo del rechazo');if(comEl)comEl.focus();return;}
+  if(key==='realizo'){
+    var _itemsOk=getReqItems().filter(function(i){return (i.cantidad&&Number(i.cantidad)>0)&&i.descripcion;});
+    if(_itemsOk.length===0){if(typeof showToast==='function')showToast('⚠️ Agrega al menos un artículo con cantidad y descripción antes de firmar');return;}
+    var _justOk=(document.getElementById('req-justificacion')||{}).value||'';
+    if(!_justOk.trim()){if(typeof showToast==='function')showToast('⚠️ Escribe la justificación antes de firmar');return;}
+  }
   var txtOriginal=btn.innerHTML;
   btn.disabled=true;btn.textContent='Verificando...';
   fetch('/api/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,pin:pin})})
