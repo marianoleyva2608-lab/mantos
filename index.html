@@ -3968,6 +3968,49 @@ async function verReq(id){
     }
     // Firmas digitales
     var firmas=o.firmas||{};
+    // Diagrama del flujo
+    (function(){
+      var pasos=[
+        {k:'realizo',l:'Realizó'},
+        {k:'reviso',l:'Revisó'},
+        {k:'aprobo',l:'Compras'},
+        {k:'presidenta',l:'Dirección'},
+        {k:'cierre',l:'Cierre (PO/Factura)'}
+      ];
+      var listaPosD=Array.isArray(o.pos)?o.pos:(o.po_numero?[{numero:o.po_numero}]:[]);
+      var listaFacD=Array.isArray(o.facturas)?o.facturas:(o.factura_numero?[{numero:o.factura_numero}]:[]);
+      var rechazoKeyD=['reviso','aprobo','presidenta'].find(function(k){return firmas[k]&&firmas[k].estado==='rechazado';});
+      var dh='<div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow-x:auto">'
+        +'<div style="display:flex;align-items:center;min-width:600px">';
+      pasos.forEach(function(p,pi){
+        var estadoPaso;
+        if(p.k==='cierre'){
+          estadoPaso = (listaPosD.length && listaFacD.length>=listaPosD.length) ? 'ok' : (listaPosD.length ? 'pendiente' : (firmas.presidenta&&firmas.presidenta.estado==='aprobado' ? 'pendiente':'inactivo'));
+        } else if(rechazoKeyD===p.k){
+          estadoPaso='rechazado';
+        } else if(firmas[p.k] && firmas[p.k].estado==='aprobado'){
+          estadoPaso='ok';
+        } else if(rechazoKeyD){
+          estadoPaso='inactivo';
+        } else {
+          var pasosPrevios=['realizo','reviso','aprobo','presidenta'].slice(0,pi);
+          var previosOk=pasosPrevios.every(function(k){return firmas[k]&&firmas[k].estado==='aprobado';});
+          estadoPaso = previosOk ? 'pendiente' : 'inactivo';
+        }
+        var colores={ok:'#1a5c2a',pendiente:'#e65100',rechazado:'#c62828',inactivo:'#bdbdbd'};
+        var bg={ok:'#e8f5e9',pendiente:'#fff3e0',rechazado:'#fce4ec',inactivo:'#f5f5f5'};
+        var icono={ok:'&#10003;',pendiente:'&#8987;',rechazado:'&#10005;',inactivo:(pi+1)};
+        dh+='<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:90px">'
+          +'<div style="width:34px;height:34px;border-radius:50%;background:'+bg[estadoPaso]+';border:2px solid '+colores[estadoPaso]+';color:'+colores[estadoPaso]+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px">'+icono[estadoPaso]+'</div>'
+          +'<div style="font-size:10px;color:'+colores[estadoPaso]+';font-weight:700;text-align:center;margin-top:4px">'+p.l+'</div>'
+          +'</div>';
+        if(pi<pasos.length-1){
+          dh+='<div style="flex:0.5;height:2px;background:'+(estadoPaso==='ok'?'#1a5c2a':'#ddd')+';margin-bottom:16px"></div>';
+        }
+      });
+      dh+='</div></div>';
+      h+=dh;
+    })();
     var nomRevisor=nombreDe(o.email_revisor), nomAprobador=nombreDe(o.email_aprobador), nomPresidenta=nombreDe(o.email_presidenta);
     var sigLabels={
       realizo:'Realizó',
