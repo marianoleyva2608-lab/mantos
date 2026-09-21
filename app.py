@@ -56,7 +56,14 @@ def _tabla_items_html(o):
     )
 
 def _justificacion_html(o):
-    return ('<p><b>Justificación:</b> ' + o['justificacion'] + '</p>') if o.get('justificacion') else ''
+    if not o.get('justificacion'):
+        return ''
+    return (
+        '<div style="background:#fff8e1;border-left:4px solid #f9a825;padding:10px 14px;margin:10px 0;border-radius:4px">'
+        '<div style="font-size:11px;font-weight:bold;color:#8a6100;text-transform:uppercase;letter-spacing:.5px">Justificación</div>'
+        '<div style="font-size:14px;color:#5d4a00;margin-top:2px">' + o['justificacion'] + '</div>'
+        '</div>'
+    )
 
 def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, responder_a=None):
     if not destinatario:
