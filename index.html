@@ -3852,10 +3852,11 @@ function verReqRegistrarPO(btn){
   if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
   var reqId=btn.getAttribute('data-reqid');
   var poNumero=(document.getElementById('ver-po-numero-'+reqId)||{}).value||'';
+  var poLink=(document.getElementById('ver-po-link-'+reqId)||{}).value||'';
   if(!poNumero.trim()){if(typeof showToast==='function')showToast('Escribe el No. de PO');return;}
   btn.disabled=true;btn.textContent='Guardando...';
   fetch('/api/requisicion/'+reqId+'/po',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    po_numero:poNumero.trim(), firmante_email:currentUser.email
+    po_numero:poNumero.trim(), po_link:poLink.trim(), firmante_email:currentUser.email
   })}).then(function(r){return r.json();}).then(function(saved){
     if(!saved.ok){if(typeof showToast==='function')showToast('❌ '+(saved.error||'Error al guardar'));btn.disabled=false;btn.textContent='💾 Registrar PO';return;}
     if(typeof showToast==='function')showToast('✅ PO registrado');
@@ -3885,15 +3886,16 @@ async function verReqRegistrarFacturas(btn){
   var entradas=[];
   for(var i=0;i<cantidad;i++){
     var inp=document.getElementById('ver-factura-numero-'+reqId+'-'+i);
+    var linkInp=document.getElementById('ver-factura-link-'+reqId+'-'+i);
     var val=inp?inp.value:'';
-    if(val && val.trim()) entradas.push({numero:val.trim(), po_numero:inp.getAttribute('data-po-numero')||''});
+    if(val && val.trim()) entradas.push({numero:val.trim(), po_numero:inp.getAttribute('data-po-numero')||'', link:linkInp?linkInp.value.trim():''});
   }
   if(!entradas.length){if(typeof showToast==='function')showToast('Escribe al menos un número de factura');return;}
   btn.disabled=true;btn.textContent='Guardando...';
   try{
     for(var j=0;j<entradas.length;j++){
       var res=await fetch('/api/requisicion/'+reqId+'/factura',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        factura_numero:entradas[j].numero, po_numero:entradas[j].po_numero, firmante_email:currentUser.email
+        factura_numero:entradas[j].numero, po_numero:entradas[j].po_numero, factura_link:entradas[j].link, firmante_email:currentUser.email
       })});
       var saved=await res.json();
       if(!saved.ok){
@@ -4086,7 +4088,9 @@ async function verReq(id){
       listaPos.forEach(function(p){
         h+='<div style="border:1.5px solid #43a047;border-radius:8px;padding:10px;margin-bottom:8px">'
           +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">No. de PO'+(p.fecha?(' &bull; '+p.fecha):'')+'</div>'
-          +'<div style="font-size:14px;font-weight:700">'+p.numero+'</div></div>';
+          +'<div style="font-size:14px;font-weight:700">'+p.numero+'</div>'
+          +(p.link?('<a href="'+p.link+'" target="_blank" rel="noopener" style="font-size:12px;color:#1565c0;word-break:break-all">&#128206; Ver archivo</a>'):'')
+          +'</div>';
       });
       if(!listaPos.length){
         h+='<div style="font-size:12px;color:#888;padding:6px;margin-bottom:8px">&#8987; Pendiente de que Compras registre el No. de PO</div>';
@@ -4095,6 +4099,7 @@ async function verReq(id){
         h+='<button onclick="document.getElementById(\'ver-po-form-'+id+'\').style.display=\'block\';this.style.display=\'none\'" style="width:100%;padding:8px 14px;background:#e8f5e9;color:#1a5c2a;border:2px dashed #1a5c2a;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px">&#10133; '+(listaPos.length?'Agregar otro PO':'Registrar compra (PO)')+'</button>'
           +'<div id="ver-po-form-'+id+'" style="display:none;border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-bottom:8px">'
           +'<input id="ver-po-numero-'+id+'" type="text" placeholder="No. de PO / Orden de compra" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +'<input id="ver-po-link-'+id+'" type="url" placeholder="Link del archivo (opcional, Drive/OneDrive/etc.)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +'<button data-reqid="'+id+'" onclick="verReqRegistrarPO(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar PO</button>'
           +'</div>';
       }
@@ -4105,6 +4110,7 @@ async function verReq(id){
           +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">Factura'+(f.fecha?(' &bull; '+f.fecha):'')+'</div>'
           +'<div style="font-size:14px;font-weight:700">'+f.numero+'</div>'
           +(poLigado?('<div style="font-size:11px;color:#888;margin-top:2px">Ligada a PO: <b>'+poLigado+'</b></div>'):'')
+          +(f.link?('<a href="'+f.link+'" target="_blank" rel="noopener" style="font-size:12px;color:#1565c0;word-break:break-all">&#128206; Ver archivo</a>'):'')
           +'</div>';
       });
       if(!listaFacturas.length){
@@ -4117,7 +4123,8 @@ async function verReq(id){
         for(var _fi=0; _fi<facturasFaltan; _fi++){
           var _poCorresp=listaPos[listaFacturas.length+_fi];
           h+='<div style="font-size:11px;color:#555;margin-bottom:3px">Factura para PO: <b>'+(_poCorresp?_poCorresp.numero:'')+'</b></div>'
-            +'<input id="ver-factura-numero-'+id+'-'+_fi+'" data-po-numero="'+(_poCorresp?_poCorresp.numero.replace(/"/g,'&quot;'):'')+'" class="ver-factura-input-'+id+'" type="text" placeholder="Número de factura" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">';
+            +'<input id="ver-factura-numero-'+id+'-'+_fi+'" data-po-numero="'+(_poCorresp?_poCorresp.numero.replace(/"/g,'&quot;'):'')+'" class="ver-factura-input-'+id+'" type="text" placeholder="Número de factura" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+            +'<input id="ver-factura-link-'+id+'-'+_fi+'" type="url" placeholder="Link del archivo (opcional)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">';
         }
         h+='<button data-reqid="'+id+'" data-cantidad="'+facturasFaltan+'" onclick="verReqRegistrarFacturas(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar factura(s)</button>'
           +'</div>';
