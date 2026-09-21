@@ -1582,20 +1582,23 @@ function loadSettingsPage(){
   loadUsersList();
   var panelVal = document.getElementById('panel-validadores-req');
   if (panelVal) panelVal.style.display = userIsAdmin() ? '' : 'none';
-  var elA = document.getElementById('cfg-email-aprobador');
-  if(elA){ try{ elA.value = localStorage.getItem('adpack_email_aprobador') || ''; }catch(e){} }
-  var elP = document.getElementById('cfg-email-presidenta');
-  if(elP){ try{ elP.value = localStorage.getItem('adpack_email_presidenta') || ''; }catch(e){} }
+  fetch('/api/ajustes').then(function(r){return r.json();}).then(function(aj){
+    var elA = document.getElementById('cfg-email-aprobador');
+    if(elA) elA.value = aj.email_aprobador || '';
+    var elP = document.getElementById('cfg-email-presidenta');
+    if(elP) elP.value = aj.email_presidenta || '';
+  }).catch(function(){});
 }
 function guardarValidadorDefault(){
   var elA = document.getElementById('cfg-email-aprobador');
   var elP = document.getElementById('cfg-email-presidenta');
   var msg = document.getElementById('cfg-validador-msg');
-  try{
-    localStorage.setItem('adpack_email_aprobador', elA ? elA.value.trim() : '');
-    localStorage.setItem('adpack_email_presidenta', elP ? elP.value.trim() : '');
-  }catch(e){}
-  if(msg){ msg.textContent = 'Guardado'; setTimeout(function(){ msg.textContent=''; }, 1500); }
+  fetch('/api/ajustes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    email_aprobador: elA?elA.value.trim():'',
+    email_presidenta: elP?elP.value.trim():''
+  })}).then(function(){
+    if(msg){ msg.textContent = 'Guardado'; setTimeout(function(){ msg.textContent=''; }, 1500); }
+  }).catch(function(){ if(msg){ msg.textContent = 'Error al guardar'; } });
 }
 
 // ── SIGNATURES with password ──────────────────────────────────
@@ -3353,6 +3356,12 @@ function reqEliminarFila(n){
   if(tr) tr.parentNode.removeChild(tr);
 }
 
+var _ajustesCache=null;
+async function _getAjustes(){
+  if(_ajustesCache) return _ajustesCache;
+  try{ var r=await fetch('/api/ajustes'); _ajustesCache=await r.json(); }catch(e){ _ajustesCache={}; }
+  return _ajustesCache;
+}
 async function initReqForm(){
   _reqCurrentId=null;
   _reqSigs={realizo:null,reviso:null,aprobo:null,presidenta:null};
@@ -3394,8 +3403,9 @@ async function initReqForm(){
   if(sc){
     sc.innerHTML='<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:10px">Firmas Digitales</div>';
     var _emailRevisor=(currentUser && currentUser.supervisor_email) || '';
-    var _emailAprobador=(function(){try{return localStorage.getItem('adpack_email_aprobador')||'';}catch(e){return '';}})();
-    var _emailPresidenta=(function(){try{return localStorage.getItem('adpack_email_presidenta')||'';}catch(e){return '';}})();
+    var _ajustesReq=await _getAjustes();
+    var _emailAprobador=_ajustesReq.email_aprobador||'';
+    var _emailPresidenta=_ajustesReq.email_presidenta||'';
     var _nombrePorEmail={};
     try{ var _usR=await fetch('/api/users'); var _us=await _usR.json(); _us.forEach(function(u){_nombrePorEmail[(u.email||'').toLowerCase()]=u.nombre;}); }catch(eu){}
     function _nombreDe(email){ return email ? (_nombrePorEmail[email.toLowerCase()]||'') : ''; }
@@ -3531,6 +3541,7 @@ function getReqItems(){
 
 async function guardarReq(){
   var tipoEl=document.querySelector('input[name="req-tipo"]:checked');
+  var _ajustesG=await _getAjustes();
   var data={
     id:_reqCurrentId||null,
     fecha:(document.getElementById('req-fecha')||{}).value||'',
@@ -3542,8 +3553,8 @@ async function guardarReq(){
     items:getReqItems(),
     justificacion:(document.getElementById('req-justificacion')||{}).value||'',
     email_revisor:(currentUser && currentUser.supervisor_email) || '',
-    email_aprobador:(function(){ try{ return localStorage.getItem('adpack_email_aprobador')||''; }catch(e){ return ''; } })(),
-    email_presidenta:(function(){ try{ return localStorage.getItem('adpack_email_presidenta')||''; }catch(e){ return ''; } })(),
+    email_aprobador:_ajustesG.email_aprobador||'',
+    email_presidenta:_ajustesG.email_presidenta||'',
     firmas:_reqSigs
   };
   if(!data.fecha||!data.solicitante){

@@ -293,6 +293,18 @@ def init_estantes_db():
 
 init_estantes_db()
 
+@app.route('/api/ajustes', methods=['GET'])
+def get_ajustes():
+    rows = sb.select('ajustes', select='clave,valor')
+    return jsonify({r['clave']: r['valor'] for r in rows})
+
+@app.route('/api/ajustes', methods=['POST'])
+def set_ajustes():
+    d = request.json or {}
+    for clave, valor in d.items():
+        sb.insert('ajustes', {'clave': clave, 'valor': (valor or '').strip()}, upsert=True, on_conflict='clave', return_rows=False)
+    return jsonify({'ok': True})
+
 # Las migraciones historicas de una sola vez (restaurar cantidades desde
 # excels viejos, fotos placeholder por categoria, asignar numero_parte a
 # refacciones antiguas) ya no aplican: el inventario ahora se recarga
