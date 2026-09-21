@@ -59,9 +59,9 @@ def _justificacion_html(o):
     if not o.get('justificacion'):
         return ''
     return (
-        '<div style="background:#fff8e1;border-left:4px solid #f9a825;padding:10px 14px;margin:10px 0;border-radius:4px">'
-        '<div style="font-size:11px;font-weight:bold;color:#8a6100;text-transform:uppercase;letter-spacing:.5px">Justificación</div>'
-        '<div style="font-size:14px;color:#5d4a00;margin-top:2px">' + o['justificacion'] + '</div>'
+        '<div style="border:2px solid #1a5c2a;padding:14px 16px;margin:12px 0;border-radius:6px">'
+        '<div style="font-size:13px;font-weight:bold;color:#1a5c2a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Justificación</div>'
+        '<div style="font-size:16px;line-height:1.5;color:#222">' + o['justificacion'] + '</div>'
         '</div>'
     )
 
