@@ -3501,6 +3501,15 @@ async function guardarReq(){
     if(typeof showToast==='function') showToast('Completa fecha y solicitante');
     return;
   }
+  var itemsValidos=data.items.filter(function(i){return (i.cantidad&&Number(i.cantidad)>0)&&i.descripcion;});
+  if(itemsValidos.length===0){
+    if(typeof showToast==='function') showToast('⚠️ Agrega al menos un artículo con cantidad y descripción');
+    return;
+  }
+  if(!data.justificacion){
+    if(typeof showToast==='function') showToast('⚠️ Escribe la justificación de la compra');
+    return;
+  }
   var cargoActual=(currentUser&&currentUser.cargo)||'Empleado';
   if(!data.email_revisor && cargoActual==='Empleado'){
     if(typeof showToast==='function') showToast('⚠️ Tu cuenta no tiene supervisor asignado. Pide a un administrador que te lo asigne en Configuración antes de guardar.');
