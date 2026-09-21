@@ -2631,7 +2631,7 @@ authInit();
     <div style="flex:1"><h1>&#128722; Requisiciones de Compra</h1></div>
     <button onclick="showPage('req-nueva')" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
   </div>
-  <div style="background:#fff;margin:12px 12px 0;border-radius:10px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+  <div id="req-reporte-panel" style="background:#fff;margin:12px 12px 0;border-radius:10px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:none;gap:8px;flex-wrap:wrap;align-items:center">
     <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Reporte:</label>
     <input id="req-reporte-mes" type="month" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px">
     <select id="req-reporte-estado" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px">
@@ -3682,6 +3682,11 @@ function rspEliminar(id){
 async function loadReqList(){
   var el=document.getElementById('req-list');
   if(!el) return;
+  var repPanel=document.getElementById('req-reporte-panel');
+  if(repPanel){
+    var puedeVerReporte=userIsAdmin() || (currentUser && currentUser.cargo==='Compras');
+    repPanel.style.display=puedeVerReporte?'flex':'none';
+  }
   el.innerHTML='<div style="text-align:center;color:#888;padding:20px">Cargando...</div>';
   try{
     var res=await fetch('/api/requisiciones');
