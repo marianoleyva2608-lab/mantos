@@ -2312,8 +2312,13 @@ function abrirDeepLinkReq() {
   if (!currentUser) return;
   var rid = new URLSearchParams(location.search).get('req');
   if (!rid) return;
-  if (typeof showPage === 'function') showPage('req-ver');
-  if (typeof verReq === 'function') verReq(rid);
+  // Se espera a que cargue todo el script (showPage/verReq se definen mas
+  // abajo en el archivo); llamarlas de inmediato en la primera carga de
+  // pagina puede ejecutarse antes de que existan, dejando la pantalla en blanco.
+  setTimeout(function () {
+    if (typeof showPage === 'function') showPage('req-ver');
+    if (typeof verReq === 'function') verReq(rid);
+  }, 300);
 }
 
 function showLogin() {
