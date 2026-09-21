@@ -32,6 +32,32 @@ def _graph_oauth_token():
     except Exception as e:
         return None, str(e)
 
+def _tabla_items_html(o):
+    items = [it for it in (o.get('items') or []) if it.get('cantidad') or it.get('descripcion')]
+    if not items:
+        return ''
+    filas = ''.join(
+        '<tr>'
+        '<td style="border:1px solid #ddd;padding:5px">' + str(it.get('cantidad') or '') + '</td>'
+        '<td style="border:1px solid #ddd;padding:5px">' + (it.get('unidad') or '') + '</td>'
+        '<td style="border:1px solid #ddd;padding:5px">' + (it.get('descripcion') or '') + '</td>'
+        '<td style="border:1px solid #ddd;padding:5px">' + (it.get('aplicacion') or '') + '</td>'
+        '</tr>'
+        for it in items
+    )
+    tabla = (
+        '<table style="border-collapse:collapse;width:100%;font-size:13px;margin-top:8px">'
+        '<tr style="background:#e8f5e9">'
+        '<th style="border:1px solid #ddd;padding:5px;text-align:left">Cant.</th>'
+        '<th style="border:1px solid #ddd;padding:5px;text-align:left">Unidad</th>'
+        '<th style="border:1px solid #ddd;padding:5px;text-align:left">Descripción</th>'
+        '<th style="border:1px solid #ddd;padding:5px;text-align:left">Aplicación</th>'
+        '</tr>' + filas + '</table>'
+    )
+    if o.get('justificacion'):
+        tabla += '<p><b>Justificación:</b> ' + o['justificacion'] + '</p>'
+    return tabla
+
 def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, responder_a=None):
     if not destinatario:
         return False, 'Falta destinatario'
@@ -1331,6 +1357,7 @@ def save_requisicion():
             '<b>Planta:</b> ' + (o.get('planta') or '-') + '<br>'
             '<b>Departamento:</b> ' + (o.get('departamento') or '-') + '<br>'
             '<b>Tipo:</b> ' + (o.get('tipo') or 'Normal') + '</p>'
+            + _tabla_items_html(o) +
             '<p>Entra al sistema para revisarla y firmarla: <a href="' + link + '">' + link + '</a></p>'
         )
         ok, err = enviar_correo(
@@ -1346,12 +1373,30 @@ def save_requisicion():
                          if isinstance(firmas_iniciales.get(k), dict) and firmas_iniciales[k].get('estado') == 'rechazado'), None)
     if rechazo_key:
         aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('solicitante_email'), 'fue RECHAZADA por ' + etapa_labels_ini.get(rechazo_key, rechazo_key))
+        estado_actual = 'Rechazada por ' + etapa_labels_ini.get(rechazo_key, rechazo_key)
     else:
         reviso_ya_firmado = isinstance(firmas_iniciales.get('reviso'), dict) and firmas_iniciales['reviso'].get('estado') == 'aprobado'
         if reviso_ya_firmado:
             aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_aprobador'), 'la apruebes (Compras)')
+            estado_actual = 'Pendiente de aprobación por Compras'
         else:
             aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_revisor'), 'la revises')
+            estado_actual = 'Pendiente de revisión por tu supervisor'
+
+    # Confirmacion al solicitante de que su requisicion se registro, con el estado actual.
+    if d.get('solicitante_email'):
+        folio_txt = 'REQ-' + str(folio).zfill(4)
+        base_url = request.host_url.rstrip('/')
+        link = base_url + '/?req=' + str(d['id'])
+        cuerpo_confirmacion = (
+            '<p>Hola ' + (d.get('solicitante') or '') + ',</p>'
+            '<p>Tu requisición <b>' + folio_txt + '</b> se registró correctamente.</p>'
+            '<p><b>Estado actual:</b> ' + estado_actual + '</p>'
+            + _tabla_items_html(d) +
+            '<p>Puedes darle seguimiento aquí: <a href="' + link + '">' + link + '</a></p>'
+        )
+        enviar_correo(d['solicitante_email'], 'Confirmación ' + folio_txt + ' — ' + estado_actual, cuerpo_confirmacion)
+
     return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado, 'aviso_error': aviso_error})
 
 @app.route('/api/requisicion/<rid>', methods=['DELETE'])
@@ -1398,6 +1443,7 @@ def firmar_requisicion(rid):
             + '<p><b>Solicitante:</b> ' + (o.get('solicitante') or '-') + '<br>'
             '<b>Planta:</b> ' + (o.get('planta') or '-') + '<br>'
             '<b>Departamento:</b> ' + (o.get('departamento') or '-') + '</p>'
+            + _tabla_items_html(o) +
             '<p>Entra al sistema: <a href="' + link + '">' + link + '</a></p>'
         )
         enviar_correo(destinatario, 'Requisición ' + folio_txt, cuerpo, nombre_remitente=o.get('solicitante') or None)
