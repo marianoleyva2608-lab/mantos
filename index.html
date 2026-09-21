@@ -3408,21 +3408,48 @@ async function initReqForm(){
     }catch(ed){}
     [{k:'realizo',l:'Realizó'},{k:'reviso',l:'Revisó'+(_nomRev?(' — '+_nomRev):'')},{k:'aprobo',l:'Aprobó (Compras'+(_nomApr?(' — '+_nomApr):'')+')'},{k:'presidenta',l:'Presidenta'+(_nomPres?(' — '+_nomPres):'')}].forEach(function(s){
       var permiteRechazo=(s.k!=='realizo');
+      var inner;
+      if(s.k==='realizo' && currentUser){
+        inner='<div style="font-size:12px;color:#2e7d32;margin-bottom:6px">✓ Sesión iniciada como '+currentUser.nombre+' — no hace falta volver a poner correo/PIN</div>'
+          +'<button data-sigkey="realizo" data-estado="aprobado" onclick="reqFirmarSesion(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128274;&nbsp; Firmar</button>';
+      } else {
+        inner='<input id="req-sig-email-'+s.k+'" type="email" placeholder="Correo electrónico" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +'<input id="req-sig-pin-'+s.k+'" type="password" placeholder="PIN personal" maxlength="20" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:3px;box-sizing:border-box;margin-bottom:6px">'
+          +(permiteRechazo?('<textarea id="req-sig-comentario-'+s.k+'" rows="2" placeholder="Comentario (opcional si apruebas, obligatorio si rechazas)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
+          +'<div style="display:flex;gap:6px">'
+          +(permiteRechazo
+            ? ('<button data-sigkey="'+s.k+'" data-estado="rechazado" onclick="reqFirmarBtn(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; Rechazar</button>'
+               +'<button data-sigkey="'+s.k+'" data-estado="aprobado" onclick="reqFirmarBtn(this)" style="flex:1;padding:8px 10px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128274; Aprobar</button>')
+            : ('<button data-sigkey="'+s.k+'" data-estado="aprobado" onclick="reqFirmarBtn(this)" style="flex:1;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128274;&nbsp; Firmar</button>'))
+          +'</div>';
+      }
       sc.innerHTML+='<div style="border:1px solid #e0e0e0;border-radius:8px;padding:10px;margin-bottom:8px">'
         +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">'+s.l+'</div>'
         +'<div id="req-sig-done-'+s.k+'"></div>'
-        +'<div id="req-sig-row-'+s.k+'">'
-        +'<input id="req-sig-email-'+s.k+'" type="email" placeholder="Correo electrónico" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
-        +'<input id="req-sig-pin-'+s.k+'" type="password" placeholder="PIN personal" maxlength="20" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:3px;box-sizing:border-box;margin-bottom:6px">'
-        +(permiteRechazo?('<textarea id="req-sig-comentario-'+s.k+'" rows="2" placeholder="Comentario (opcional si apruebas, obligatorio si rechazas)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
-        +'<div style="display:flex;gap:6px">'
-        +(permiteRechazo
-          ? ('<button data-sigkey="'+s.k+'" data-estado="rechazado" onclick="reqFirmarBtn(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; Rechazar</button>'
-             +'<button data-sigkey="'+s.k+'" data-estado="aprobado" onclick="reqFirmarBtn(this)" style="flex:1;padding:8px 10px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128274; Aprobar</button>')
-          : ('<button data-sigkey="'+s.k+'" data-estado="aprobado" onclick="reqFirmarBtn(this)" style="flex:1;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128274;&nbsp; Firmar</button>'))
-        +'</div></div></div>';
+        +'<div id="req-sig-row-'+s.k+'">'+inner+'</div></div>';
     });
   }
+}
+
+function reqFirmarSesion(btn){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  var ts=new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+  var cert='PKI-'+Math.random().toString(36).substr(2,9).toUpperCase()+'-'+Date.now().toString(36).toUpperCase();
+  _reqSigs.realizo={nombre:currentUser.nombre,email:currentUser.email,fecha:ts,serie:cert,estado:'aprobado',comentario:''};
+  if(currentUser.cargo==='Supervisor'){
+    var cert2='PKI-'+Math.random().toString(36).substr(2,9).toUpperCase()+'-'+Date.now().toString(36).toUpperCase();
+    _reqSigs['reviso']={nombre:currentUser.nombre,email:currentUser.email,fecha:ts,serie:cert2,estado:'aprobado',comentario:'Firma automática: el solicitante es su propio supervisor'};
+  }
+  var row=document.getElementById('req-sig-row-realizo');
+  if(row) row.style.display='none';
+  var done=document.getElementById('req-sig-done-realizo');
+  if(done) done.innerHTML='<div style="padding:10px 12px;background:#e8f5e9;border:2px solid #43a047;border-radius:8px;border-left:4px solid #2e7d32;margin-top:6px">'
+    +'<div style="display:flex;align-items:center;gap:8px">'
+    +'<div style="width:28px;height:28px;background:#2e7d32;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;flex-shrink:0">&#10003;</div>'
+    +'<div><div style="font-size:9px;color:#2e7d32;font-weight:700;text-transform:uppercase">Firma Electrónica Válida</div>'
+    +'<div style="font-size:13px;font-weight:700;color:#1b5e20">'+currentUser.nombre+'</div></div></div></div>';
+  if(typeof showToast==='function') showToast('✅ Firmado — '+currentUser.nombre);
+  guardarReq();
 }
 
 function reqFirmarBtn(btn){
@@ -3692,6 +3719,49 @@ function verReqFirmar(btn){
     }).catch(function(){if(typeof showToast==='function')showToast('Error de conexion');btn.disabled=false;btn.innerHTML=txtOriginal;});
 }
 
+function verReqFirmarSesion(btn){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  var reqId=btn.getAttribute('data-reqid');
+  var key=btn.getAttribute('data-sigkey');
+  var estado=btn.getAttribute('data-estado')||'aprobado';
+  var comEl=document.getElementById('ver-sig-comentario-'+key);
+  var comentario=comEl?comEl.value.trim():'';
+  if(estado==='rechazado' && !comentario){if(typeof showToast==='function')showToast('Escribe el motivo del rechazo');if(comEl)comEl.focus();return;}
+  var txtOriginal=btn.innerHTML;
+  btn.disabled=true;btn.textContent='Guardando...';
+  var ts=new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+  var cert='PKI-'+Math.random().toString(36).substr(2,9).toUpperCase()+'-'+Date.now().toString(36).toUpperCase();
+  var sigData={nombre:currentUser.nombre,email:currentUser.email,fecha:ts,serie:cert};
+  fetch('/api/requisicion/'+reqId+'/firmar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,firma:sigData,estado:estado,comentario:comentario})})
+    .then(function(r2){return r2.json();}).then(function(saved){
+      if(!saved.ok){
+        if(typeof showToast==='function')showToast('❌ '+(saved.error||'Error al guardar'));
+        btn.disabled=false;btn.innerHTML=txtOriginal;
+        return;
+      }
+      var row=document.getElementById('ver-sig-row-'+key);
+      if(row)row.style.display='none';
+      var block=document.getElementById('ver-sig-block-'+key);
+      var rechazado=estado==='rechazado';
+      if(block){
+        block.style.border=rechazado?'2px solid #c62828':'2px solid #43a047';
+        block.style.borderLeft=rechazado?'4px solid #b71c1c':'4px solid #2e7d32';
+      }
+      var col=rechazado?'#c62828':'#2e7d32';
+      var done=document.getElementById('ver-sig-done-'+key);
+      if(done)done.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+        +'<div style="width:26px;height:26px;background:'+col+';border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px">'+(rechazado?'&#10005;':'&#10003;')+'</div>'
+        +'<div><div style="font-size:9px;color:'+col+';font-weight:700;text-transform:uppercase">'+(rechazado?'Rechazado':'Firma Electrónica Válida')+'</div>'
+        +'<div style="font-size:13px;font-weight:700;color:'+(rechazado?'#b71c1c':'#1b5e20')+'">'+currentUser.nombre+'</div></div></div>'
+        +'<div style="font-size:10px;color:#555;display:grid;grid-template-columns:65px 1fr;gap:2px 8px;border-top:1px solid #eee;padding-top:6px">'
+        +'<span style="font-weight:700;color:'+col+'">Titular:</span><span>'+currentUser.email+'</span>'
+        +'<span style="font-weight:700;color:'+col+'">Fecha:</span><span>'+ts+'</span>'
+        +(rechazado?('<span style="font-weight:700;color:'+col+'">Motivo:</span><span>'+comentario+'</span>'):('<span style="font-weight:700;color:'+col+'">Serie X.509:</span><span style="font-family:monospace;font-size:9px">'+cert+'</span>'+(comentario?('<span style="font-weight:700;color:'+col+'">Comentario:</span><span>'+comentario+'</span>'):'')))
+        +'<span style="font-weight:700;color:'+col+'">Estado:</span><span>'+(rechazado?'&#10060; Rechazado':'&#9989; Verificado')+'</span></div>';
+      if(typeof showToast==='function')showToast(rechazado?('Rechazado - '+currentUser.nombre):('Firmado - '+currentUser.nombre));
+    }).catch(function(){if(typeof showToast==='function')showToast('Error de conexion');btn.disabled=false;btn.innerHTML=txtOriginal;});
+}
+
 function verReqEl(el){
   verReq(el.getAttribute('data-id'));
 }
@@ -3782,19 +3852,33 @@ async function verReq(id){
           +'<span style="font-weight:700;color:'+col+'">Estado:</span><span>'+(rechazado?'&#10060; Rechazado':'&#9989; Verificado')+'</span>'
           +'</div></div>';
       } else {
+        var emailAsignado=(key==='realizo'?o.solicitante_email:(key==='reviso'?o.email_revisor:(key==='aprobo'?o.email_aprobador:o.email_presidenta)))||'';
+        var yaEsElMismo=currentUser && currentUser.email && emailAsignado && currentUser.email.toLowerCase()===emailAsignado.toLowerCase();
         h+='<div id="ver-sig-block-'+key+'" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-bottom:8px">'
           +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">'+label+'</div>'
           +'<div id="ver-sig-done-'+key+'"></div>'
-          +'<div id="ver-sig-row-'+key+'">'
-          +'<input id="ver-sig-email-'+key+'" type="email" placeholder="Tu correo electrónico" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
-          +'<input id="ver-sig-pin-'+key+'" type="password" placeholder="PIN personal" maxlength="20" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:3px;box-sizing:border-box;margin-bottom:6px">'
-          +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (opcional si apruebas, obligatorio si rechazas)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
-          +'<div style="display:flex;gap:6px">'
-          +(permiteRechazo
-            ? ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="rechazado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; Rechazar</button>'
-               +'<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 10px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128274; Aprobar</button>')
-            : ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128274; Firmar</button>'))
-          +'</div></div></div>';
+          +'<div id="ver-sig-row-'+key+'">';
+        if(yaEsElMismo){
+          h+='<div style="font-size:12px;color:#2e7d32;margin-bottom:6px">✓ Sesión iniciada como '+currentUser.nombre+' — no hace falta volver a poner correo/PIN</div>'
+            +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (opcional si apruebas, obligatorio si rechazas)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
+            +'<div style="display:flex;gap:6px">'
+            +(permiteRechazo
+              ? ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="rechazado" onclick="verReqFirmarSesion(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; Rechazar</button>'
+                 +'<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmarSesion(this)" style="flex:1;padding:8px 10px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128274; Aprobar</button>')
+              : ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmarSesion(this)" style="flex:1;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128274; Validar</button>'))
+            +'</div>';
+        } else {
+          h+='<input id="ver-sig-email-'+key+'" type="email" placeholder="Tu correo electrónico" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+            +'<input id="ver-sig-pin-'+key+'" type="password" placeholder="PIN personal" maxlength="20" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:3px;box-sizing:border-box;margin-bottom:6px">'
+            +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (opcional si apruebas, obligatorio si rechazas)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
+            +'<div style="display:flex;gap:6px">'
+            +(permiteRechazo
+              ? ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="rechazado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; Rechazar</button>'
+                 +'<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 10px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128274; Aprobar</button>')
+              : ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128274; Firmar</button>'))
+            +'</div>';
+        }
+        h+='</div></div>';
       }
     });
     h+='</div></div>';
