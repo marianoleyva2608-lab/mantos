@@ -1283,6 +1283,21 @@ def get_requisiciones():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/requisiciones/descripciones', methods=['GET'])
+def get_requisiciones_descripciones():
+    try:
+        rows = sb.select('requisiciones', select='data')
+        vistas = set()
+        for r in rows:
+            o = json.loads(r['data'])
+            for it in (o.get('items') or []):
+                desc = (it.get('descripcion') or '').strip()
+                if desc:
+                    vistas.add(desc)
+        return jsonify(sorted(vistas))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/requisiciones', methods=['POST'])
 def save_requisicion():
     d = request.json
