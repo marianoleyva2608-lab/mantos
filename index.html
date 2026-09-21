@@ -3878,6 +3878,38 @@ function verReqRegistrarFactura(btn){
   }).catch(function(){if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.textContent='💾 Registrar factura';});
 }
 
+async function verReqRegistrarFacturas(btn){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  var reqId=btn.getAttribute('data-reqid');
+  var cantidad=parseInt(btn.getAttribute('data-cantidad')||'0',10);
+  var numeros=[];
+  for(var i=0;i<cantidad;i++){
+    var val=(document.getElementById('ver-factura-numero-'+reqId+'-'+i)||{}).value||'';
+    if(val.trim()) numeros.push(val.trim());
+  }
+  if(!numeros.length){if(typeof showToast==='function')showToast('Escribe al menos un número de factura');return;}
+  btn.disabled=true;btn.textContent='Guardando...';
+  try{
+    for(var j=0;j<numeros.length;j++){
+      var res=await fetch('/api/requisicion/'+reqId+'/factura',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        factura_numero:numeros[j], firmante_email:currentUser.email
+      })});
+      var saved=await res.json();
+      if(!saved.ok){
+        if(typeof showToast==='function')showToast('❌ '+(saved.error||'Error al guardar'));
+        btn.disabled=false;btn.textContent='💾 Registrar factura(s)';
+        verReq(reqId);
+        return;
+      }
+    }
+    if(typeof showToast==='function')showToast('✅ Factura(s) registrada(s)');
+    verReq(reqId);
+  }catch(e){
+    if(typeof showToast==='function')showToast('Error de conexión');
+    btn.disabled=false;btn.textContent='💾 Registrar factura(s)';
+  }
+}
+
 function verReqEl(el){
   verReq(el.getAttribute('data-id'));
 }
@@ -4031,13 +4063,16 @@ async function verReq(id){
       if(!listaFacturas.length){
         h+='<div style="font-size:12px;color:#888;padding:6px;margin-bottom:8px">&#8987; Pendiente de que Compras registre la factura</div>';
       }
-      if(listaPos.length && esCompras && listaFacturas.length<listaPos.length){
-        h+='<button onclick="document.getElementById(\'ver-factura-form-'+id+'\').style.display=\'block\';this.style.display=\'none\'" style="width:100%;padding:8px 14px;background:#e8f5e9;color:#1a5c2a;border:2px dashed #1a5c2a;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10133; '+(listaFacturas.length?'Agregar otra factura':'Registrar factura')+'</button>'
-          +'<div id="ver-factura-form-'+id+'" style="display:none;border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px">'
-          +'<input id="ver-factura-numero-'+id+'" type="text" placeholder="Número de factura" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
-          +'<button data-reqid="'+id+'" onclick="verReqRegistrarFactura(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar factura</button>'
+      var facturasFaltan=listaPos.length-listaFacturas.length;
+      if(facturasFaltan>0 && esCompras){
+        h+='<div style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px">'
+          +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase">Faltan '+facturasFaltan+' factura(s) — una por cada PO</div>';
+        for(var _fi=0; _fi<facturasFaltan; _fi++){
+          h+='<input id="ver-factura-numero-'+id+'-'+_fi+'" class="ver-factura-input-'+id+'" type="text" placeholder="Número de factura '+(listaFacturas.length+_fi+1)+'" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">';
+        }
+        h+='<button data-reqid="'+id+'" data-cantidad="'+facturasFaltan+'" onclick="verReqRegistrarFacturas(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar factura(s)</button>'
           +'</div>';
-      } else if(listaPos.length && listaFacturas.length>=listaPos.length){
+      } else if(listaPos.length && facturasFaltan<=0){
         h+='<div style="font-size:12px;color:#1a5c2a;font-weight:700;padding:6px">&#9989; Todas las facturas registradas</div>';
       }
       h+='</div></div>';
