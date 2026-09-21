@@ -2631,6 +2631,17 @@ authInit();
     <div style="flex:1"><h1>&#128722; Requisiciones de Compra</h1></div>
     <button onclick="showPage('req-nueva')" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
   </div>
+  <div style="background:#fff;margin:12px 12px 0;border-radius:10px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Reporte:</label>
+    <input id="req-reporte-mes" type="month" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    <select id="req-reporte-estado" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      <option value="todas">Todas</option>
+      <option value="abiertas">Abiertas</option>
+      <option value="cerradas">Cerradas</option>
+    </select>
+    <label style="font-size:12px;color:#555;display:flex;align-items:center;gap:4px"><input id="req-reporte-solo-mias" type="checkbox"> Solo las mías (Compras)</label>
+    <button onclick="descargarReporteReq()" style="background:#1a5c2a;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Exportar Excel</button>
+  </div>
   <div id="req-list" style="padding:12px"></div>
 </div>
 
@@ -2713,6 +2724,12 @@ authInit();
     <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Justificaci&#243;n (necesidad de la compra)</label>
       <textarea id="req-justificacion" rows="3" placeholder="Describe por qu&#233; se necesita este material..." style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+    </div>
+    <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">&#128100; ¿Quién va a Revisar esta requisición?</label>
+      <select id="req-select-supervisor" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;background:#fff">
+        <option value="">Cargando...</option>
+      </select>
     </div>
     <div id="req-sigs-container" style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)"></div>
     <div style="font-size:12px;color:#999;text-align:center;padding:4px 0 12px">La requisición se guarda automáticamente en cuanto firmas "Realizó". Si no la firmas, no se guarda.</div>
@@ -3412,8 +3429,21 @@ async function initReqForm(){
     var _emailAprobador=_ajustesReq.email_aprobador||'';
     var _emailPresidenta=_ajustesReq.email_presidenta||'';
     var _nombrePorEmail={};
-    try{ var _usR=await fetch('/api/users'); var _us=await _usR.json(); _us.forEach(function(u){_nombrePorEmail[(u.email||'').toLowerCase()]=u.nombre;}); }catch(eu){}
+    var _usuariosReq=[];
+    try{ var _usR=await fetch('/api/users'); _usuariosReq=await _usR.json(); _usuariosReq.forEach(function(u){_nombrePorEmail[(u.email||'').toLowerCase()]=u.nombre;}); }catch(eu){}
     function _nombreDe(email){ return email ? (_nombrePorEmail[email.toLowerCase()]||'') : ''; }
+    var _supSel=document.getElementById('req-select-supervisor');
+    if(_supSel){
+      _supSel.innerHTML='<option value="">Selecciona...</option>'+_usuariosReq.map(function(u){
+        return '<option value="'+u.email.replace(/"/g,'&quot;')+'">'+u.nombre+' ('+u.email+')</option>';
+      }).join('');
+      _supSel.value=_emailRevisor||'';
+      _supSel.onchange=function(){
+        var nom=_nombreDe(_supSel.value);
+        var lbl=document.getElementById('req-sig-label-reviso');
+        if(lbl) lbl.textContent='Revisó'+(nom?(' — '+nom):'');
+      };
+    }
     var _nomRev=_nombreDe(_emailRevisor), _nomApr=_nombreDe(_emailAprobador), _nomPres=_nombreDe(_emailPresidenta);
     try{
       var _descR=await fetch('/api/requisiciones/descripciones');
@@ -3421,7 +3451,7 @@ async function initReqForm(){
       var _dl=document.getElementById('req-desc-list');
       if(_dl && Array.isArray(_descs)) _dl.innerHTML=_descs.map(function(t){return '<option value="'+t.replace(/"/g,'&quot;')+'">';}).join('');
     }catch(ed){}
-    [{k:'realizo',l:'Realizó'},{k:'reviso',l:'Revisó'+(_nomRev?(' — '+_nomRev):'')},{k:'aprobo',l:'Aprobó (Compras'+(_nomApr?(' — '+_nomApr):'')+')'},{k:'presidenta',l:'Dirección'+(_nomPres?(' — '+_nomPres):'')}].forEach(function(s){
+    [{k:'realizo',l:'Realizó'},{k:'reviso',l:'Revisó'+(_nomRev?(' — '+_nomRev):'')},{k:'aprobo',l:'Compras'+(_nomApr?(' — '+_nomApr):'')},{k:'presidenta',l:'Dirección'+(_nomPres?(' — '+_nomPres):'')}].forEach(function(s){
       var permiteRechazo=(s.k!=='realizo');
       var inner;
       if(s.k==='realizo' && currentUser){
@@ -3439,7 +3469,7 @@ async function initReqForm(){
           +'</div>';
       }
       sc.innerHTML+='<div style="border:1px solid #e0e0e0;border-radius:8px;padding:10px;margin-bottom:8px">'
-        +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">'+s.l+'</div>'
+        +'<div id="req-sig-label-'+s.k+'" style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">'+s.l+'</div>'
         +'<div id="req-sig-done-'+s.k+'"></div>'
         +'<div id="req-sig-row-'+s.k+'">'+inner+'</div></div>';
     });
@@ -3557,7 +3587,7 @@ async function guardarReq(){
     tipo:tipoEl?tipoEl.value:'Normal',
     items:getReqItems(),
     justificacion:(document.getElementById('req-justificacion')||{}).value||'',
-    email_revisor:(currentUser && currentUser.supervisor_email) || '',
+    email_revisor:(document.getElementById('req-select-supervisor')||{}).value || (currentUser && currentUser.supervisor_email) || '',
     email_aprobador:_ajustesG.email_aprobador||'',
     email_presidenta:_ajustesG.email_presidenta||'',
     firmas:_reqSigs
@@ -3667,13 +3697,15 @@ async function loadReqList(){
       var firmas=r.firmas||{};
       var rechazoKey=['reviso','aprobo','presidenta'].find(function(k){return firmas[k]&&firmas[k].estado==='rechazado';});
       var estadoTxt, estadoColor, estadoBg;
+      var numPos=(r.pos&&r.pos.length)||(r.po_numero?1:0);
+      var numFacturas=(r.facturas&&r.facturas.length)||(r.factura_numero?1:0);
       if(rechazoKey){
         var quien={reviso:'Supervisor',aprobo:'Compras',presidenta:'Dirección'}[rechazoKey];
         estadoTxt='&#10060; Rechazada por '+quien; estadoColor='#c62828'; estadoBg='#fce4ec';
-      } else if(r.factura_numero){
+      } else if(numPos>0 && numFacturas>=numPos){
         estadoTxt='&#9989; Cerrada (facturada)'; estadoColor='#1a5c2a'; estadoBg='#e8f5e9';
-      } else if(r.po_numero){
-        estadoTxt='&#128179; Comprada — falta factura'; estadoColor='#6a1b9a'; estadoBg='#f3e5f5';
+      } else if(numPos>0){
+        estadoTxt='&#128179; Comprada — falta factura ('+numFacturas+'/'+numPos+')'; estadoColor='#6a1b9a'; estadoBg='#f3e5f5';
       } else if(firmas.presidenta && firmas.presidenta.estado==='aprobado'){
         estadoTxt='&#9989; Aprobada — falta registrar compra'; estadoColor='#1a5c2a'; estadoBg='#e8f5e9';
       } else if(firmas.aprobo && firmas.aprobo.estado==='aprobado'){
@@ -3695,6 +3727,15 @@ async function loadReqList(){
         +'</div>';
     }).join('');
   } catch(e){ el.innerHTML='<div style="color:#c62828;padding:20px">Error: '+e.message+'</div>'; }
+}
+
+function descargarReporteReq(){
+  var mes=(document.getElementById('req-reporte-mes')||{}).value||'';
+  var estado=(document.getElementById('req-reporte-estado')||{}).value||'todas';
+  var soloMias=(document.getElementById('req-reporte-solo-mias')||{}).checked;
+  var url='/api/requisiciones/reporte/excel?estado='+encodeURIComponent(estado)+(mes?('&mes='+encodeURIComponent(mes)):'');
+  if(soloMias && currentUser && currentUser.email) url+='&email_aprobador='+encodeURIComponent(currentUser.email);
+  window.open(url,'_blank');
 }
 
 function reqEliminar(id){
@@ -3805,12 +3846,11 @@ function verReqFirmarSesion(btn){
 function verReqRegistrarPO(btn){
   if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
   var reqId=btn.getAttribute('data-reqid');
-  var poNumero=(document.getElementById('ver-po-numero')||{}).value||'';
-  var poDesc=(document.getElementById('ver-po-descripcion')||{}).value||'';
-  if(!poNumero.trim()||!poDesc.trim()){if(typeof showToast==='function')showToast('Completa el No. de PO y la descripción');return;}
+  var poNumero=(document.getElementById('ver-po-numero-'+reqId)||{}).value||'';
+  if(!poNumero.trim()){if(typeof showToast==='function')showToast('Escribe el No. de PO');return;}
   btn.disabled=true;btn.textContent='Guardando...';
   fetch('/api/requisicion/'+reqId+'/po',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    po_numero:poNumero.trim(), po_descripcion:poDesc.trim(), firmante_email:currentUser.email
+    po_numero:poNumero.trim(), firmante_email:currentUser.email
   })}).then(function(r){return r.json();}).then(function(saved){
     if(!saved.ok){if(typeof showToast==='function')showToast('❌ '+(saved.error||'Error al guardar'));btn.disabled=false;btn.textContent='💾 Registrar PO';return;}
     if(typeof showToast==='function')showToast('✅ PO registrado');
@@ -3821,16 +3861,16 @@ function verReqRegistrarPO(btn){
 function verReqRegistrarFactura(btn){
   if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
   var reqId=btn.getAttribute('data-reqid');
-  var facturaNumero=(document.getElementById('ver-factura-numero')||{}).value||'';
+  var facturaNumero=(document.getElementById('ver-factura-numero-'+reqId)||{}).value||'';
   if(!facturaNumero.trim()){if(typeof showToast==='function')showToast('Escribe el número de factura');return;}
   btn.disabled=true;btn.textContent='Guardando...';
   fetch('/api/requisicion/'+reqId+'/factura',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
     factura_numero:facturaNumero.trim(), firmante_email:currentUser.email
   })}).then(function(r){return r.json();}).then(function(saved){
-    if(!saved.ok){if(typeof showToast==='function')showToast('❌ '+(saved.error||'Error al guardar'));btn.disabled=false;btn.textContent='💾 Registrar factura y cerrar';return;}
-    if(typeof showToast==='function')showToast('✅ Requisición cerrada');
+    if(!saved.ok){if(typeof showToast==='function')showToast('❌ '+(saved.error||'Error al guardar'));btn.disabled=false;btn.textContent='💾 Registrar factura';return;}
+    if(typeof showToast==='function')showToast('✅ Factura registrada');
     verReq(reqId);
-  }).catch(function(){if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.textContent='💾 Registrar factura y cerrar';});
+  }).catch(function(){if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.textContent='💾 Registrar factura';});
 }
 
 function verReqEl(el){
@@ -3894,7 +3934,7 @@ async function verReq(id){
     var sigLabels={
       realizo:'Realizó',
       reviso:'Revisó'+(nomRevisor?(' — '+nomRevisor):''),
-      aprobo:'Aprobó (Compras'+(nomAprobador?(' — '+nomAprobador):'')+')',
+      aprobo:'Compras'+(nomAprobador?(' — '+nomAprobador):''),
       presidenta:'Dirección'+(nomPresidenta?(' — '+nomPresidenta):'')
     };
     var hasSigs=firmas.realizo||firmas.reviso||firmas.aprobo||firmas.presidenta;
@@ -3959,34 +3999,39 @@ async function verReq(id){
       h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
         +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Cierre de Compra</div>'
         +'<div style="padding:10px">';
-      if(o.po_numero){
+      var listaPos=Array.isArray(o.pos)?o.pos:(o.po_numero?[{numero:o.po_numero,descripcion:o.po_descripcion,fecha:''}]:[]);
+      var listaFacturas=Array.isArray(o.facturas)?o.facturas:(o.factura_numero?[{numero:o.factura_numero,fecha:''}]:[]);
+      h+='<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Órdenes de compra (PO)</div>';
+      listaPos.forEach(function(p){
         h+='<div style="border:1.5px solid #43a047;border-radius:8px;padding:10px;margin-bottom:8px">'
-          +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">No. de PO</div>'
-          +'<div style="font-size:14px;font-weight:700;margin-bottom:6px">'+o.po_numero+'</div>'
-          +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">Descripción</div>'
-          +'<div style="font-size:13px">'+o.po_descripcion+'</div></div>';
-      } else if(esCompras){
-        h+='<div id="ver-po-row" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px">'
-          +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase">Registrar compra</div>'
-          +'<input id="ver-po-numero" type="text" placeholder="No. de PO / Orden de compra" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
-          +'<textarea id="ver-po-descripcion" rows="2" placeholder="Descripción de la compra" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'
+          +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">No. de PO'+(p.fecha?(' &bull; '+p.fecha):'')+'</div>'
+          +'<div style="font-size:14px;font-weight:700">'+p.numero+'</div></div>';
+      });
+      if(!listaPos.length){
+        h+='<div style="font-size:12px;color:#888;padding:6px;margin-bottom:8px">&#8987; Pendiente de que Compras registre el No. de PO</div>';
+      }
+      if(esCompras){
+        h+='<div id="ver-po-row" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-bottom:8px">'
+          +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase">'+(listaPos.length?'Agregar otro PO':'Registrar compra')+'</div>'
+          +'<input id="ver-po-numero-'+id+'" type="text" placeholder="No. de PO / Orden de compra" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +'<button data-reqid="'+id+'" onclick="verReqRegistrarPO(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar PO</button>'
           +'</div>';
-      } else {
-        h+='<div style="font-size:12px;color:#888;padding:6px">&#8987; Pendiente de que Compras registre el No. de PO</div>';
       }
-      if(o.po_numero && o.factura_numero){
-        h+='<div style="border:1.5px solid #43a047;border-radius:8px;padding:10px;margin-top:8px">'
-          +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">Factura</div>'
-          +'<div style="font-size:14px;font-weight:700">'+o.factura_numero+'</div></div>';
-      } else if(o.po_numero && esCompras){
-        h+='<div id="ver-factura-row" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-top:8px">'
-          +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase">Registrar factura (cierre final)</div>'
-          +'<input id="ver-factura-numero" type="text" placeholder="Número de factura" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
-          +'<button data-reqid="'+id+'" onclick="verReqRegistrarFactura(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar factura y cerrar</button>'
+      h+='<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin:12px 0 6px">Facturas</div>';
+      listaFacturas.forEach(function(f){
+        h+='<div style="border:1.5px solid #43a047;border-radius:8px;padding:10px;margin-bottom:8px">'
+          +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">Factura'+(f.fecha?(' &bull; '+f.fecha):'')+'</div>'
+          +'<div style="font-size:14px;font-weight:700">'+f.numero+'</div></div>';
+      });
+      if(!listaFacturas.length){
+        h+='<div style="font-size:12px;color:#888;padding:6px;margin-bottom:8px">&#8987; Pendiente de que Compras registre la factura</div>';
+      }
+      if(listaPos.length && esCompras){
+        h+='<div id="ver-factura-row" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px">'
+          +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase">'+(listaFacturas.length?'Agregar otra factura':'Registrar factura')+'</div>'
+          +'<input id="ver-factura-numero-'+id+'" type="text" placeholder="Número de factura" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +'<button data-reqid="'+id+'" onclick="verReqRegistrarFactura(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar factura</button>'
           +'</div>';
-      } else if(o.po_numero){
-        h+='<div style="font-size:12px;color:#888;padding:6px;margin-top:8px">&#8987; Pendiente de que Compras registre la factura</div>';
       }
       h+='</div></div>';
     }

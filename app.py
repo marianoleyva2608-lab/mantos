@@ -1425,10 +1425,9 @@ def save_requisicion():
 def registrar_po_requisicion(rid):
     d = request.json or {}
     po_numero = (d.get('po_numero') or '').strip()
-    po_descripcion = (d.get('po_descripcion') or '').strip()
     firmante_email = (d.get('firmante_email') or '').strip().lower()
-    if not po_numero or not po_descripcion:
-        return jsonify({'ok': False, 'error': 'Falta el No. de PO o la descripción'}), 400
+    if not po_numero:
+        return jsonify({'ok': False, 'error': 'Falta el No. de PO'}), 400
     rows = sb.select('requisiciones', select='data', id='eq.' + rid)
     if not rows:
         return jsonify({'ok': False, 'error': 'No encontrado'}), 404
@@ -1438,16 +1437,18 @@ def registrar_po_requisicion(rid):
         return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la compra'}), 403
     if not (isinstance(o.get('firmas'), dict) and isinstance(o['firmas'].get('presidenta'), dict) and o['firmas']['presidenta'].get('estado') == 'aprobado'):
         return jsonify({'ok': False, 'error': 'La requisición todavía no tiene el visto bueno de Dirección'}), 400
-    o['po_numero'] = po_numero
-    o['po_descripcion'] = po_descripcion
+    if not isinstance(o.get('pos'), list):
+        o['pos'] = []
+    o['pos'].append({'numero': po_numero,
+                      'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')})
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
     link = BASE_URL_PUBLICO + '/?req=' + rid
     if o.get('solicitante_email'):
         enviar_correo(
             o['solicitante_email'], 'Requisición ' + folio_txt + ' — Compra registrada',
-            '<p>Hola,</p><p>Ya se registró la compra de tu requisición <b>' + folio_txt + '</b>.</p>'
-            '<p><b>No. de PO:</b> ' + po_numero + '<br><b>Descripción:</b> ' + po_descripcion + '</p>'
+            '<p>Hola,</p><p>Ya se registró una compra de tu requisición <b>' + folio_txt + '</b>.</p>'
+            '<p><b>No. de PO:</b> ' + po_numero + '</p>'
             '<p>Entra al sistema: <a href="' + link + '">' + link + '</a></p>'
         )
     return jsonify({'ok': True})
@@ -1466,20 +1467,100 @@ def registrar_factura_requisicion(rid):
     asignado = (o.get('email_aprobador') or '').strip().lower()
     if asignado and firmante_email != asignado:
         return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la factura'}), 403
-    if not o.get('po_numero'):
-        return jsonify({'ok': False, 'error': 'Primero hay que registrar el No. de PO'}), 400
-    o['factura_numero'] = factura_numero
+    if not o.get('pos'):
+        return jsonify({'ok': False, 'error': 'Primero hay que registrar al menos un No. de PO'}), 400
+    if not isinstance(o.get('facturas'), list):
+        o['facturas'] = []
+    o['facturas'].append({'numero': factura_numero, 'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')})
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
     link = BASE_URL_PUBLICO + '/?req=' + rid
     if o.get('solicitante_email'):
         enviar_correo(
-            o['solicitante_email'], 'Requisición ' + folio_txt + ' — Cerrada (factura registrada)',
-            '<p>Hola,</p><p>Tu requisición <b>' + folio_txt + '</b> ya quedó completamente cerrada.</p>'
-            '<p><b>No. de PO:</b> ' + (o.get('po_numero') or '-') + '<br><b>Factura:</b> ' + factura_numero + '</p>'
+            o['solicitante_email'], 'Requisición ' + folio_txt + ' — Factura registrada',
+            '<p>Hola,</p><p>Se registró una factura de tu requisición <b>' + folio_txt + '</b>.</p>'
+            '<p><b>Factura:</b> ' + factura_numero + '</p>'
             '<p>Entra al sistema: <a href="' + link + '">' + link + '</a></p>'
         )
     return jsonify({'ok': True})
+
+@app.route('/api/requisiciones/reporte/excel', methods=['GET'])
+def reporte_requisiciones_excel():
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+
+    mes = (request.args.get('mes') or '').strip()       # 'YYYY-MM' o vacio = todos
+    estado = (request.args.get('estado') or 'todas').strip()  # 'todas' | 'abiertas' | 'cerradas'
+    email_aprobador_filtro = (request.args.get('email_aprobador') or '').strip().lower()
+
+    rows = sb.select('requisiciones', select='data', order='folio.desc')
+    reqs = [json.loads(r['data']) for r in rows]
+    if email_aprobador_filtro:
+        reqs = [o for o in reqs if (o.get('email_aprobador') or '').strip().lower() == email_aprobador_filtro]
+    if mes:
+        reqs = [o for o in reqs if (o.get('fecha') or '').startswith(mes)]
+    def cerrada(o):
+        n_pos = len(o.get('pos') or ([o['po_numero']] if o.get('po_numero') else []))
+        n_fact = len(o.get('facturas') or ([o['factura_numero']] if o.get('factura_numero') else []))
+        return n_pos > 0 and n_fact >= n_pos
+    if estado == 'abiertas':
+        reqs = [o for o in reqs if not cerrada(o)]
+    elif estado == 'cerradas':
+        reqs = [o for o in reqs if cerrada(o)]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Requisiciones'
+    headers = ['Folio', 'Fecha', 'Solicitante', 'Planta', 'Departamento', 'Tipo',
+               'Estado', 'No. de PO', 'Facturas', 'Justificación']
+    GREEN = PatternFill('solid', fgColor='1A5C2A')
+    for i, h in enumerate(headers, start=1):
+        c = ws.cell(row=1, column=i, value=h)
+        c.font = Font(bold=True, color='FFFFFF')
+        c.fill = GREEN
+        c.alignment = Alignment(horizontal='center')
+    r_idx = 2
+    for o in reqs:
+        firmas = o.get('firmas') or {}
+        rechazo_key = next((k for k in ('reviso', 'aprobo', 'presidenta')
+                             if isinstance(firmas.get(k), dict) and firmas[k].get('estado') == 'rechazado'), None)
+        pos = o.get('pos') or ([{'numero': o['po_numero']}] if o.get('po_numero') else [])
+        facturas = o.get('facturas') or ([{'numero': o['factura_numero']}] if o.get('factura_numero') else [])
+        if rechazo_key:
+            estado_txt = 'Rechazada'
+        elif pos and len(facturas) >= len(pos):
+            estado_txt = 'Cerrada'
+        elif pos:
+            estado_txt = 'Comprada - falta factura (' + str(len(facturas)) + '/' + str(len(pos)) + ')'
+        elif isinstance(firmas.get('presidenta'), dict) and firmas['presidenta'].get('estado') == 'aprobado':
+            estado_txt = 'Aprobada - falta compra'
+        elif isinstance(firmas.get('aprobo'), dict) and firmas['aprobo'].get('estado') == 'aprobado':
+            estado_txt = 'Pendiente Dirección'
+        elif isinstance(firmas.get('reviso'), dict) and firmas['reviso'].get('estado') == 'aprobado':
+            estado_txt = 'Pendiente Compras'
+        else:
+            estado_txt = 'Pendiente Revisión'
+        ws.cell(row=r_idx, column=1, value='REQ-' + str(o.get('folio') or 0).zfill(4))
+        ws.cell(row=r_idx, column=2, value=o.get('fecha') or '')
+        ws.cell(row=r_idx, column=3, value=o.get('solicitante') or '')
+        ws.cell(row=r_idx, column=4, value=o.get('planta') or '')
+        ws.cell(row=r_idx, column=5, value=o.get('departamento') or '')
+        ws.cell(row=r_idx, column=6, value=o.get('tipo') or '')
+        ws.cell(row=r_idx, column=7, value=estado_txt)
+        ws.cell(row=r_idx, column=8, value=', '.join(p.get('numero', '') for p in pos))
+        ws.cell(row=r_idx, column=9, value=', '.join(f.get('numero', '') for f in facturas))
+        ws.cell(row=r_idx, column=10, value=o.get('justificacion') or '')
+        r_idx += 1
+    for i in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(i)].width = 18
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    nombre = 'requisiciones_' + (mes or 'todas') + '_' + estado + '.xlsx'
+    return send_file(buf, as_attachment=True, download_name=nombre,
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 @app.route('/api/requisicion/<rid>', methods=['DELETE'])
 def borrar_requisicion(rid):
