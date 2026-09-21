@@ -2632,6 +2632,9 @@ authInit();
     <button onclick="showPage('req-nueva')" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
   </div>
   <div id="req-dashboard-panel" style="display:none;margin:12px 12px 0;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px"></div>
+  <div id="req-dashboard-link-wrap" style="display:none;margin:8px 12px 0;text-align:right">
+    <button onclick="showPage('req-dashboard');loadReqDashboard()" style="background:#fff;color:#1a5c2a;border:1.5px solid #1a5c2a;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">&#128202; Ver dashboard completo</button>
+  </div>
   <div id="req-reporte-panel" style="background:#fff;margin:12px 12px 0;border-radius:10px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:none;gap:8px;flex-wrap:wrap;align-items:center">
     <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Reporte:</label>
     <input id="req-reporte-mes" type="month" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px">
@@ -2644,6 +2647,15 @@ authInit();
     <button onclick="descargarReporteReq()" style="background:#1a5c2a;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Exportar Excel</button>
   </div>
   <div id="req-list" style="padding:12px"></div>
+</div>
+
+<!-- ══ REQUISICIONES: DASHBOARD ══ -->
+<div id="page-req-dashboard" class="page" style="background:#f5f5f5;padding-bottom:30px">
+  <div class="hdr">
+    <button class="back" onclick="showPage('req')">&#8249;</button>
+    <div style="flex:1"><h1>&#128202; Dashboard de Compras</h1></div>
+  </div>
+  <div id="req-dashboard-body" style="padding:12px"></div>
 </div>
 
 <!-- ══ REQUISICIONES: NUEVA ══ -->
@@ -3719,6 +3731,8 @@ async function loadReqList(){
         dashPanel.style.display='none';
       }
     }
+    var dashLinkWrap=document.getElementById('req-dashboard-link-wrap');
+    if(dashLinkWrap) dashLinkWrap.style.display=puedeVerReporte?'block':'none';
     if(!list.length){
       el.innerHTML='<div style="text-align:center;color:#888;padding:30px;font-size:14px">Sin requisiciones. Presiona + Nueva.</div>';
       return;
@@ -3760,6 +3774,110 @@ async function loadReqList(){
         +'</div>';
     }).join('');
   } catch(e){ el.innerHTML='<div style="color:#c62828;padding:20px">Error: '+e.message+'</div>'; }
+}
+
+async function loadReqDashboard(){
+  var body=document.getElementById('req-dashboard-body');
+  if(!body) return;
+  var puedeVerDashboard=userIsAdmin() || (currentUser && currentUser.cargo==='Compras');
+  if(!puedeVerDashboard){
+    body.innerHTML='<div style="text-align:center;color:#888;padding:30px;font-size:14px">&#128274; Esta pantalla solo la puede ver Compras.</div>';
+    return;
+  }
+  body.innerHTML='<div style="text-align:center;color:#888;padding:20px">Cargando...</div>';
+  try{
+    var res=await fetch('/api/requisiciones');
+    var list=await res.json();
+    var tAbiertas=0, tCerradas=0, tPOs=0, tFacturas=0, tRechazadas=0;
+    var porMes={};
+    var abiertasDetalle=[], poSinFacturaDetalle=[];
+    var hoy=new Date();
+    list.forEach(function(r){
+      var fr=r.firmas||{};
+      var rk=['reviso','aprobo','presidenta'].some(function(k){return fr[k]&&fr[k].estado==='rechazado';});
+      var pos=r.pos||(r.po_numero?[{numero:r.po_numero}]:[]);
+      var facs=r.facturas||(r.factura_numero?[{numero:r.factura_numero}]:[]);
+      tPOs+=pos.length; tFacturas+=facs.length;
+      var mes=(r.fecha||'').slice(0,7);
+      if(mes){ porMes[mes]=porMes[mes]||{total:0,cerradas:0}; porMes[mes].total++; }
+      var folio='REQ-'+String(r.folio||0).padStart(4,'0');
+      if(rk){ tRechazadas++; }
+      else if(pos.length>0 && facs.length>=pos.length){
+        tCerradas++;
+        if(mes) porMes[mes].cerradas++;
+      } else {
+        tAbiertas++;
+        var dias='';
+        try{ var f=new Date(r.fecha); dias=Math.max(0,Math.floor((hoy-f)/(1000*60*60*24))); }catch(e){}
+        var etapa = pos.length>0 ? ('Falta factura ('+facs.length+'/'+pos.length+')')
+          : (fr.presidenta&&fr.presidenta.estado==='aprobado' ? 'Falta registrar PO'
+          : (fr.aprobo&&fr.aprobo.estado==='aprobado' ? 'Pendiente Dirección'
+          : (fr.reviso&&fr.reviso.estado==='aprobado' ? 'Pendiente Compras' : 'Pendiente Revisión')));
+        abiertasDetalle.push({folio:folio,solicitante:r.solicitante||'',fecha:r.fecha||'',etapa:etapa,dias:dias});
+      }
+      pos.forEach(function(p){
+        var tieneFactura=facs.some(function(f){return f.po_numero===p.numero;}) || facs.length>pos.indexOf(p);
+      });
+      if(pos.length>facs.length){
+        pos.slice(facs.length).forEach(function(p){
+          poSinFacturaDetalle.push({folio:folio,po:p.numero,fecha:p.fecha||''});
+        });
+      }
+    });
+    var tarjeta=function(valor,label,color){
+      return '<div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);text-align:center;border-top:4px solid '+color+'">'
+        +'<div style="font-size:24px;font-weight:800;color:'+color+'">'+valor+'</div>'
+        +'<div style="font-size:11px;color:#555;text-transform:uppercase;font-weight:700;margin-top:2px">'+label+'</div></div>';
+    };
+    var h='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:16px">'
+      +tarjeta(tAbiertas,'Abiertas','#e65100')+tarjeta(tCerradas,'Cerradas','#1a5c2a')+tarjeta(tRechazadas,'Rechazadas','#c62828')
+      +tarjeta(tPOs,'PO registrados','#6a1b9a')+tarjeta(tFacturas,'Facturas','#1565c0')+'</div>';
+
+    h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:16px">'
+      +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Requisiciones abiertas ('+abiertasDetalle.length+')</div>';
+    if(abiertasDetalle.length){
+      h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
+        +'<tr style="background:#e8f5e9"><th style="padding:6px;border:1px solid #ddd">Folio</th><th style="padding:6px;border:1px solid #ddd">Solicitante</th><th style="padding:6px;border:1px solid #ddd">Fecha</th><th style="padding:6px;border:1px solid #ddd">Etapa</th><th style="padding:6px;border:1px solid #ddd">Días</th></tr>';
+      abiertasDetalle.sort(function(a,b){return (b.dias||0)-(a.dias||0);}).forEach(function(a){
+        h+='<tr><td style="padding:5px;border:1px solid #eee;text-align:center">'+a.folio+'</td><td style="padding:5px;border:1px solid #eee">'+a.solicitante+'</td><td style="padding:5px;border:1px solid #eee;text-align:center">'+a.fecha+'</td><td style="padding:5px;border:1px solid #eee">'+a.etapa+'</td><td style="padding:5px;border:1px solid #eee;text-align:center;font-weight:700;color:'+(a.dias>7?'#c62828':'#555')+'">'+a.dias+'</td></tr>';
+      });
+      h+='</table></div>';
+    } else {
+      h+='<div style="padding:14px;color:#888;font-size:13px;text-align:center">No hay requisiciones abiertas</div>';
+    }
+    h+='</div>';
+
+    h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:16px">'
+      +'<div style="background:#6a1b9a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">PO sin factura ('+poSinFacturaDetalle.length+')</div>';
+    if(poSinFacturaDetalle.length){
+      h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
+        +'<tr style="background:#f3e5f5"><th style="padding:6px;border:1px solid #ddd">Folio</th><th style="padding:6px;border:1px solid #ddd">No. de PO</th><th style="padding:6px;border:1px solid #ddd">Fecha PO</th></tr>';
+      poSinFacturaDetalle.forEach(function(p){
+        h+='<tr><td style="padding:5px;border:1px solid #eee;text-align:center">'+p.folio+'</td><td style="padding:5px;border:1px solid #eee">'+p.po+'</td><td style="padding:5px;border:1px solid #eee;text-align:center">'+p.fecha+'</td></tr>';
+      });
+      h+='</table></div>';
+    } else {
+      h+='<div style="padding:14px;color:#888;font-size:13px;text-align:center">Todos los PO ya tienen factura</div>';
+    }
+    h+='</div>';
+
+    var meses=Object.keys(porMes).sort().reverse();
+    h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden">'
+      +'<div style="background:#1565c0;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Por mes</div>';
+    if(meses.length){
+      h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
+        +'<tr style="background:#e3f2fd"><th style="padding:6px;border:1px solid #ddd">Mes</th><th style="padding:6px;border:1px solid #ddd">Total</th><th style="padding:6px;border:1px solid #ddd">Cerradas</th></tr>';
+      meses.forEach(function(m){
+        h+='<tr><td style="padding:5px;border:1px solid #eee;text-align:center">'+m+'</td><td style="padding:5px;border:1px solid #eee;text-align:center">'+porMes[m].total+'</td><td style="padding:5px;border:1px solid #eee;text-align:center">'+porMes[m].cerradas+'</td></tr>';
+      });
+      h+='</table></div>';
+    } else {
+      h+='<div style="padding:14px;color:#888;font-size:13px;text-align:center">Sin datos</div>';
+    }
+    h+='</div>';
+
+    body.innerHTML=h;
+  } catch(e){ body.innerHTML='<div style="color:#c62828;padding:20px">Error: '+e.message+'</div>'; }
 }
 
 function descargarReporteReq(){
