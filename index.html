@@ -2631,7 +2631,6 @@ authInit();
     <div style="flex:1"><h1>&#128722; Requisiciones de Compra</h1></div>
     <button id="req-dashboard-link-wrap" onclick="showPage('req-dashboard');loadReqDashboard()" style="display:none;background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">&#128202; Dashboard</button>
   </div>
-  <div id="req-dashboard-panel" style="display:none;margin:12px 12px 0;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px"></div>
   <div style="margin:12px 12px 0;text-align:right">
     <button onclick="showPage('req-nueva')" style="background:#1a5c2a;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
   </div>
@@ -3702,35 +3701,6 @@ async function loadReqList(){
   try{
     var res=await fetch('/api/requisiciones');
     var list=await res.json();
-    var dashPanel=document.getElementById('req-dashboard-panel');
-    if(dashPanel){
-      if(puedeVerReporte){
-        var tAbiertas=0, tCerradas=0, tPOs=0, tFacturas=0, tRechazadas=0;
-        list.forEach(function(r){
-          var fr=r.firmas||{};
-          var rk=['reviso','aprobo','presidenta'].some(function(k){return fr[k]&&fr[k].estado==='rechazado';});
-          var nPos=(r.pos&&r.pos.length)||(r.po_numero?1:0);
-          var nFac=(r.facturas&&r.facturas.length)||(r.factura_numero?1:0);
-          tPOs+=nPos; tFacturas+=nFac;
-          if(rk) tRechazadas++;
-          else if(nPos>0 && nFac>=nPos) tCerradas++;
-          else tAbiertas++;
-        });
-        var tarjeta=function(valor,label,color){
-          return '<div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);text-align:center;border-top:4px solid '+color+'">'
-            +'<div style="font-size:24px;font-weight:800;color:'+color+'">'+valor+'</div>'
-            +'<div style="font-size:11px;color:#555;text-transform:uppercase;font-weight:700;margin-top:2px">'+label+'</div></div>';
-        };
-        dashPanel.style.display='grid';
-        dashPanel.innerHTML=tarjeta(tAbiertas,'Abiertas','#e65100')
-          +tarjeta(tCerradas,'Cerradas','#1a5c2a')
-          +tarjeta(tRechazadas,'Rechazadas','#c62828')
-          +tarjeta(tPOs,'PO registrados','#6a1b9a')
-          +tarjeta(tFacturas,'Facturas','#1565c0');
-      } else {
-        dashPanel.style.display='none';
-      }
-    }
     var dashLinkWrap=document.getElementById('req-dashboard-link-wrap');
     if(dashLinkWrap) dashLinkWrap.style.display=puedeVerReporte?'block':'none';
     if(!list.length){
