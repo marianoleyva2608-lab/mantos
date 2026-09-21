@@ -3999,8 +3999,8 @@ async function verReq(id){
     });
     h+='</div></div>';
     var presidentaAprobado=firmas.presidenta && firmas.presidenta.estado==='aprobado';
-    if(presidentaAprobado){
-      var esCompras=currentUser && currentUser.email && o.email_aprobador && currentUser.email.toLowerCase()===o.email_aprobador.toLowerCase();
+    var esCompras=currentUser && currentUser.email && o.email_aprobador && currentUser.email.toLowerCase()===o.email_aprobador.toLowerCase();
+    if(presidentaAprobado && (esCompras || userIsAdmin())){
       h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
         +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Cierre de Compra</div>'
         +'<div style="padding:10px">';
@@ -4016,8 +4016,8 @@ async function verReq(id){
         h+='<div style="font-size:12px;color:#888;padding:6px;margin-bottom:8px">&#8987; Pendiente de que Compras registre el No. de PO</div>';
       }
       if(esCompras){
-        h+='<div id="ver-po-row" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-bottom:8px">'
-          +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase">'+(listaPos.length?'Agregar otro PO':'Registrar compra')+'</div>'
+        h+='<button onclick="document.getElementById(\'ver-po-form-'+id+'\').style.display=\'block\';this.style.display=\'none\'" style="width:100%;padding:8px 14px;background:#e8f5e9;color:#1a5c2a;border:2px dashed #1a5c2a;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px">&#10133; '+(listaPos.length?'Agregar otro PO':'Registrar compra (PO)')+'</button>'
+          +'<div id="ver-po-form-'+id+'" style="display:none;border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-bottom:8px">'
           +'<input id="ver-po-numero-'+id+'" type="text" placeholder="No. de PO / Orden de compra" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +'<button data-reqid="'+id+'" onclick="verReqRegistrarPO(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar PO</button>'
           +'</div>';
@@ -4032,8 +4032,8 @@ async function verReq(id){
         h+='<div style="font-size:12px;color:#888;padding:6px;margin-bottom:8px">&#8987; Pendiente de que Compras registre la factura</div>';
       }
       if(listaPos.length && esCompras){
-        h+='<div id="ver-factura-row" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px">'
-          +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase">'+(listaFacturas.length?'Agregar otra factura':'Registrar factura')+'</div>'
+        h+='<button onclick="document.getElementById(\'ver-factura-form-'+id+'\').style.display=\'block\';this.style.display=\'none\'" style="width:100%;padding:8px 14px;background:#e8f5e9;color:#1a5c2a;border:2px dashed #1a5c2a;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10133; '+(listaFacturas.length?'Agregar otra factura':'Registrar factura')+'</button>'
+          +'<div id="ver-factura-form-'+id+'" style="display:none;border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px">'
           +'<input id="ver-factura-numero-'+id+'" type="text" placeholder="Número de factura" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +'<button data-reqid="'+id+'" onclick="verReqRegistrarFactura(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar factura</button>'
           +'</div>';
