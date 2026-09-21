@@ -2631,6 +2631,7 @@ authInit();
     <div style="flex:1"><h1>&#128722; Requisiciones de Compra</h1></div>
     <button onclick="showPage('req-nueva')" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
   </div>
+  <div id="req-dashboard-panel" style="display:none;margin:12px 12px 0;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px"></div>
   <div id="req-reporte-panel" style="background:#fff;margin:12px 12px 0;border-radius:10px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:none;gap:8px;flex-wrap:wrap;align-items:center">
     <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Reporte:</label>
     <input id="req-reporte-mes" type="month" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px">
@@ -3683,14 +3684,41 @@ async function loadReqList(){
   var el=document.getElementById('req-list');
   if(!el) return;
   var repPanel=document.getElementById('req-reporte-panel');
-  if(repPanel){
-    var puedeVerReporte=userIsAdmin() || (currentUser && currentUser.cargo==='Compras');
-    repPanel.style.display=puedeVerReporte?'flex':'none';
-  }
+  var puedeVerReporte=userIsAdmin() || (currentUser && currentUser.cargo==='Compras');
+  if(repPanel) repPanel.style.display=puedeVerReporte?'flex':'none';
   el.innerHTML='<div style="text-align:center;color:#888;padding:20px">Cargando...</div>';
   try{
     var res=await fetch('/api/requisiciones');
     var list=await res.json();
+    var dashPanel=document.getElementById('req-dashboard-panel');
+    if(dashPanel){
+      if(puedeVerReporte){
+        var tAbiertas=0, tCerradas=0, tPOs=0, tFacturas=0, tRechazadas=0;
+        list.forEach(function(r){
+          var fr=r.firmas||{};
+          var rk=['reviso','aprobo','presidenta'].some(function(k){return fr[k]&&fr[k].estado==='rechazado';});
+          var nPos=(r.pos&&r.pos.length)||(r.po_numero?1:0);
+          var nFac=(r.facturas&&r.facturas.length)||(r.factura_numero?1:0);
+          tPOs+=nPos; tFacturas+=nFac;
+          if(rk) tRechazadas++;
+          else if(nPos>0 && nFac>=nPos) tCerradas++;
+          else tAbiertas++;
+        });
+        var tarjeta=function(valor,label,color){
+          return '<div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);text-align:center;border-top:4px solid '+color+'">'
+            +'<div style="font-size:24px;font-weight:800;color:'+color+'">'+valor+'</div>'
+            +'<div style="font-size:11px;color:#555;text-transform:uppercase;font-weight:700;margin-top:2px">'+label+'</div></div>';
+        };
+        dashPanel.style.display='grid';
+        dashPanel.innerHTML=tarjeta(tAbiertas,'Abiertas','#e65100')
+          +tarjeta(tCerradas,'Cerradas','#1a5c2a')
+          +tarjeta(tRechazadas,'Rechazadas','#c62828')
+          +tarjeta(tPOs,'PO registrados','#6a1b9a')
+          +tarjeta(tFacturas,'Facturas','#1565c0');
+      } else {
+        dashPanel.style.display='none';
+      }
+    }
     if(!list.length){
       el.innerHTML='<div style="text-align:center;color:#888;padding:30px;font-size:14px">Sin requisiciones. Presiona + Nueva.</div>';
       return;
