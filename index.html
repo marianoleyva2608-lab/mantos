@@ -251,7 +251,7 @@ window._jsQRLoaded=false;
       .then(function(d){
         if(d.ok){
           // Guardar sesión (misma clave que authInit)
-          var sess={id:d.id||'',nombre:d.nombre||e,email:e,rol:d.rol||'usuario',permisos:d.permisos||''};
+          var sess={id:d.id||'',nombre:d.nombre||e,email:e,rol:d.rol||'usuario',permisos:d.permisos||'',supervisor_email:d.supervisor_email||'',cargo:d.cargo||'Empleado'};
           localStorage.setItem('mantos_user', JSON.stringify(sess));
           currentUser=sess;
           document.getElementById('ap-login').style.display='none';
