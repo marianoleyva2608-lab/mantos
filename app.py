@@ -1457,6 +1457,7 @@ def registrar_po_requisicion(rid):
 def registrar_factura_requisicion(rid):
     d = request.json or {}
     factura_numero = (d.get('factura_numero') or '').strip()
+    po_numero_liga = (d.get('po_numero') or '').strip()
     firmante_email = (d.get('firmante_email') or '').strip().lower()
     if not factura_numero:
         return jsonify({'ok': False, 'error': 'Falta el número de factura'}), 400
@@ -1473,7 +1474,8 @@ def registrar_factura_requisicion(rid):
         o['facturas'] = []
     if len(o['facturas']) >= len(o['pos']):
         return jsonify({'ok': False, 'error': 'Ya se registraron todas las facturas necesarias (' + str(len(o['pos'])) + ')'}), 400
-    o['facturas'].append({'numero': factura_numero, 'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')})
+    o['facturas'].append({'numero': factura_numero, 'po_numero': po_numero_liga,
+                           'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')})
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
     link = BASE_URL_PUBLICO + '/?req=' + rid
@@ -1515,7 +1517,7 @@ def reporte_requisiciones_excel():
     ws = wb.active
     ws.title = 'Requisiciones'
     headers = ['Folio', 'Fecha', 'Solicitante', 'Planta', 'Departamento', 'Tipo',
-               'Estado', 'No. de PO', 'Facturas', 'Justificación']
+               'Estado', 'PO -> Factura', 'Justificación']
     GREEN = PatternFill('solid', fgColor='1A5C2A')
     for i, h in enumerate(headers, start=1):
         c = ws.cell(row=1, column=i, value=h)
@@ -1550,9 +1552,14 @@ def reporte_requisiciones_excel():
         ws.cell(row=r_idx, column=5, value=o.get('departamento') or '')
         ws.cell(row=r_idx, column=6, value=o.get('tipo') or '')
         ws.cell(row=r_idx, column=7, value=estado_txt)
-        ws.cell(row=r_idx, column=8, value=', '.join(p.get('numero', '') for p in pos))
-        ws.cell(row=r_idx, column=9, value=', '.join(f.get('numero', '') for f in facturas))
-        ws.cell(row=r_idx, column=10, value=o.get('justificacion') or '')
+        pares = []
+        for pi, p in enumerate(pos):
+            factura_liga = next((f for f in facturas if f.get('po_numero') == p.get('numero')), None)
+            if not factura_liga and pi < len(facturas):
+                factura_liga = facturas[pi]
+            pares.append(p.get('numero', '') + ' -> ' + (factura_liga.get('numero', '') if factura_liga else 'sin factura'))
+        ws.cell(row=r_idx, column=8, value='; '.join(pares))
+        ws.cell(row=r_idx, column=9, value=o.get('justificacion') or '')
         r_idx += 1
     for i in range(1, len(headers) + 1):
         ws.column_dimensions[get_column_letter(i)].width = 18
