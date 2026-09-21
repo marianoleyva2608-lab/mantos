@@ -3664,6 +3664,25 @@ async function loadReqList(){
       var folio='REQ-'+String(r.folio||0).padStart(4,'0');
       var urgente=r.tipo==='Urgente';
       var cnt=(r.items||[]).filter(function(i){return i.cantidad||i.descripcion;}).length;
+      var firmas=r.firmas||{};
+      var rechazoKey=['reviso','aprobo','presidenta'].find(function(k){return firmas[k]&&firmas[k].estado==='rechazado';});
+      var estadoTxt, estadoColor, estadoBg;
+      if(rechazoKey){
+        var quien={reviso:'Supervisor',aprobo:'Compras',presidenta:'Dirección'}[rechazoKey];
+        estadoTxt='&#10060; Rechazada por '+quien; estadoColor='#c62828'; estadoBg='#fce4ec';
+      } else if(r.factura_numero){
+        estadoTxt='&#9989; Cerrada (facturada)'; estadoColor='#1a5c2a'; estadoBg='#e8f5e9';
+      } else if(r.po_numero){
+        estadoTxt='&#128179; Comprada — falta factura'; estadoColor='#6a1b9a'; estadoBg='#f3e5f5';
+      } else if(firmas.presidenta && firmas.presidenta.estado==='aprobado'){
+        estadoTxt='&#9989; Aprobada — falta registrar compra'; estadoColor='#1a5c2a'; estadoBg='#e8f5e9';
+      } else if(firmas.aprobo && firmas.aprobo.estado==='aprobado'){
+        estadoTxt='&#8987; Pendiente de Dirección'; estadoColor='#e65100'; estadoBg='#fff3e0';
+      } else if(firmas.reviso && firmas.reviso.estado==='aprobado'){
+        estadoTxt='&#8987; Pendiente de Compras'; estadoColor='#1565c0'; estadoBg='#e3f2fd';
+      } else {
+        estadoTxt='&#8987; Pendiente de Revisión'; estadoColor='#8a6100'; estadoBg='#fff8e1';
+      }
       return '<div data-id="'+r.id+'" onclick="verReqEl(this)" style="background:#fff;border-radius:10px;margin-bottom:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);cursor:pointer;border-left:4px solid '+(urgente?'#c62828':'#1a5c2a')+'">'
         +'<div style="display:flex;justify-content:space-between;align-items:center">'
         +'<span style="font-weight:700;font-size:15px;color:#1a5c2a">'+folio+'</span>'
@@ -3671,6 +3690,7 @@ async function loadReqList(){
         +'</div>'
         +'<div style="font-size:12px;color:#555;margin-top:4px">&#128197; '+r.fecha+' &nbsp;&#128100; '+(r.solicitante||'&#8212;')+'</div>'
         +'<div style="font-size:12px;color:#888;margin-top:2px">'+cnt+' artículo(s) &nbsp;|&nbsp; '+(r.departamento||'')+'</div>'
+        +'<div style="margin-top:8px"><span style="background:'+estadoBg+';color:'+estadoColor+';font-size:11px;font-weight:700;padding:4px 10px;border-radius:10px">'+estadoTxt+'</span></div>'
         +(userIsAdmin() ? '<div style="text-align:right;margin-top:8px"><button onclick="event.stopPropagation();reqEliminar(\''+r.id+'\')" style="background:#fff;color:#c62828;border:1px solid #c62828;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer">&#128465; Borrar</button></div>' : '')
         +'</div>';
     }).join('');
@@ -3780,6 +3800,37 @@ function verReqFirmarSesion(btn){
         +'<span style="font-weight:700;color:'+col+'">Estado:</span><span>'+(rechazado?'&#10060; Rechazado':'&#9989; Verificado')+'</span></div>';
       if(typeof showToast==='function')showToast(rechazado?('Rechazado - '+currentUser.nombre):('Firmado - '+currentUser.nombre));
     }).catch(function(){if(typeof showToast==='function')showToast('Error de conexion');btn.disabled=false;btn.innerHTML=txtOriginal;});
+}
+
+function verReqRegistrarPO(btn){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  var reqId=btn.getAttribute('data-reqid');
+  var poNumero=(document.getElementById('ver-po-numero')||{}).value||'';
+  var poDesc=(document.getElementById('ver-po-descripcion')||{}).value||'';
+  if(!poNumero.trim()||!poDesc.trim()){if(typeof showToast==='function')showToast('Completa el No. de PO y la descripción');return;}
+  btn.disabled=true;btn.textContent='Guardando...';
+  fetch('/api/requisicion/'+reqId+'/po',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    po_numero:poNumero.trim(), po_descripcion:poDesc.trim(), firmante_email:currentUser.email
+  })}).then(function(r){return r.json();}).then(function(saved){
+    if(!saved.ok){if(typeof showToast==='function')showToast('❌ '+(saved.error||'Error al guardar'));btn.disabled=false;btn.textContent='💾 Registrar PO';return;}
+    if(typeof showToast==='function')showToast('✅ PO registrado');
+    verReq(reqId);
+  }).catch(function(){if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.textContent='💾 Registrar PO';});
+}
+
+function verReqRegistrarFactura(btn){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  var reqId=btn.getAttribute('data-reqid');
+  var facturaNumero=(document.getElementById('ver-factura-numero')||{}).value||'';
+  if(!facturaNumero.trim()){if(typeof showToast==='function')showToast('Escribe el número de factura');return;}
+  btn.disabled=true;btn.textContent='Guardando...';
+  fetch('/api/requisicion/'+reqId+'/factura',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    factura_numero:facturaNumero.trim(), firmante_email:currentUser.email
+  })}).then(function(r){return r.json();}).then(function(saved){
+    if(!saved.ok){if(typeof showToast==='function')showToast('❌ '+(saved.error||'Error al guardar'));btn.disabled=false;btn.textContent='💾 Registrar factura y cerrar';return;}
+    if(typeof showToast==='function')showToast('✅ Requisición cerrada');
+    verReq(reqId);
+  }).catch(function(){if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.textContent='💾 Registrar factura y cerrar';});
 }
 
 function verReqEl(el){
@@ -3902,6 +3953,43 @@ async function verReq(id){
       }
     });
     h+='</div></div>';
+    var presidentaAprobado=firmas.presidenta && firmas.presidenta.estado==='aprobado';
+    if(presidentaAprobado){
+      var esCompras=currentUser && currentUser.email && o.email_aprobador && currentUser.email.toLowerCase()===o.email_aprobador.toLowerCase();
+      h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
+        +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Cierre de Compra</div>'
+        +'<div style="padding:10px">';
+      if(o.po_numero){
+        h+='<div style="border:1.5px solid #43a047;border-radius:8px;padding:10px;margin-bottom:8px">'
+          +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">No. de PO</div>'
+          +'<div style="font-size:14px;font-weight:700;margin-bottom:6px">'+o.po_numero+'</div>'
+          +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">Descripción</div>'
+          +'<div style="font-size:13px">'+o.po_descripcion+'</div></div>';
+      } else if(esCompras){
+        h+='<div id="ver-po-row" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px">'
+          +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase">Registrar compra</div>'
+          +'<input id="ver-po-numero" type="text" placeholder="No. de PO / Orden de compra" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +'<textarea id="ver-po-descripcion" rows="2" placeholder="Descripción de la compra" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'
+          +'<button data-reqid="'+id+'" onclick="verReqRegistrarPO(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar PO</button>'
+          +'</div>';
+      } else {
+        h+='<div style="font-size:12px;color:#888;padding:6px">&#8987; Pendiente de que Compras registre el No. de PO</div>';
+      }
+      if(o.po_numero && o.factura_numero){
+        h+='<div style="border:1.5px solid #43a047;border-radius:8px;padding:10px;margin-top:8px">'
+          +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">Factura</div>'
+          +'<div style="font-size:14px;font-weight:700">'+o.factura_numero+'</div></div>';
+      } else if(o.po_numero && esCompras){
+        h+='<div id="ver-factura-row" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-top:8px">'
+          +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase">Registrar factura (cierre final)</div>'
+          +'<input id="ver-factura-numero" type="text" placeholder="Número de factura" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +'<button data-reqid="'+id+'" onclick="verReqRegistrarFactura(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar factura y cerrar</button>'
+          +'</div>';
+      } else if(o.po_numero){
+        h+='<div style="font-size:12px;color:#888;padding:6px;margin-top:8px">&#8987; Pendiente de que Compras registre la factura</div>';
+      }
+      h+='</div></div>';
+    }
     var body=document.getElementById('req-ver-body');
     if(body) body.innerHTML=h;
     if(typeof showPage==='function') showPage('req-ver');

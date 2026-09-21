@@ -1421,6 +1421,66 @@ def save_requisicion():
 
     return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado, 'aviso_error': aviso_error})
 
+@app.route('/api/requisicion/<rid>/po', methods=['POST'])
+def registrar_po_requisicion(rid):
+    d = request.json or {}
+    po_numero = (d.get('po_numero') or '').strip()
+    po_descripcion = (d.get('po_descripcion') or '').strip()
+    firmante_email = (d.get('firmante_email') or '').strip().lower()
+    if not po_numero or not po_descripcion:
+        return jsonify({'ok': False, 'error': 'Falta el No. de PO o la descripción'}), 400
+    rows = sb.select('requisiciones', select='data', id='eq.' + rid)
+    if not rows:
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    o = json.loads(rows[0]['data'])
+    asignado = (o.get('email_aprobador') or '').strip().lower()
+    if asignado and firmante_email != asignado:
+        return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la compra'}), 403
+    if not (isinstance(o.get('firmas'), dict) and isinstance(o['firmas'].get('presidenta'), dict) and o['firmas']['presidenta'].get('estado') == 'aprobado'):
+        return jsonify({'ok': False, 'error': 'La requisición todavía no tiene el visto bueno de Dirección'}), 400
+    o['po_numero'] = po_numero
+    o['po_descripcion'] = po_descripcion
+    sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
+    link = BASE_URL_PUBLICO + '/?req=' + rid
+    if o.get('solicitante_email'):
+        enviar_correo(
+            o['solicitante_email'], 'Requisición ' + folio_txt + ' — Compra registrada',
+            '<p>Hola,</p><p>Ya se registró la compra de tu requisición <b>' + folio_txt + '</b>.</p>'
+            '<p><b>No. de PO:</b> ' + po_numero + '<br><b>Descripción:</b> ' + po_descripcion + '</p>'
+            '<p>Entra al sistema: <a href="' + link + '">' + link + '</a></p>'
+        )
+    return jsonify({'ok': True})
+
+@app.route('/api/requisicion/<rid>/factura', methods=['POST'])
+def registrar_factura_requisicion(rid):
+    d = request.json or {}
+    factura_numero = (d.get('factura_numero') or '').strip()
+    firmante_email = (d.get('firmante_email') or '').strip().lower()
+    if not factura_numero:
+        return jsonify({'ok': False, 'error': 'Falta el número de factura'}), 400
+    rows = sb.select('requisiciones', select='data', id='eq.' + rid)
+    if not rows:
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    o = json.loads(rows[0]['data'])
+    asignado = (o.get('email_aprobador') or '').strip().lower()
+    if asignado and firmante_email != asignado:
+        return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la factura'}), 403
+    if not o.get('po_numero'):
+        return jsonify({'ok': False, 'error': 'Primero hay que registrar el No. de PO'}), 400
+    o['factura_numero'] = factura_numero
+    sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
+    link = BASE_URL_PUBLICO + '/?req=' + rid
+    if o.get('solicitante_email'):
+        enviar_correo(
+            o['solicitante_email'], 'Requisición ' + folio_txt + ' — Cerrada (factura registrada)',
+            '<p>Hola,</p><p>Tu requisición <b>' + folio_txt + '</b> ya quedó completamente cerrada.</p>'
+            '<p><b>No. de PO:</b> ' + (o.get('po_numero') or '-') + '<br><b>Factura:</b> ' + factura_numero + '</p>'
+            '<p>Entra al sistema: <a href="' + link + '">' + link + '</a></p>'
+        )
+    return jsonify({'ok': True})
+
 @app.route('/api/requisicion/<rid>', methods=['DELETE'])
 def borrar_requisicion(rid):
     sb.delete('requisiciones', return_rows=False, id='eq.' + rid)
@@ -1481,6 +1541,7 @@ def firmar_requisicion(rid):
         avisar(o.get('solicitante_email'), 'Fue aprobada por Compras. Falta: Dirección')
     elif key == 'presidenta':
         avisar(o.get('solicitante_email'), 'Ya quedó completamente aprobada')
+        avisar(o.get('email_aprobador'), 'Ya quedó completamente aprobada por Dirección')
     return jsonify({'ok': True})
 
 @app.route('/api/requisicion/<rid>/pdf')
