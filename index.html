@@ -2634,7 +2634,16 @@ authInit();
   <div style="margin:12px 12px 0;text-align:right">
     <button onclick="showPage('req-nueva')" style="background:#1a5c2a;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
   </div>
-  <div id="req-reporte-panel" style="background:#fff;margin:12px 12px 0;border-radius:10px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:none;gap:8px;flex-wrap:wrap;align-items:center">
+  <div id="req-list" style="padding:12px"></div>
+</div>
+
+<!-- ══ REQUISICIONES: DASHBOARD ══ -->
+<div id="page-req-dashboard" class="page" style="background:#f5f5f5;padding-bottom:30px">
+  <div class="hdr">
+    <button class="back" onclick="showPage('req')">&#8249;</button>
+    <div style="flex:1"><h1>&#128202; Dashboard de Compras</h1></div>
+  </div>
+  <div id="req-reporte-panel" style="background:#fff;margin:12px;border-radius:10px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:none;gap:8px;flex-wrap:wrap;align-items:center">
     <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Reporte:</label>
     <input id="req-reporte-mes" type="month" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px">
     <select id="req-reporte-estado" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px">
@@ -2644,15 +2653,6 @@ authInit();
     </select>
     <label style="font-size:12px;color:#555;display:flex;align-items:center;gap:4px"><input id="req-reporte-solo-mias" type="checkbox"> Solo las mías (Compras)</label>
     <button onclick="descargarReporteReq()" style="background:#1a5c2a;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Exportar Excel</button>
-  </div>
-  <div id="req-list" style="padding:12px"></div>
-</div>
-
-<!-- ══ REQUISICIONES: DASHBOARD ══ -->
-<div id="page-req-dashboard" class="page" style="background:#f5f5f5;padding-bottom:30px">
-  <div class="hdr">
-    <button class="back" onclick="showPage('req')">&#8249;</button>
-    <div style="flex:1"><h1>&#128202; Dashboard de Compras</h1></div>
   </div>
   <div id="req-dashboard-body" style="padding:12px"></div>
 </div>
@@ -3694,9 +3694,7 @@ function rspEliminar(id){
 async function loadReqList(){
   var el=document.getElementById('req-list');
   if(!el) return;
-  var repPanel=document.getElementById('req-reporte-panel');
   var puedeVerReporte=userIsAdmin() || (currentUser && currentUser.cargo==='Compras');
-  if(repPanel) repPanel.style.display=puedeVerReporte?'flex':'none';
   el.innerHTML='<div style="text-align:center;color:#888;padding:20px">Cargando...</div>';
   try{
     var res=await fetch('/api/requisiciones');
@@ -3750,10 +3748,13 @@ async function loadReqDashboard(){
   var body=document.getElementById('req-dashboard-body');
   if(!body) return;
   var puedeVerDashboard=userIsAdmin() || (currentUser && currentUser.cargo==='Compras');
+  var repPanel=document.getElementById('req-reporte-panel');
   if(!puedeVerDashboard){
+    if(repPanel) repPanel.style.display='none';
     body.innerHTML='<div style="text-align:center;color:#888;padding:30px;font-size:14px">&#128274; Esta pantalla solo la puede ver Compras.</div>';
     return;
   }
+  if(repPanel) repPanel.style.display='flex';
   body.innerHTML='<div style="text-align:center;color:#888;padding:20px">Cargando...</div>';
   try{
     var res=await fetch('/api/requisiciones');
@@ -3802,6 +3803,22 @@ async function loadReqDashboard(){
     var h='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:16px">'
       +tarjeta(tAbiertas,'Abiertas','#e65100')+tarjeta(tCerradas,'Cerradas','#1a5c2a')+tarjeta(tRechazadas,'Rechazadas','#c62828')
       +tarjeta(tPOs,'PO registrados','#6a1b9a')+tarjeta(tFacturas,'Facturas','#1565c0')+'</div>';
+
+    var barra=function(valor,label,color,max){
+      var pct=max>0?Math.round((valor/max)*100):0;
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+        +'<div style="width:90px;font-size:11px;color:#555;font-weight:700;text-align:right">'+label+'</div>'
+        +'<div style="flex:1;background:#f0f0f0;border-radius:6px;height:18px;overflow:hidden">'
+        +'<div style="width:'+pct+'%;background:'+color+';height:100%;border-radius:6px"></div></div>'
+        +'<div style="width:30px;font-size:12px;font-weight:700;color:'+color+'">'+valor+'</div></div>';
+    };
+    var maxBarra=Math.max(tAbiertas,tCerradas,tRechazadas,1);
+    h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:14px;margin-bottom:16px">'
+      +'<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:10px">Requisiciones por estado</div>'
+      +barra(tAbiertas,'Abiertas','#e65100',maxBarra)
+      +barra(tCerradas,'Cerradas','#1a5c2a',maxBarra)
+      +barra(tRechazadas,'Rechazadas','#c62828',maxBarra)
+      +'</div>';
 
     h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:16px">'
       +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Requisiciones abiertas ('+abiertasDetalle.length+')</div>';
