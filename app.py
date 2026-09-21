@@ -1389,7 +1389,7 @@ def save_requisicion():
         return ok, err
 
     firmas_iniciales = d.get('firmas') or {}
-    etapa_labels_ini = {'reviso': 'tu supervisor', 'aprobo': 'Compras', 'presidenta': 'Presidencia'}
+    etapa_labels_ini = {'reviso': 'tu supervisor', 'aprobo': 'Compras', 'presidenta': 'Dirección'}
     rechazo_key = next((k for k in ('reviso', 'aprobo', 'presidenta')
                          if isinstance(firmas_iniciales.get(k), dict) and firmas_iniciales[k].get('estado') == 'rechazado'), None)
     if rechazo_key:
@@ -1454,7 +1454,7 @@ def firmar_requisicion(rid):
     folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
     base_url = BASE_URL_PUBLICO
     link = base_url + '/?req=' + rid
-    etapa_labels = {'reviso': 'tu supervisor', 'aprobo': 'Compras', 'presidenta': 'Presidencia'}
+    etapa_labels = {'reviso': 'tu supervisor', 'aprobo': 'Compras', 'presidenta': 'Dirección'}
     def avisar(destinatario, etapa_texto):
         destinatario = (destinatario or '').strip()
         if not destinatario:
@@ -1475,8 +1475,10 @@ def firmar_requisicion(rid):
         return jsonify({'ok': True})
     if key == 'reviso':
         avisar(o.get('email_aprobador'), 'Ya fue revisada y necesita que la apruebes (Compras)')
+        avisar(o.get('solicitante_email'), 'Fue aprobada por tu supervisor. Falta: Compras y Dirección')
     elif key == 'aprobo':
         avisar(o.get('email_presidenta'), 'Ya fue aprobada por Compras y necesita tu visto bueno final')
+        avisar(o.get('solicitante_email'), 'Fue aprobada por Compras. Falta: Dirección')
     elif key == 'presidenta':
         avisar(o.get('solicitante_email'), 'Ya quedó completamente aprobada')
     return jsonify({'ok': True})

@@ -385,7 +385,7 @@ window._jsQRLoaded=false;
       <div style="padding:14px">
         <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Correo de Compras (Aprobó)</label>
         <input id="cfg-email-aprobador" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
-        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Correo de Presidenta</label>
+        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Correo de Dirección</label>
         <input id="cfg-email-presidenta" type="email" placeholder="correo@ad-pack.com.mx" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
         <button onclick="guardarValidadorDefault()" style="width:100%;background:#1a5c2a;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#10003; Guardar</button>
         <div id="cfg-validador-msg" style="margin-top:8px;font-size:12px;color:#2e7d32;text-align:center"></div>
@@ -3416,7 +3416,7 @@ async function initReqForm(){
       var _dl=document.getElementById('req-desc-list');
       if(_dl && Array.isArray(_descs)) _dl.innerHTML=_descs.map(function(t){return '<option value="'+t.replace(/"/g,'&quot;')+'">';}).join('');
     }catch(ed){}
-    [{k:'realizo',l:'Realizó'},{k:'reviso',l:'Revisó'+(_nomRev?(' — '+_nomRev):'')},{k:'aprobo',l:'Aprobó (Compras'+(_nomApr?(' — '+_nomApr):'')+')'},{k:'presidenta',l:'Presidenta'+(_nomPres?(' — '+_nomPres):'')}].forEach(function(s){
+    [{k:'realizo',l:'Realizó'},{k:'reviso',l:'Revisó'+(_nomRev?(' — '+_nomRev):'')},{k:'aprobo',l:'Aprobó (Compras'+(_nomApr?(' — '+_nomApr):'')+')'},{k:'presidenta',l:'Dirección'+(_nomPres?(' — '+_nomPres):'')}].forEach(function(s){
       var permiteRechazo=(s.k!=='realizo');
       var inner;
       if(s.k==='realizo' && currentUser){
@@ -3839,7 +3839,7 @@ async function verReq(id){
       realizo:'Realizó',
       reviso:'Revisó'+(nomRevisor?(' — '+nomRevisor):''),
       aprobo:'Aprobó (Compras'+(nomAprobador?(' — '+nomAprobador):'')+')',
-      presidenta:'Presidenta'+(nomPresidenta?(' — '+nomPresidenta):'')
+      presidenta:'Dirección'+(nomPresidenta?(' — '+nomPresidenta):'')
     };
     var hasSigs=firmas.realizo||firmas.reviso||firmas.aprobo||firmas.presidenta;
     h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
