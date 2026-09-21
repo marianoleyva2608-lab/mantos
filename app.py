@@ -45,7 +45,7 @@ def _tabla_items_html(o):
         '</tr>'
         for it in items
     )
-    tabla = (
+    return (
         '<table style="border-collapse:collapse;width:100%;font-size:13px;margin-top:8px">'
         '<tr style="background:#e8f5e9">'
         '<th style="border:1px solid #ddd;padding:5px;text-align:left">Cant.</th>'
@@ -54,9 +54,9 @@ def _tabla_items_html(o):
         '<th style="border:1px solid #ddd;padding:5px;text-align:left">Aplicación</th>'
         '</tr>' + filas + '</table>'
     )
-    if o.get('justificacion'):
-        tabla += '<p><b>Justificación:</b> ' + o['justificacion'] + '</p>'
-    return tabla
+
+def _justificacion_html(o):
+    return ('<p><b>Justificación:</b> ' + o['justificacion'] + '</p>') if o.get('justificacion') else ''
 
 def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, responder_a=None):
     if not destinatario:
@@ -1353,6 +1353,7 @@ def save_requisicion():
         cuerpo = (
             '<p>Hola,</p>'
             '<p>La requisición <b>' + folio_txt + '</b> necesita que ' + etapa_texto + '.</p>'
+            + _justificacion_html(o) +
             '<p><b>Solicitante:</b> ' + (o.get('solicitante') or '-') + '<br>'
             '<b>Planta:</b> ' + (o.get('planta') or '-') + '<br>'
             '<b>Departamento:</b> ' + (o.get('departamento') or '-') + '<br>'
@@ -1391,6 +1392,7 @@ def save_requisicion():
         cuerpo_confirmacion = (
             '<p>Hola ' + (d.get('solicitante') or '') + ',</p>'
             '<p>Tu requisición <b>' + folio_txt + '</b> se registró correctamente.</p>'
+            + _justificacion_html(d) +
             '<p><b>Estado actual:</b> ' + estado_actual + '</p>'
             + _tabla_items_html(d) +
             '<p>Puedes darle seguimiento aquí: <a href="' + link + '">' + link + '</a></p>'
@@ -1439,6 +1441,7 @@ def firmar_requisicion(rid):
             return
         cuerpo = (
             '<p>Hola,</p><p>' + etapa_texto + ' <b>' + folio_txt + '</b>.</p>'
+            + _justificacion_html(o)
             + ('<p><b>Comentario:</b> ' + comentario + '</p>' if comentario else '')
             + '<p><b>Solicitante:</b> ' + (o.get('solicitante') or '-') + '<br>'
             '<b>Planta:</b> ' + (o.get('planta') or '-') + '<br>'
