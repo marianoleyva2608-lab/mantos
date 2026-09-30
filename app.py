@@ -1414,6 +1414,13 @@ def save_requisicion():
             nombre_remitente=o.get('solicitante') or None,
             responder_a=o.get('solicitante_email') or None,
         )
+        alterno = aprobadores_alternos().get(destinatario.lower())
+        if alterno and destinatario.lower() != (o.get('solicitante_email') or '').strip().lower():
+            enviar_correo(
+                alterno, 'Requisición ' + folio_txt + ' pendiente (eres alterno de ' + destinatario + ')', cuerpo,
+                nombre_remitente=o.get('solicitante') or None,
+                responder_a=o.get('solicitante_email') or None,
+            )
         return ok, err
 
     firmas_iniciales = d.get('firmas') or {}
@@ -1978,6 +1985,15 @@ def borrar_requisicion(rid):
     sb.delete('requisiciones', return_rows=False, id='eq.' + rid)
     return jsonify({'ok': True})
 
+def aprobadores_alternos():
+    """{correo_principal: correo_alterno} configurado en Ajustes (clave 'aprobadores_alternos', JSON)."""
+    try:
+        rows = sb.select('ajustes', select='valor', clave='eq.aprobadores_alternos')
+        mapa = json.loads(rows[0]['valor']) if rows and rows[0].get('valor') else {}
+    except Exception:
+        return {}
+    return {str(k).strip().lower(): str(v).strip().lower() for k, v in mapa.items() if k and v}
+
 @app.route('/api/requisicion/<rid>/firmar', methods=['POST'])
 def firmar_requisicion(rid):
     d = request.json
@@ -1992,11 +2008,16 @@ def firmar_requisicion(rid):
         return jsonify({'ok': False, 'error': 'No encontrado'}), 404
     o = json.loads(rows[0]['data'])
     campo_asignado = {'reviso': 'email_revisor', 'aprobo': 'email_aprobador', 'presidenta': 'email_presidenta'}.get(key)
+    alternos = aprobadores_alternos()
+    firma.pop('alterno_de', None)
     if campo_asignado:
         asignado = (o.get(campo_asignado) or '').strip().lower()
         firmante = (firma.get('email') or '').strip().lower()
         if asignado and firmante != asignado:
-            return jsonify({'ok': False, 'error': 'Esta etapa solo la puede firmar la persona asignada (' + asignado + ')'}), 403
+            if alternos.get(asignado) and firmante == alternos[asignado]:
+                firma['alterno_de'] = asignado
+            else:
+                return jsonify({'ok': False, 'error': 'Esta etapa solo la puede firmar la persona asignada (' + asignado + ') o su alterno'}), 403
     if 'firmas' not in o or not isinstance(o['firmas'], dict):
         o['firmas'] = {}
     firma['estado'] = estado
@@ -2024,6 +2045,10 @@ def firmar_requisicion(rid):
             '<p>Entra al sistema: <a href="' + link + '">' + link + '</a></p>'
         )
         enviar_correo(destinatario, 'Requisición ' + folio_txt, cuerpo, nombre_remitente=o.get('solicitante') or None)
+        alterno = alternos.get(destinatario.lower())
+        if alterno and destinatario.lower() != (o.get('solicitante_email') or '').strip().lower():
+            enviar_correo(alterno, 'Requisición ' + folio_txt + ' (eres alterno de ' + destinatario + ')', cuerpo,
+                          nombre_remitente=o.get('solicitante') or None)
     if estado == 'rechazado':
         avisar(o.get('solicitante_email'), 'Fue RECHAZADA por ' + etapa_labels.get(key, key))
         return jsonify({'ok': True})

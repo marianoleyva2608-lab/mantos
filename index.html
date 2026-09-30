@@ -390,6 +390,15 @@ window._jsQRLoaded=false;
         <button onclick="guardarValidadorDefault()" style="width:100%;background:#1a5c2a;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#10003; Guardar</button>
         <div id="cfg-validador-msg" style="margin-top:8px;font-size:12px;color:#2e7d32;text-align:center"></div>
         <div style="font-size:11px;color:#999;margin-top:8px">Estos correos se llenan solos en cada Nueva Requisición — ya no hay que escribirlos a mano. El correo de "Revisa" ya no se pone aquí: se toma automáticamente del supervisor asignado a cada usuario (botón "⚙️ Acceso" en la lista de usuarios).</div>
+        <div style="border-top:1px solid #eee;margin-top:14px;padding-top:14px">
+          <div style="font-size:13px;font-weight:700;color:#1a5c2a;margin-bottom:4px">&#128101; Aprobadores alternos</div>
+          <div style="font-size:11px;color:#888;margin-bottom:10px">El alterno puede firmar en lugar del aprobador principal (supervisor, Compras o Direcci&#243;n) y tambi&#233;n recibe los avisos por correo. En la firma queda registrado que firm&#243; como alterno.</div>
+          <datalist id="cfg-users-emails"></datalist>
+          <div id="cfg-alternos-lista"></div>
+          <button type="button" onclick="cfgAlternos.push({principal:'',alterno:''});cfgRenderAlternos()" style="width:100%;background:#e8f5e9;color:#1a5c2a;border:2px dashed #1a5c2a;padding:8px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">+ Agregar alterno</button>
+          <button type="button" onclick="guardarAlternos()" style="width:100%;background:#1a5c2a;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">&#10003; Guardar alternos</button>
+          <div id="cfg-alternos-msg" style="margin-top:8px;font-size:12px;color:#2e7d32;text-align:center"></div>
+        </div>
       </div>
     </div>
 
@@ -1587,7 +1596,43 @@ function loadSettingsPage(){
     if(elA) elA.value = aj.email_aprobador || '';
     var elP = document.getElementById('cfg-email-presidenta');
     if(elP) elP.value = aj.email_presidenta || '';
+    var mapa={}; try{ mapa=JSON.parse(aj.aprobadores_alternos||'{}')||{}; }catch(e){}
+    cfgAlternos=Object.keys(mapa).map(function(k){return {principal:k,alterno:mapa[k]};});
+    cfgRenderAlternos();
   }).catch(function(){});
+  fetch('/api/users').then(function(r){return r.json();}).then(function(us){
+    var dl=document.getElementById('cfg-users-emails');
+    if(dl) dl.innerHTML=(us||[]).map(function(u){return '<option value="'+escHtml(u.email||'')+'">'+escHtml(u.nombre||'')+'</option>';}).join('');
+  }).catch(function(){});
+}
+
+var cfgAlternos=[];
+function cfgRenderAlternos(){
+  var el=document.getElementById('cfg-alternos-lista');
+  if(!el) return;
+  var inp='flex:1;min-width:0;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box';
+  el.innerHTML=cfgAlternos.length?cfgAlternos.map(function(a,i){
+    return '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'
+      +'<input type="email" list="cfg-users-emails" placeholder="Aprobador principal" value="'+escHtml(a.principal)+'" oninput="cfgAlternos['+i+'].principal=this.value" style="'+inp+'">'
+      +'<span style="color:#888">&#8594;</span>'
+      +'<input type="email" list="cfg-users-emails" placeholder="Alterno" value="'+escHtml(a.alterno)+'" oninput="cfgAlternos['+i+'].alterno=this.value" style="'+inp+'">'
+      +'<button type="button" onclick="cfgAlternos.splice('+i+',1);cfgRenderAlternos()" title="Quitar" style="background:none;border:none;color:#c62828;font-size:18px;cursor:pointer">&#10005;</button>'
+      +'</div>';
+  }).join(''):'<div style="font-size:12px;color:#aaa;margin-bottom:8px">Sin alternos configurados</div>';
+}
+function guardarAlternos(){
+  var msg=document.getElementById('cfg-alternos-msg');
+  var mapa={};
+  for(var i=0;i<cfgAlternos.length;i++){
+    var p=(cfgAlternos[i].principal||'').trim().toLowerCase(), a=(cfgAlternos[i].alterno||'').trim().toLowerCase();
+    if(!p && !a) continue;
+    if(!p || !a){ if(msg){msg.style.color='#c62828';msg.textContent='Completa el correo principal y el del alterno en cada renglón';} return; }
+    if(p===a){ if(msg){msg.style.color='#c62828';msg.textContent='El alterno no puede ser la misma persona'; } return; }
+    mapa[p]=a;
+  }
+  fetch('/api/ajustes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({aprobadores_alternos:JSON.stringify(mapa)})})
+    .then(function(r){ if(!r.ok) throw new Error(); _ajustesCache=null; if(msg){msg.style.color='#2e7d32';msg.textContent='Guardado'; setTimeout(function(){msg.textContent='';},1500);} })
+    .catch(function(){ if(msg){msg.style.color='#c62828';msg.textContent='Error al guardar';} });
 }
 function guardarValidadorDefault(){
   var elA = document.getElementById('cfg-email-aprobador');
@@ -4255,6 +4300,8 @@ async function verReq(id){
     var list=await res.json();
     var o=list.find(function(r){return r.id===id;});
     if(!o){ if(typeof showToast==='function') showToast('No encontrado'); return; }
+    var _altAj={}; try{ _ajustesCache=null; _altAj=JSON.parse((await _getAjustes()).aprobadores_alternos||'{}')||{}; }catch(e){ _altAj={}; }
+    var esAlternoDe=function(email){ if(!email||!currentUser||!currentUser.email) return false; var a=_altAj[email.toLowerCase()]||_altAj[email]; return !!a && a.toLowerCase()===currentUser.email.toLowerCase(); };
     var nombrePorEmail={};
     try{
       var resU=await fetch('/api/users');
@@ -4384,7 +4431,7 @@ async function verReq(id){
           +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
           +'<div style="width:26px;height:26px;background:'+col+';border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;flex-shrink:0">'+(rechazado?'&#10005;':'&#10003;')+'</div>'
           +'<div><div style="font-size:9px;color:'+col+';font-weight:700;text-transform:uppercase;letter-spacing:.5px">'+label+' — '+(rechazado?'Rechazado':'Firma Electrónica Válida')+'</div>'
-          +'<div style="font-size:13px;font-weight:700;color:'+(rechazado?'#b71c1c':'#1b5e20')+'">'+sig.nombre+'</div></div></div>'
+          +'<div style="font-size:13px;font-weight:700;color:'+(rechazado?'#b71c1c':'#1b5e20')+'">'+sig.nombre+'</div>'+(sig.alterno_de?('<div style="font-size:11px;color:#6a1b9a;font-weight:700">Firmó como alterno de '+escHtml(nombrePorEmail[sig.alterno_de]||sig.alterno_de)+'</div>'):'')+'</div></div>'
           +'<div style="font-size:10px;color:#555;display:grid;grid-template-columns:65px 1fr;gap:2px 8px;border-top:1px solid #eee;padding-top:6px">'
           +'<span style="font-weight:700;color:'+col+'">Titular:</span><span>'+sig.email+'</span>'
           +'<span style="font-weight:700;color:'+col+'">Fecha:</span><span>'+sig.fecha+'</span>'
@@ -4396,7 +4443,7 @@ async function verReq(id){
           +'</div></div>';
       } else {
         var emailAsignado=(key==='realizo'?o.solicitante_email:(key==='reviso'?o.email_revisor:(key==='aprobo'?o.email_aprobador:o.email_presidenta)))||'';
-        var yaEsElMismo=currentUser && currentUser.email && emailAsignado && currentUser.email.toLowerCase()===emailAsignado.toLowerCase();
+        var yaEsElMismo=(currentUser && currentUser.email && emailAsignado && currentUser.email.toLowerCase()===emailAsignado.toLowerCase()) || (key!=='realizo' && esAlternoDe(emailAsignado));
         h+='<div id="ver-sig-block-'+key+'" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-bottom:8px">'
           +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">'+label+'</div>'
           +'<div id="ver-sig-done-'+key+'"></div>'
