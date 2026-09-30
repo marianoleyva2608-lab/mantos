@@ -1,4 +1,4 @@
-import os, io, base64, json, hashlib, datetime, smtplib
+import os, io, re, base64, json, hashlib, datetime, smtplib
 from email.mime.text import MIMEText
 import requests
 from flask import Flask, request, send_file, jsonify, send_from_directory
@@ -1427,13 +1427,47 @@ def save_requisicion():
 
     return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado, 'aviso_error': aviso_error})
 
+def es_admin_email(email):
+    if not email:
+        return False
+    u = sb.select('users', select='rol', email='eq.' + email)
+    return bool(u) and (u[0].get('rol') or '') == 'admin'
+
+# Consecutivo de las PO que genera el sistema. La ultima PO hecha a mano en el
+# sistema anterior fue la PO357, por eso se arranca en 358.
+PO_FOLIO_INICIAL = 358
+
+def siguiente_folio_po():
+    mayor = PO_FOLIO_INICIAL - 1
+    for r in sb.select('requisiciones', select='data'):
+        try:
+            o = json.loads(r['data'])
+        except Exception:
+            continue
+        for p in (o.get('pos') or []):
+            m = re.match(r'^\s*PO\s*-?\s*(\d+)\s*$', str(p.get('numero') or ''), re.I)
+            if m:
+                mayor = max(mayor, int(m.group(1)))
+    return 'PO' + str(mayor + 1)
+
+@app.route('/api/po/siguiente-folio', methods=['GET'])
+def api_po_siguiente_folio():
+    return jsonify({'folio': siguiente_folio_po()})
+
+def _num(v):
+    try:
+        return float(str(v).replace(',', '').replace('$', '').strip() or 0)
+    except ValueError:
+        return 0.0
+
 @app.route('/api/requisicion/<rid>/po', methods=['POST'])
 def registrar_po_requisicion(rid):
     d = request.json or {}
     po_numero = (d.get('po_numero') or '').strip()
     po_link = normalizar_link(d.get('po_link'))
     firmante_email = (d.get('firmante_email') or '').strip().lower()
-    if not po_numero:
+    partidas_in = d.get('partidas') if isinstance(d.get('partidas'), list) else None
+    if not po_numero and partidas_in is None:
         return jsonify({'ok': False, 'error': 'Falta el No. de PO'}), 400
     rows = sb.select('requisiciones', select='data', id='eq.' + rid)
     if not rows:
@@ -1446,10 +1480,273 @@ def registrar_po_requisicion(rid):
         return jsonify({'ok': False, 'error': 'La requisición todavía no tiene el visto bueno de Dirección'}), 400
     if not isinstance(o.get('pos'), list):
         o['pos'] = []
-    o['pos'].append({'numero': po_numero, 'link': po_link,
-                      'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')})
+    po = {'numero': po_numero, 'link': po_link,
+          'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}
+    if partidas_in is not None:
+        # PO generada en el sistema (formato "Orden de Compra" para imprimir y mandar al proveedor)
+        partidas = []
+        for p in partidas_in:
+            cant = _num(p.get('cantidad'))
+            precio = _num(p.get('precio'))
+            desc = (p.get('descripcion') or '').strip()
+            if not desc and not cant:
+                continue
+            partidas.append({'cantidad': cant, 'unidad': (p.get('unidad') or '').strip(),
+                             'codigo': (p.get('codigo') or '').strip(), 'descripcion': desc,
+                             'precio': precio})
+        if not partidas:
+            return jsonify({'ok': False, 'error': 'La PO no tiene partidas'}), 400
+        proveedor = (d.get('proveedor_nombre') or '').strip()
+        if not proveedor:
+            return jsonify({'ok': False, 'error': 'Falta el nombre del proveedor'}), 400
+        if not po_numero:
+            po_numero = siguiente_folio_po()
+        if any((p.get('numero') or '').strip().upper() == po_numero.upper() for p in o['pos']):
+            return jsonify({'ok': False, 'error': 'Ya existe la ' + po_numero + ' en esta requisición'}), 400
+        po.update({
+            'numero': po_numero, 'generada': True,
+            'proveedor_nombre': proveedor,
+            'proveedor_rfc': (d.get('proveedor_rfc') or '').strip().upper(),
+            'metodo_pago': (d.get('metodo_pago') or 'PUE-PAGO EN UNA SOLA EXHIBICIÓN').strip(),
+            'forma_pago': (d.get('forma_pago') or '03-TRANSFERENCIA ELECTRÓNICA DE FONDOS').strip(),
+            'moneda': (d.get('moneda') or 'MXN-PESO MEXICANO').strip(),
+            'tipo_cambio': _num(d.get('tipo_cambio')),
+            'fecha_elaboracion': datetime.datetime.now().strftime('%d/%m/%Y'),
+            'fecha_vencimiento': (d.get('fecha_vencimiento') or '').strip(),
+            'iva_pct': _num(d.get('iva_pct') if d.get('iva_pct') not in (None, '') else 16),
+            'observaciones': (d.get('observaciones') or '').strip(),
+            'referencia': (d.get('referencia') or '').strip(),
+            'partidas': partidas,
+            'elaboro_email': firmante_email,
+        })
+    o['pos'].append(po)
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
-    return jsonify({'ok': True})
+    return jsonify({'ok': True, 'numero': po['numero'], 'indice': len(o['pos']) - 1})
+
+# Datos fijos del emisor de las ordenes de compra (encabezado del formato)
+PO_EMISOR = {
+    'nombre': 'ROSA MARIA HERRERA SOLTERO',
+    'rfc': 'HESR651207SS2',
+    'direccion': 'PROLONGACION TEPEZALA #313, EL PLATEADO, C.P. 20137, AGUASCALIENTES, AGUASCALIENTES, AGUASCALIENTES, MÉXICO.',
+    'regimen': 'RÉGIMEN FISCAL: 612-PERSONAS FÍSICAS CON ACTIVIDADES EMPRESARIALES Y PROFESIONALES',
+}
+
+def numero_a_letras(n):
+    unidades = ['', 'UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE', 'DIEZ',
+                'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE', 'DIECISEIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE',
+                'VEINTE', 'VEINTIUN', 'VEINTIDOS', 'VEINTITRES', 'VEINTICUATRO', 'VEINTICINCO', 'VEINTISEIS',
+                'VEINTISIETE', 'VEINTIOCHO', 'VEINTINUEVE']
+    decenas = ['', '', '', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA']
+    centenas = ['', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS', 'SEISCIENTOS',
+                'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS']
+
+    def menor_mil(x):
+        if x == 0:
+            return ''
+        if x == 100:
+            return 'CIEN'
+        c, r = divmod(x, 100)
+        partes = [centenas[c]] if c else []
+        if r < 30:
+            if r:
+                partes.append(unidades[r])
+        else:
+            dd, u = divmod(r, 10)
+            partes.append(decenas[dd] + (' Y ' + unidades[u] if u else ''))
+        return ' '.join(partes)
+
+    enteros = int(n)
+    centavos = int(round((n - enteros) * 100))
+    if centavos == 100:
+        enteros, centavos = enteros + 1, 0
+    if enteros == 0:
+        texto = 'CERO'
+    else:
+        millones, resto = divmod(enteros, 1000000)
+        miles, cientos = divmod(resto, 1000)
+        partes = []
+        if millones:
+            partes.append('UN MILLON' if millones == 1 else menor_mil(millones) + ' MILLONES')
+        if miles:
+            partes.append('MIL' if miles == 1 else menor_mil(miles) + ' MIL')
+        if cientos:
+            partes.append(menor_mil(cientos))
+        texto = ' '.join(partes)
+    de = ' DE' if enteros and enteros % 1000000 == 0 else ''
+    return texto + de + ' PESOS ' + str(centavos).zfill(2) + '/100 M.N.'
+
+@app.route('/api/requisicion/<rid>/po/<int:idx>/pdf')
+def requisicion_po_pdf(rid, idx):
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.lib.units import cm
+    from reportlab.pdfgen import canvas as pdfcanvas
+    from reportlab.lib.utils import simpleSplit
+
+    rows = sb.select('requisiciones', select='data', id='eq.' + rid)
+    if not rows:
+        return jsonify({'error': 'No encontrado'}), 404
+    o = json.loads(rows[0]['data'])
+    pos = o.get('pos') or []
+    if idx < 0 or idx >= len(pos) or not pos[idx].get('generada'):
+        return jsonify({'error': 'Esta PO no fue generada en el sistema'}), 404
+    po = pos[idx]
+
+    buf = io.BytesIO()
+    W, H = letter
+    c = pdfcanvas.Canvas(buf, pagesize=letter)
+    c.setTitle('Orden de Compra ' + po['numero'])
+    AZUL = colors.HexColor('#1f3864')
+    NEGRO = colors.black
+    m = 0.75*cm
+    x0, x1 = m, W - m
+    y_top = H - m
+
+    def t(s, x, y, size=7, bold=False, color=NEGRO, align='left'):
+        c.setFont('Helvetica-Bold' if bold else 'Helvetica', size)
+        c.setFillColor(color)
+        s = str(s if s is not None else '')
+        if align == 'right':
+            c.drawRightString(x, y, s)
+        elif align == 'center':
+            c.drawCentredString(x, y, s)
+        else:
+            c.drawString(x, y, s)
+
+    def dinero(v):
+        return '${:,.2f}'.format(v)
+
+    # Marco general
+    c.setStrokeColor(NEGRO); c.setLineWidth(0.8)
+    c.rect(x0, m, x1 - x0, y_top - m)
+
+    # Emisor
+    lx = x0 + 0.4*cm
+    y = y_top - 0.75*cm
+    t(PO_EMISOR['nombre'], lx, y, 11, True, AZUL)
+    y -= 0.42*cm
+    t('R.F.C.: ' + PO_EMISOR['rfc'], lx, y, 8, True)
+    for linea in simpleSplit(PO_EMISOR['direccion'], 'Helvetica', 7, 10.5*cm):
+        y -= 0.33*cm
+        t(linea, lx, y, 7)
+    y -= 1.0*cm
+    t(PO_EMISOR['regimen'], lx, y, 7)
+    y -= 0.33*cm
+    t('NÚMERO DE SERIE DEL CERTIFICADO DE SELLO DIGITAL DEL EMISOR:', lx, y, 7)
+    y -= 0.33*cm
+    t('NÚMERO DE SERIE DEL CERTIFICADO DE SELLO DIGITAL DEL SAT:', lx, y, 7)
+
+    # Proveedor
+    y -= 1.2*cm
+    y_prov = y
+    for i, linea in enumerate(simpleSplit(po.get('proveedor_nombre', ''), 'Helvetica-Bold', 8.5, 10.5*cm)):
+        t(linea, lx, y - i*0.36*cm, 8.5, True, AZUL)
+        y_prov = y - i*0.36*cm
+    y = y_prov - 0.38*cm
+    t('R.F.C.: ' + (po.get('proveedor_rfc') or ''), lx, y, 8, True)
+    y -= 1.35*cm
+    t('MÉTODO DE PAGO: ' + po.get('metodo_pago', ''), lx, y, 7)
+    y -= 0.33*cm
+    t('FORMA DE PAGO: ' + po.get('forma_pago', ''), lx, y, 7)
+    y_fin_encabezado = y - 0.55*cm
+
+    # Titulo, logo y folio
+    rx0, rx1 = x1 - 8.4*cm, x1 - 0.3*cm
+    rcx = (rx0 + rx1) / 2
+    t('ORDEN DE COMPRA', rcx, y_top - 0.8*cm, 12, True, AZUL, 'center')
+    logo = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'adpack-icon-web.png')
+    if os.path.exists(logo):
+        c.drawImage(logo, rcx - 1.25*cm, y_top - 3.25*cm, width=2.5*cm, height=2.2*cm,
+                    preserveAspectRatio=True, mask='auto')
+    by = y_top - 5.0*cm
+    c.setLineWidth(0.8)
+    c.rect(rx0, by, rx1 - rx0, 1.7*cm)
+    c.line(rx0, by + 1.0*cm, rx1, by + 1.0*cm)
+    t('Comprobante Tradicional', rcx, by + 1.25*cm, 8, True, AZUL, 'center')
+    t('Folio Interno: ' + po['numero'], rcx, by + 0.38*cm, 10.5, True, AZUL, 'center')
+
+    ry = by - 0.85*cm
+    datos = [('MONEDA:', po.get('moneda', '')),
+             ('TIPO DE CAMBIO:', '{:.5f}'.format(po.get('tipo_cambio') or 0)),
+             ('FECHA ELABORACIÓN:', po.get('fecha_elaboracion', '')),
+             ('FECHA VENCIMIENTO:', po.get('fecha_vencimiento') or po.get('fecha_elaboracion', ''))]
+    for et, val in datos:
+        t(et, rx0 + 0.05*cm, ry, 7, True)
+        t(val, rx1, ry, 7, et == 'MONEDA:', NEGRO, 'right')
+        ry -= 0.33*cm
+
+    # Tabla de partidas
+    ty = min(y_fin_encabezado, ry - 0.2*cm)
+    c.setLineWidth(1)
+    c.line(x0, ty, x1, ty)
+    cols = {'cant': x0 + 1.3*cm, 'um': x0 + 2.4*cm, 'cod': x0 + 4.0*cm, 'desc': x0 + 5.6*cm,
+            'pu': x0 + 16.8*cm, 'imp_t': x0 + 18.0*cm, 'imp_v': x0 + 19.9*cm, 'importe': x1 - 1.05*cm}
+    hy = ty - 0.4*cm
+    t('CANTIDAD', cols['cant'], hy, 7, True, NEGRO, 'center')
+    t('UNIDAD', cols['um'] + 0.2*cm, hy, 7, True, NEGRO, 'center')
+    t('DE MEDIDA', cols['um'] + 0.2*cm, hy - 0.3*cm, 7, True, NEGRO, 'center')
+    t('NÚMERO', cols['cod'] + 0.3*cm, hy, 7, True, NEGRO, 'center')
+    t('IDENTIFICACIÓN', cols['cod'] + 0.3*cm, hy - 0.3*cm, 7, True, NEGRO, 'center')
+    t('DESCRIPCIÓN / CONCEPTO', cols['desc'], hy, 7, True)
+    t('VALOR', cols['pu'], hy, 7, True, NEGRO, 'center')
+    t('UNITARIO', cols['pu'], hy - 0.3*cm, 7, True, NEGRO, 'center')
+    t('IMPUESTO', cols['imp_t'] + 0.9*cm, hy, 7, True, NEGRO, 'center')
+    t('IMPORTE', cols['importe'], hy, 7, True, NEGRO, 'right')
+    c.setLineWidth(0.8)
+    c.line(x0, ty - 0.95*cm, x1, ty - 0.95*cm)
+
+    iva_pct = po.get('iva_pct', 16) or 0
+    subtotal = iva_total = 0.0
+    py = ty - 1.55*cm
+    desc_w = cols['pu'] - cols['desc'] - 1.2*cm
+    for p in po.get('partidas', []):
+        importe = round(p['cantidad'] * p['precio'], 2)
+        iva = round(importe * iva_pct / 100, 2)
+        subtotal += importe
+        iva_total += iva
+        lineas = simpleSplit(p.get('descripcion', ''), 'Helvetica', 7, desc_w) or ['']
+        t('{:,.2f}'.format(p['cantidad']), cols['cant'], py, 7, False, NEGRO, 'center')
+        t(p.get('unidad', ''), cols['um'] + 0.2*cm, py, 7, False, NEGRO, 'center')
+        t(p.get('codigo', ''), cols['cod'] + 0.3*cm, py, 7, False, NEGRO, 'center')
+        for i, linea in enumerate(lineas):
+            t(linea, cols['desc'], py - i*0.3*cm, 7)
+        t(dinero(p['precio']), cols['pu'] + 0.3*cm, py, 7, False, NEGRO, 'right')
+        t('002-IVA' if iva_pct else '', cols['imp_t'], py, 7)
+        t(dinero(iva), cols['imp_v'] + 0.2*cm, py, 7, False, NEGRO, 'right')
+        t(dinero(importe), cols['importe'], py, 7, False, NEGRO, 'right')
+        py -= max(1, len(lineas)) * 0.3*cm + 0.25*cm
+    total = round(subtotal + iva_total, 2)
+
+    # Totales
+    ty2 = 8.3*cm
+    etx, vx = x1 - 5.5*cm, cols['importe']
+    t('SUBTOTAL:', etx, ty2, 7.5, True, NEGRO, 'right'); t('{:,.2f}'.format(subtotal), vx, ty2, 7.5, False, NEGRO, 'right')
+    t('IVA:', etx, ty2 - 0.33*cm, 7.5, True, NEGRO, 'right'); t(dinero(iva_total), vx, ty2 - 0.33*cm, 7.5, False, NEGRO, 'right')
+    t('TOTAL IMPUESTOS RETENIDOS:', etx, ty2 - 0.66*cm, 7.5, True, NEGRO, 'right'); t('0.00', vx, ty2 - 0.66*cm, 7.5, False, NEGRO, 'right')
+    c.setLineWidth(0.6); c.line(etx + 0.1*cm, ty2 - 0.75*cm, vx, ty2 - 0.75*cm)
+    t('TOTAL:', etx, ty2 - 1.0*cm, 8, True, NEGRO, 'right'); t(dinero(total), vx, ty2 - 1.0*cm, 8, True, NEGRO, 'right')
+    t('CANTIDAD CON LETRA', lx, ty2 - 1.2*cm, 7.5, True)
+    t('***( ' + numero_a_letras(total) + ')***', lx + 3.2*cm, ty2 - 1.2*cm, 7.5, True)
+
+    # Observaciones y referencia
+    oy = 3.2*cm
+    bw = (x1 - x0 - 1.4*cm) / 2
+    for i, (titulo, texto) in enumerate([('OBSERVACIONES DEL DOCUMENTO', po.get('observaciones', '')),
+                                         ('REFERENCIA DEL DOCUMENTO', po.get('referencia', ''))]):
+        bx = lx + i*(bw + 0.6*cm)
+        t(titulo, bx, oy + 1.4*cm, 6.5, True)
+        c.setLineWidth(0.8); c.rect(bx, oy, bw, 1.2*cm)
+        for j, linea in enumerate(simpleSplit(texto or '', 'Helvetica', 7, bw - 0.3*cm)[:3]):
+            t(linea, bx + 0.15*cm, oy + 0.85*cm - j*0.3*cm, 7)
+
+    t('1/1', lx, m + 0.45*cm, 7, False, AZUL)
+    t('Este documento No es un Comprobante Fiscal Digital', W/2, m + 0.45*cm, 7.5, True, NEGRO, 'center')
+
+    c.save(); buf.seek(0)
+    prov = re.sub(r'[^A-Za-z0-9]', '', po.get('proveedor_rfc') or '')
+    return send_file(buf, mimetype='application/pdf',
+                     download_name='PO Proveedor ' + po['numero'] + (' ' + prov if prov else '') + '.pdf',
+                     as_attachment=False)
 
 @app.route('/api/requisicion/<rid>/cotizacion', methods=['POST'])
 def registrar_cotizacion_requisicion(rid):
@@ -1465,10 +1762,8 @@ def registrar_cotizacion_requisicion(rid):
         return jsonify({'ok': False, 'error': 'No encontrado'}), 404
     o = json.loads(rows[0]['data'])
     asignado = (o.get('email_aprobador') or '').strip().lower()
-    if asignado and firmante_email != asignado:
-        u = sb.select('users', select='rol', email='eq.' + firmante_email) if firmante_email else []
-        if not u or (u[0].get('rol') or '') != 'admin':
-            return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la cotización'}), 403
+    if asignado and firmante_email != asignado and not es_admin_email(firmante_email):
+        return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la cotización'}), 403
     if not isinstance(o.get('cotizaciones'), list):
         o['cotizaciones'] = []
     o['cotizaciones'].append({'numero': cot_numero, 'proveedor': cot_proveedor, 'link': cot_link,

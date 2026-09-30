@@ -3999,6 +3999,115 @@ function verReqRegistrarPO(btn){
 
 function escHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 
+var PO_INPUT='padding:7px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box;font-family:inherit';
+
+function reqPoFilaHtml(id,it){
+  it=it||{};
+  return '<tr class="po-fila">'
+    +'<td><input class="po-cant" type="number" min="0" step="any" value="'+escHtml(it.cantidad||'')+'" oninput="reqPoRecalcular(\''+id+'\')" style="'+PO_INPUT+';width:70px"></td>'
+    +'<td><input class="po-um" type="text" value="'+escHtml(it.unidad||'')+'" placeholder="PIEZA" style="'+PO_INPUT+';width:80px"></td>'
+    +'<td><input class="po-cod" type="text" value="" placeholder="Código" style="'+PO_INPUT+';width:85px"></td>'
+    +'<td><input class="po-desc" type="text" value="'+escHtml(it.descripcion||'')+'" style="'+PO_INPUT+';width:100%;min-width:180px"></td>'
+    +'<td><input class="po-precio" type="number" min="0" step="any" placeholder="0.00" oninput="reqPoRecalcular(\''+id+'\')" style="'+PO_INPUT+';width:90px"></td>'
+    +'<td class="po-importe" style="text-align:right;font-size:12px;white-space:nowrap;padding:0 4px">$0.00</td>'
+    +'<td><button type="button" onclick="this.closest(\'tr\').remove();reqPoRecalcular(\''+id+'\')" title="Quitar" style="background:none;border:none;color:#c62828;font-size:16px;cursor:pointer">&#10005;</button></td>'
+    +'</tr>';
+}
+
+function reqPoFormHtml(id,o){
+  var items=(o.items||[]).filter(function(i){return i.cantidad||i.descripcion;});
+  var provSug=(items.find(function(i){return i.proveedor;})||{}).proveedor||'';
+  var hoy=new Date(); var hoyTxt=String(hoy.getDate()).padStart(2,'0')+'/'+String(hoy.getMonth()+1).padStart(2,'0')+'/'+hoy.getFullYear();
+  var lbl=function(t){return '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase;margin:6px 0 3px">'+t+'</div>';};
+  var folio='REQ-'+String(o.folio||0).padStart(4,'0');
+  return '<div id="ver-pogen-form-'+id+'" style="display:none;border:1.5px solid #1a5c2a;border-radius:8px;padding:10px;margin-bottom:8px;background:#fafdfa">'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 10px">'
+    +'<div>'+lbl('Folio de la PO')+'<input id="pogen-numero-'+id+'" type="text" placeholder="Cargando..." style="'+PO_INPUT+';width:100%"></div>'
+    +'<div>'+lbl('Fecha de vencimiento')+'<input id="pogen-venc-'+id+'" type="text" value="'+hoyTxt+'" placeholder="dd/mm/aaaa" style="'+PO_INPUT+';width:100%"></div>'
+    +'<div style="grid-column:1/-1">'+lbl('Proveedor (razón social)')+'<input id="pogen-prov-'+id+'" type="text" value="'+escHtml(provSug)+'" placeholder="Ej. SINGLE CORRUGADOS, S.A. DE C.V." style="'+PO_INPUT+';width:100%"></div>'
+    +'<div>'+lbl('RFC del proveedor')+'<input id="pogen-rfc-'+id+'" type="text" placeholder="Ej. SCO980831UB2" style="'+PO_INPUT+';width:100%;text-transform:uppercase"></div>'
+    +'<div>'+lbl('Moneda')+'<select id="pogen-moneda-'+id+'" style="'+PO_INPUT+';width:100%"><option>MXN-PESO MEXICANO</option><option>USD-DÓLAR AMERICANO</option></select></div>'
+    +'<div>'+lbl('Método de pago')+'<select id="pogen-metodo-'+id+'" style="'+PO_INPUT+';width:100%"><option>PUE-PAGO EN UNA SOLA EXHIBICIÓN</option><option>PPD-PAGO EN PARCIALIDADES O DIFERIDO</option></select></div>'
+    +'<div>'+lbl('Forma de pago')+'<select id="pogen-forma-'+id+'" style="'+PO_INPUT+';width:100%"><option>03-TRANSFERENCIA ELECTRÓNICA DE FONDOS</option><option>01-EFECTIVO</option><option>02-CHEQUE NOMINATIVO</option><option>04-TARJETA DE CRÉDITO</option><option>28-TARJETA DE DÉBITO</option><option>99-POR DEFINIR</option></select></div>'
+    +'<div>'+lbl('IVA %')+'<input id="pogen-iva-'+id+'" type="number" min="0" step="any" value="16" oninput="reqPoRecalcular(\''+id+'\')" style="'+PO_INPUT+';width:100%"></div>'
+    +'</div>'
+    +lbl('Partidas')
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:separate;border-spacing:3px">'
+    +'<thead><tr style="font-size:10px;color:#555;text-align:left"><th>Cantidad</th><th>Unidad</th><th>No. ident.</th><th>Descripción</th><th>Precio unit.</th><th style="text-align:right">Importe</th><th></th></tr></thead>'
+    +'<tbody id="pogen-filas-'+id+'">'+(items.length?items:[{}]).map(function(it){return reqPoFilaHtml(id,it);}).join('')+'</tbody></table></div>'
+    +'<button type="button" onclick="document.getElementById(\'pogen-filas-'+id+'\').insertAdjacentHTML(\'beforeend\',reqPoFilaHtml(\''+id+'\'))" style="background:none;border:1px dashed #1a5c2a;color:#1a5c2a;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;margin-top:4px">&#10133; Agregar partida</button>'
+    +'<div id="pogen-totales-'+id+'" style="text-align:right;font-size:12px;margin-top:8px;line-height:1.6"></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 10px">'
+    +'<div>'+lbl('Observaciones')+'<textarea id="pogen-obs-'+id+'" rows="2" style="'+PO_INPUT+';width:100%;resize:vertical"></textarea></div>'
+    +'<div>'+lbl('Referencia')+'<textarea id="pogen-ref-'+id+'" rows="2" style="'+PO_INPUT+';width:100%;resize:vertical">'+folio+'</textarea></div>'
+    +'</div>'
+    +'<button data-reqid="'+id+'" onclick="reqPoGenerar(this)" style="width:100%;margin-top:10px;padding:10px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#128190; Guardar y generar PO</button>'
+    +'</div>';
+}
+
+function reqPoAbrirForm(id){
+  var f=document.getElementById('ver-pogen-form-'+id);
+  if(!f) return;
+  f.style.display='block';
+  reqPoRecalcular(id);
+  fetch('/api/po/siguiente-folio').then(function(r){return r.json();}).then(function(d){
+    var inp=document.getElementById('pogen-numero-'+id);
+    if(inp && !inp.value) inp.value=d.folio||'';
+  }).catch(function(){});
+}
+
+function reqPoFilas(id){
+  var filas=[];
+  document.querySelectorAll('#pogen-filas-'+id+' tr.po-fila').forEach(function(tr){
+    filas.push({tr:tr,
+      cantidad:parseFloat(tr.querySelector('.po-cant').value)||0,
+      unidad:tr.querySelector('.po-um').value.trim(),
+      codigo:tr.querySelector('.po-cod').value.trim(),
+      descripcion:tr.querySelector('.po-desc').value.trim(),
+      precio:parseFloat(tr.querySelector('.po-precio').value)||0});
+  });
+  return filas;
+}
+
+function reqPoRecalcular(id){
+  var ivaPct=parseFloat((document.getElementById('pogen-iva-'+id)||{}).value)||0;
+  var fmt=function(v){return '$'+v.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var sub=0, iva=0;
+  reqPoFilas(id).forEach(function(f){
+    var imp=Math.round(f.cantidad*f.precio*100)/100;
+    sub+=imp; iva+=Math.round(imp*ivaPct)/100;
+    f.tr.querySelector('.po-importe').textContent=fmt(imp);
+  });
+  var el=document.getElementById('pogen-totales-'+id);
+  if(el) el.innerHTML='Subtotal: <b>'+fmt(sub)+'</b><br>IVA: <b>'+fmt(iva)+'</b><br><span style="font-size:14px">Total: <b>'+fmt(sub+iva)+'</b></span>';
+}
+
+function reqPoGenerar(btn){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  var id=btn.getAttribute('data-reqid');
+  var val=function(k){return ((document.getElementById('pogen-'+k+'-'+id)||{}).value||'').trim();};
+  var partidas=reqPoFilas(id).filter(function(f){return f.descripcion||f.cantidad;}).map(function(f){
+    return {cantidad:f.cantidad,unidad:f.unidad,codigo:f.codigo,descripcion:f.descripcion,precio:f.precio};
+  });
+  if(!val('prov')){if(typeof showToast==='function')showToast('Escribe el proveedor');return;}
+  if(!partidas.length){if(typeof showToast==='function')showToast('Agrega al menos una partida');return;}
+  if(partidas.some(function(p){return !p.precio;}) && !confirm('Hay partidas sin precio. ¿Generar la PO de todos modos?')) return;
+  btn.disabled=true;btn.textContent='Generando...';
+  var ventana=window.open('','_blank');
+  fetch('/api/requisicion/'+id+'/po',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    po_numero:val('numero'), proveedor_nombre:val('prov'), proveedor_rfc:val('rfc'),
+    moneda:val('moneda'), metodo_pago:val('metodo'), forma_pago:val('forma'),
+    fecha_vencimiento:val('venc'), iva_pct:val('iva'), observaciones:val('obs'), referencia:val('ref'),
+    partidas:partidas, firmante_email:currentUser.email
+  })}).then(function(r){return r.json();}).then(function(saved){
+    if(!saved.ok){if(ventana)ventana.close();if(typeof showToast==='function')showToast('❌ '+(saved.error||'Error al guardar'));btn.disabled=false;btn.textContent='💾 Guardar y generar PO';return;}
+    if(typeof showToast==='function')showToast('✅ '+saved.numero+' generada');
+    var urlPdf='/api/requisicion/'+id+'/po/'+saved.indice+'/pdf';
+    if(ventana) ventana.location=urlPdf; else window.open(urlPdf,'_blank');
+    verReq(id);
+  }).catch(function(){if(ventana)ventana.close();if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.textContent='💾 Guardar y generar PO';});
+}
+
 function verReqRegistrarCotizacion(btn){
   if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
   var reqId=btn.getAttribute('data-reqid');
@@ -4265,18 +4374,24 @@ async function verReq(id){
       var listaPos=Array.isArray(o.pos)?o.pos:(o.po_numero?[{numero:o.po_numero,descripcion:o.po_descripcion,fecha:''}]:[]);
       var listaFacturas=Array.isArray(o.facturas)?o.facturas:(o.factura_numero?[{numero:o.factura_numero,fecha:''}]:[]);
       h+='<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Órdenes de compra (PO)</div>';
-      listaPos.forEach(function(p){
+      listaPos.forEach(function(p,pi){
+        var totalPo=0;
+        if(p.generada){(p.partidas||[]).forEach(function(x){var imp=Math.round(x.cantidad*x.precio*100)/100;totalPo+=imp+Math.round(imp*(p.iva_pct||0))/100;});}
         h+='<div style="border:1.5px solid #43a047;border-radius:8px;padding:10px;margin-bottom:8px">'
           +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">No. de PO'+(p.fecha?(' &bull; '+p.fecha):'')+'</div>'
-          +'<div style="font-size:14px;font-weight:700">'+p.numero+'</div>'
+          +'<div style="font-size:14px;font-weight:700">'+escHtml(p.numero)+'</div>'
+          +(p.generada?('<div style="font-size:12px;color:#555">'+escHtml(p.proveedor_nombre||'')+' &bull; Total: <b>$'+totalPo.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+'</b></div>'
+            +'<a href="/api/requisicion/'+id+'/po/'+pi+'/pdf" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;padding:6px 12px;background:#1a5c2a;color:#fff;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">&#128424; Imprimir / descargar PO</a>'):'')
           +(p.link?('<a href="'+p.link+'" target="_blank" rel="noopener" style="font-size:12px;color:#1565c0;word-break:break-all">&#128206; Ver archivo</a>'):'')
           +'</div>';
       });
       if(!listaPos.length){
-        h+='<div style="font-size:12px;color:#888;padding:6px;margin-bottom:8px">&#8987; Pendiente de que Compras registre el No. de PO</div>';
+        h+='<div style="font-size:12px;color:#888;padding:6px;margin-bottom:8px">&#8987; Pendiente de que Compras genere la PO</div>';
       }
       if(esCompras){
-        h+='<button onclick="document.getElementById(\'ver-po-form-'+id+'\').style.display=\'block\';this.style.display=\'none\'" style="width:100%;padding:8px 14px;background:#e8f5e9;color:#1a5c2a;border:2px dashed #1a5c2a;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px">&#10133; '+(listaPos.length?'Agregar otro PO':'Registrar compra (PO)')+'</button>'
+        h+='<button onclick="reqPoAbrirForm(\''+id+'\');this.style.display=\'none\'" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">&#128221; '+(listaPos.length?'Generar otra PO':'Generar PO')+'</button>'
+          +reqPoFormHtml(id,o)
+          +'<div style="text-align:center;margin-bottom:8px"><a href="#" onclick="event.preventDefault();document.getElementById(\'ver-po-form-'+id+'\').style.display=\'block\';this.style.display=\'none\'" style="font-size:11px;color:#888">¿La PO ya se hizo en otro sistema? Registrar solo el número</a></div>'
           +'<div id="ver-po-form-'+id+'" style="display:none;border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-bottom:8px">'
           +'<input id="ver-po-numero-'+id+'" type="text" placeholder="No. de PO / Orden de compra" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +'<input id="ver-po-link-'+id+'" type="text" placeholder="Link del archivo (opcional, ej. drive.google.com/...)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
