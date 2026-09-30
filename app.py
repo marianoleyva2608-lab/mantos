@@ -1427,14 +1427,20 @@ def save_requisicion():
 
     return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado, 'aviso_error': aviso_error})
 
+def email_compras_de(o):
+    """Correo de Compras de la requisicion. Si no se guardo email_aprobador, se toma de quien firmo como Compras."""
+    firma = (o.get('firmas') or {}).get('aprobo')
+    return (o.get('email_aprobador') or (firma.get('email') if isinstance(firma, dict) else '') or '').strip().lower()
+
 def es_admin_email(email):
     if not email:
         return False
     u = sb.select('users', select='rol', email='eq.' + email)
     return bool(u) and (u[0].get('rol') or '') == 'admin'
 
-# Consecutivo de las PO que genera el sistema. La ultima PO hecha a mano en el
-# sistema anterior fue la PO357, por eso se arranca en 358.
+# Consecutivo de las PO que genera el sistema (solo cuenta las generadas aqui,
+# no los numeros capturados a mano). La ultima PO del sistema anterior fue la
+# PO357, por eso se arranca en 358.
 PO_FOLIO_INICIAL = 358
 
 def siguiente_folio_po():
@@ -1445,6 +1451,8 @@ def siguiente_folio_po():
         except Exception:
             continue
         for p in (o.get('pos') or []):
+            if not p.get('generada'):
+                continue
             m = re.match(r'^\s*PO\s*-?\s*(\d+)\s*$', str(p.get('numero') or ''), re.I)
             if m:
                 mayor = max(mayor, int(m.group(1)))
@@ -1473,7 +1481,7 @@ def registrar_po_requisicion(rid):
     if not rows:
         return jsonify({'ok': False, 'error': 'No encontrado'}), 404
     o = json.loads(rows[0]['data'])
-    asignado = (o.get('email_aprobador') or '').strip().lower()
+    asignado = email_compras_de(o)
     if asignado and firmante_email != asignado:
         return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la compra'}), 403
     if not (isinstance(o.get('firmas'), dict) and isinstance(o['firmas'].get('presidenta'), dict) and o['firmas']['presidenta'].get('estado') == 'aprobado'):
@@ -1761,7 +1769,7 @@ def registrar_cotizacion_requisicion(rid):
     if not rows:
         return jsonify({'ok': False, 'error': 'No encontrado'}), 404
     o = json.loads(rows[0]['data'])
-    asignado = (o.get('email_aprobador') or '').strip().lower()
+    asignado = email_compras_de(o)
     if asignado and firmante_email != asignado and not es_admin_email(firmante_email):
         return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la cotización'}), 403
     if not isinstance(o.get('cotizaciones'), list):
@@ -1784,7 +1792,7 @@ def registrar_factura_requisicion(rid):
     if not rows:
         return jsonify({'ok': False, 'error': 'No encontrado'}), 404
     o = json.loads(rows[0]['data'])
-    asignado = (o.get('email_aprobador') or '').strip().lower()
+    asignado = email_compras_de(o)
     if asignado and firmante_email != asignado:
         return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la factura'}), 403
     if not o.get('pos'):

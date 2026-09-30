@@ -4338,7 +4338,8 @@ async function verReq(id){
     });
     h+='</div></div>';
     var listaCot=Array.isArray(o.cotizaciones)?o.cotizaciones:[];
-    var puedeCotizar=currentUser && currentUser.email && ((o.email_aprobador && currentUser.email.toLowerCase()===o.email_aprobador.toLowerCase()) || userIsAdmin());
+    var emailCompras=(o.email_aprobador||((firmas.aprobo||{}).email)||"").toLowerCase();
+    var puedeCotizar=currentUser && currentUser.email && ((emailCompras && currentUser.email.toLowerCase()===emailCompras) || userIsAdmin());
     if(listaCot.length || puedeCotizar){
       h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
         +'<div style="background:#1565c0;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Cotizaciones</div>'
@@ -4366,7 +4367,7 @@ async function verReq(id){
       h+='</div></div>';
     }
     var presidentaAprobado=firmas.presidenta && firmas.presidenta.estado==='aprobado';
-    var esCompras=currentUser && currentUser.email && o.email_aprobador && currentUser.email.toLowerCase()===o.email_aprobador.toLowerCase();
+    var esCompras=currentUser && currentUser.email && emailCompras && currentUser.email.toLowerCase()===emailCompras;
     if(presidentaAprobado && (esCompras || userIsAdmin())){
       h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
         +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Cierre de Compra</div>'
