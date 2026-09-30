@@ -42,6 +42,7 @@ def _tabla_items_html(o):
         '<td style="border:1px solid #ddd;padding:5px">' + (it.get('unidad') or '') + '</td>'
         '<td style="border:1px solid #ddd;padding:5px">' + (it.get('descripcion') or '') + '</td>'
         '<td style="border:1px solid #ddd;padding:5px">' + (it.get('aplicacion') or '') + '</td>'
+        '<td style="border:1px solid #ddd;padding:5px;font-weight:bold;color:' + ('#1565c0' if it.get('accion') == 'Cotizar' else '#1a5c2a') + '">' + (it.get('accion') or '-') + '</td>'
         '</tr>'
         for it in items
     )
@@ -52,6 +53,7 @@ def _tabla_items_html(o):
         '<th style="border:1px solid #ddd;padding:5px;text-align:left">Unidad</th>'
         '<th style="border:1px solid #ddd;padding:5px;text-align:left">Descripción</th>'
         '<th style="border:1px solid #ddd;padding:5px;text-align:left">Aplicación</th>'
+        '<th style="border:1px solid #ddd;padding:5px;text-align:left">Compras debe</th>'
         '</tr>' + filas + '</table>'
     )
 
