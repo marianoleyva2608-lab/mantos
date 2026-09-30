@@ -1451,6 +1451,31 @@ def registrar_po_requisicion(rid):
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     return jsonify({'ok': True})
 
+@app.route('/api/requisicion/<rid>/cotizacion', methods=['POST'])
+def registrar_cotizacion_requisicion(rid):
+    d = request.json or {}
+    cot_numero = (d.get('cotizacion_numero') or '').strip()
+    cot_proveedor = (d.get('proveedor') or '').strip()
+    cot_link = normalizar_link(d.get('cotizacion_link'))
+    firmante_email = (d.get('firmante_email') or '').strip().lower()
+    if not cot_numero and not cot_link:
+        return jsonify({'ok': False, 'error': 'Escribe el No. de cotización o pega el link del archivo'}), 400
+    rows = sb.select('requisiciones', select='data', id='eq.' + rid)
+    if not rows:
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    o = json.loads(rows[0]['data'])
+    asignado = (o.get('email_aprobador') or '').strip().lower()
+    if asignado and firmante_email != asignado:
+        u = sb.select('users', select='rol', email='eq.' + firmante_email) if firmante_email else []
+        if not u or (u[0].get('rol') or '') != 'admin':
+            return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la cotización'}), 403
+    if not isinstance(o.get('cotizaciones'), list):
+        o['cotizaciones'] = []
+    o['cotizaciones'].append({'numero': cot_numero, 'proveedor': cot_proveedor, 'link': cot_link,
+                              'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')})
+    sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    return jsonify({'ok': True})
+
 @app.route('/api/requisicion/<rid>/factura', methods=['POST'])
 def registrar_factura_requisicion(rid):
     d = request.json or {}
