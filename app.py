@@ -2051,6 +2051,16 @@ def firmar_requisicion(rid):
     firma['estado'] = estado
     firma['comentario'] = comentario
     o['firmas'][key] = firma
+    # Si la requisicion NO pasa de $10,000, Direccion no firma: al aprobar Compras
+    # queda aprobada (se registra la etapa de Direccion como "no requerida").
+    sin_direccion = (key == 'aprobo' and estado == 'aprobado' and o.get('mayor_10000') == 'No'
+                     and not (isinstance(o['firmas'].get('presidenta'), dict) and o['firmas']['presidenta'].get('estado')))
+    if sin_direccion:
+        o['firmas']['presidenta'] = {
+            'nombre': 'No requerida (menor a $10,000)', 'email': '', 'estado': 'aprobado', 'no_requerida': True,
+            'fecha': firma.get('fecha', ''), 'serie': 'N/A',
+            'comentario': 'Aprobada automáticamente al firmar Compras: la requisición no excede $10,000',
+        }
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
     base_url = BASE_URL_PUBLICO
@@ -2082,7 +2092,10 @@ def firmar_requisicion(rid):
         return jsonify({'ok': True})
     if key == 'reviso':
         avisar(o.get('email_aprobador'), 'Ya fue revisada y necesita que la apruebes (Compras)')
-        avisar(o.get('solicitante_email'), 'Fue aprobada por tu supervisor. Falta: Compras y Dirección')
+        avisar(o.get('solicitante_email'), 'Fue aprobada por tu supervisor. Falta: Compras' + ('' if o.get('mayor_10000') == 'No' else ' y Dirección'))
+    elif key == 'aprobo' and sin_direccion:
+        avisar(o.get('solicitante_email'), 'Ya quedó completamente aprobada (no requiere Dirección por ser menor a $10,000)')
+        avisar(o.get('email_aprobador'), 'Quedó aprobada sin firma de Dirección (menor a $10,000). Ya puedes generar la PO de la requisición')
     elif key == 'aprobo':
         avisar(o.get('email_presidenta'), 'Ya fue aprobada por Compras y necesita tu visto bueno final')
         avisar(o.get('solicitante_email'), 'Fue aprobada por Compras. Falta: Dirección')
@@ -2276,7 +2289,7 @@ def requisicion_pdf(rid):
             c.setFont('Helvetica-Bold', 7); c.setFillColor(GREEN)
             c.drawString(sx+0.5*cm, y+0.15*cm, sig.get('nombre',''))
             c.setFont('Helvetica', 6); c.setFillColor(GREEN)
-            c.drawString(sx+0.5*cm, y-0.3*cm, '[v] FIRMA ELECTRONICA VALIDA')
+            c.drawString(sx+0.5*cm, y-0.3*cm, 'NO REQUIERE FIRMA (MENOR A $10,000)' if sig.get('no_requerida') else '[v] FIRMA ELECTRONICA VALIDA')
         c.setFont('Helvetica-Bold', 7); c.setFillColor(BLACK)
         c.drawCentredString(sx+sig_w/2, y-1.1*cm, label)
 

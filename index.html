@@ -4437,7 +4437,7 @@ async function verReq(id){
         h+='<div style="border:2px solid '+(rechazado?'#c62828':'#43a047')+';border-radius:8px;padding:10px;margin-bottom:8px;border-left:4px solid '+(rechazado?'#b71c1c':'#2e7d32')+'">'
           +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
           +'<div style="width:26px;height:26px;background:'+col+';border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;flex-shrink:0">'+(rechazado?'&#10005;':'&#10003;')+'</div>'
-          +'<div><div style="font-size:9px;color:'+col+';font-weight:700;text-transform:uppercase;letter-spacing:.5px">'+label+' — '+(rechazado?'Rechazado':'Firma Electrónica Válida')+'</div>'
+          +'<div><div style="font-size:9px;color:'+col+';font-weight:700;text-transform:uppercase;letter-spacing:.5px">'+label+' — '+(rechazado?'Rechazado':(sig.no_requerida?'No requerida':'Firma Electrónica Válida'))+'</div>'
           +'<div style="font-size:13px;font-weight:700;color:'+(rechazado?'#b71c1c':'#1b5e20')+'">'+sig.nombre+'</div>'+(sig.alterno_de?('<div style="font-size:11px;color:#6a1b9a;font-weight:700">Firmó como alterno de '+escHtml(nombrePorEmail[sig.alterno_de]||sig.alterno_de)+'</div>'):'')+'</div></div>'
           +'<div style="font-size:10px;color:#555;display:grid;grid-template-columns:65px 1fr;gap:2px 8px;border-top:1px solid #eee;padding-top:6px">'
           +'<span style="font-weight:700;color:'+col+'">Titular:</span><span>'+sig.email+'</span>'
