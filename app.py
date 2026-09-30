@@ -8,6 +8,10 @@ from qr_catalog import CATEGORIA_FIJA as QR_CATEGORIA_FIJA, GRUPOS as QR_GRUPOS,
 
 app = Flask(__name__)
 
+def ahora_mx():
+    """Hora local de planta (Mexico, UTC-6). El contenedor corre en UTC."""
+    return datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+
 # Envio de avisos por correo (requisiciones, etc.). Credenciales SMTP se
 # configuran como variables de entorno en EasyPanel, nunca en el codigo:
 # SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM.
@@ -1403,10 +1407,18 @@ def get_requisiciones_descripciones():
 def save_requisicion():
     d = request.json
     if d.get('id'):
-        existing = sb.select('requisiciones', select='folio', id='eq.' + d['id'])
+        existing = sb.select('requisiciones', select='folio,data', id='eq.' + d['id'])
         folio = existing[0]['folio'] if existing else None
+        if existing and not d.get('creado'):
+            try:
+                d['creado'] = json.loads(existing[0]['data'] or '{}').get('creado')
+            except ValueError:
+                pass
     else:
         folio = None
+    # Momento exacto de creacion (UTC) para medir el tiempo estandar de atencion
+    if not d.get('creado'):
+        d['creado'] = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
     if not folio:
         todas = sb.select('requisiciones', select='folio')
         max_folio = max((r['folio'] or 0) for r in todas) if todas else 0
@@ -1540,7 +1552,8 @@ def registrar_po_requisicion(rid):
     if not isinstance(o.get('pos'), list):
         o['pos'] = []
     po = {'numero': po_numero, 'link': po_link,
-          'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}
+          'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M'),
+          'creado': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')}
     if partidas_in is not None:
         # PO generada en el sistema (formato "Orden de Compra" para imprimir y mandar al proveedor)
         partidas = []
@@ -1570,7 +1583,7 @@ def registrar_po_requisicion(rid):
             'forma_pago': (d.get('forma_pago') or '03-TRANSFERENCIA ELECTRÓNICA DE FONDOS').strip(),
             'moneda': (d.get('moneda') or 'MXN-PESO MEXICANO').strip(),
             'tipo_cambio': _num(d.get('tipo_cambio')),
-            'fecha_elaboracion': datetime.datetime.now().strftime('%d/%m/%Y'),
+            'fecha_elaboracion': ahora_mx().strftime('%d/%m/%Y'),
             'fecha_vencimiento': (d.get('fecha_vencimiento') or '').strip(),
             'iva_pct': _num(d.get('iva_pct') if d.get('iva_pct') not in (None, '') else 16),
             'observaciones': (d.get('observaciones') or '').strip(),
@@ -1861,7 +1874,7 @@ def subir_adjunto_requisicion():
     except Exception as e:
         return jsonify({'ok': False, 'error': 'No se pudo guardar el archivo: ' + str(e)}), 502
     return jsonify({'ok': True, 'adjunto': {'nombre': nombre, 'ruta': ruta, 'tamano': len(datos),
-                                            'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}})
+                                            'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M')}})
 
 @app.route('/api/requisicion/adjunto/<path:ruta>', methods=['GET'])
 def descargar_adjunto_requisicion(ruta):
@@ -1894,7 +1907,7 @@ def registrar_cotizacion_requisicion(rid):
     if not isinstance(o.get('cotizaciones'), list):
         o['cotizaciones'] = []
     o['cotizaciones'].append({'numero': cot_numero, 'proveedor': cot_proveedor, 'link': cot_link,
-                              'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')})
+                              'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M')})
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     return jsonify({'ok': True})
 
@@ -1921,7 +1934,7 @@ def registrar_factura_requisicion(rid):
     if len(o['facturas']) >= len(o['pos']):
         return jsonify({'ok': False, 'error': 'Ya se registraron todas las facturas necesarias (' + str(len(o['pos'])) + ')'}), 400
     o['facturas'].append({'numero': factura_numero, 'po_numero': po_numero_liga, 'link': factura_link,
-                           'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')})
+                           'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M')})
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     return jsonify({'ok': True})
 
