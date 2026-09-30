@@ -55,6 +55,15 @@ def _tabla_items_html(o):
         '</tr>' + filas + '</table>'
     )
 
+def _mayor_10000_html(o):
+    # Solo va en los correos a Compras
+    v = o.get('mayor_10000')
+    if v not in ('Sí', 'No'):
+        return ''
+    color = '#c62828' if v == 'Sí' else '#1a5c2a'
+    return ('<p style="font-size:15px;border-left:4px solid ' + color + ';padding:6px 10px;margin:12px 0">'
+            '<b>¿Valor mayor a $10,000?</b> <b style="color:' + color + '">' + v.upper() + '</b></p>')
+
 def _justificacion_html(o):
     if not o.get('justificacion'):
         return ''
@@ -1379,6 +1388,7 @@ def save_requisicion():
         cuerpo = (
             '<p>Hola,</p>'
             '<p>La requisición <b>' + folio_txt + '</b> necesita que ' + etapa_texto + '.</p>'
+            + (_mayor_10000_html(o) if destinatario.lower() == (o.get('email_aprobador') or '').strip().lower() else '')
             + _justificacion_html(o) +
             '<p><b>Solicitante:</b> ' + (o.get('solicitante') or '-') + '<br>'
             '<b>Planta:</b> ' + (o.get('planta') or '-') + '<br>'
@@ -1927,8 +1937,10 @@ def firmar_requisicion(rid):
         destinatario = (destinatario or '').strip()
         if not destinatario:
             return
+        es_compras = destinatario.lower() == (o.get('email_aprobador') or '').strip().lower()
         cuerpo = (
             '<p>Hola,</p><p>' + etapa_texto + ' <b>' + folio_txt + '</b>.</p>'
+            + (_mayor_10000_html(o) if es_compras else '')
             + _justificacion_html(o)
             + ('<p><b>Comentario:</b> ' + comentario + '</p>' if comentario else '')
             + '<p><b>Solicitante:</b> ' + (o.get('solicitante') or '-') + '<br>'
