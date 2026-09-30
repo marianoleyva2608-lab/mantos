@@ -1442,12 +1442,6 @@ def email_compras_de(o):
     firma = (o.get('firmas') or {}).get('aprobo')
     return (o.get('email_aprobador') or (firma.get('email') if isinstance(firma, dict) else '') or '').strip().lower()
 
-def es_admin_email(email):
-    if not email:
-        return False
-    u = sb.select('users', select='rol', email='eq.' + email)
-    return bool(u) and (u[0].get('rol') or '') == 'admin'
-
 # Consecutivo de las PO que genera el sistema (solo cuenta las generadas aqui,
 # no los numeros capturados a mano). La ultima PO del sistema anterior fue la
 # PO357, por eso se arranca en 358.
@@ -1697,26 +1691,28 @@ def requisicion_po_pdf(rid, idx):
     ty = min(y_fin_encabezado, ry - 0.2*cm)
     c.setLineWidth(1)
     c.line(x0, ty, x1, ty)
-    cols = {'cant': x0 + 1.3*cm, 'um': x0 + 2.4*cm, 'cod': x0 + 4.0*cm, 'desc': x0 + 5.6*cm,
-            'pu': x0 + 16.8*cm, 'imp_t': x0 + 18.0*cm, 'imp_v': x0 + 19.9*cm, 'importe': x1 - 1.05*cm}
+    # Posiciones tomadas del formato original (cm desde el borde izquierdo del marco)
+    cols = {'cant': x0 + 0.85*cm, 'um': x0 + 2.2*cm, 'cod': x0 + 3.95*cm, 'desc': x0 + 5.05*cm,
+            'pu_h': x0 + 14.9*cm, 'pu': x0 + 15.45*cm, 'imp_h': x0 + 16.7*cm, 'imp_t': x0 + 15.8*cm,
+            'imp_v': x0 + 17.65*cm, 'importe_h': x0 + 18.6*cm, 'importe': x0 + 19.15*cm}
     hy = ty - 0.4*cm
-    t('CANTIDAD', cols['cant'], hy, 7, True, NEGRO, 'center')
-    t('UNIDAD', cols['um'] + 0.2*cm, hy, 7, True, NEGRO, 'center')
-    t('DE MEDIDA', cols['um'] + 0.2*cm, hy - 0.3*cm, 7, True, NEGRO, 'center')
-    t('NÚMERO', cols['cod'] + 0.3*cm, hy, 7, True, NEGRO, 'center')
-    t('IDENTIFICACIÓN', cols['cod'] + 0.3*cm, hy - 0.3*cm, 7, True, NEGRO, 'center')
-    t('DESCRIPCIÓN / CONCEPTO', cols['desc'], hy, 7, True)
-    t('VALOR', cols['pu'], hy, 7, True, NEGRO, 'center')
-    t('UNITARIO', cols['pu'], hy - 0.3*cm, 7, True, NEGRO, 'center')
-    t('IMPUESTO', cols['imp_t'] + 0.9*cm, hy, 7, True, NEGRO, 'center')
-    t('IMPORTE', cols['importe'], hy, 7, True, NEGRO, 'right')
+    t('CANTIDAD', cols['cant'], hy, 6.5, True, NEGRO, 'center')
+    t('UNIDAD', cols['um'], hy, 6.5, True, NEGRO, 'center')
+    t('DE MEDIDA', cols['um'], hy - 0.3*cm, 6.5, True, NEGRO, 'center')
+    t('NÚMERO', cols['cod'], hy, 6.5, True, NEGRO, 'center')
+    t('IDENTIFICACIÓN', cols['cod'], hy - 0.3*cm, 6.5, True, NEGRO, 'center')
+    t('DESCRIPCIÓN / CONCEPTO', cols['desc'], hy, 6.5, True)
+    t('VALOR', cols['pu_h'], hy, 6.5, True, NEGRO, 'center')
+    t('UNITARIO', cols['pu_h'], hy - 0.3*cm, 6.5, True, NEGRO, 'center')
+    t('IMPUESTO', cols['imp_h'], hy, 6.5, True, NEGRO, 'center')
+    t('IMPORTE', cols['importe_h'], hy, 6.5, True, NEGRO, 'center')
     c.setLineWidth(0.8)
     c.line(x0, ty - 0.95*cm, x1, ty - 0.95*cm)
 
     iva_pct = po.get('iva_pct', 16) or 0
     subtotal = iva_total = 0.0
     py = ty - 1.55*cm
-    desc_w = cols['pu'] - cols['desc'] - 1.2*cm
+    desc_w = cols['pu_h'] - cols['desc'] - 1.1*cm
     for p in po.get('partidas', []):
         importe = round(p['cantidad'] * p['precio'], 2)
         iva = round(importe * iva_pct / 100, 2)
@@ -1724,20 +1720,20 @@ def requisicion_po_pdf(rid, idx):
         iva_total += iva
         lineas = simpleSplit(p.get('descripcion', ''), 'Helvetica', 7, desc_w) or ['']
         t('{:,.2f}'.format(p['cantidad']), cols['cant'], py, 7, False, NEGRO, 'center')
-        t(p.get('unidad', ''), cols['um'] + 0.2*cm, py, 7, False, NEGRO, 'center')
-        t(p.get('codigo', ''), cols['cod'] + 0.3*cm, py, 7, False, NEGRO, 'center')
+        t(p.get('unidad', ''), cols['um'], py, 7, False, NEGRO, 'center')
+        t(p.get('codigo', ''), cols['cod'], py, 7, False, NEGRO, 'center')
         for i, linea in enumerate(lineas):
             t(linea, cols['desc'], py - i*0.3*cm, 7)
-        t(dinero(p['precio']), cols['pu'] + 0.3*cm, py, 7, False, NEGRO, 'right')
+        t(dinero(p['precio']), cols['pu'], py, 7, False, NEGRO, 'right')
         t('002-IVA' if iva_pct else '', cols['imp_t'], py, 7)
-        t(dinero(iva), cols['imp_v'] + 0.2*cm, py, 7, False, NEGRO, 'right')
+        t(dinero(iva), cols['imp_v'], py, 7, False, NEGRO, 'right')
         t(dinero(importe), cols['importe'], py, 7, False, NEGRO, 'right')
         py -= max(1, len(lineas)) * 0.3*cm + 0.25*cm
     total = round(subtotal + iva_total, 2)
 
     # Totales
     ty2 = 8.3*cm
-    etx, vx = x1 - 5.5*cm, cols['importe']
+    etx, vx = x0 + 16.3*cm, cols['importe']
     t('SUBTOTAL:', etx, ty2, 7.5, True, NEGRO, 'right'); t('{:,.2f}'.format(subtotal), vx, ty2, 7.5, False, NEGRO, 'right')
     t('IVA:', etx, ty2 - 0.33*cm, 7.5, True, NEGRO, 'right'); t(dinero(iva_total), vx, ty2 - 0.33*cm, 7.5, False, NEGRO, 'right')
     t('TOTAL IMPUESTOS RETENIDOS:', etx, ty2 - 0.66*cm, 7.5, True, NEGRO, 'right'); t('0.00', vx, ty2 - 0.66*cm, 7.5, False, NEGRO, 'right')
@@ -1780,7 +1776,7 @@ def registrar_cotizacion_requisicion(rid):
         return jsonify({'ok': False, 'error': 'No encontrado'}), 404
     o = json.loads(rows[0]['data'])
     asignado = email_compras_de(o)
-    if asignado and firmante_email != asignado and not es_admin_email(firmante_email):
+    if asignado and firmante_email != asignado:
         return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la cotización'}), 403
     if not isinstance(o.get('cotizaciones'), list):
         o['cotizaciones'] = []
