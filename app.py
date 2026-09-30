@@ -1,4 +1,6 @@
 import os, io, re, base64, json, hashlib, datetime, smtplib
+from html import escape as html_escape
+from urllib.parse import quote
 from email.mime.text import MIMEText
 import requests
 from flask import Flask, request, send_file, jsonify, send_from_directory
@@ -67,14 +69,22 @@ def _mayor_10000_html(o):
             '<b>¿Valor mayor a $10,000?</b> <b style="color:' + color + '">' + v.upper() + '</b></p>')
 
 def _justificacion_html(o):
-    if not o.get('justificacion'):
-        return ''
-    return (
-        '<table style="border:2px solid #1a5c2a;border-collapse:collapse;margin:12px 0" cellpadding="0" cellspacing="0"><tr><td style="padding:14px 16px">'
-        '<div style="font-size:13px;font-weight:bold;color:#1a5c2a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Justificación</div>'
-        '<div style="font-size:16px;line-height:1.5;color:#222">' + o['justificacion'] + '</div>'
-        '</td></tr></table>'
-    )
+    html = ''
+    if o.get('justificacion'):
+        html += (
+            '<table style="border:2px solid #1a5c2a;border-collapse:collapse;margin:12px 0" cellpadding="0" cellspacing="0"><tr><td style="padding:14px 16px">'
+            '<div style="font-size:13px;font-weight:bold;color:#1a5c2a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Justificación</div>'
+            '<div style="font-size:16px;line-height:1.5;color:#222">' + o['justificacion'] + '</div>'
+            '</td></tr></table>'
+        )
+    if o.get('alcance'):
+        html += ('<p><b>Alcance:</b><br>' + html_escape(o['alcance']).replace('\n', '<br>') + '</p>')
+    adjuntos = [a for a in (o.get('adjuntos') or []) if isinstance(a, dict) and a.get('ruta')]
+    if adjuntos:
+        html += '<p><b>Archivos:</b><br>' + '<br>'.join(
+            '<a href="' + BASE_URL_PUBLICO + '/api/requisicion/adjunto/' + quote(a['ruta']) + '">'
+            + html_escape(a.get('nombre') or a['ruta']) + '</a>' for a in adjuntos) + '</p>'
+    return html
 
 def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, responder_a=None):
     if not destinatario:
@@ -1763,6 +1773,72 @@ def requisicion_po_pdf(rid, idx):
     return send_file(buf, mimetype='application/pdf',
                      download_name='PO Proveedor ' + po['numero'] + (' ' + prov if prov else '') + '.pdf',
                      as_attachment=False)
+
+# ── Adjuntos de requisiciones (PDF / Excel) en Supabase Storage ──
+ADJ_BUCKET = 'requisiciones'
+ADJ_EXT = {'.pdf': 'application/pdf',
+           '.xls': 'application/vnd.ms-excel',
+           '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
+ADJ_MAX_MB = 15
+
+def _storage_headers(content_type=None):
+    h = {'apikey': SB_KEY, 'Authorization': f'Bearer {SB_KEY}'}
+    if content_type:
+        h['Content-Type'] = content_type
+    return h
+
+def _asegurar_bucket():
+    r = requests.get(SB_URL + '/storage/v1/bucket/' + ADJ_BUCKET, headers=_storage_headers(), timeout=15)
+    if r.status_code == 200:
+        return
+    requests.post(SB_URL + '/storage/v1/bucket', headers=_storage_headers('application/json'),
+                  json={'id': ADJ_BUCKET, 'name': ADJ_BUCKET, 'public': False}, timeout=15)
+
+@app.route('/api/adjuntos/estado', methods=['GET'])
+def api_adjuntos_estado():
+    # Diagnostico de solo lectura: confirma que Supabase Storage responde
+    try:
+        r = requests.get(SB_URL + '/storage/v1/bucket', headers=_storage_headers(), timeout=15)
+        return jsonify({'ok': r.status_code == 200, 'status': r.status_code})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
+@app.route('/api/requisicion/adjunto', methods=['POST'])
+def subir_adjunto_requisicion():
+    f = request.files.get('archivo')
+    if not f or not f.filename:
+        return jsonify({'ok': False, 'error': 'No se recibió el archivo'}), 400
+    nombre = os.path.basename(f.filename)
+    ext = os.path.splitext(nombre)[1].lower()
+    if ext not in ADJ_EXT:
+        return jsonify({'ok': False, 'error': 'Solo se permiten archivos PDF o Excel (.pdf, .xls, .xlsx)'}), 400
+    datos = f.read()
+    if len(datos) > ADJ_MAX_MB * 1024 * 1024:
+        return jsonify({'ok': False, 'error': 'El archivo pasa de ' + str(ADJ_MAX_MB) + ' MB'}), 400
+    seguro = re.sub(r'[^A-Za-z0-9._-]', '_', nombre)
+    ruta = datetime.datetime.now().strftime('%Y%m') + '/' + hashlib.sha1(os.urandom(16)).hexdigest()[:12] + '_' + seguro
+    try:
+        _asegurar_bucket()
+        r = requests.post(SB_URL + '/storage/v1/object/' + ADJ_BUCKET + '/' + ruta,
+                          headers=_storage_headers(ADJ_EXT[ext]), data=datos, timeout=60)
+        if r.status_code not in (200, 201):
+            return jsonify({'ok': False, 'error': 'No se pudo guardar el archivo (' + str(r.status_code) + ')'}), 502
+    except Exception as e:
+        return jsonify({'ok': False, 'error': 'No se pudo guardar el archivo: ' + str(e)}), 502
+    return jsonify({'ok': True, 'adjunto': {'nombre': nombre, 'ruta': ruta, 'tamano': len(datos),
+                                            'fecha': datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}})
+
+@app.route('/api/requisicion/adjunto/<path:ruta>', methods=['GET'])
+def descargar_adjunto_requisicion(ruta):
+    if '..' in ruta:
+        return jsonify({'error': 'Ruta inválida'}), 400
+    r = requests.get(SB_URL + '/storage/v1/object/' + ADJ_BUCKET + '/' + ruta, headers=_storage_headers(), timeout=60)
+    if r.status_code != 200:
+        return jsonify({'error': 'Archivo no encontrado'}), 404
+    ext = os.path.splitext(ruta)[1].lower()
+    nombre = ruta.split('/')[-1].split('_', 1)[-1]
+    return send_file(io.BytesIO(r.content), mimetype=ADJ_EXT.get(ext, 'application/octet-stream'),
+                     download_name=nombre, as_attachment=(ext != '.pdf'))
 
 @app.route('/api/requisicion/<rid>/cotizacion', methods=['POST'])
 def registrar_cotizacion_requisicion(rid):

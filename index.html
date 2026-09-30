@@ -2751,6 +2751,14 @@ authInit();
       <textarea id="req-justificacion" rows="3" placeholder="Describe por qu&#233; se necesita este material..." style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
     </div>
     <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Alcance de la requisici&#243;n</label>
+      <textarea id="req-alcance" rows="3" placeholder="Qu&#233; incluye: especificaciones, trabajos, entregables, condiciones, lugar de entrega..." style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin:10px 0 6px">Archivos (PDF o Excel)</label>
+      <div id="req-adjuntos-lista"></div>
+      <label id="req-adjunto-btn" style="display:inline-flex;align-items:center;gap:6px;background:#e8f5e9;color:#1a5c2a;border:2px dashed #1a5c2a;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer">&#128206; Subir PDF o Excel<input type="file" accept=".pdf,.xls,.xlsx" multiple style="display:none" onchange="reqSubirAdjuntos(this)"></label>
+      <div style="font-size:11px;color:#888;margin-top:4px">M&#225;ximo 15 MB por archivo.</div>
+    </div>
+    <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">&#128100; ¿Quién va a Revisar esta requisición?</label>
       <select id="req-select-supervisor" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;background:#fff">
         <option value="">Cargando...</option>
@@ -3371,6 +3379,45 @@ function initClocks(){
 // ── REQUISICIONES (script independiente) ──────────────────
 var _reqSigs={realizo:null,reviso:null,aprobo:null,presidenta:null};
 var _reqCurrentId=null;
+var _reqAdjuntos=[];
+
+function reqAdjuntoUrl(a){return '/api/requisicion/adjunto/'+a.ruta.split('/').map(encodeURIComponent).join('/');}
+
+function reqRenderAdjuntos(){
+  var el=document.getElementById('req-adjuntos-lista');
+  if(!el) return;
+  el.innerHTML=_reqAdjuntos.map(function(a,i){
+    return '<div style="display:flex;align-items:center;gap:8px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;margin-bottom:6px;font-size:13px">'
+      +'<span>'+(/\.pdf$/i.test(a.nombre)?'&#128196;':'&#128202;')+'</span>'
+      +'<a href="'+reqAdjuntoUrl(a)+'" target="_blank" rel="noopener" style="flex:1;color:#1565c0;word-break:break-all">'+escHtml(a.nombre)+'</a>'
+      +'<span style="color:#888;font-size:11px">'+Math.max(1,Math.round((a.tamano||0)/1024))+' KB</span>'
+      +'<button type="button" onclick="_reqAdjuntos.splice('+i+',1);reqRenderAdjuntos()" title="Quitar" style="background:none;border:none;color:#c62828;font-size:16px;cursor:pointer">&#10005;</button>'
+      +'</div>';
+  }).join('');
+}
+
+async function reqSubirAdjuntos(input){
+  var archivos=Array.prototype.slice.call(input.files||[]);
+  input.value='';
+  var btn=document.getElementById('req-adjunto-btn');
+  for(var i=0;i<archivos.length;i++){
+    var f=archivos[i];
+    if(!/\.(pdf|xls|xlsx)$/i.test(f.name)){if(typeof showToast==='function')showToast('❌ '+f.name+': solo PDF o Excel');continue;}
+    if(f.size>15*1024*1024){if(typeof showToast==='function')showToast('❌ '+f.name+' pasa de 15 MB');continue;}
+    if(btn) btn.style.opacity='.5';
+    if(typeof showToast==='function')showToast('Subiendo '+f.name+'...');
+    try{
+      var fd=new FormData(); fd.append('archivo',f);
+      var r=await fetch('/api/requisicion/adjunto',{method:'POST',body:fd});
+      var d=await r.json();
+      if(!d.ok) throw new Error(d.error||'Error al subir');
+      _reqAdjuntos.push(d.adjunto);
+      reqRenderAdjuntos();
+      if(typeof showToast==='function')showToast('✅ '+f.name+' subido');
+    }catch(e){ if(typeof showToast==='function')showToast('❌ '+f.name+': '+e.message); }
+    if(btn) btn.style.opacity='';
+  }
+}
 var _reqRowCount=1;
 
 function reqDeptoChange(sel){
@@ -3431,6 +3478,8 @@ async function initReqForm(){
   document.querySelectorAll('input[name="req-mayor10k"]').forEach(function(r){r.checked=false;});
   var justEl=document.getElementById('req-justificacion');
   if(justEl) justEl.value='';
+  var alcEl=document.getElementById('req-alcance'); if(alcEl) alcEl.value='';
+  _reqAdjuntos=[]; reqRenderAdjuntos();
   var valRevEl=document.getElementById('req-email-revisor');
   if(valRevEl){
     var supEmail = (currentUser && currentUser.supervisor_email) ? currentUser.supervisor_email : '';
@@ -3615,6 +3664,8 @@ async function guardarReq(){
     mayor_10000:((document.querySelector('input[name="req-mayor10k"]:checked')||{}).value)||'',
     items:getReqItems(),
     justificacion:(document.getElementById('req-justificacion')||{}).value||'',
+    alcance:((document.getElementById('req-alcance')||{}).value||'').trim(),
+    adjuntos:_reqAdjuntos.slice(),
     email_revisor:(document.getElementById('req-select-supervisor')||{}).value || (currentUser && currentUser.supervisor_email) || '',
     email_aprobador:_ajustesG.email_aprobador||'',
     email_presidenta:_ajustesG.email_presidenta||'',
@@ -4249,6 +4300,22 @@ async function verReq(id){
       h+='<div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:10px">'
         +'<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:4px">Justificación</div>'
         +'<div style="font-size:13px;color:#333">'+o.justificacion+'</div></div>';
+    }
+    var adjs=Array.isArray(o.adjuntos)?o.adjuntos:[];
+    if(o.alcance || adjs.length){
+      h+='<div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:10px">';
+      if(o.alcance){
+        h+='<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:4px">Alcance</div>'
+          +'<div style="font-size:13px;color:#333;white-space:pre-wrap">'+escHtml(o.alcance)+'</div>';
+      }
+      if(adjs.length){
+        h+='<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin:'+(o.alcance?'10px':'0')+' 0 6px">Archivos</div>';
+        adjs.forEach(function(a){
+          h+='<a href="'+reqAdjuntoUrl(a)+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;margin-bottom:6px;font-size:13px;color:#1565c0;text-decoration:none;word-break:break-all">'
+            +(/\.pdf$/i.test(a.nombre)?'&#128196;':'&#128202;')+' '+escHtml(a.nombre)+'</a>';
+        });
+      }
+      h+='</div>';
     }
     // Firmas digitales
     var firmas=o.firmas||{};
