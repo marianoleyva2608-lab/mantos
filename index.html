@@ -1631,7 +1631,11 @@ function guardarAlternos(){
     mapa[p]=a;
   }
   fetch('/api/ajustes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({aprobadores_alternos:JSON.stringify(mapa)})})
-    .then(function(r){ if(!r.ok) throw new Error(); _ajustesCache=null; if(msg){msg.style.color='#2e7d32';msg.textContent='Guardado'; setTimeout(function(){msg.textContent='';},1500);} })
+    .then(function(r){return r.json();}).then(function(d){
+      if(!d.ok){ if(msg){msg.style.color='#c62828';msg.textContent='❌ '+(d.error||'Error al guardar');} return; }
+      _ajustesCache=null; loadSettingsPage();
+      if(msg){msg.style.color='#2e7d32';msg.textContent='Guardado'; setTimeout(function(){msg.textContent='';},1500);}
+    })
     .catch(function(){ if(msg){msg.style.color='#c62828';msg.textContent='Error al guardar';} });
 }
 function guardarValidadorDefault(){
@@ -1641,9 +1645,12 @@ function guardarValidadorDefault(){
   fetch('/api/ajustes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
     email_aprobador: elA?elA.value.trim():'',
     email_presidenta: elP?elP.value.trim():''
-  })}).then(function(){
-    if(msg){ msg.textContent = 'Guardado'; setTimeout(function(){ msg.textContent=''; }, 1500); }
-  }).catch(function(){ if(msg){ msg.textContent = 'Error al guardar'; } });
+  })}).then(function(r){return r.json();}).then(function(d){
+    if(!d.ok){ if(msg){ msg.style.color='#c62828'; msg.textContent = '❌ '+(d.error||'Error al guardar'); } return; }
+    _ajustesCache=null;
+    loadSettingsPage();
+    if(msg){ msg.style.color='#2e7d32'; msg.textContent = 'Guardado'; setTimeout(function(){ msg.textContent=''; }, 1500); }
+  }).catch(function(){ if(msg){ msg.style.color='#c62828'; msg.textContent = 'Error al guardar'; } });
 }
 
 // ── SIGNATURES with password ──────────────────────────────────

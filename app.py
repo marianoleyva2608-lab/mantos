@@ -326,11 +326,39 @@ def get_ajustes():
     rows = sb.select('ajustes', select='clave,valor')
     return jsonify({r['clave']: r['valor'] for r in rows})
 
+EMAIL_RE = re.compile(r'^[^@\s]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$')
+
+def limpiar_email(valor):
+    """Quita espacios y puntos/comas sobrantes al inicio o final; '' si no es un correo valido."""
+    v = (valor or '').strip().strip('.,;').strip().lower()
+    return v if EMAIL_RE.match(v) else ''
+
 @app.route('/api/ajustes', methods=['POST'])
 def set_ajustes():
     d = request.json or {}
+    limpios = {}
     for clave, valor in d.items():
-        sb.insert('ajustes', {'clave': clave, 'valor': (valor or '').strip()}, upsert=True, on_conflict='clave', return_rows=False)
+        valor = (valor or '').strip()
+        if clave.startswith('email_') and valor:
+            v = limpiar_email(valor)
+            if not v:
+                return jsonify({'ok': False, 'error': 'Correo no válido: ' + valor}), 400
+            valor = v
+        elif clave == 'aprobadores_alternos' and valor:
+            try:
+                mapa = json.loads(valor)
+            except ValueError:
+                return jsonify({'ok': False, 'error': 'Formato de alternos inválido'}), 400
+            nuevo = {}
+            for p, a in mapa.items():
+                pl, al = limpiar_email(p), limpiar_email(a)
+                if not pl or not al:
+                    return jsonify({'ok': False, 'error': 'Correo no válido en alternos: ' + (p if not pl else a)}), 400
+                nuevo[pl] = al
+            valor = json.dumps(nuevo, ensure_ascii=False)
+        limpios[clave] = valor
+    for clave, valor in limpios.items():
+        sb.insert('ajustes', {'clave': clave, 'valor': valor}, upsert=True, on_conflict='clave', return_rows=False)
     return jsonify({'ok': True})
 
 # Las migraciones historicas de una sola vez (restaurar cantidades desde
