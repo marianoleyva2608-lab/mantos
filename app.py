@@ -1826,8 +1826,18 @@ def requisicion_po_pdf(rid, idx):
 ADJ_BUCKET = 'requisiciones'
 ADJ_EXT = {'.pdf': 'application/pdf',
            '.xls': 'application/vnd.ms-excel',
-           '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
+           '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+           '.xml': 'application/xml'}
 ADJ_MAX_MB = 15
+
+def archivos_validos(lista):
+    """Archivos ya subidos con /api/requisicion/adjunto que se ligan a una cotizacion o factura."""
+    limpios = []
+    for a in (lista if isinstance(lista, list) else []):
+        if isinstance(a, dict) and isinstance(a.get('ruta'), str) and a['ruta'] and '..' not in a['ruta']:
+            limpios.append({'nombre': str(a.get('nombre') or a['ruta'].split('/')[-1])[:200], 'ruta': a['ruta'],
+                            'tamano': int(a.get('tamano') or 0)})
+    return limpios
 
 def _storage_headers(content_type=None):
     h = {'apikey': SB_KEY, 'Authorization': f'Bearer {SB_KEY}'}
@@ -1859,7 +1869,7 @@ def subir_adjunto_requisicion():
     nombre = os.path.basename(f.filename)
     ext = os.path.splitext(nombre)[1].lower()
     if ext not in ADJ_EXT:
-        return jsonify({'ok': False, 'error': 'Solo se permiten archivos PDF o Excel (.pdf, .xls, .xlsx)'}), 400
+        return jsonify({'ok': False, 'error': 'Solo se permiten archivos PDF, Excel o XML (.pdf, .xls, .xlsx, .xml)'}), 400
     datos = f.read()
     if len(datos) > ADJ_MAX_MB * 1024 * 1024:
         return jsonify({'ok': False, 'error': 'El archivo pasa de ' + str(ADJ_MAX_MB) + ' MB'}), 400
@@ -1894,9 +1904,10 @@ def registrar_cotizacion_requisicion(rid):
     cot_numero = (d.get('cotizacion_numero') or '').strip()
     cot_proveedor = (d.get('proveedor') or '').strip()
     cot_link = normalizar_link(d.get('cotizacion_link'))
+    cot_archivos = archivos_validos(d.get('archivos'))
     firmante_email = (d.get('firmante_email') or '').strip().lower()
-    if not cot_numero and not cot_link:
-        return jsonify({'ok': False, 'error': 'Escribe el No. de cotización o pega el link del archivo'}), 400
+    if not cot_numero and not cot_link and not cot_archivos:
+        return jsonify({'ok': False, 'error': 'Escribe el No. de cotización, pega el link o adjunta el archivo'}), 400
     rows = sb.select('requisiciones', select='data', id='eq.' + rid)
     if not rows:
         return jsonify({'ok': False, 'error': 'No encontrado'}), 404
@@ -1906,7 +1917,7 @@ def registrar_cotizacion_requisicion(rid):
         return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la cotización'}), 403
     if not isinstance(o.get('cotizaciones'), list):
         o['cotizaciones'] = []
-    o['cotizaciones'].append({'numero': cot_numero, 'proveedor': cot_proveedor, 'link': cot_link,
+    o['cotizaciones'].append({'numero': cot_numero, 'proveedor': cot_proveedor, 'link': cot_link, 'archivos': cot_archivos,
                               'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M')})
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     return jsonify({'ok': True})
@@ -1934,6 +1945,7 @@ def registrar_factura_requisicion(rid):
     if len(o['facturas']) >= len(o['pos']):
         return jsonify({'ok': False, 'error': 'Ya se registraron todas las facturas necesarias (' + str(len(o['pos'])) + ')'}), 400
     o['facturas'].append({'numero': factura_numero, 'po_numero': po_numero_liga, 'link': factura_link,
+                           'archivos': archivos_validos(d.get('archivos')),
                            'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M')})
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     return jsonify({'ok': True})

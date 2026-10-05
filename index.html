@@ -3435,6 +3435,38 @@ var _reqAdjuntos=[];
 
 function reqAdjuntoUrl(a){return '/api/requisicion/adjunto/'+a.ruta.split('/').map(encodeURIComponent).join('/');}
 
+// Archivos de cotizaciones y facturas: se eligen en el formulario y se suben al guardar
+function reqArchivoInputHtml(inputId){
+  return '<label style="display:inline-flex;align-items:center;gap:6px;background:#fff;color:#1565c0;border:1.5px dashed #1565c0;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:6px">&#128206; Adjuntar archivo (PDF, Excel o XML)'
+    +'<input id="'+inputId+'" type="file" multiple accept=".pdf,.xls,.xlsx,.xml" style="display:none" onchange="reqArchivoNombres(this)"></label>'
+    +'<div id="'+inputId+'-nombres" style="font-size:11px;color:#555;margin-bottom:6px"></div>';
+}
+function reqArchivoNombres(inp){
+  var el=document.getElementById(inp.id+'-nombres');
+  if(el) el.innerHTML=Array.prototype.map.call(inp.files||[],function(f){return '&#128196; '+escHtml(f.name);}).join('<br>');
+}
+async function reqSubirArchivosDe(inputId){
+  var inp=document.getElementById(inputId);
+  var archivos=Array.prototype.slice.call((inp&&inp.files)||[]);
+  var subidos=[];
+  for(var i=0;i<archivos.length;i++){
+    var f=archivos[i];
+    if(!/\.(pdf|xls|xlsx|xml)$/i.test(f.name)) throw new Error(f.name+': solo PDF, Excel o XML');
+    if(f.size>15*1024*1024) throw new Error(f.name+' pasa de 15 MB');
+    var fd=new FormData(); fd.append('archivo',f);
+    var r=await fetch('/api/requisicion/adjunto',{method:'POST',body:fd});
+    var d=await r.json();
+    if(!d.ok) throw new Error(f.name+': '+(d.error||'no se pudo subir'));
+    subidos.push(d.adjunto);
+  }
+  return subidos;
+}
+function reqArchivosLinksHtml(lista){
+  return (Array.isArray(lista)?lista:[]).map(function(a){
+    return '<a href="'+reqAdjuntoUrl(a)+'" target="_blank" rel="noopener" style="display:block;font-size:12px;color:#1565c0;word-break:break-all">'+(/\.pdf$/i.test(a.nombre)?'&#128196;':(/\.xml$/i.test(a.nombre)?'&#128221;':'&#128202;'))+' '+escHtml(a.nombre)+'</a>';
+  }).join('');
+}
+
 function reqRenderAdjuntos(){
   var el=document.getElementById('req-adjuntos-lista');
   if(!el) return;
@@ -4271,21 +4303,28 @@ function reqPoGenerar(btn){
   }).catch(function(){if(ventana)ventana.close();if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.textContent='💾 Guardar y generar PO';});
 }
 
-function verReqRegistrarCotizacion(btn){
+async function verReqRegistrarCotizacion(btn){
   if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
   var reqId=btn.getAttribute('data-reqid');
   var numero=(document.getElementById('ver-cot-numero-'+reqId)||{}).value||'';
   var proveedor=(document.getElementById('ver-cot-proveedor-'+reqId)||{}).value||'';
   var link=(document.getElementById('ver-cot-link-'+reqId)||{}).value||'';
-  if(!numero.trim() && !link.trim()){if(typeof showToast==='function')showToast('Escribe el No. de cotización o pega el link');return;}
+  var hayArchivo=((document.getElementById('ver-cot-archivo-'+reqId)||{}).files||[]).length>0;
+  if(!numero.trim() && !link.trim() && !hayArchivo){if(typeof showToast==='function')showToast('Escribe el No. de cotización, pega el link o adjunta el archivo');return;}
   btn.disabled=true;btn.textContent='Guardando...';
-  fetch('/api/requisicion/'+reqId+'/cotizacion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    cotizacion_numero:numero.trim(), proveedor:proveedor.trim(), cotizacion_link:link.trim(), firmante_email:currentUser.email
-  })}).then(function(r){return r.json();}).then(function(saved){
-    if(!saved.ok){if(typeof showToast==='function')showToast('❌ '+(saved.error||'Error al guardar'));btn.disabled=false;btn.textContent='💾 Registrar cotización';return;}
+  try{
+    var archivos=await reqSubirArchivosDe('ver-cot-archivo-'+reqId);
+    var r=await fetch('/api/requisicion/'+reqId+'/cotizacion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      cotizacion_numero:numero.trim(), proveedor:proveedor.trim(), cotizacion_link:link.trim(), archivos:archivos, firmante_email:currentUser.email
+    })});
+    var saved=await r.json();
+    if(!saved.ok) throw new Error(saved.error||'Error al guardar');
     if(typeof showToast==='function')showToast('✅ Cotización registrada');
     verReq(reqId);
-  }).catch(function(){if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.textContent='💾 Registrar cotización';});
+  }catch(e){
+    if(typeof showToast==='function')showToast('❌ '+e.message);
+    btn.disabled=false;btn.textContent='💾 Registrar cotización';
+  }
 }
 
 function verReqRegistrarFactura(btn){
@@ -4312,14 +4351,17 @@ async function verReqRegistrarFacturas(btn){
     var inp=document.getElementById('ver-factura-numero-'+reqId+'-'+i);
     var linkInp=document.getElementById('ver-factura-link-'+reqId+'-'+i);
     var val=inp?inp.value:'';
-    if(val && val.trim()) entradas.push({numero:val.trim(), po_numero:inp.getAttribute('data-po-numero')||'', link:linkInp?linkInp.value.trim():''});
+    if(val && val.trim()) entradas.push({numero:val.trim(), po_numero:inp.getAttribute('data-po-numero')||'', link:linkInp?linkInp.value.trim():'', archivoInput:'ver-factura-archivo-'+reqId+'-'+i});
   }
   if(!entradas.length){if(typeof showToast==='function')showToast('Escribe al menos un número de factura');return;}
   btn.disabled=true;btn.textContent='Guardando...';
   try{
     for(var j=0;j<entradas.length;j++){
+      var archivosFac;
+      try{ archivosFac=await reqSubirArchivosDe(entradas[j].archivoInput); }
+      catch(eArc){ if(typeof showToast==='function')showToast('❌ '+eArc.message); btn.disabled=false;btn.textContent='💾 Registrar factura(s)'; return; }
       var res=await fetch('/api/requisicion/'+reqId+'/factura',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        factura_numero:entradas[j].numero, po_numero:entradas[j].po_numero, factura_link:entradas[j].link, firmante_email:currentUser.email
+        factura_numero:entradas[j].numero, po_numero:entradas[j].po_numero, factura_link:entradas[j].link, archivos:archivosFac, firmante_email:currentUser.email
       })});
       var saved=await res.json();
       if(!saved.ok){
@@ -4543,6 +4585,7 @@ async function verReq(id){
           +'<div style="font-size:14px;font-weight:700">'+escHtml(c.numero||'(sin número)')+'</div>'
           +(c.proveedor?('<div style="font-size:12px;color:#555">Proveedor: <b>'+escHtml(c.proveedor)+'</b></div>'):'')
           +(c.link?('<a href="'+c.link+'" target="_blank" rel="noopener" style="font-size:12px;color:#1565c0;word-break:break-all">&#128206; Ver archivo</a>'):'')
+          +reqArchivosLinksHtml(c.archivos)
           +'</div>';
       });
       if(!listaCot.length){
@@ -4554,6 +4597,7 @@ async function verReq(id){
           +'<input id="ver-cot-numero-'+id+'" type="text" placeholder="No. de cotización" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +'<input id="ver-cot-proveedor-'+id+'" type="text" placeholder="Proveedor (opcional)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +'<input id="ver-cot-link-'+id+'" type="text" placeholder="Link del archivo (ej. drive.google.com/...)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +reqArchivoInputHtml('ver-cot-archivo-'+id)
           +'<button data-reqid="'+id+'" onclick="verReqRegistrarCotizacion(this)" style="width:100%;padding:8px 14px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar cotización</button>'
           +'</div>';
       }
@@ -4600,6 +4644,7 @@ async function verReq(id){
           +'<div style="font-size:14px;font-weight:700">'+f.numero+'</div>'
           +(poLigado?('<div style="font-size:11px;color:#888;margin-top:2px">Ligada a PO: <b>'+poLigado+'</b></div>'):'')
           +(f.link?('<a href="'+f.link+'" target="_blank" rel="noopener" style="font-size:12px;color:#1565c0;word-break:break-all">&#128206; Ver archivo</a>'):'')
+          +reqArchivosLinksHtml(f.archivos)
           +'</div>';
       });
       if(!listaFacturas.length){
@@ -4613,7 +4658,7 @@ async function verReq(id){
           var _poCorresp=listaPos[listaFacturas.length+_fi];
           h+='<div style="font-size:11px;color:#555;margin-bottom:3px">Factura para PO: <b>'+(_poCorresp?_poCorresp.numero:'')+'</b></div>'
             +'<input id="ver-factura-numero-'+id+'-'+_fi+'" data-po-numero="'+(_poCorresp?_poCorresp.numero.replace(/"/g,'&quot;'):'')+'" class="ver-factura-input-'+id+'" type="text" placeholder="Número de factura" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
-            +'<input id="ver-factura-link-'+id+'-'+_fi+'" type="text" placeholder="Link del archivo (opcional)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">';
+            +'<input id="ver-factura-link-'+id+'-'+_fi+'" type="text" placeholder="Link del archivo (opcional)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'+reqArchivoInputHtml('ver-factura-archivo-'+id+'-'+_fi);
         }
         h+='<button data-reqid="'+id+'" data-cantidad="'+facturasFaltan+'" onclick="verReqRegistrarFacturas(this)" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar factura(s)</button>'
           +'</div>';
