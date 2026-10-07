@@ -262,9 +262,13 @@ async function cargar(){
     </tr>`;}).join('') || '<tr><td colspan="10" class="muted">Sin órdenes</td></tr>';
 }
 
+let ultPorHora = new Array(24).fill(0);
+window.addEventListener('resize', ()=>dibujar(ultPorHora));
 function dibujar(porHora){
+  ultPorHora = porHora;
   const c = $('#chart'), dpr = devicePixelRatio||1;
   const W = c.clientWidth, H = c.clientHeight;
+  if(!W){ requestAnimationFrame(()=>dibujar(porHora)); return; }
   c.width = W*dpr; c.height = H*dpr;
   const x = c.getContext('2d'); x.scale(dpr,dpr);
   x.clearRect(0,0,W,H);
