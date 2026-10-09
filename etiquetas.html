@@ -1618,14 +1618,15 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     return td;
   }
 
-  function crearCeldaFecha(fila, idx, campo) {
+  function crearCeldaFecha(fila, idx, campo, obtenerFilas) {
     var td = document.createElement('td');
     var input = document.createElement('input');
     input.type = 'date';
     input.style.width = '100%';
     // si el valor guardado ya es ISO (yyyy-mm-dd) lo precarga; si no, se deja vacío para elegir de nuevo
     input.value = /^\d{4}-\d{2}-\d{2}$/.test(fila[campo]) ? fila[campo] : '';
-    input.addEventListener('input', function () { filasConv[idx][campo] = input.value; });
+    // obtenerFilas: de qué tabla son las filas (por defecto Conversión; H60 pasa la suya)
+    input.addEventListener('input', function () { (obtenerFilas ? obtenerFilas() : filasConv)[idx][campo] = input.value; });
     td.appendChild(input);
     return td;
   }
@@ -1933,7 +1934,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       var tr = document.createElement('tr');
       CAMPOS_H60.forEach(function (campo) {
         if (campo === 'caducidad' || campo === 'produccion') {
-          tr.appendChild(crearCeldaFecha(fila, idx, campo));
+          tr.appendChild(crearCeldaFecha(fila, idx, campo, function () { return filasH60; }));
           return;
         }
         var td = document.createElement('td');
@@ -2005,9 +2006,9 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         descripcion: fila.descripcion,
         material: fila.material,
         lote: fila.lote,
-        caducidad: fila.caducidad,
+        caducidad: formatoFechaEtiqueta(fila.caducidad) || 'N/A',
         cantidad: fila.cantidad,
-        produccion: fila.produccion,
+        produccion: formatoFechaEtiqueta(fila.produccion) || 'N/A',
         copias: fila.copias,
       };
     });
