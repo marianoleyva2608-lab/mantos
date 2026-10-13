@@ -3471,6 +3471,48 @@ function reqAlertaHtml(p){
       return '<span data-id="'+q.id+'" onclick="verReqEl(this)" style="cursor:pointer;background:'+(venc?'#c62828':'#fff')+';color:'+(venc?'#fff':'#c62828')+';border:1px solid #c62828;border-radius:12px;padding:3px 10px;font-size:12px;font-weight:700">'+q.folio+' ('+q.n+')'+(venc?' &#9200;':'')+'</span>';
     }).join('')+'</div></div>';
 }
+// Recepcion de material: estado por tarjeta y aviso para quien pidio (ya hay PO y falta marcar recibido)
+function reqEstadoRecibido(r){
+  var tienePO=(Array.isArray(r.pos)&&r.pos.length)||r.po_numero;
+  if(!tienePO || r.tipo_doc==='cotizacion') return null;
+  var its=(r.items||[]).filter(function(i){return i.cantidad||i.descripcion;});
+  if(!its.length) return null;
+  var rec=its.filter(function(i){return i.recibido;}).length;
+  return {total:its.length, recibidos:rec};
+}
+function reqRecibidoBadge(r){
+  var e=reqEstadoRecibido(r);
+  if(!e) return '';
+  var st='font-size:11px;font-weight:700;padding:4px 10px;border-radius:10px;margin-left:6px;display:inline-block;margin-top:4px;';
+  if(e.recibidos>=e.total) return '<span style="'+st+'background:#e8f5e9;color:#2e7d32">&#128230; Recibido completo</span>';
+  return '<span style="'+st+'background:#fff3e0;color:#e65100">&#128230; Por recibir '+(e.total-e.recibidos)+'/'+e.total+'</span>';
+}
+function reqPorRecibirHtml(list){
+  var yo=(currentUser&&currentUser.email||'').toLowerCase();
+  if(!yo) return '';
+  var pend=(list||[]).filter(function(r){
+    if((r.solicitante_email||'').toLowerCase()!==yo) return false;
+    var e=reqEstadoRecibido(r);
+    return e && e.recibidos<e.total;
+  });
+  if(!pend.length) return '';
+  var nItems=pend.reduce(function(s,r){var e=reqEstadoRecibido(r);return s+(e.total-e.recibidos);},0);
+  return '<div style="background:#fff3e0;border:1.5px solid #e65100;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
+    +'<div style="font-size:14px;font-weight:700;color:#e65100">&#128230; Tienes '+nItems+' artículo'+(nItems>1?'s':'')+' por recibir</div>'
+    +'<div style="font-size:12px;color:#555;margin-top:4px">Ya tienen orden de compra. Cuando te llegue el material, presiona <b>Recibido</b>:</div>'
+    +pend.map(function(r){
+      var folio='REQ-'+String(r.folio||0).padStart(4,'0');
+      var filas=(r.items||[]).map(function(it,idx){
+        if(!(it.cantidad||it.descripcion) || it.recibido) return '';
+        return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #ffe0b2">'
+          +'<div style="flex:1;font-size:12px;color:#333">'+escHtml(String(it.cantidad||''))+' '+escHtml(it.unidad||'')+' &mdash; '+escHtml(it.descripcion||'')+'</div>'
+          +'<button data-reqid="'+r.id+'" data-idx="'+idx+'" data-origen="lista" onclick="reqMarcarRecibido(this)" style="background:#1a5c2a;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">&#128230; Recibido</button></div>';
+      }).join('');
+      return '<div style="background:#fff;border-radius:8px;padding:8px 10px;margin-top:8px">'
+        +'<div data-id="'+r.id+'" onclick="verReqEl(this)" style="cursor:pointer;font-size:12px;font-weight:700;color:#e65100;margin-bottom:2px">'+folio+' &#8250;</div>'+filas+'</div>';
+    }).join('')+'</div>';
+}
+
 async function reqActualizarAlerta(listaYa){
   try{
     var list=listaYa||await (await fetch('/api/requisiciones')).json();
@@ -3529,6 +3571,7 @@ function reqMarcarRecibido(btn){
   })}).then(function(r){return r.json();}).then(function(d){
     if(!d.ok){if(typeof showToast==='function')showToast('❌ '+(d.error||'Error al guardar'));btn.disabled=false;btn.innerHTML='&#128230; Recibido';return;}
     if(typeof showToast==='function')showToast('✅ Marcado como recibido');
+    if(btn.getAttribute('data-origen')==='lista'){ loadReqList(); return; }
     verReq(reqId);
   }).catch(function(){if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.innerHTML='&#128230; Recibido';});
 }
@@ -4061,11 +4104,11 @@ async function loadReqList(){
         +'</div>'
         +'<div style="font-size:12px;color:#555;margin-top:4px">&#128197; '+r.fecha+' &nbsp;&#128100; '+(r.solicitante||'&#8212;')+'</div>'
         +'<div style="font-size:12px;color:#888;margin-top:2px">'+cnt+' artículo(s) &nbsp;|&nbsp; '+(r.departamento||'')+'</div>'
-        +'<div style="margin-top:8px"><span style="background:'+estadoBg+';color:'+estadoColor+';font-size:11px;font-weight:700;padding:4px 10px;border-radius:10px">'+estadoTxt+'</span>'+reqSlaBadge(r)+'</div>'
+        +'<div style="margin-top:8px"><span style="background:'+estadoBg+';color:'+estadoColor+';font-size:11px;font-weight:700;padding:4px 10px;border-radius:10px">'+estadoTxt+'</span>'+reqSlaBadge(r)+reqRecibidoBadge(r)+'</div>'
         +(userIsAdmin() ? '<div style="text-align:right;margin-top:8px"><button onclick="event.stopPropagation();reqEliminar(\''+r.id+'\')" style="background:#fff;color:#c62828;border:1px solid #c62828;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer">&#128465; Borrar</button></div>' : '')
         +'</div>';
     }).join('');
-    reqActualizarAlerta(list).then(function(p){ var ah=reqAlertaHtml(p); if(ah) el.insertAdjacentHTML('afterbegin',ah); });
+    reqActualizarAlerta(list).then(function(p){ var ah=reqAlertaHtml(p)+reqPorRecibirHtml(list); if(ah) el.insertAdjacentHTML('afterbegin',ah); });
   } catch(e){ el.innerHTML='<div style="color:#c62828;padding:20px">Error: '+e.message+'</div>'; }
 }
 

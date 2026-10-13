@@ -1500,6 +1500,27 @@ def save_requisicion():
 
     return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado, 'aviso_error': aviso_error})
 
+def avisar_compra_al_solicitante(o, rid, numero, caja_chica=False):
+    """Al registrar PO (o caja chica) se avisa a quien pidio, para que marque lo recibido."""
+    destinatario = (o.get('solicitante_email') or '').strip()
+    if not destinatario:
+        return
+    folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
+    link = BASE_URL_PUBLICO + '/?req=' + str(rid)
+    como = 'se compró por caja chica' if caja_chica else 'ya tiene orden de compra <b>' + html_escape(numero) + '</b>'
+    cuerpo = (
+        '<p>Hola ' + html_escape(o.get('solicitante') or '') + ',</p>'
+        '<p>Tu requisición <b>' + folio_txt + '</b> ' + como + '.</p>'
+        + _tabla_items_html(o) +
+        '<p>Cuando te llegue el material, entra al sistema y marca cada artículo como <b>Recibido</b>: '
+        '<a href="' + link + '">' + link + '</a></p>'
+    )
+    try:
+        enviar_correo(destinatario, 'Requisición ' + folio_txt + ' — ' + ('comprada por caja chica' if caja_chica else 'PO ' + numero),
+                      cuerpo)
+    except Exception:
+        pass
+
 def doc_nombre(o):
     return 'Solicitud de cotización' if (o or {}).get('tipo_doc') == 'cotizacion' else 'Requisición'
 
@@ -1602,6 +1623,7 @@ def registrar_po_requisicion(rid):
         })
     o['pos'].append(po)
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    avisar_compra_al_solicitante(o, rid, po['numero'])
     return jsonify({'ok': True, 'numero': po['numero'], 'indice': len(o['pos']) - 1})
 
 # Datos fijos del emisor de las ordenes de compra (encabezado del formato)
@@ -1968,6 +1990,7 @@ def registrar_caja_chica_requisicion(rid):
     o['facturas'].append({'numero': 'Ticket caja chica', 'po_numero': numero, 'link': '', 'archivos': archivos,
                           'fecha': fecha})
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    avisar_compra_al_solicitante(o, rid, numero, caja_chica=True)
     return jsonify({'ok': True, 'numero': numero})
 
 @app.route('/api/requisicion/<rid>/recibido', methods=['POST'])
