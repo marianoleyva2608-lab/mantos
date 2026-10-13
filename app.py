@@ -1618,6 +1618,8 @@ def registrar_po_requisicion(rid):
         return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la compra'}), 403
     if o.get('tipo_doc') == 'cotizacion':
         return jsonify({'ok': False, 'error': 'Una solicitud de cotización no lleva orden de compra: conviértela en requisición de compra'}), 400
+    if any(p.get('caja_chica') for p in (o.get('pos') or [])):
+        return jsonify({'ok': False, 'error': 'Esta requisición ya se compró por caja chica: no lleva PO'}), 400
     if not (isinstance(o.get('firmas'), dict) and isinstance(o['firmas'].get('presidenta'), dict) and o['firmas']['presidenta'].get('estado') == 'aprobado'):
         return jsonify({'ok': False, 'error': 'La requisición todavía no tiene el visto bueno de Dirección'}), 400
     if not isinstance(o.get('pos'), list):
@@ -2022,6 +2024,8 @@ def registrar_caja_chica_requisicion(rid):
         o['pos'] = []
     if not isinstance(o.get('facturas'), list):
         o['facturas'] = []
+    if any(not p.get('caja_chica') for p in o['pos']):
+        return jsonify({'ok': False, 'error': 'Esta requisición ya tiene orden de compra: no se puede registrar como caja chica'}), 400
     previas = sum(1 for p in o['pos'] if p.get('caja_chica'))
     numero = 'CAJA CHICA' + ('' if previas == 0 else ' ' + str(previas + 1))
     fecha = ahora_mx().strftime('%d/%m/%Y %H:%M')
