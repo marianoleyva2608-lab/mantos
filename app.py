@@ -1637,6 +1637,9 @@ def registrar_po_requisicion(rid):
             partidas.append({'cantidad': cant, 'unidad': (p.get('unidad') or '').strip(),
                              'codigo': (p.get('codigo') or '').strip(), 'descripcion': desc,
                              'precio': precio})
+        sin_precio = [p['descripcion'] or '(sin descripción)' for p in partidas if p['precio'] <= 0 or p['cantidad'] <= 0]
+        if sin_precio:
+            return jsonify({'ok': False, 'error': 'Falta precio o cantidad en: ' + ', '.join(sin_precio)}), 400
         if not partidas:
             return jsonify({'ok': False, 'error': 'La PO no tiene partidas'}), 400
         proveedor = (d.get('proveedor_nombre') or '').strip()

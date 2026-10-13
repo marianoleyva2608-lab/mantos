@@ -4503,7 +4503,8 @@ function reqPoGenerar(btn){
   });
   if(!val('prov')){if(typeof showToast==='function')showToast('Escribe el proveedor');return;}
   if(!partidas.length){if(typeof showToast==='function')showToast('Agrega al menos una partida');return;}
-  if(partidas.some(function(p){return !p.precio;}) && !confirm('Hay partidas sin precio. ¿Generar la PO de todos modos?')) return;
+  var _sinPrecio=partidas.filter(function(p){return !(p.precio>0) || !(p.cantidad>0);});
+  if(_sinPrecio.length){if(typeof showToast==='function')showToast('⚠️ Falta precio o cantidad en '+_sinPrecio.length+' partida(s): '+_sinPrecio.map(function(p){return p.descripcion||'(sin descripción)';}).join(', '));return;}
   btn.disabled=true;btn.textContent='Generando...';
   var ventana=window.open('','_blank');
   fetch('/api/requisicion/'+id+'/po',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
