@@ -3453,12 +3453,20 @@ function reqMarcarRecibido(btn){
 }
 
 // Compras indica al aprobar si la requisicion pasa de $10,000 (define si firma Direccion)
-function reqMontoHtml(){
+// oculto=true: firma con correo/PIN desde otra sesion; el recuadro aparece al escribir el correo de Compras
+function reqMontoHtml(oculto){
   var op=function(v){return '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="radio" name="ver-sig-monto" value="'+v+'" style="width:16px;height:16px"> '+v+'</label>';};
-  return '<div style="background:#fff8e1;border:1.5px solid #f9a825;border-radius:8px;padding:8px 10px;margin-bottom:6px">'
+  return '<div id="ver-sig-monto-box" style="'+(oculto?'display:none;':'')+'background:#fff8e1;border:1.5px solid #f9a825;border-radius:8px;padding:8px 10px;margin-bottom:6px">'
     +'<div style="font-size:11px;font-weight:700;color:#8a6100;text-transform:uppercase;margin-bottom:6px">¿El valor de la requisición es mayor a $10,000?</div>'
     +'<div style="display:flex;gap:16px">'+op('Sí')+op('No')+'</div>'
     +'<div style="font-size:11px;color:#8a6100;margin-top:4px">Si es Sí, también firma Dirección. Si es No, queda aprobada al firmar Compras.</div></div>';
+}
+function reqMontoMostrar(inp){
+  var box=document.getElementById('ver-sig-monto-box');
+  if(!box) return;
+  var permitidos=(inp.getAttribute('data-permitidos')||'').split(',').filter(Boolean);
+  var v=inp.value.trim().toLowerCase();
+  box.style.display=(permitidos.length?permitidos.indexOf(v)!==-1:!!v)?'':'none';
 }
 function reqMontoSel(){
   var r=document.querySelector('input[name="ver-sig-monto"]:checked');
@@ -4584,10 +4592,10 @@ async function verReq(id){
               : ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmarSesion(this)" style="flex:1;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128274; Validar</button>'))
             +'</div>';
         } else {
-          h+='<input id="ver-sig-email-'+key+'" type="email" placeholder="Tu correo electrónico" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          h+='<input id="ver-sig-email-'+key+'"'+(key==='aprobo'?(' data-permitidos="'+escHtml([emailAsignado,(_altAj[(emailAsignado||'').toLowerCase()]||'')].join(',').toLowerCase())+'" oninput="reqMontoMostrar(this)" onchange="reqMontoMostrar(this)"'):'')+' type="email" placeholder="Tu correo electrónico" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
             +'<input id="ver-sig-pin-'+key+'" type="password" placeholder="PIN personal" maxlength="20" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:3px;box-sizing:border-box;margin-bottom:6px">'
             +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (opcional si apruebas, obligatorio si rechazas)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
-            +(key==='aprobo'?reqMontoHtml():'')
+            +(key==='aprobo'?reqMontoHtml(true):'')
             +'<div style="display:flex;gap:6px">'
             +(permiteRechazo
               ? ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="rechazado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; Rechazar</button>'
