@@ -1550,6 +1550,18 @@ def avisar_recepcion_a_compras(o, rid):
     except Exception:
         pass
 
+def estado_entrega(o):
+    """(recibidos, total) de los articulos de la requisicion."""
+    reales = [it for it in (o.get('items') or []) if isinstance(it, dict) and (it.get('cantidad') or it.get('descripcion'))]
+    return sum(1 for it in reales if it.get('recibido')), len(reales)
+
+def falta_entrega(o):
+    """Ya hay PO pero el solicitante todavia no marca todo como recibido."""
+    if o.get('tipo_doc') == 'cotizacion' or not (o.get('pos') or o.get('po_numero')):
+        return False
+    recibidos, total = estado_entrega(o)
+    return total > 0 and recibidos < total
+
 def doc_nombre(o):
     return 'Solicitud de cotización' if (o or {}).get('tipo_doc') == 'cotizacion' else 'Requisición'
 
@@ -2051,8 +2063,8 @@ def marcar_recibido_requisicion(rid):
                                   'nombre': nombre or o.get('solicitante') or email}
         sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
         # Cuando ya se recibio todo, se avisa a Compras
-        reales = [it for it in items if isinstance(it, dict) and (it.get('cantidad') or it.get('descripcion'))]
-        if reales and all(it.get('recibido') for it in reales):
+        recibidos, total = estado_entrega(o)
+        if total and recibidos >= total:
             avisar_recepcion_a_compras(o, rid)
     return jsonify({'ok': True})
 
@@ -2103,7 +2115,7 @@ def reporte_requisiciones_excel():
     def cerrada(o):
         n_pos = len(o.get('pos') or ([o['po_numero']] if o.get('po_numero') else []))
         n_fact = len(o.get('facturas') or ([o['factura_numero']] if o.get('factura_numero') else []))
-        return n_pos > 0 and n_fact >= n_pos
+        return n_pos > 0 and n_fact >= n_pos and not falta_entrega(o)
     if estado == 'abiertas':
         reqs = [o for o in reqs if not cerrada(o)]
     elif estado == 'cerradas':
@@ -2130,7 +2142,8 @@ def reporte_requisiciones_excel():
         if rechazo_key:
             estado_txt = 'Rechazada'
         elif pos and len(facturas) >= len(pos):
-            estado_txt = 'Cerrada'
+            ent = estado_entrega(o)
+            estado_txt = ('Facturada - falta entrega (' + str(ent[0]) + '/' + str(ent[1]) + ' recibidos)') if falta_entrega(o) else 'Cerrada (entregada)'
         elif pos:
             estado_txt = 'Comprada - falta factura (' + str(len(facturas)) + '/' + str(len(pos)) + ')'
         elif isinstance(firmas.get('presidenta'), dict) and firmas['presidenta'].get('estado') == 'aprobado':

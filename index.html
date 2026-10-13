@@ -3480,6 +3480,7 @@ function reqEstadoRecibido(r){
   var rec=its.filter(function(i){return i.recibido;}).length;
   return {total:its.length, recibidos:rec};
 }
+function reqFaltaEntrega(r){ var e=reqEstadoRecibido(r); return !!(e && e.recibidos<e.total); }
 function reqRecibidoBadge(r){
   var e=reqEstadoRecibido(r);
   if(!e) return '';
@@ -4085,7 +4086,9 @@ async function loadReqList(){
       } else if(r.tipo_doc==='cotizacion' && firmas.reviso && firmas.reviso.estado==='aprobado'){
         estadoTxt='&#8987; Pendiente de que Compras cotice'; estadoColor='#1565c0'; estadoBg='#e3f2fd';
       } else if(numPos>0 && numFacturas>=numPos){
-        estadoTxt='&#9989; Cerrada (facturada)'; estadoColor='#1a5c2a'; estadoBg='#e8f5e9';
+        var _er=reqEstadoRecibido(r);
+        if(_er && _er.recibidos<_er.total){ estadoTxt='&#128230; Facturada — falta entrega ('+_er.recibidos+'/'+_er.total+' recibidos)'; estadoColor='#e65100'; estadoBg='#fff3e0'; }
+        else { estadoTxt='&#9989; Cerrada (entregada)'; estadoColor='#1a5c2a'; estadoBg='#e8f5e9'; }
       } else if(numPos>0){
         estadoTxt='&#128179; Comprada — falta factura ('+numFacturas+'/'+numPos+')'; estadoColor='#6a1b9a'; estadoBg='#f3e5f5';
       } else if(firmas.presidenta && firmas.presidenta.estado==='aprobado'){
@@ -4141,14 +4144,16 @@ async function loadReqDashboard(){
       if(mes){ porMes[mes]=porMes[mes]||{total:0,cerradas:0}; porMes[mes].total++; }
       var folio='REQ-'+String(r.folio||0).padStart(4,'0');
       if(rk){ tRechazadas++; }
-      else if((pos.length>0 && facs.length>=pos.length) || (r.tipo_doc==='cotizacion' && fr.aprobo && fr.aprobo.estado==='aprobado')){
+      else if((pos.length>0 && facs.length>=pos.length && !reqFaltaEntrega(r)) || (r.tipo_doc==='cotizacion' && fr.aprobo && fr.aprobo.estado==='aprobado')){
         tCerradas++;
         if(mes) porMes[mes].cerradas++;
       } else {
         tAbiertas++;
         var dias='';
         try{ var f=new Date(r.fecha); dias=Math.max(0,Math.floor((hoy-f)/(1000*60*60*24))); }catch(e){}
-        var etapa = pos.length>0 ? ('Falta factura ('+facs.length+'/'+pos.length+')')
+        var _erD=reqEstadoRecibido(r);
+        var etapa = (pos.length>0 && facs.length>=pos.length && _erD) ? ('Falta entrega ('+_erD.recibidos+'/'+_erD.total+' recibidos)')
+          : pos.length>0 ? ('Falta factura ('+facs.length+'/'+pos.length+')')
           : (fr.presidenta&&fr.presidenta.estado==='aprobado' ? 'Falta registrar PO'
           : (fr.aprobo&&fr.aprobo.estado==='aprobado' ? 'Pendiente Dirección'
           : (fr.reviso&&fr.reviso.estado==='aprobado' ? (r.tipo_doc==='cotizacion'?'Pendiente Compras (cotizar)':'Pendiente Compras') : 'Pendiente Revisión')));
@@ -4689,7 +4694,8 @@ async function verReq(id){
         {k:'reviso',l:'Revisó'},
         {k:'aprobo',l:'Compras'},
         {k:'presidenta',l:'Dirección'},
-        {k:'cierre',l:'Cierre (PO/Factura)'}
+        {k:'cierre',l:'Cierre (PO/Factura)'},
+        {k:'entrega',l:'Entrega'}
       ];
       var listaPosD=Array.isArray(o.pos)?o.pos:(o.po_numero?[{numero:o.po_numero}]:[]);
       var listaFacD=Array.isArray(o.facturas)?o.facturas:(o.factura_numero?[{numero:o.factura_numero}]:[]);
@@ -4698,7 +4704,10 @@ async function verReq(id){
         +'<div style="display:flex;align-items:center;min-width:600px">';
       pasos.forEach(function(p,pi){
         var estadoPaso;
-        if(p.k==='cierre'){
+        if(p.k==='entrega'){
+          var _erP=reqEstadoRecibido(o);
+          estadoPaso = !listaPosD.length ? 'inactivo' : ((_erP && _erP.recibidos<_erP.total) ? 'pendiente' : 'ok');
+        } else if(p.k==='cierre'){
           estadoPaso = (listaPosD.length && listaFacD.length>=listaPosD.length) ? 'ok' : (listaPosD.length ? 'pendiente' : (firmas.presidenta&&firmas.presidenta.estado==='aprobado' ? 'pendiente':'inactivo'));
         } else if(rechazoKeyD===p.k){
           estadoPaso='rechazado';
