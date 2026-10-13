@@ -1443,7 +1443,7 @@ def save_requisicion():
         link = base_url + '/?req=' + str(o.get('id') or '')
         cuerpo = (
             '<p>Hola,</p>'
-            '<p>La requisición <b>' + folio_txt + '</b> necesita que ' + etapa_texto + '.</p>'
+            '<p>La ' + doc_nombre(o).lower() + ' <b>' + folio_txt + '</b> necesita que ' + etapa_texto + '.</p>'
             + (_mayor_10000_html(o) if destinatario.lower() == (o.get('email_aprobador') or '').strip().lower() else '')
             + _justificacion_html(o) +
             '<p><b>Solicitante:</b> ' + (o.get('solicitante') or '-') + '<br>'
@@ -1454,14 +1454,14 @@ def save_requisicion():
             '<p>Entra al sistema para revisarla y firmarla: <a href="' + link + '">' + link + '</a></p>'
         )
         ok, err = enviar_correo(
-            destinatario, 'Requisición ' + folio_txt + ' pendiente', cuerpo,
+            destinatario, doc_nombre(o) + ' ' + folio_txt + ' pendiente', cuerpo,
             nombre_remitente=o.get('solicitante') or None,
             responder_a=o.get('solicitante_email') or None,
         )
         alterno = aprobadores_alternos().get(destinatario.lower())
         if alterno and destinatario.lower() != (o.get('solicitante_email') or '').strip().lower():
             enviar_correo(
-                alterno, 'Requisición ' + folio_txt + ' pendiente (eres alterno de ' + destinatario + ')', cuerpo,
+                alterno, doc_nombre(o) + ' ' + folio_txt + ' pendiente (eres alterno de ' + destinatario + ')', cuerpo,
                 nombre_remitente=o.get('solicitante') or None,
                 responder_a=o.get('solicitante_email') or None,
             )
@@ -1490,7 +1490,7 @@ def save_requisicion():
         link = base_url + '/?req=' + str(d['id'])
         cuerpo_confirmacion = (
             '<p>Hola ' + (d.get('solicitante') or '') + ',</p>'
-            '<p>Tu requisición <b>' + folio_txt + '</b> se registró correctamente.</p>'
+            '<p>Tu ' + doc_nombre(d).lower() + ' <b>' + folio_txt + '</b> se registró correctamente.</p>'
             + _justificacion_html(d) +
             '<p><b>Estado actual:</b> ' + estado_actual + '</p>'
             + _tabla_items_html(d) +
@@ -1499,6 +1499,9 @@ def save_requisicion():
         enviar_correo(d['solicitante_email'], 'Confirmación ' + folio_txt + ' — ' + estado_actual, cuerpo_confirmacion)
 
     return jsonify({'ok': True, 'id': d['id'], 'folio': folio, 'aviso_enviado': aviso_enviado, 'aviso_error': aviso_error})
+
+def doc_nombre(o):
+    return 'Solicitud de cotización' if (o or {}).get('tipo_doc') == 'cotizacion' else 'Requisición'
 
 def email_compras_de(o):
     """Correo de Compras de la requisicion. Si no se guardo email_aprobador, se toma de quien firmo como Compras."""
@@ -1551,6 +1554,8 @@ def registrar_po_requisicion(rid):
     asignado = email_compras_de(o)
     if asignado and firmante_email != asignado:
         return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la compra'}), 403
+    if o.get('tipo_doc') == 'cotizacion':
+        return jsonify({'ok': False, 'error': 'Una solicitud de cotización no lleva orden de compra: conviértela en requisición de compra'}), 400
     if not (isinstance(o.get('firmas'), dict) and isinstance(o['firmas'].get('presidenta'), dict) and o['firmas']['presidenta'].get('estado') == 'aprobado'):
         return jsonify({'ok': False, 'error': 'La requisición todavía no tiene el visto bueno de Dirección'}), 400
     if not isinstance(o.get('pos'), list):
@@ -2105,7 +2110,12 @@ def firmar_requisicion(rid):
                 firma['alterno_de'] = asignado
             else:
                 return jsonify({'ok': False, 'error': 'Esta etapa solo la puede firmar la persona asignada (' + asignado + ') o su alterno'}), 403
-    if key == 'aprobo' and estado == 'aprobado':
+    es_cotizacion = o.get('tipo_doc') == 'cotizacion'
+    if key == 'aprobo' and estado == 'aprobado' and es_cotizacion:
+        # Solicitud de cotizacion: Compras la da por atendida cuando ya registro las cotizaciones
+        if not (o.get('cotizaciones') or []):
+            return jsonify({'ok': False, 'error': 'Primero registra al menos una cotización'}), 400
+    elif key == 'aprobo' and estado == 'aprobado':
         # Compras decide si la requisicion pasa de $10,000 (de eso depende si firma Direccion)
         monto = d.get('mayor_10000')
         if monto not in ('Sí', 'No'):
@@ -2119,13 +2129,15 @@ def firmar_requisicion(rid):
     o['firmas'][key] = firma
     # Si la requisicion NO pasa de $10,000, Direccion no firma: al aprobar Compras
     # queda aprobada (se registra la etapa de Direccion como "no requerida").
-    sin_direccion = (key == 'aprobo' and estado == 'aprobado' and o.get('mayor_10000') == 'No'
+    sin_direccion = (key == 'aprobo' and estado == 'aprobado' and (o.get('mayor_10000') == 'No' or es_cotizacion)
                      and not (isinstance(o['firmas'].get('presidenta'), dict) and o['firmas']['presidenta'].get('estado')))
     if sin_direccion:
         o['firmas']['presidenta'] = {
-            'nombre': 'No requerida (menor a $10,000)', 'email': '', 'estado': 'aprobado', 'no_requerida': True,
+            'nombre': 'No requerida (solicitud de cotización)' if es_cotizacion else 'No requerida (menor a $10,000)',
+            'email': '', 'estado': 'aprobado', 'no_requerida': True,
             'fecha': firma.get('fecha', ''), 'serie': 'N/A',
-            'comentario': 'Aprobada automáticamente al firmar Compras: la requisición no excede $10,000',
+            'comentario': ('Solicitud de cotización atendida por Compras' if es_cotizacion else
+                           'Aprobada automáticamente al firmar Compras: la requisición no excede $10,000'),
         }
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
@@ -2148,17 +2160,19 @@ def firmar_requisicion(rid):
             + _tabla_items_html(o) +
             '<p>Entra al sistema: <a href="' + link + '">' + link + '</a></p>'
         )
-        enviar_correo(destinatario, 'Requisición ' + folio_txt, cuerpo, nombre_remitente=o.get('solicitante') or None)
+        enviar_correo(destinatario, doc_nombre(o) + ' ' + folio_txt, cuerpo, nombre_remitente=o.get('solicitante') or None)
         alterno = alternos.get(destinatario.lower())
         if alterno and destinatario.lower() != (o.get('solicitante_email') or '').strip().lower():
-            enviar_correo(alterno, 'Requisición ' + folio_txt + ' (eres alterno de ' + destinatario + ')', cuerpo,
+            enviar_correo(alterno, doc_nombre(o) + ' ' + folio_txt + ' (eres alterno de ' + destinatario + ')', cuerpo,
                           nombre_remitente=o.get('solicitante') or None)
     if estado == 'rechazado':
         avisar(o.get('solicitante_email'), 'Fue RECHAZADA por ' + etapa_labels.get(key, key))
         return jsonify({'ok': True})
     if key == 'reviso':
         avisar(o.get('email_aprobador'), 'Ya fue revisada y necesita que la apruebes (Compras)')
-        avisar(o.get('solicitante_email'), 'Fue aprobada por tu supervisor. Falta: Compras (y Dirección si pasa de $10,000)')
+        avisar(o.get('solicitante_email'), 'Fue aprobada por tu supervisor. Falta: Compras' + ('' if es_cotizacion else ' (y Dirección si pasa de $10,000)'))
+    elif key == 'aprobo' and sin_direccion and es_cotizacion:
+        avisar(o.get('solicitante_email'), 'Compras ya atendió tu solicitud de cotización. Revisa las cotizaciones en el sistema; si procede, conviértela en requisición de compra')
     elif key == 'aprobo' and sin_direccion:
         avisar(o.get('solicitante_email'), 'Ya quedó completamente aprobada (no requiere Dirección por ser menor a $10,000)')
         avisar(o.get('email_aprobador'), 'Quedó aprobada sin firma de Dirección (menor a $10,000). Ya puedes generar la PO de la requisición')
@@ -2216,7 +2230,7 @@ def requisicion_pdf(rid):
 
     # ── TITLE ──
     c.setFont('Helvetica-Bold', 13); c.setFillColor(BLACK)
-    c.drawCentredString(W/2, y-0.35*cm, 'Requisición de compra')
+    c.drawCentredString(W/2, y-0.35*cm, 'Solicitud de cotización' if o.get('tipo_doc') == 'cotizacion' else 'Requisición de compra')
 
     # ── DOC INFO top-right ──
     folio = str(o.get('folio', '')).zfill(4)
