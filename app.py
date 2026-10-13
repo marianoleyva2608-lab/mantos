@@ -1931,6 +1931,45 @@ def registrar_cotizacion_requisicion(rid):
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     return jsonify({'ok': True})
 
+@app.route('/api/requisicion/<rid>/caja-chica', methods=['POST'])
+def registrar_caja_chica_requisicion(rid):
+    """Compra pagada con caja chica: en lugar de PO + factura se registra el monto y el ticket.
+    Queda como una PO 'CAJA CHICA' con su comprobante, asi la requisicion se cierra igual."""
+    d = request.json or {}
+    firmante_email = (d.get('firmante_email') or '').strip().lower()
+    monto = _num(d.get('monto'))
+    proveedor = (d.get('proveedor') or '').strip()
+    archivos = archivos_validos(d.get('archivos'))
+    if monto <= 0:
+        return jsonify({'ok': False, 'error': 'Escribe el monto pagado'}), 400
+    if not archivos:
+        return jsonify({'ok': False, 'error': 'Adjunta el ticket o la nota de la compra'}), 400
+    rows = sb.select('requisiciones', select='data', id='eq.' + rid)
+    if not rows:
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    o = json.loads(rows[0]['data'])
+    asignado = email_compras_de(o)
+    if asignado and firmante_email != asignado:
+        return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar la compra'}), 403
+    if o.get('tipo_doc') == 'cotizacion':
+        return jsonify({'ok': False, 'error': 'Una solicitud de cotización no se compra: conviértela en requisición de compra'}), 400
+    if not (isinstance(o.get('firmas'), dict) and isinstance(o['firmas'].get('presidenta'), dict) and o['firmas']['presidenta'].get('estado') == 'aprobado'):
+        return jsonify({'ok': False, 'error': 'La requisición todavía no está aprobada'}), 400
+    if not isinstance(o.get('pos'), list):
+        o['pos'] = []
+    if not isinstance(o.get('facturas'), list):
+        o['facturas'] = []
+    previas = sum(1 for p in o['pos'] if p.get('caja_chica'))
+    numero = 'CAJA CHICA' + ('' if previas == 0 else ' ' + str(previas + 1))
+    fecha = ahora_mx().strftime('%d/%m/%Y %H:%M')
+    o['pos'].append({'numero': numero, 'caja_chica': True, 'monto': monto, 'proveedor_nombre': proveedor,
+                     'fecha': fecha, 'creado': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                     'archivos': archivos, 'elaboro_email': firmante_email})
+    o['facturas'].append({'numero': 'Ticket caja chica', 'po_numero': numero, 'link': '', 'archivos': archivos,
+                          'fecha': fecha})
+    sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    return jsonify({'ok': True, 'numero': numero})
+
 @app.route('/api/requisicion/<rid>/recibido', methods=['POST'])
 def marcar_recibido_requisicion(rid):
     """El solicitante confirma que recibio un articulo (indice dentro de items)."""

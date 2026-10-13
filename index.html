@@ -2338,9 +2338,10 @@ function renderTabsPanel() {
     visibles.map(function(t){
       return '<div class="mcard" onclick="activateTab(\'' + t.id + '\')">' +
         '<div class="micon">' + t.icon + '</div>' +
-        '<div class="minfo"><div class="mname">' + t.label + '</div></div>' +
+        '<div class="minfo"><div class="mname">' + t.label + (t.id === 'req' ? ' <span id="req-alerta-badge" style="display:none;background:#c62828;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:4px"></span>' : '') + '</div></div>' +
         '<div class="marr">&#8250;</div></div>';
     }).join('') + '</div>';
+  if (visibles.some(function(t){ return t.id === 'req'; }) && typeof reqActualizarAlerta === 'function') reqActualizarAlerta();
 }
 function applyTabAccess() {
   renderTabsPanel();
@@ -3443,6 +3444,67 @@ var _reqVerTipoDoc='requisicion';
 
 function reqAdjuntoUrl(a){return '/api/requisicion/adjunto/'+a.ruta.split('/').map(encodeURIComponent).join('/');}
 
+// Alerta para Compras: articulos de requisiciones ya aprobadas que todavia no tienen PO ni caja chica
+function reqPendientesDeCompra(list){
+  var yo=(currentUser&&currentUser.email||'').toLowerCase();
+  var res={reqs:[],items:0};
+  if(!yo) return res;
+  (list||[]).forEach(function(r){
+    var fr=r.firmas||{};
+    var compras=(r.email_aprobador||((fr.aprobo||{}).email)||'').toLowerCase();
+    if(compras!==yo || r.tipo_doc==='cotizacion') return;
+    if(['reviso','aprobo','presidenta'].some(function(k){return fr[k]&&fr[k].estado==='rechazado';})) return;
+    if(!(fr.presidenta&&fr.presidenta.estado==='aprobado')) return;
+    if((Array.isArray(r.pos)&&r.pos.length)||r.po_numero) return;
+    var n=(r.items||[]).filter(function(i){return (i.cantidad||i.descripcion)&&i.accion!=='Cotizar';}).length;
+    if(n){ res.items+=n; res.reqs.push({id:r.id, folio:'REQ-'+String(r.folio||0).padStart(4,'0'), n:n, sla:reqSla(r)}); }
+  });
+  return res;
+}
+function reqAlertaHtml(p){
+  if(!p.items) return '';
+  return '<div style="background:#fce4ec;border:1.5px solid #c62828;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
+    +'<div style="font-size:14px;font-weight:700;color:#c62828">&#128276; '+p.items+' artículo'+(p.items>1?'s':'')+' por comprar en '+p.reqs.length+' requisici'+(p.reqs.length>1?'ones':'ón')+'</div>'
+    +'<div style="font-size:12px;color:#555;margin-top:4px">Aprobadas y sin orden de compra ni caja chica:</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">'+p.reqs.map(function(q){
+      var venc=q.sla&&q.sla.vencida;
+      return '<span data-id="'+q.id+'" onclick="verReqEl(this)" style="cursor:pointer;background:'+(venc?'#c62828':'#fff')+';color:'+(venc?'#fff':'#c62828')+';border:1px solid #c62828;border-radius:12px;padding:3px 10px;font-size:12px;font-weight:700">'+q.folio+' ('+q.n+')'+(venc?' &#9200;':'')+'</span>';
+    }).join('')+'</div></div>';
+}
+async function reqActualizarAlerta(listaYa){
+  try{
+    var list=listaYa||await (await fetch('/api/requisiciones')).json();
+    var p=reqPendientesDeCompra(list);
+    var b=document.getElementById('req-alerta-badge');
+    if(b){ b.textContent=p.items+' por comprar'; b.style.display=p.items?'inline-block':'none'; }
+    return p;
+  }catch(e){ return {reqs:[],items:0}; }
+}
+
+async function reqRegistrarCajaChica(btn){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  var reqId=btn.getAttribute('data-reqid');
+  var monto=parseFloat((document.getElementById('ver-caja-monto-'+reqId)||{}).value)||0;
+  var prov=((document.getElementById('ver-caja-prov-'+reqId)||{}).value||'').trim();
+  var hayArchivo=((document.getElementById('ver-caja-archivo-'+reqId)||{}).files||[]).length>0;
+  if(monto<=0){if(typeof showToast==='function')showToast('Escribe el monto pagado');return;}
+  if(!hayArchivo){if(typeof showToast==='function')showToast('Adjunta el ticket o la nota');return;}
+  btn.disabled=true;btn.textContent='Guardando...';
+  try{
+    var archivos=await reqSubirArchivosDe('ver-caja-archivo-'+reqId);
+    var r=await fetch('/api/requisicion/'+reqId+'/caja-chica',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      monto:monto, proveedor:prov, archivos:archivos, firmante_email:currentUser.email
+    })});
+    var d=await r.json();
+    if(!d.ok) throw new Error(d.error||'Error al guardar');
+    if(typeof showToast==='function')showToast('✅ Compra por caja chica registrada');
+    verReq(reqId);
+  }catch(e){
+    if(typeof showToast==='function')showToast('❌ '+e.message);
+    btn.disabled=false;btn.textContent='💾 Registrar compra por caja chica';
+  }
+}
+
 // Recibido por articulo: el solicitante confirma que le llego el material (despues de la PO)
 function reqRecibidoCelda(o,it,id){
   var td='<td style="padding:5px;border:1px solid #eee;text-align:center;font-size:11px">';
@@ -4003,6 +4065,7 @@ async function loadReqList(){
         +(userIsAdmin() ? '<div style="text-align:right;margin-top:8px"><button onclick="event.stopPropagation();reqEliminar(\''+r.id+'\')" style="background:#fff;color:#c62828;border:1px solid #c62828;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer">&#128465; Borrar</button></div>' : '')
         +'</div>';
     }).join('');
+    reqActualizarAlerta(list).then(function(p){ var ah=reqAlertaHtml(p); if(ah) el.insertAdjacentHTML('afterbegin',ah); });
   } catch(e){ el.innerHTML='<div style="color:#c62828;padding:20px">Error: '+e.message+'</div>'; }
 }
 
@@ -4729,10 +4792,11 @@ async function verReq(id){
         var totalPo=0;
         if(p.generada){(p.partidas||[]).forEach(function(x){var imp=Math.round(x.cantidad*x.precio*100)/100;totalPo+=imp+Math.round(imp*(p.iva_pct||0))/100;});}
         h+='<div style="border:1.5px solid #43a047;border-radius:8px;padding:10px;margin-bottom:8px">'
-          +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">No. de PO'+(p.fecha?(' &bull; '+p.fecha):'')+'</div>'
+          +'<div style="font-size:10px;color:#2e7d32;font-weight:700;text-transform:uppercase">'+(p.caja_chica?'&#128181; Compra por caja chica':'No. de PO')+(p.fecha?(' &bull; '+p.fecha):'')+'</div>'
           +'<div style="font-size:14px;font-weight:700">'+escHtml(p.numero)+'</div>'
           +(p.generada?('<div style="font-size:12px;color:#555">'+escHtml(p.proveedor_nombre||'')+' &bull; Total: <b>$'+totalPo.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+'</b></div>'
             +'<a href="/api/requisicion/'+id+'/po/'+pi+'/pdf" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;padding:6px 12px;background:#1a5c2a;color:#fff;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">&#128424; Imprimir / descargar PO</a>'):'')
+          +(p.caja_chica?('<div style="font-size:12px;color:#555">'+escHtml(p.proveedor_nombre||'')+(p.proveedor_nombre?' &bull; ':'')+'Monto: <b>$'+Number(p.monto||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+'</b></div>'+reqArchivosLinksHtml(p.archivos)):'')
           +(p.link?('<a href="'+p.link+'" target="_blank" rel="noopener" style="font-size:12px;color:#1565c0;word-break:break-all">&#128206; Ver archivo</a>'):'')
           +'</div>';
       });
@@ -4743,6 +4807,14 @@ async function verReq(id){
         h+='<button onclick="reqPoAbrirForm(\''+id+'\');this.style.display=\'none\'" style="width:100%;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">&#128221; '+(listaPos.length?'Generar otra PO':'Generar PO')+'</button>'
           +reqPoFormHtml(id,o)
           +'<div style="text-align:center;margin-bottom:8px"><a href="#" onclick="event.preventDefault();document.getElementById(\'ver-po-form-'+id+'\').style.display=\'block\';this.style.display=\'none\'" style="font-size:11px;color:#888">¿La PO ya se hizo en otro sistema? Registrar solo el número</a></div>'
+          +'<button onclick="document.getElementById(\'ver-caja-form-'+id+'\').style.display=\'block\';this.style.display=\'none\'" style="width:100%;padding:8px 14px;background:#fff8e1;color:#8a6100;border:2px dashed #f9a825;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">&#128181; Compra por caja chica</button>'
+          +'<div id="ver-caja-form-'+id+'" style="display:none;border:1.5px solid #f9a825;border-radius:8px;padding:10px;margin-bottom:8px;background:#fffdf5">'
+          +'<div style="font-size:11px;color:#8a6100;margin-bottom:6px">Para compras pagadas con caja chica: no lleva PO ni factura. Registra el monto y adjunta el ticket o nota; la requisición queda cerrada.</div>'
+          +'<input id="ver-caja-monto-'+id+'" type="number" min="0" step="any" placeholder="Monto pagado ($)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +'<input id="ver-caja-prov-'+id+'" type="text" placeholder="Dónde se compró (opcional)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +reqArchivoInputHtml('ver-caja-archivo-'+id)
+          +'<button data-reqid="'+id+'" onclick="reqRegistrarCajaChica(this)" style="width:100%;padding:8px 14px;background:#8a6100;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar compra por caja chica</button>'
+          +'</div>'
           +'<div id="ver-po-form-'+id+'" style="display:none;border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-bottom:8px">'
           +'<input id="ver-po-numero-'+id+'" type="text" placeholder="No. de PO / Orden de compra" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +'<input id="ver-po-link-'+id+'" type="text" placeholder="Link del archivo (opcional, ej. drive.google.com/...)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
