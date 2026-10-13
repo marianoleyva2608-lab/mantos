@@ -1521,6 +1521,35 @@ def avisar_compra_al_solicitante(o, rid, numero, caja_chica=False):
     except Exception:
         pass
 
+def avisar_recepcion_a_compras(o, rid):
+    """El solicitante ya marco como recibidos todos los articulos: aviso a Compras."""
+    destinatario = email_compras_de(o)
+    if not destinatario:
+        return
+    folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
+    link = BASE_URL_PUBLICO + '/?req=' + str(rid)
+    filas = ''.join(
+        '<tr><td style="border:1px solid #ddd;padding:5px">' + html_escape(str(it.get('cantidad') or '')) + ' '
+        + html_escape(it.get('unidad') or '') + '</td><td style="border:1px solid #ddd;padding:5px">'
+        + html_escape(it.get('descripcion') or '') + '</td><td style="border:1px solid #ddd;padding:5px">'
+        + html_escape((it.get('recibido') or {}).get('fecha') or '') + '</td></tr>'
+        for it in (o.get('items') or []) if isinstance(it, dict) and (it.get('cantidad') or it.get('descripcion')))
+    pos = ', '.join(p.get('numero') or '' for p in (o.get('pos') or []))
+    cuerpo = (
+        '<p>Hola,</p><p><b>' + html_escape(o.get('solicitante') or 'El solicitante') + '</b> confirmó que ya recibió '
+        'todo el material de la requisición <b>' + folio_txt + '</b>' + (' (PO: ' + html_escape(pos) + ')' if pos else '') + '.</p>'
+        '<table style="border-collapse:collapse;width:100%;font-size:13px">'
+        '<tr style="background:#e8f5e9"><th style="border:1px solid #ddd;padding:5px;text-align:left">Cantidad</th>'
+        '<th style="border:1px solid #ddd;padding:5px;text-align:left">Descripción</th>'
+        '<th style="border:1px solid #ddd;padding:5px;text-align:left">Recibido</th></tr>' + filas + '</table>'
+        '<p>Ver en el sistema: <a href="' + link + '">' + link + '</a></p>'
+    )
+    try:
+        enviar_correo(destinatario, 'Requisición ' + folio_txt + ' — material recibido completo', cuerpo,
+                      nombre_remitente=o.get('solicitante') or None)
+    except Exception:
+        pass
+
 def doc_nombre(o):
     return 'Solicitud de cotización' if (o or {}).get('tipo_doc') == 'cotizacion' else 'Requisición'
 
@@ -2021,6 +2050,10 @@ def marcar_recibido_requisicion(rid):
         items[idx]['recibido'] = {'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M'), 'email': email,
                                   'nombre': nombre or o.get('solicitante') or email}
         sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+        # Cuando ya se recibio todo, se avisa a Compras
+        reales = [it for it in items if isinstance(it, dict) and (it.get('cantidad') or it.get('descripcion'))]
+        if reales and all(it.get('recibido') for it in reales):
+            avisar_recepcion_a_compras(o, rid)
     return jsonify({'ok': True})
 
 @app.route('/api/requisicion/<rid>/factura', methods=['POST'])
