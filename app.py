@@ -2241,11 +2241,11 @@ def firmar_requisicion(rid):
                      and not (isinstance(o['firmas'].get('presidenta'), dict) and o['firmas']['presidenta'].get('estado')))
     if sin_direccion:
         o['firmas']['presidenta'] = {
-            'nombre': 'No requerida (solicitud de cotización)' if es_cotizacion else 'No requerida (menor a $10,000)',
+            'nombre': 'No requerida',
             'email': '', 'estado': 'aprobado', 'no_requerida': True,
             'fecha': firma.get('fecha', ''), 'serie': 'N/A',
             'comentario': ('Solicitud de cotización atendida por Compras' if es_cotizacion else
-                           'Aprobada automáticamente al firmar Compras: la requisición no excede $10,000'),
+                           'Aprobada al firmar Compras'),
         }
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
@@ -2278,11 +2278,11 @@ def firmar_requisicion(rid):
         return jsonify({'ok': True})
     if key == 'reviso':
         avisar(o.get('email_aprobador'), 'Ya fue revisada y necesita que la apruebes (Compras)')
-        avisar(o.get('solicitante_email'), 'Fue aprobada por tu supervisor. Falta: Compras' + ('' if es_cotizacion else ' (y Dirección si pasa de $10,000)'))
+        avisar(o.get('solicitante_email'), 'Fue aprobada por tu supervisor. Falta: Compras')
     elif key == 'aprobo' and sin_direccion and es_cotizacion:
         avisar(o.get('solicitante_email'), 'Compras ya atendió tu solicitud de cotización. Revisa las cotizaciones en el sistema; si procede, conviértela en requisición de compra')
     elif key == 'aprobo' and sin_direccion:
-        avisar(o.get('solicitante_email'), 'Ya quedó completamente aprobada (no requiere Dirección por ser menor a $10,000)')
+        avisar(o.get('solicitante_email'), 'Ya quedó completamente aprobada')
         avisar(o.get('email_aprobador'), 'Quedó aprobada sin firma de Dirección (menor a $10,000). Ya puedes generar la PO de la requisición')
     elif key == 'aprobo':
         avisar(o.get('email_presidenta'), 'Ya fue aprobada por Compras y necesita tu visto bueno final')
@@ -2475,9 +2475,9 @@ def requisicion_pdf(rid):
         sig = firmas.get(key, {})
         if isinstance(sig, dict) and sig.get('nombre'):
             c.setFont('Helvetica-Bold', 7); c.setFillColor(GREEN)
-            c.drawString(sx+0.5*cm, y+0.15*cm, sig.get('nombre',''))
+            c.drawString(sx+0.5*cm, y+0.15*cm, ('No requerida' if sig.get('no_requerida') else sig.get('nombre','')))
             c.setFont('Helvetica', 6); c.setFillColor(GREEN)
-            c.drawString(sx+0.5*cm, y-0.3*cm, 'NO REQUIERE FIRMA (MENOR A $10,000)' if sig.get('no_requerida') else '[v] FIRMA ELECTRONICA VALIDA')
+            c.drawString(sx+0.5*cm, y-0.3*cm, 'NO REQUERIDA' if sig.get('no_requerida') else '[v] FIRMA ELECTRONICA VALIDA')
         c.setFont('Helvetica-Bold', 7); c.setFillColor(BLACK)
         c.drawCentredString(sx+sig_w/2, y-1.1*cm, label)
 
