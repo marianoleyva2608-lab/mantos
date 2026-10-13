@@ -1409,11 +1409,15 @@ def save_requisicion():
     if d.get('id'):
         existing = sb.select('requisiciones', select='folio,data', id='eq.' + d['id'])
         folio = existing[0]['folio'] if existing else None
-        if existing and not d.get('creado'):
+        if existing:
             try:
-                d['creado'] = json.loads(existing[0]['data'] or '{}').get('creado')
+                previo = json.loads(existing[0]['data'] or '{}')
             except ValueError:
-                pass
+                previo = {}
+            # Campos que no vienen del formulario: los pone el servidor o Compras
+            for campo in ('creado', 'mayor_10000'):
+                if not d.get(campo) and previo.get(campo):
+                    d[campo] = previo[campo]
     else:
         folio = None
     # Momento exacto de creacion (UTC) para medir el tiempo estandar de atencion
@@ -1922,6 +1926,36 @@ def registrar_cotizacion_requisicion(rid):
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     return jsonify({'ok': True})
 
+@app.route('/api/requisicion/<rid>/recibido', methods=['POST'])
+def marcar_recibido_requisicion(rid):
+    """El solicitante confirma que recibio un articulo (indice dentro de items)."""
+    d = request.json or {}
+    email = (d.get('email') or '').strip().lower()
+    try:
+        idx = int(d.get('indice'))
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'Artículo inválido'}), 400
+    rows = sb.select('requisiciones', select='data', id='eq.' + rid)
+    if not rows:
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    o = json.loads(rows[0]['data'])
+    if not email or email != (o.get('solicitante_email') or '').strip().lower():
+        return jsonify({'ok': False, 'error': 'Solo quien hizo la requisición puede marcar lo recibido'}), 403
+    if not (o.get('pos') or o.get('po_numero')):
+        return jsonify({'ok': False, 'error': 'Todavía no hay orden de compra'}), 400
+    items = o.get('items') or []
+    if idx < 0 or idx >= len(items) or not isinstance(items[idx], dict):
+        return jsonify({'ok': False, 'error': 'Artículo inválido'}), 400
+    if not items[idx].get('recibido'):
+        nombre = ''
+        u = sb.select('users', select='nombre', email='eq.' + email)
+        if u:
+            nombre = u[0].get('nombre') or ''
+        items[idx]['recibido'] = {'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M'), 'email': email,
+                                  'nombre': nombre or o.get('solicitante') or email}
+        sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    return jsonify({'ok': True})
+
 @app.route('/api/requisicion/<rid>/factura', methods=['POST'])
 def registrar_factura_requisicion(rid):
     d = request.json or {}
@@ -2071,6 +2105,13 @@ def firmar_requisicion(rid):
                 firma['alterno_de'] = asignado
             else:
                 return jsonify({'ok': False, 'error': 'Esta etapa solo la puede firmar la persona asignada (' + asignado + ') o su alterno'}), 403
+    if key == 'aprobo' and estado == 'aprobado':
+        # Compras decide si la requisicion pasa de $10,000 (de eso depende si firma Direccion)
+        monto = d.get('mayor_10000')
+        if monto not in ('Sí', 'No'):
+            return jsonify({'ok': False, 'error': 'Indica si la requisición es mayor a $10,000'}), 400
+        o['mayor_10000'] = monto
+        firma['mayor_10000'] = monto
     if 'firmas' not in o or not isinstance(o['firmas'], dict):
         o['firmas'] = {}
     firma['estado'] = estado
@@ -2117,7 +2158,7 @@ def firmar_requisicion(rid):
         return jsonify({'ok': True})
     if key == 'reviso':
         avisar(o.get('email_aprobador'), 'Ya fue revisada y necesita que la apruebes (Compras)')
-        avisar(o.get('solicitante_email'), 'Fue aprobada por tu supervisor. Falta: Compras' + ('' if o.get('mayor_10000') == 'No' else ' y Dirección'))
+        avisar(o.get('solicitante_email'), 'Fue aprobada por tu supervisor. Falta: Compras (y Dirección si pasa de $10,000)')
     elif key == 'aprobo' and sin_direccion:
         avisar(o.get('solicitante_email'), 'Ya quedó completamente aprobada (no requiere Dirección por ser menor a $10,000)')
         avisar(o.get('email_aprobador'), 'Quedó aprobada sin firma de Dirección (menor a $10,000). Ya puedes generar la PO de la requisición')
@@ -2222,9 +2263,9 @@ def requisicion_pdf(rid):
     y -= row_h + 0.1*cm
 
     # ── TABLE HEADER ──
-    col_widths = [0.55*cm, 1.4*cm, 1.5*cm, 4.5*cm, 3.0*cm, 3.2*cm, 3.3*cm]
-    # adjust last col to fill width
-    col_widths[-1] = w - sum(col_widths[:-1])
+    # Sin columnas de proveedor sugerido/alterno: la descripcion toma el espacio libre
+    col_widths = [0.55*cm, 1.4*cm, 1.5*cm, 0, 3.6*cm, 2.0*cm]
+    col_widths[3] = w - sum(col_widths)
     col_x = [margin]
     for cw in col_widths[:-1]:
         col_x.append(col_x[-1] + cw)
@@ -2236,7 +2277,7 @@ def requisicion_pdf(rid):
     for cx in col_x[1:]:
         c.line(cx, y, cx, y-hdr_h)
 
-    headers = ['#','CANTIDAD','UNIDAD\n(pieza,caja,\nmetros,litros,\nrollos etc.)','DESCRIPCIÓN\n(nombre,modelo,marca,\nNo.catálogo,color,medidas)','APLICACIÓN\nO USO','PROVEEDOR SUGERIDO\n(nombre,contacto,\ntelefono/correo)','PROVEEDOR ALTERNO\n(nombre,contacto,\ntelefono/correo)']
+    headers = ['#','CANTIDAD','UNIDAD\n(pieza,caja,\nmetros,litros,\nrollos etc.)','DESCRIPCIÓN\n(nombre,modelo,marca,\nNo.catálogo,color,medidas)','APLICACIÓN\nO USO','COMPRAS\nDEBE']
     c.setFont('Helvetica-Bold', 6); c.setFillColor(BLACK)
     for i, (htext, cx, cw) in enumerate(zip(headers, col_x, col_widths)):
         lines = htext.split('\n')
@@ -2270,10 +2311,10 @@ def requisicion_pdf(rid):
         c.drawCentredString(col_x[0]+col_widths[0]/2, cy, str(idx+1))
         c.drawCentredString(col_x[1]+col_widths[1]/2, cy, str(item.get('cantidad','')))
         c.drawCentredString(col_x[2]+col_widths[2]/2, cy, str(item.get('unidad','')))
-        c.drawString(col_x[3]+3, cy, str(item.get('descripcion',''))[:55])
-        c.drawString(col_x[4]+3, cy, str(item.get('aplicacion',''))[:30])
-        c.drawString(col_x[5]+3, cy, str(item.get('proveedor',''))[:28])
-        c.drawString(col_x[6]+3, cy, str(item.get('proveedor_alt',''))[:28])
+        c.drawString(col_x[3]+3, cy, str(item.get('descripcion',''))[:80])
+        c.drawString(col_x[4]+3, cy, str(item.get('aplicacion',''))[:34])
+        if item.get('cantidad') or item.get('descripcion'):
+            c.drawCentredString(col_x[5]+col_widths[5]/2, cy, str(item.get('accion') or ''))
         y -= row_h_item
 
     y -= 0.2*cm

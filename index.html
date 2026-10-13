@@ -2756,17 +2756,6 @@ authInit();
           </label>
         </div>
       </div>
-      <div style="grid-column:1/-1">
-        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">¿El valor de la requisición es mayor a $10,000?</label>
-        <div style="display:flex;gap:16px">
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
-            <input type="radio" name="req-mayor10k" value="Sí" style="width:18px;height:18px"> Sí
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
-            <input type="radio" name="req-mayor10k" value="No" style="width:18px;height:18px"> No
-          </label>
-        </div>
-      </div>
     </div>
     <div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden">
       <div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Art&#237;culos a Requisicionar</div>
@@ -3435,6 +3424,47 @@ var _reqAdjuntos=[];
 
 function reqAdjuntoUrl(a){return '/api/requisicion/adjunto/'+a.ruta.split('/').map(encodeURIComponent).join('/');}
 
+// Recibido por articulo: el solicitante confirma que le llego el material (despues de la PO)
+function reqRecibidoCelda(o,it,id){
+  var td='<td style="padding:5px;border:1px solid #eee;text-align:center;font-size:11px">';
+  if(it.recibido){
+    return td+'<span style="color:#2e7d32;font-weight:700">&#9989; Recibido</span><br><span style="color:#555">'+escHtml(it.recibido.fecha||'')+'</span><br><span style="color:#888">'+escHtml(it.recibido.nombre||'')+'</span></td>';
+  }
+  var tienePO=(Array.isArray(o.pos)&&o.pos.length)||o.po_numero;
+  var esSolicitante=currentUser&&currentUser.email&&o.solicitante_email&&currentUser.email.toLowerCase()===o.solicitante_email.toLowerCase();
+  if(tienePO && esSolicitante){
+    var idx=(o.items||[]).indexOf(it);
+    return td+'<button data-reqid="'+id+'" data-idx="'+idx+'" onclick="reqMarcarRecibido(this)" style="background:#1a5c2a;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">&#128230; Recibido</button></td>';
+  }
+  return td+'<span style="color:#aaa">'+(tienePO?'Pendiente':'&#8212;')+'</span></td>';
+}
+function reqMarcarRecibido(btn){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  if(!confirm('¿Confirmas que recibiste este artículo?')) return;
+  var reqId=btn.getAttribute('data-reqid');
+  btn.disabled=true;btn.textContent='Guardando...';
+  fetch('/api/requisicion/'+reqId+'/recibido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    indice:parseInt(btn.getAttribute('data-idx'),10), email:currentUser.email
+  })}).then(function(r){return r.json();}).then(function(d){
+    if(!d.ok){if(typeof showToast==='function')showToast('❌ '+(d.error||'Error al guardar'));btn.disabled=false;btn.innerHTML='&#128230; Recibido';return;}
+    if(typeof showToast==='function')showToast('✅ Marcado como recibido');
+    verReq(reqId);
+  }).catch(function(){if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.innerHTML='&#128230; Recibido';});
+}
+
+// Compras indica al aprobar si la requisicion pasa de $10,000 (define si firma Direccion)
+function reqMontoHtml(){
+  var op=function(v){return '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="radio" name="ver-sig-monto" value="'+v+'" style="width:16px;height:16px"> '+v+'</label>';};
+  return '<div style="background:#fff8e1;border:1.5px solid #f9a825;border-radius:8px;padding:8px 10px;margin-bottom:6px">'
+    +'<div style="font-size:11px;font-weight:700;color:#8a6100;text-transform:uppercase;margin-bottom:6px">¿El valor de la requisición es mayor a $10,000?</div>'
+    +'<div style="display:flex;gap:16px">'+op('Sí')+op('No')+'</div>'
+    +'<div style="font-size:11px;color:#8a6100;margin-top:4px">Si es Sí, también firma Dirección. Si es No, queda aprobada al firmar Compras.</div></div>';
+}
+function reqMontoSel(){
+  var r=document.querySelector('input[name="ver-sig-monto"]:checked');
+  return r?r.value:'';
+}
+
 // Archivos de cotizaciones y facturas: se eligen en el formulario y se suben al guardar
 function reqArchivoInputHtml(inputId){
   return '<label style="display:inline-flex;align-items:center;gap:6px;background:#fff;color:#1565c0;border:1.5px dashed #1565c0;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:6px">&#128206; Adjuntar archivo (PDF, Excel o XML)'
@@ -3559,7 +3589,6 @@ async function initReqForm(){
   if(depOtro) depOtro.style.display='none';
   var norm=document.querySelector('input[name="req-tipo"][value="Normal"]');
   if(norm) norm.checked=true;
-  document.querySelectorAll('input[name="req-mayor10k"]').forEach(function(r){r.checked=false;});
   var justEl=document.getElementById('req-justificacion');
   if(justEl) justEl.value='';
   var alcEl=document.getElementById('req-alcance'); if(alcEl) alcEl.value='';
@@ -3745,7 +3774,6 @@ async function guardarReq(){
     planta:(document.getElementById('req-planta')||{}).value||'',
     departamento:(function(){var s=document.getElementById('req-departamento');var o=document.getElementById('req-departamento-otro');return(s&&s.value==='otro')?(o?o.value.trim():''):(s?s.value:'');})(),
     tipo:tipoEl?tipoEl.value:'Normal',
-    mayor_10000:((document.querySelector('input[name="req-mayor10k"]:checked')||{}).value)||'',
     items:getReqItems(),
     justificacion:(document.getElementById('req-justificacion')||{}).value||'',
     alcance:((document.getElementById('req-alcance')||{}).value||'').trim(),
@@ -3766,10 +3794,6 @@ async function guardarReq(){
   }
   if(!data.justificacion){
     if(typeof showToast==='function') showToast('⚠️ Escribe la justificación de la compra');
-    return;
-  }
-  if(!data.mayor_10000){
-    if(typeof showToast==='function') showToast('⚠️ Indica si el valor de la requisición es mayor a $10,000');
     return;
   }
   var cargoActual=(currentUser&&currentUser.cargo)||'Empleado';
@@ -4049,6 +4073,7 @@ function verReqFirmar(btn){
   if(!email){if(typeof showToast==='function')showToast('Ingresa tu correo');if(emailEl)emailEl.focus();return;}
   if(!pin){if(typeof showToast==='function')showToast('Ingresa tu PIN');if(pinEl)pinEl.focus();return;}
   if(estado==='rechazado' && !comentario){if(typeof showToast==='function')showToast('Escribe el motivo del rechazo');if(comEl)comEl.focus();return;}
+  if(key==='aprobo' && estado==='aprobado' && !reqMontoSel()){if(typeof showToast==='function')showToast('Indica si la requisición es mayor a $10,000');return;}
   var txtOriginal=btn.innerHTML;
   btn.disabled=true;btn.textContent='Verificando...';
   fetch('/api/users/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,pin:pin})})
@@ -4062,7 +4087,7 @@ function verReqFirmar(btn){
       var ts=new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
       var cert='PKI-'+Math.random().toString(36).substr(2,9).toUpperCase()+'-'+Date.now().toString(36).toUpperCase();
       var sigData={nombre:res.nombre,email:res.email,fecha:ts,serie:cert};
-      fetch('/api/requisicion/'+reqId+'/firmar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,firma:sigData,estado:estado,comentario:comentario})})
+      fetch('/api/requisicion/'+reqId+'/firmar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,firma:sigData,estado:estado,comentario:comentario,mayor_10000:(key==='aprobo'?reqMontoSel():'')})})
         .then(function(r2){return r2.json();}).then(function(saved){
           if(!saved.ok){
             if(typeof showToast==='function')showToast('❌ '+(saved.error||'Error al guardar'));
@@ -4101,12 +4126,13 @@ function verReqFirmarSesion(btn){
   var comEl=document.getElementById('ver-sig-comentario-'+key);
   var comentario=comEl?comEl.value.trim():'';
   if(estado==='rechazado' && !comentario){if(typeof showToast==='function')showToast('Escribe el motivo del rechazo');if(comEl)comEl.focus();return;}
+  if(key==='aprobo' && estado==='aprobado' && !reqMontoSel()){if(typeof showToast==='function')showToast('Indica si la requisición es mayor a $10,000');return;}
   var txtOriginal=btn.innerHTML;
   btn.disabled=true;btn.textContent='Guardando...';
   var ts=new Date().toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
   var cert='PKI-'+Math.random().toString(36).substr(2,9).toUpperCase()+'-'+Date.now().toString(36).toUpperCase();
   var sigData={nombre:currentUser.nombre,email:currentUser.email,fecha:ts,serie:cert};
-  fetch('/api/requisicion/'+reqId+'/firmar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,firma:sigData,estado:estado,comentario:comentario})})
+  fetch('/api/requisicion/'+reqId+'/firmar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,firma:sigData,estado:estado,comentario:comentario,mayor_10000:(key==='aprobo'?reqMontoSel():'')})})
     .then(function(r2){return r2.json();}).then(function(saved){
       if(!saved.ok){
         if(typeof showToast==='function')showToast('❌ '+(saved.error||'Error al guardar'));
@@ -4431,14 +4457,14 @@ async function verReq(id){
       h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
         +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Artículos</div>'
         +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
-        +'<tr style="background:#e8f5e9"><th style="padding:6px;border:1px solid #ddd">#</th><th style="padding:6px;border:1px solid #ddd">Cant.</th><th style="padding:6px;border:1px solid #ddd">Unidad</th><th style="padding:6px;border:1px solid #ddd">Descripción</th><th style="padding:6px;border:1px solid #ddd">Aplicación</th><th style="padding:6px;border:1px solid #ddd">Compras debe</th></tr>';
+        +'<tr style="background:#e8f5e9"><th style="padding:6px;border:1px solid #ddd">#</th><th style="padding:6px;border:1px solid #ddd">Cant.</th><th style="padding:6px;border:1px solid #ddd">Unidad</th><th style="padding:6px;border:1px solid #ddd">Descripción</th><th style="padding:6px;border:1px solid #ddd">Aplicación</th><th style="padding:6px;border:1px solid #ddd">Compras debe</th><th style="padding:6px;border:1px solid #ddd">Recibido</th></tr>';
       items.forEach(function(it,i){
         h+='<tr><td style="padding:5px;border:1px solid #eee;text-align:center">'+(i+1)+'</td>'
           +'<td style="padding:5px;border:1px solid #eee;text-align:center">'+it.cantidad+'</td>'
           +'<td style="padding:5px;border:1px solid #eee;text-align:center">'+it.unidad+'</td>'
           +'<td style="padding:5px;border:1px solid #eee">'+it.descripcion+'</td>'
           +'<td style="padding:5px;border:1px solid #eee">'+it.aplicacion+'</td>'
-          +'<td style="padding:5px;border:1px solid #eee;text-align:center;font-weight:700;color:'+(it.accion==='Cotizar'?'#1565c0':'#1a5c2a')+'">'+(it.accion==='Cotizar'?'&#128269; Cotizar':(it.accion==='Comprar'?'&#128722; Comprar':'&#8212;'))+'</td></tr>';
+          +'<td style="padding:5px;border:1px solid #eee;text-align:center;font-weight:700;color:'+(it.accion==='Cotizar'?'#1565c0':'#1a5c2a')+'">'+(it.accion==='Cotizar'?'&#128269; Cotizar':(it.accion==='Comprar'?'&#128722; Comprar':'&#8212;'))+'</td>'+reqRecibidoCelda(o,it,id)+'</tr>';
       });
       h+='</table></div></div>';
     }
@@ -4530,7 +4556,7 @@ async function verReq(id){
           +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
           +'<div style="width:26px;height:26px;background:'+col+';border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;flex-shrink:0">'+(rechazado?'&#10005;':'&#10003;')+'</div>'
           +'<div><div style="font-size:9px;color:'+col+';font-weight:700;text-transform:uppercase;letter-spacing:.5px">'+label+' — '+(rechazado?'Rechazado':(sig.no_requerida?'No requerida':'Firma Electrónica Válida'))+'</div>'
-          +'<div style="font-size:13px;font-weight:700;color:'+(rechazado?'#b71c1c':'#1b5e20')+'">'+sig.nombre+'</div>'+(sig.alterno_de?('<div style="font-size:11px;color:#6a1b9a;font-weight:700">Firmó como alterno de '+escHtml(nombrePorEmail[sig.alterno_de]||sig.alterno_de)+'</div>'):'')+'</div></div>'
+          +'<div style="font-size:13px;font-weight:700;color:'+(rechazado?'#b71c1c':'#1b5e20')+'">'+sig.nombre+'</div>'+(sig.mayor_10000?('<div style="font-size:11px;color:#8a6100;font-weight:700">Mayor a $10,000: '+escHtml(sig.mayor_10000)+'</div>'):'')+(sig.alterno_de?('<div style="font-size:11px;color:#6a1b9a;font-weight:700">Firmó como alterno de '+escHtml(nombrePorEmail[sig.alterno_de]||sig.alterno_de)+'</div>'):'')+'</div></div>'
           +'<div style="font-size:10px;color:#555;display:grid;grid-template-columns:65px 1fr;gap:2px 8px;border-top:1px solid #eee;padding-top:6px">'
           +'<span style="font-weight:700;color:'+col+'">Titular:</span><span>'+sig.email+'</span>'
           +'<span style="font-weight:700;color:'+col+'">Fecha:</span><span>'+sig.fecha+'</span>'
@@ -4550,6 +4576,7 @@ async function verReq(id){
         if(yaEsElMismo){
           h+='<div style="font-size:12px;color:#2e7d32;margin-bottom:6px">✓ Sesión iniciada como '+currentUser.nombre+' — no hace falta volver a poner correo/PIN</div>'
             +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (opcional si apruebas, obligatorio si rechazas)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
+            +(key==='aprobo'?reqMontoHtml():'')
             +'<div style="display:flex;gap:6px">'
             +(permiteRechazo
               ? ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="rechazado" onclick="verReqFirmarSesion(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; Rechazar</button>'
@@ -4560,6 +4587,7 @@ async function verReq(id){
           h+='<input id="ver-sig-email-'+key+'" type="email" placeholder="Tu correo electrónico" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
             +'<input id="ver-sig-pin-'+key+'" type="password" placeholder="PIN personal" maxlength="20" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:3px;box-sizing:border-box;margin-bottom:6px">'
             +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (opcional si apruebas, obligatorio si rechazas)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
+            +(key==='aprobo'?reqMontoHtml():'')
             +'<div style="display:flex;gap:6px">'
             +(permiteRechazo
               ? ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="rechazado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; Rechazar</button>'
