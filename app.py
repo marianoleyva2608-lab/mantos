@@ -48,7 +48,6 @@ def _tabla_items_html(o):
         '<td style="border:1px solid #ddd;padding:5px">' + (it.get('unidad') or '') + '</td>'
         '<td style="border:1px solid #ddd;padding:5px">' + (it.get('descripcion') or '') + '</td>'
         '<td style="border:1px solid #ddd;padding:5px">' + (it.get('aplicacion') or '') + '</td>'
-        '<td style="border:1px solid #ddd;padding:5px;font-weight:bold;color:' + ('#1565c0' if it.get('accion') == 'Cotizar' else '#1a5c2a') + '">' + (it.get('accion') or '-') + '</td>'
         '</tr>'
         for it in items
     )
@@ -59,7 +58,6 @@ def _tabla_items_html(o):
         '<th style="border:1px solid #ddd;padding:5px;text-align:left">Unidad</th>'
         '<th style="border:1px solid #ddd;padding:5px;text-align:left">Descripción</th>'
         '<th style="border:1px solid #ddd;padding:5px;text-align:left">Aplicación</th>'
-        '<th style="border:1px solid #ddd;padding:5px;text-align:left">Compras debe</th>'
         '</tr>' + filas + '</table>'
     )
 
@@ -2390,7 +2388,7 @@ def requisicion_pdf(rid):
 
     # ── TABLE HEADER ──
     # Sin columnas de proveedor sugerido/alterno: la descripcion toma el espacio libre
-    col_widths = [0.55*cm, 1.4*cm, 1.5*cm, 0, 3.6*cm, 2.0*cm]
+    col_widths = [0.55*cm, 1.4*cm, 1.5*cm, 0, 4.2*cm]
     col_widths[3] = w - sum(col_widths)
     col_x = [margin]
     for cw in col_widths[:-1]:
@@ -2403,7 +2401,7 @@ def requisicion_pdf(rid):
     for cx in col_x[1:]:
         c.line(cx, y, cx, y-hdr_h)
 
-    headers = ['#','CANTIDAD','UNIDAD\n(pieza,caja,\nmetros,litros,\nrollos etc.)','DESCRIPCIÓN\n(nombre,modelo,marca,\nNo.catálogo,color,medidas)','APLICACIÓN\nO USO','COMPRAS\nDEBE']
+    headers = ['#','CANTIDAD','UNIDAD\n(pieza,caja,\nmetros,litros,\nrollos etc.)','DESCRIPCIÓN\n(nombre,modelo,marca,\nNo.catálogo,color,medidas)','APLICACIÓN\nO USO']
     c.setFont('Helvetica-Bold', 6); c.setFillColor(BLACK)
     for i, (htext, cx, cw) in enumerate(zip(headers, col_x, col_widths)):
         lines = htext.split('\n')
@@ -2437,10 +2435,8 @@ def requisicion_pdf(rid):
         c.drawCentredString(col_x[0]+col_widths[0]/2, cy, str(idx+1))
         c.drawCentredString(col_x[1]+col_widths[1]/2, cy, str(item.get('cantidad','')))
         c.drawCentredString(col_x[2]+col_widths[2]/2, cy, str(item.get('unidad','')))
-        c.drawString(col_x[3]+3, cy, str(item.get('descripcion',''))[:80])
-        c.drawString(col_x[4]+3, cy, str(item.get('aplicacion',''))[:34])
-        if item.get('cantidad') or item.get('descripcion'):
-            c.drawCentredString(col_x[5]+col_widths[5]/2, cy, str(item.get('accion') or ''))
+        c.drawString(col_x[3]+3, cy, str(item.get('descripcion',''))[:90])
+        c.drawString(col_x[4]+3, cy, str(item.get('aplicacion',''))[:40])
         y -= row_h_item
 
     y -= 0.2*cm
