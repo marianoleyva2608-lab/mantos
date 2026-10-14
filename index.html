@@ -2808,7 +2808,7 @@ authInit();
             </tr>
           </thead>
           <tbody id="req-items-tbody">
-<tr id="req-fila-1" style="border-bottom:1px solid #f0f0f0"><td style="text-align:center;padding:4px 2px;border:1px solid #eee;font-size:12px;color:#888;width:28px">1</td><td style="border:1px solid #eee;padding:2px;width:62px"><input type="number" min="0" data-req="cantidad" data-row="1" placeholder="0" style="width:55px;border:none;padding:4px;font-size:13px;text-align:center;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:66px"><input type="text" list="req-unidad-list" data-req="unidad" data-row="1" placeholder="pza" style="width:60px;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px"><input type="text" list="req-desc-list" data-req="descripcion" data-row="1" placeholder="Nombre, modelo, marca, No. catálogo..." style="width:100%;min-width:180px;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:110px"><input type="text" data-req="aplicacion" data-row="1" placeholder="Aplicación..." style="width:104px;border:none;padding:4px;font-size:12px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:120px"><input type="text" list="req-prov-list" data-req="proveedor" data-row="1" placeholder="Nombre, tel, correo" style="width:114px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:120px"><input type="text" list="req-prov-list" data-req="proveedor_alt" data-row="1" placeholder="Nombre, tel, correo" style="width:114px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;text-align:center;width:30px"><button onclick="reqEliminarFila(1)" style="background:none;border:none;color:#c62828;font-size:18px;cursor:pointer;line-height:1">&times;</button></td></tr>
+<tr id="req-fila-1" style="border-bottom:1px solid #f0f0f0"><td style="text-align:center;padding:4px 2px;border:1px solid #eee;font-size:12px;color:#888;width:28px">1</td><td style="border:1px solid #eee;padding:2px;width:62px"><input type="number" min="0" data-req="cantidad" data-row="1" placeholder="0" style="width:55px;border:none;padding:4px;font-size:13px;text-align:center;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:66px"><input type="text" list="req-unidad-list" data-req="unidad" data-row="1" placeholder="pza" style="width:60px;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px"><input type="text" list="req-desc-list" data-req="descripcion" data-row="1" placeholder="Nombre, modelo, marca, No. catálogo..." style="width:100%;min-width:180px;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:110px"><input type="text" data-req="aplicacion" data-row="1" placeholder="Aplicación..." style="width:104px;border:none;padding:4px;font-size:12px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:120px"><input type="text" list="req-prov-list" data-req="proveedor" data-row="1" placeholder="Elige o escribe uno nuevo" style="width:114px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:120px"><input type="text" list="req-prov-list" data-req="proveedor_alt" data-row="1" placeholder="Elige o escribe uno nuevo" style="width:114px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;text-align:center;width:30px"><button onclick="reqEliminarFila(1)" style="background:none;border:none;color:#c62828;font-size:18px;cursor:pointer;line-height:1">&times;</button></td></tr>
 </tbody>
         </table>
       </div>
@@ -3575,6 +3575,33 @@ function reqActualizarDatalistProveedores(list){
   var dl=document.getElementById('req-prov-list');
   if(dl) dl.innerHTML=_reqCatalogo.map(function(p){return '<option value="'+escHtml(p.nombre)+'">';}).join('');
 }
+// En el formulario: si el articulo ya tiene proveedores relacionados, el renglon solo ofrece esos
+function reqProveedoresDeArticulo(desc){
+  var d=String(desc||'').trim().toUpperCase();
+  if(!d) return [];
+  return _reqCatalogo.filter(function(p){
+    return p.arts.some(function(a){return a.articulo.toUpperCase()===d;});
+  }).map(function(p){return p.nombre;});
+}
+function reqFiltrarProveedoresFila(inpDesc){
+  var row=inpDesc.getAttribute('data-row');
+  var provs=reqProveedoresDeArticulo(inpDesc.value);
+  var dlId='req-prov-list-fila-'+row;
+  var dl=document.getElementById(dlId);
+  if(!dl){ dl=document.createElement('datalist'); dl.id=dlId; document.body.appendChild(dl); }
+  dl.innerHTML=provs.map(function(n){return '<option value="'+escHtml(n)+'">';}).join('');
+  var tr=inpDesc.closest('tr');
+  if(!tr) return;
+  ['proveedor','proveedor_alt'].forEach(function(k){
+    var el=tr.querySelector('[data-req="'+k+'"]');
+    if(el) el.setAttribute('list', provs.length?dlId:'req-prov-list');
+  });
+}
+document.addEventListener('input',function(e){
+  var t=e.target;
+  if(t && t.getAttribute && t.getAttribute('data-req')==='descripcion' && t.closest && t.closest('#req-items-tbody')) reqFiltrarProveedoresFila(t);
+});
+
 async function reqCargarProveedores(){
   var body=document.getElementById('req-prov-body');
   if(body) body.innerHTML='<div style="text-align:center;color:#888;padding:20px">Cargando...</div>';
@@ -3845,8 +3872,8 @@ function reqAgregarFila(){
     +'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-unidad-list" data-req="unidad" data-row="'+n+'" placeholder="pza" style="width:60px;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td>'
     +'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-desc-list" data-req="descripcion" data-row="'+n+'" placeholder="Nombre, modelo, marca, No. catalogo..." style="width:100%;min-width:200px;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td>'
     +'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="aplicacion" data-row="'+n+'" placeholder="Aplicacion..." style="width:100px;border:none;padding:4px;font-size:12px;outline:none;box-sizing:border-box"></td>'
-    +'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-prov-list" data-req="proveedor" data-row="'+n+'" placeholder="Nombre, tel, correo" style="width:110px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td>'
-    +'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-prov-list" data-req="proveedor_alt" data-row="'+n+'" placeholder="Nombre, tel, correo" style="width:110px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td>'
+    +'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-prov-list" data-req="proveedor" data-row="'+n+'" placeholder="Elige o escribe uno nuevo" style="width:110px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td>'
+    +'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-prov-list" data-req="proveedor_alt" data-row="'+n+'" placeholder="Elige o escribe uno nuevo" style="width:110px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td>'
     +'<td style="border:1px solid #eee;padding:2px;text-align:center"><button onclick="reqEliminarFila('+n+')" style="background:none;border:none;color:#c62828;font-size:18px;cursor:pointer;line-height:1">&times;</button></td>'
     +'</tr>';
   tbody.insertAdjacentHTML('beforeend', row);
@@ -3908,11 +3935,13 @@ function reqAplicarPrefill(){
       if(el&&it[k]) el.value=it[k];
     });
   });
+  document.querySelectorAll('#req-items-tbody [data-req="descripcion"]').forEach(reqFiltrarProveedoresFila);
   if(typeof showToast==='function') showToast('Datos copiados de '+p.origen);
 }
 
 async function initReqForm(){
   _reqCurrentId=null;
+  if(!_reqCatalogo.length) fetch('/api/requisiciones').then(function(r){return r.json();}).then(reqActualizarDatalistProveedores).catch(function(){});
   var _tdReq=document.querySelector('input[name="req-tipo-doc"][value="'+(_reqTipoInicial==='cotizacion'?'cotizacion':'requisicion')+'"]'); if(_tdReq) _tdReq.checked=true;
   _reqTipoInicial='requisicion';
   reqAplicarTipoDoc();
@@ -3951,7 +3980,7 @@ async function initReqForm(){
   if(tbody){
     tbody.innerHTML='';
     _reqRowCount=1;
-    tbody.innerHTML='<tr id="req-fila-1" style="border-bottom:1px solid #f0f0f0">'+'<td style="text-align:center;padding:4px 2px;border:1px solid #eee;font-size:12px;color:#888;width:28px">1</td>'+'<td style="border:1px solid #eee;padding:2px"><input type="number" min="0" data-req="cantidad" data-row="1" placeholder="0" style="width:55px;border:none;padding:4px;font-size:13px;text-align:center;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-unidad-list" data-req="unidad" data-row="1" placeholder="pza" style="width:60px;border:none;padding:4px;font-size:13px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-desc-list" data-req="descripcion" data-row="1" placeholder="Descripción..." style="width:100%;border:none;padding:4px;font-size:13px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="aplicacion" data-row="1" placeholder="Aplicación" style="width:100px;border:none;padding:4px;font-size:12px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-prov-list" data-req="proveedor" data-row="1" placeholder="Proveedor" style="width:110px;border:none;padding:4px;font-size:11px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-prov-list" data-req="proveedor_alt" data-row="1" placeholder="Alt" style="width:110px;border:none;padding:4px;font-size:11px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px;text-align:center"><button onclick="reqEliminarFila(1)" style="background:none;border:none;color:#c62828;font-size:18px;cursor:pointer">&times;</button></td>'+'</tr>';
+    tbody.innerHTML='<tr id="req-fila-1" style="border-bottom:1px solid #f0f0f0">'+'<td style="text-align:center;padding:4px 2px;border:1px solid #eee;font-size:12px;color:#888;width:28px">1</td>'+'<td style="border:1px solid #eee;padding:2px"><input type="number" min="0" data-req="cantidad" data-row="1" placeholder="0" style="width:55px;border:none;padding:4px;font-size:13px;text-align:center;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-unidad-list" data-req="unidad" data-row="1" placeholder="pza" style="width:60px;border:none;padding:4px;font-size:13px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-desc-list" data-req="descripcion" data-row="1" placeholder="Descripción..." style="width:100%;border:none;padding:4px;font-size:13px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="aplicacion" data-row="1" placeholder="Aplicación" style="width:100px;border:none;padding:4px;font-size:12px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-prov-list" data-req="proveedor" data-row="1" placeholder="Elige o escribe uno nuevo" style="width:110px;border:none;padding:4px;font-size:11px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-prov-list" data-req="proveedor_alt" data-row="1" placeholder="Elige o escribe uno nuevo" style="width:110px;border:none;padding:4px;font-size:11px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px;text-align:center"><button onclick="reqEliminarFila(1)" style="background:none;border:none;color:#c62828;font-size:18px;cursor:pointer">&times;</button></td>'+'</tr>';
   }
   // Firmas
   var sc=document.getElementById('req-sigs-container');
