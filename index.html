@@ -4050,7 +4050,7 @@ async function initReqForm(){
       } else {
         inner='<input id="req-sig-email-'+s.k+'" type="email" placeholder="Correo electrónico" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +'<input id="req-sig-pin-'+s.k+'" type="password" placeholder="PIN personal" maxlength="20" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:3px;box-sizing:border-box;margin-bottom:6px">'
-          +(permiteRechazo?('<textarea id="req-sig-comentario-'+s.k+'" rows="2" placeholder="Comentario (opcional si apruebas, obligatorio si rechazas)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
+          +(permiteRechazo?('<textarea id="req-sig-comentario-'+s.k+'" rows="2" placeholder="Comentario (obligatorio para aprobar o rechazar)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
           +'<div style="display:flex;gap:6px">'
           +(permiteRechazo
             ? ('<button data-sigkey="'+s.k+'" data-estado="rechazado" onclick="reqFirmarBtn(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; Rechazar</button>'
@@ -4506,6 +4506,7 @@ function verReqFirmar(btn){
   if(!email){if(typeof showToast==='function')showToast('Ingresa tu correo');if(emailEl)emailEl.focus();return;}
   if(!pin){if(typeof showToast==='function')showToast('Ingresa tu PIN');if(pinEl)pinEl.focus();return;}
   if(estado==='rechazado' && !comentario){if(typeof showToast==='function')showToast('Escribe el motivo del rechazo');if(comEl)comEl.focus();return;}
+  if(estado==='aprobado' && key!=='realizo' && !comentario){if(typeof showToast==='function')showToast('Escribe un comentario para aprobar');if(comEl)comEl.focus();return;}
   if(key==='aprobo' && estado==='aprobado' && _reqVerTipoDoc!=='cotizacion' && !reqMontoSel()){if(typeof showToast==='function')showToast('Indica si la requisición es mayor a $10,000');return;}
   var txtOriginal=btn.innerHTML;
   btn.disabled=true;btn.textContent='Verificando...';
@@ -4560,6 +4561,7 @@ function verReqFirmarSesion(btn){
   var comEl=document.getElementById('ver-sig-comentario-'+key);
   var comentario=comEl?comEl.value.trim():'';
   if(estado==='rechazado' && !comentario){if(typeof showToast==='function')showToast('Escribe el motivo del rechazo');if(comEl)comEl.focus();return;}
+  if(estado==='aprobado' && key!=='realizo' && !comentario){if(typeof showToast==='function')showToast('Escribe un comentario para aprobar');if(comEl)comEl.focus();return;}
   if(key==='aprobo' && estado==='aprobado' && _reqVerTipoDoc!=='cotizacion' && !reqMontoSel()){if(typeof showToast==='function')showToast('Indica si la requisición es mayor a $10,000');return;}
   var txtOriginal=btn.innerHTML;
   btn.disabled=true;btn.textContent='Guardando...';
@@ -5028,7 +5030,7 @@ async function verReq(id){
           +'<div id="ver-sig-row-'+key+'">';
         if(yaEsElMismo){
           h+='<div style="font-size:12px;color:#2e7d32;margin-bottom:6px">✓ Sesión iniciada como '+currentUser.nombre+' — no hace falta volver a poner correo/PIN</div>'
-            +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (opcional si apruebas, obligatorio si rechazas)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
+            +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (obligatorio para aprobar o rechazar)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
             +(key==='aprobo'&&o.tipo_doc!=='cotizacion'?reqMontoHtml():'')
             +'<div style="display:flex;gap:6px">'
             +(permiteRechazo
@@ -5039,7 +5041,7 @@ async function verReq(id){
         } else {
           h+='<input id="ver-sig-email-'+key+'"'+(key==='aprobo'?(' data-permitidos="'+escHtml([emailAsignado,(_altAj[(emailAsignado||'').toLowerCase()]||'')].join(',').toLowerCase())+'" oninput="reqMontoMostrar(this)" onchange="reqMontoMostrar(this)"'):'')+' type="email" placeholder="Tu correo electrónico" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
             +'<input id="ver-sig-pin-'+key+'" type="password" placeholder="PIN personal" maxlength="20" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:3px;box-sizing:border-box;margin-bottom:6px">'
-            +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (opcional si apruebas, obligatorio si rechazas)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
+            +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (obligatorio para aprobar o rechazar)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
             +(key==='aprobo'&&o.tipo_doc!=='cotizacion'?reqMontoHtml(true):'')
             +'<div style="display:flex;gap:6px">'
             +(permiteRechazo

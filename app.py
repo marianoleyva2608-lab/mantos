@@ -2438,6 +2438,8 @@ def firmar_requisicion(rid):
     comentario = (d.get('comentario') or '').strip()
     if key not in ('realizo','reviso','aprobo','presidenta') or not firma or estado not in ('aprobado','rechazado'):
         return jsonify({'ok': False, 'error': 'Datos inválidos'}), 400
+    if key != 'realizo' and not comentario:
+        return jsonify({'ok': False, 'error': 'Escribe un comentario para ' + ('rechazar' if estado == 'rechazado' else 'aprobar')}), 400
     rows = sb.select('requisiciones', select='data', id='eq.' + rid)
     if not rows:
         return jsonify({'ok': False, 'error': 'No encontrado'}), 404
