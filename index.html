@@ -5093,7 +5093,6 @@ async function verReq(id){
       h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
         +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Cierre de Compra</div>'
         +'<div style="padding:10px">';
-      h+=reqFechaCompromisoHtml(o,id);
       var listaPos=Array.isArray(o.pos)?o.pos:(o.po_numero?[{numero:o.po_numero,descripcion:o.po_descripcion,fecha:''}]:[]);
       var listaFacturas=Array.isArray(o.facturas)?o.facturas:(o.factura_numero?[{numero:o.factura_numero,fecha:''}]:[]);
       h+='<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Órdenes de compra (PO)</div>';
@@ -5113,6 +5112,8 @@ async function verReq(id){
         h+='<div style="font-size:12px;color:#888;padding:6px;margin-bottom:8px">&#8987; Pendiente de que Compras genere la PO</div>';
       }
       var _hayCaja=listaPos.some(function(p){return p.caja_chica;}), _hayPO=listaPos.some(function(p){return !p.caja_chica;});
+      // La fecha compromiso de entrega se pone una vez que ya hay PO; sin PO no aplica
+      if(_hayPO) h+=reqFechaCompromisoHtml(o,id);
       // Caja chica no lleva PO ni factura: si ya se compro asi, no se ofrece PO; si ya hay PO, no se ofrece caja chica
       if(esCompras && !_hayCaja){
         h+=(_hayPO?'':(''+'<button onclick="document.getElementById(\'ver-caja-form-'+id+'\').style.display=\'block\';this.style.display=\'none\'" style="width:100%;padding:8px 14px;background:#fff8e1;color:#8a6100;border:2px dashed #f9a825;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">&#128181; Compra por caja chica</button>'

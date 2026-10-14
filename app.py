@@ -2251,6 +2251,8 @@ def fecha_compromiso_requisicion(rid):
         return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede poner la fecha compromiso'}), 403
     if o.get('tipo_doc') == 'cotizacion':
         return jsonify({'ok': False, 'error': 'La solicitud de cotización no lleva fecha compromiso de entrega'}), 400
+    if not any(not p.get('caja_chica') for p in (o.get('pos') or [])):
+        return jsonify({'ok': False, 'error': 'Primero genera la PO; la fecha compromiso se pone después'}), 400
     anterior = o.get('fecha_compromiso')
     o['fecha_compromiso'] = fecha
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
