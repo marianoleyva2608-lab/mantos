@@ -2692,6 +2692,20 @@ authInit();
   <div id="req-list" style="padding:12px"></div>
 </div>
 
+<!-- ══ REQUISICIONES: ARTICULOS POR PROVEEDOR ══ -->
+<div id="page-req-proveedores" class="page" style="background:#f5f5f5;padding-bottom:40px">
+  <div class="hdr">
+    <button class="back" onclick="showPage('req');loadReqList()">&#8249;</button>
+    <div style="flex:1"><h1>&#128210; Artículos por proveedor</h1></div>
+  </div>
+  <div style="padding:12px">
+    <div style="font-size:12px;color:#666;margin-bottom:8px">Se arma solo con las órdenes de compra, compras por caja chica, solicitudes de cotización y proveedores sugeridos de las requisiciones.</div>
+    <input id="req-prov-buscar" type="text" placeholder="Buscar proveedor o artículo..." oninput="reqRenderProveedores()" style="width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:10px">
+    <div id="req-prov-body"><div style="text-align:center;color:#888;padding:20px">Cargando...</div></div>
+  </div>
+</div>
+<datalist id="req-prov-list"></datalist>
+
 <!-- ══ REQUISICIONES: DASHBOARD ══ -->
 <div id="page-req-dashboard" class="page" style="background:#f5f5f5;padding-bottom:30px">
   <div class="hdr">
@@ -2793,7 +2807,7 @@ authInit();
             </tr>
           </thead>
           <tbody id="req-items-tbody">
-<tr id="req-fila-1" style="border-bottom:1px solid #f0f0f0"><td style="text-align:center;padding:4px 2px;border:1px solid #eee;font-size:12px;color:#888;width:28px">1</td><td style="border:1px solid #eee;padding:2px;width:62px"><input type="number" min="0" data-req="cantidad" data-row="1" placeholder="0" style="width:55px;border:none;padding:4px;font-size:13px;text-align:center;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:66px"><input type="text" list="req-unidad-list" data-req="unidad" data-row="1" placeholder="pza" style="width:60px;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px"><input type="text" list="req-desc-list" data-req="descripcion" data-row="1" placeholder="Nombre, modelo, marca, No. catálogo..." style="width:100%;min-width:180px;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:110px"><input type="text" data-req="aplicacion" data-row="1" placeholder="Aplicación..." style="width:104px;border:none;padding:4px;font-size:12px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:120px"><input type="text" data-req="proveedor" data-row="1" placeholder="Nombre, tel, correo" style="width:114px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:120px"><input type="text" data-req="proveedor_alt" data-row="1" placeholder="Nombre, tel, correo" style="width:114px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;text-align:center;width:30px"><button onclick="reqEliminarFila(1)" style="background:none;border:none;color:#c62828;font-size:18px;cursor:pointer;line-height:1">&times;</button></td></tr>
+<tr id="req-fila-1" style="border-bottom:1px solid #f0f0f0"><td style="text-align:center;padding:4px 2px;border:1px solid #eee;font-size:12px;color:#888;width:28px">1</td><td style="border:1px solid #eee;padding:2px;width:62px"><input type="number" min="0" data-req="cantidad" data-row="1" placeholder="0" style="width:55px;border:none;padding:4px;font-size:13px;text-align:center;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:66px"><input type="text" list="req-unidad-list" data-req="unidad" data-row="1" placeholder="pza" style="width:60px;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px"><input type="text" list="req-desc-list" data-req="descripcion" data-row="1" placeholder="Nombre, modelo, marca, No. catálogo..." style="width:100%;min-width:180px;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:110px"><input type="text" data-req="aplicacion" data-row="1" placeholder="Aplicación..." style="width:104px;border:none;padding:4px;font-size:12px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:120px"><input type="text" list="req-prov-list" data-req="proveedor" data-row="1" placeholder="Nombre, tel, correo" style="width:114px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;width:120px"><input type="text" list="req-prov-list" data-req="proveedor_alt" data-row="1" placeholder="Nombre, tel, correo" style="width:114px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td><td style="border:1px solid #eee;padding:2px;text-align:center;width:30px"><button onclick="reqEliminarFila(1)" style="background:none;border:none;color:#c62828;font-size:18px;cursor:pointer;line-height:1">&times;</button></td></tr>
 </tbody>
         </table>
       </div>
@@ -3523,6 +3537,149 @@ async function reqActualizarAlerta(listaYa){
   }catch(e){ return {reqs:[],items:0}; }
 }
 
+// Catalogo de articulos por proveedor, armado con lo que ya hay en las requisiciones
+var _reqCatalogo=[];
+function reqArmarCatalogo(list){
+  var provs={};
+  var clave=function(n){return String(n||'').trim().replace(/\s+/g,' ').toUpperCase();};
+  var agregar=function(prov,art,origen,r,precio,fecha){
+    var k=clave(prov), a=String(art||'').trim();
+    if(!k||!a) return;
+    var p=provs[k]||(provs[k]={nombre:String(prov).trim(),arts:{}});
+    var ka=a.toUpperCase();
+    var prev=p.arts[ka];
+    var nuevo={articulo:a, origen:origen, folio:'REQ-'+String(r.folio||0).padStart(4,'0'), id:r.id, precio:precio, fecha:fecha||r.fecha||''};
+    // se queda el dato mas util: primero lo comprado (con precio), luego lo mas reciente
+    if(!prev || (precio!=null && prev.precio==null) || ((precio!=null)===(prev.precio!=null) && (r.folio||0)>=parseInt(prev.folio.slice(4),10))) p.arts[ka]=nuevo;
+  };
+  (list||[]).forEach(function(r){
+    var items=r.items||[];
+    (r.pos||[]).forEach(function(po){
+      if(po.generada) (po.partidas||[]).forEach(function(x){ agregar(po.proveedor_nombre,x.descripcion,'PO '+po.numero,r,x.precio,(po.fecha||'').slice(0,10)); });
+      else if(po.caja_chica && po.proveedor_nombre) items.forEach(function(it){ agregar(po.proveedor_nombre,it.descripcion,'Caja chica',r,null,(po.fecha||'').slice(0,10)); });
+    });
+    (r.rfqs||[]).forEach(function(s){ (s.indices||[]).forEach(function(i){ if(items[i]) agregar(s.proveedor,items[i].descripcion,'Cotización '+s.folio,r,null,(s.fecha||'').slice(0,10)); }); });
+    items.forEach(function(it){
+      agregar(it.proveedor,it.descripcion,'Sugerido',r,null,null);
+      agregar(it.proveedor_alt,it.descripcion,'Alterno',r,null,null);
+    });
+  });
+  return Object.keys(provs).sort().map(function(k){
+    var p=provs[k];
+    return {nombre:p.nombre, arts:Object.keys(p.arts).sort().map(function(a){return p.arts[a];})};
+  });
+}
+function reqActualizarDatalistProveedores(list){
+  _reqCatalogo=reqArmarCatalogo(list);
+  var dl=document.getElementById('req-prov-list');
+  if(dl) dl.innerHTML=_reqCatalogo.map(function(p){return '<option value="'+escHtml(p.nombre)+'">';}).join('');
+}
+async function reqCargarProveedores(){
+  var body=document.getElementById('req-prov-body');
+  if(body) body.innerHTML='<div style="text-align:center;color:#888;padding:20px">Cargando...</div>';
+  try{
+    var list=await (await fetch('/api/requisiciones')).json();
+    reqActualizarDatalistProveedores(list);
+    reqRenderProveedores();
+  }catch(e){ if(body) body.innerHTML='<div style="color:#c62828;padding:20px">Error: '+e.message+'</div>'; }
+}
+function reqRenderProveedores(){
+  var body=document.getElementById('req-prov-body');
+  if(!body) return;
+  var q=((document.getElementById('req-prov-buscar')||{}).value||'').trim().toUpperCase();
+  var verPrecios=userIsAdmin() || (currentUser && currentUser.cargo==='Compras');
+  var fmt=function(v){return '$'+Number(v).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var provs=_reqCatalogo.map(function(p){
+    if(!q || p.nombre.toUpperCase().indexOf(q)!==-1) return p;
+    var arts=p.arts.filter(function(a){return a.articulo.toUpperCase().indexOf(q)!==-1;});
+    return arts.length?{nombre:p.nombre,arts:arts}:null;
+  }).filter(Boolean);
+  if(!provs.length){ body.innerHTML='<div style="text-align:center;color:#888;padding:20px">'+(q?'Sin resultados':'Todavía no hay proveedores registrados')+'</div>'; return; }
+  body.innerHTML=provs.map(function(p){
+    return '<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
+      +'<div style="background:#1a5c2a;color:#fff;padding:8px 14px;font-weight:700;font-size:13px">'+escHtml(p.nombre)+' <span style="font-weight:400;opacity:.8">&bull; '+p.arts.length+' artículo(s)</span></div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
+      +'<tr style="background:#e8f5e9"><th style="padding:6px;border:1px solid #ddd;text-align:left">Artículo</th>'+(verPrecios?'<th style="padding:6px;border:1px solid #ddd">Último precio</th>':'')+'<th style="padding:6px;border:1px solid #ddd">Origen</th><th style="padding:6px;border:1px solid #ddd">Requisición</th></tr>'
+      +p.arts.map(function(a){
+        return '<tr><td style="padding:5px;border:1px solid #eee">'+escHtml(a.articulo)+'</td>'
+          +(verPrecios?'<td style="padding:5px;border:1px solid #eee;text-align:right">'+(a.precio!=null?fmt(a.precio):'&#8212;')+'</td>':'')
+          +'<td style="padding:5px;border:1px solid #eee;text-align:center">'+escHtml(a.origen)+(a.fecha?'<br><span style="color:#888">'+escHtml(a.fecha)+'</span>':'')+'</td>'
+          +'<td style="padding:5px;border:1px solid #eee;text-align:center"><span data-id="'+a.id+'" onclick="verReqEl(this)" style="color:#1565c0;cursor:pointer;font-weight:700">'+a.folio+'</span></td></tr>';
+      }).join('')+'</table></div></div>';
+  }).join('');
+}
+
+// Solicitudes de cotizacion a proveedores: Compras elige articulos y proveedor; un PDF por proveedor
+function reqRfqHtml(o,id){
+  var rfqs=Array.isArray(o.rfqs)?o.rfqs:[];
+  var items=o.items||[];
+  var inp='width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box';
+  var h='<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Pedir cotización a proveedores</div>';
+  rfqs.forEach(function(s,si){
+    h+='<div style="display:flex;align-items:center;gap:8px;border:1px solid #bbdefb;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">'
+      +'<div style="flex:1"><b>'+escHtml(s.folio)+'</b> &bull; '+escHtml(s.proveedor)+'<br><span style="color:#888">'+(s.indices||[]).length+' artículo(s) &bull; '+escHtml(s.fecha||'')+'</span></div>'
+      +'<a href="/api/requisicion/'+id+'/rfq/'+si+'/pdf" target="_blank" rel="noopener" style="background:#1565c0;color:#fff;border-radius:6px;padding:6px 10px;font-weight:700;text-decoration:none;white-space:nowrap">&#128424; PDF</a></div>';
+  });
+  var filas=items.map(function(it,idx){
+    if(!(it.cantidad||it.descripcion)) return '';
+    return '<label style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0;cursor:pointer"><input type="checkbox" class="rfq-item-'+id+'" value="'+idx+'" checked style="width:16px;height:16px"> '
+      +escHtml(String(it.cantidad||''))+' '+escHtml(it.unidad||'')+' &mdash; '+escHtml(it.descripcion||'')
+      +(it.proveedor?' <span style="color:#888">(sugerido: '+escHtml(it.proveedor)+')</span>':'')+'</label>';
+  }).join('');
+  h+='<button onclick="document.getElementById(\'rfq-form-'+id+'\').style.display=\'block\';this.style.display=\'none\'" style="width:100%;padding:8px 14px;background:#fff;color:#1565c0;border:2px dashed #1565c0;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:10px">&#128228; Nueva solicitud a un proveedor</button>'
+    +'<div id="rfq-form-'+id+'" style="display:none;border:1.5px solid #1565c0;border-radius:8px;padding:10px;margin-bottom:10px">'
+    +'<input id="rfq-prov-'+id+'" type="text" list="req-prov-list" placeholder="Proveedor" style="'+inp+'">'
+    +'<input id="rfq-contacto-'+id+'" type="text" placeholder="Contacto / correo / teléfono (opcional)" style="'+inp+'">'
+    +'<div style="font-size:11px;font-weight:700;color:#555;margin:4px 0">Artículos a cotizar con este proveedor:</div>'+filas
+    +'<button data-reqid="'+id+'" onclick="reqCrearRfq(this)" style="width:100%;margin-top:8px;padding:8px 14px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Generar solicitud de cotización</button>'
+    +'</div><div style="border-top:1px solid #eee;margin-bottom:10px"></div>';
+  return h;
+}
+function reqCrearRfq(btn){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  var id=btn.getAttribute('data-reqid');
+  var prov=((document.getElementById('rfq-prov-'+id)||{}).value||'').trim();
+  var contacto=((document.getElementById('rfq-contacto-'+id)||{}).value||'').trim();
+  var indices=Array.prototype.map.call(document.querySelectorAll('.rfq-item-'+id+':checked'),function(c){return parseInt(c.value,10);});
+  if(!prov){if(typeof showToast==='function')showToast('Escribe el proveedor');return;}
+  if(!indices.length){if(typeof showToast==='function')showToast('Elige al menos un artículo');return;}
+  var ventana=window.open('','_blank');
+  btn.disabled=true;btn.textContent='Generando...';
+  fetch('/api/requisicion/'+id+'/rfq',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    proveedor:prov, contacto:contacto, indices:indices, firmante_email:currentUser.email
+  })}).then(function(r){return r.json();}).then(function(d){
+    if(!d.ok){if(ventana)ventana.close();if(typeof showToast==='function')showToast('❌ '+(d.error||'Error al guardar'));btn.disabled=false;btn.innerHTML='&#128190; Generar solicitud de cotización';return;}
+    if(typeof showToast==='function')showToast('✅ '+d.folio+' generada');
+    var url='/api/requisicion/'+id+'/rfq/'+d.indice+'/pdf';
+    if(ventana) ventana.location=url; else window.open(url,'_blank');
+    verReq(id);
+  }).catch(function(){if(ventana)ventana.close();if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.innerHTML='&#128190; Generar solicitud de cotización';});
+}
+
+// Reembolso de caja chica: quien hizo el gasto y si Compras ya le devolvio el dinero
+function reqReembolsoHtml(p,id){
+  var gasto=p.gasto_por?('<div style="font-size:12px;color:#555;margin-top:4px">Gastó: <b>'+escHtml(p.gasto_por.nombre||p.gasto_por.email||'')+'</b></div>'):'';
+  if(p.reembolso){
+    return gasto+'<div style="font-size:12px;color:#2e7d32;font-weight:700;margin-top:4px">&#9989; Reembolsado el '+escHtml(p.reembolso.fecha||'')+' por '+escHtml(p.reembolso.nombre||'')+'</div>';
+  }
+  if(!p.gasto_por) return gasto;
+  return gasto+'<div style="display:flex;align-items:center;gap:8px;margin-top:6px"><span style="font-size:12px;color:#e65100;font-weight:700">&#8987; Pendiente de reembolso</span>'
+    +'<button data-reqid="'+id+'" data-numero="'+escHtml(p.numero)+'" onclick="reqReembolsar(this)" style="background:#8a6100;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer">&#128181; Reembolsar</button></div>';
+}
+function reqReembolsar(btn){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  if(!confirm('¿Confirmas que ya se reembolsó este gasto de caja chica?')) return;
+  var reqId=btn.getAttribute('data-reqid');
+  btn.disabled=true;btn.textContent='Guardando...';
+  fetch('/api/requisicion/'+reqId+'/caja-chica/reembolso',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    numero:btn.getAttribute('data-numero'), firmante_email:currentUser.email
+  })}).then(function(r){return r.json();}).then(function(d){
+    if(!d.ok){if(typeof showToast==='function')showToast('❌ '+(d.error||'Error al guardar'));btn.disabled=false;btn.innerHTML='&#128181; Reembolsar';return;}
+    if(typeof showToast==='function')showToast('✅ Reembolso registrado');
+    verReq(reqId);
+  }).catch(function(){if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.innerHTML='&#128181; Reembolsar';});
+}
+
 async function reqRegistrarCajaChica(btn){
   if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
   var reqId=btn.getAttribute('data-reqid');
@@ -3532,11 +3689,13 @@ async function reqRegistrarCajaChica(btn){
   if(monto<=0){if(typeof showToast==='function')showToast('Escribe el monto pagado');return;}
   if(monto>=2000){if(typeof showToast==='function')showToast('La caja chica es solo para compras menores a $2,000; esta compra necesita PO');return;}
   if(!hayArchivo){if(typeof showToast==='function')showToast('Adjunta el ticket o la nota');return;}
+  var quien=((document.getElementById('ver-caja-quien-'+reqId)||{}).value||'');
+  if(!quien){if(typeof showToast==='function')showToast('Indica quién hizo el gasto');return;}
   btn.disabled=true;btn.textContent='Guardando...';
   try{
     var archivos=await reqSubirArchivosDe('ver-caja-archivo-'+reqId);
     var r=await fetch('/api/requisicion/'+reqId+'/caja-chica',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      monto:monto, proveedor:prov, archivos:archivos, firmante_email:currentUser.email
+      monto:monto, proveedor:prov, archivos:archivos, gasto_por_email:quien, firmante_email:currentUser.email
     })});
     var d=await r.json();
     if(!d.ok) throw new Error(d.error||'Error al guardar');
@@ -3685,8 +3844,8 @@ function reqAgregarFila(){
     +'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-unidad-list" data-req="unidad" data-row="'+n+'" placeholder="pza" style="width:60px;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td>'
     +'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-desc-list" data-req="descripcion" data-row="'+n+'" placeholder="Nombre, modelo, marca, No. catalogo..." style="width:100%;min-width:200px;border:none;padding:4px;font-size:13px;outline:none;box-sizing:border-box"></td>'
     +'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="aplicacion" data-row="'+n+'" placeholder="Aplicacion..." style="width:100px;border:none;padding:4px;font-size:12px;outline:none;box-sizing:border-box"></td>'
-    +'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="proveedor" data-row="'+n+'" placeholder="Nombre, tel, correo" style="width:110px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td>'
-    +'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="proveedor_alt" data-row="'+n+'" placeholder="Nombre, tel, correo" style="width:110px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td>'
+    +'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-prov-list" data-req="proveedor" data-row="'+n+'" placeholder="Nombre, tel, correo" style="width:110px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td>'
+    +'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-prov-list" data-req="proveedor_alt" data-row="'+n+'" placeholder="Nombre, tel, correo" style="width:110px;border:none;padding:4px;font-size:11px;outline:none;box-sizing:border-box"></td>'
     +'<td style="border:1px solid #eee;padding:2px;text-align:center"><button onclick="reqEliminarFila('+n+')" style="background:none;border:none;color:#c62828;font-size:18px;cursor:pointer;line-height:1">&times;</button></td>'
     +'</tr>';
   tbody.insertAdjacentHTML('beforeend', row);
@@ -3790,7 +3949,7 @@ async function initReqForm(){
   if(tbody){
     tbody.innerHTML='';
     _reqRowCount=1;
-    tbody.innerHTML='<tr id="req-fila-1" style="border-bottom:1px solid #f0f0f0">'+'<td style="text-align:center;padding:4px 2px;border:1px solid #eee;font-size:12px;color:#888;width:28px">1</td>'+'<td style="border:1px solid #eee;padding:2px"><input type="number" min="0" data-req="cantidad" data-row="1" placeholder="0" style="width:55px;border:none;padding:4px;font-size:13px;text-align:center;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-unidad-list" data-req="unidad" data-row="1" placeholder="pza" style="width:60px;border:none;padding:4px;font-size:13px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-desc-list" data-req="descripcion" data-row="1" placeholder="Descripción..." style="width:100%;border:none;padding:4px;font-size:13px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="aplicacion" data-row="1" placeholder="Aplicación" style="width:100px;border:none;padding:4px;font-size:12px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="proveedor" data-row="1" placeholder="Proveedor" style="width:110px;border:none;padding:4px;font-size:11px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="proveedor_alt" data-row="1" placeholder="Alt" style="width:110px;border:none;padding:4px;font-size:11px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px;text-align:center"><button onclick="reqEliminarFila(1)" style="background:none;border:none;color:#c62828;font-size:18px;cursor:pointer">&times;</button></td>'+'</tr>';
+    tbody.innerHTML='<tr id="req-fila-1" style="border-bottom:1px solid #f0f0f0">'+'<td style="text-align:center;padding:4px 2px;border:1px solid #eee;font-size:12px;color:#888;width:28px">1</td>'+'<td style="border:1px solid #eee;padding:2px"><input type="number" min="0" data-req="cantidad" data-row="1" placeholder="0" style="width:55px;border:none;padding:4px;font-size:13px;text-align:center;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-unidad-list" data-req="unidad" data-row="1" placeholder="pza" style="width:60px;border:none;padding:4px;font-size:13px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-desc-list" data-req="descripcion" data-row="1" placeholder="Descripción..." style="width:100%;border:none;padding:4px;font-size:13px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" data-req="aplicacion" data-row="1" placeholder="Aplicación" style="width:100px;border:none;padding:4px;font-size:12px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-prov-list" data-req="proveedor" data-row="1" placeholder="Proveedor" style="width:110px;border:none;padding:4px;font-size:11px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px"><input type="text" list="req-prov-list" data-req="proveedor_alt" data-row="1" placeholder="Alt" style="width:110px;border:none;padding:4px;font-size:11px;outline:none"></td>'+'<td style="border:1px solid #eee;padding:2px;text-align:center"><button onclick="reqEliminarFila(1)" style="background:none;border:none;color:#c62828;font-size:18px;cursor:pointer">&times;</button></td>'+'</tr>';
   }
   // Firmas
   var sc=document.getElementById('req-sigs-container');
@@ -4122,6 +4281,7 @@ async function loadReqList(){
         +'</div>';
     }).join('');
     reqActualizarAlerta(list).then(function(p){ var ah=reqAlertaHtml(p)+reqPorRecibirHtml(list); if(ah) el.insertAdjacentHTML('afterbegin',ah); });
+    reqActualizarDatalistProveedores(list);
   } catch(e){ el.innerHTML='<div style="color:#c62828;padding:20px">Error: '+e.message+'</div>'; }
 }
 
@@ -4452,7 +4612,7 @@ function reqPoFormHtml(id,o){
     +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 10px">'
     +'<div>'+lbl('Folio de la PO')+'<input id="pogen-numero-'+id+'" type="text" placeholder="Cargando..." style="'+PO_INPUT+';width:100%"></div>'
     +'<div>'+lbl('Fecha de vencimiento')+'<input id="pogen-venc-'+id+'" type="text" value="'+hoyTxt+'" placeholder="dd/mm/aaaa" style="'+PO_INPUT+';width:100%"></div>'
-    +'<div style="grid-column:1/-1">'+lbl('Proveedor (razón social)')+'<input id="pogen-prov-'+id+'" type="text" value="'+escHtml(provSug)+'" placeholder="Ej. SINGLE CORRUGADOS, S.A. DE C.V." style="'+PO_INPUT+';width:100%"></div>'
+    +'<div style="grid-column:1/-1">'+lbl('Proveedor (razón social)')+'<input id="pogen-prov-'+id+'" type="text" list="req-prov-list" value="'+escHtml(provSug)+'" placeholder="Ej. SINGLE CORRUGADOS, S.A. DE C.V." style="'+PO_INPUT+';width:100%"></div>'
     +'<div>'+lbl('RFC del proveedor')+'<input id="pogen-rfc-'+id+'" type="text" placeholder="Ej. SCO980831UB2" style="'+PO_INPUT+';width:100%;text-transform:uppercase"></div>'
     +'<div>'+lbl('Moneda')+'<select id="pogen-moneda-'+id+'" style="'+PO_INPUT+';width:100%"><option>MXN-PESO MEXICANO</option><option>USD-DÓLAR AMERICANO</option></select></div>'
     +'<div>'+lbl('Método de pago')+'<select id="pogen-metodo-'+id+'" style="'+PO_INPUT+';width:100%"><option>PUE-PAGO EN UNA SOLA EXHIBICIÓN</option><option>PPD-PAGO EN PARCIALIDADES O DIFERIDO</option></select></div>'
@@ -4831,6 +4991,7 @@ async function verReq(id){
       h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
         +'<div style="background:#1565c0;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Cotizaciones</div>'
         +'<div style="padding:10px">';
+      if(puedeCotizar) h+=reqRfqHtml(o,id);
       listaCot.forEach(function(c){
         h+='<div style="border:1.5px solid #1e88e5;border-radius:8px;padding:10px;margin-bottom:8px">'
           +'<div style="font-size:10px;color:#1565c0;font-weight:700;text-transform:uppercase">Cotización'+(c.fecha?(' &bull; '+c.fecha):'')+'</div>'
@@ -4872,7 +5033,7 @@ async function verReq(id){
           +'<div style="font-size:14px;font-weight:700">'+escHtml(p.numero)+'</div>'
           +(p.generada?('<div style="font-size:12px;color:#555">'+escHtml(p.proveedor_nombre||'')+' &bull; Total: <b>$'+totalPo.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+'</b></div>'
             +'<a href="/api/requisicion/'+id+'/po/'+pi+'/pdf" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;padding:6px 12px;background:#1a5c2a;color:#fff;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">&#128424; Imprimir / descargar PO</a>'):'')
-          +(p.caja_chica?('<div style="font-size:12px;color:#555">'+escHtml(p.proveedor_nombre||'')+(p.proveedor_nombre?' &bull; ':'')+'Monto: <b>$'+Number(p.monto||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+'</b></div>'+reqArchivosLinksHtml(p.archivos)):'')
+          +(p.caja_chica?('<div style="font-size:12px;color:#555">'+escHtml(p.proveedor_nombre||'')+(p.proveedor_nombre?' &bull; ':'')+'Monto: <b>$'+Number(p.monto||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+'</b></div>'+reqArchivosLinksHtml(p.archivos)+reqReembolsoHtml(p,id)):'')
           +(p.link?('<a href="'+p.link+'" target="_blank" rel="noopener" style="font-size:12px;color:#1565c0;word-break:break-all">&#128206; Ver archivo</a>'):'')
           +'</div>';
       });
@@ -4886,7 +5047,8 @@ async function verReq(id){
           +'<div id="ver-caja-form-'+id+'" style="display:none;border:1.5px solid #f9a825;border-radius:8px;padding:10px;margin-bottom:8px;background:#fffdf5">'
           +'<div style="font-size:11px;color:#8a6100;margin-bottom:6px">Solo para compras menores a $2,000: no lleva cotización, PO ni factura. Registra el monto y adjunta el ticket o nota.</div>'
           +'<input id="ver-caja-monto-'+id+'" type="number" min="0" max="1999.99" step="any" placeholder="Monto pagado (menos de $2,000)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
-          +'<input id="ver-caja-prov-'+id+'" type="text" placeholder="Dónde se compró (opcional)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +'<input id="ver-caja-prov-'+id+'" type="text" list="req-prov-list" placeholder="Dónde se compró (opcional)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +'<select id="ver-caja-quien-'+id+'" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box;background:#fff"><option value="">¿Quién hizo el gasto? (para el reembolso)</option>'+Object.keys(nombrePorEmail).sort(function(a,b){return (nombrePorEmail[a]||'').localeCompare(nombrePorEmail[b]||'');}).map(function(em){return '<option value="'+escHtml(em)+'"'+(em===(o.solicitante_email||'').toLowerCase()?' selected':'')+'>'+escHtml(nombrePorEmail[em]||em)+'</option>';}).join('')+'</select>'
           +reqArchivoInputHtml('ver-caja-archivo-'+id)
           +'<button data-reqid="'+id+'" onclick="reqRegistrarCajaChica(this)" style="width:100%;padding:8px 14px;background:#8a6100;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar compra por caja chica</button>'
           +'</div>'));

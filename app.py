@@ -1724,6 +1724,165 @@ def numero_a_letras(n):
     de = ' DE' if enteros and enteros % 1000000 == 0 else ''
     return texto + de + ' PESOS ' + str(centavos).zfill(2) + '/100 M.N.'
 
+@app.route('/api/requisicion/<rid>/rfq', methods=['POST'])
+def crear_solicitud_a_proveedor(rid):
+    """Compras arma una solicitud de cotizacion para un proveedor con los articulos que elige."""
+    d = request.json or {}
+    firmante_email = (d.get('firmante_email') or '').strip().lower()
+    proveedor = (d.get('proveedor') or '').strip()
+    contacto = (d.get('contacto') or '').strip()
+    if not proveedor:
+        return jsonify({'ok': False, 'error': 'Escribe el proveedor'}), 400
+    rows = sb.select('requisiciones', select='data', id='eq.' + rid)
+    if not rows:
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    o = json.loads(rows[0]['data'])
+    asignado = email_compras_de(o)
+    if asignado and firmante_email != asignado:
+        return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede pedir cotizaciones'}), 403
+    items = o.get('items') or []
+    indices = sorted({int(i) for i in (d.get('indices') or []) if str(i).lstrip('-').isdigit()})
+    indices = [i for i in indices if 0 <= i < len(items) and isinstance(items[i], dict)
+               and (items[i].get('cantidad') or items[i].get('descripcion'))]
+    if not indices:
+        return jsonify({'ok': False, 'error': 'Elige al menos un artículo'}), 400
+    if not isinstance(o.get('rfqs'), list):
+        o['rfqs'] = []
+    folio = 'SC-' + str(o.get('folio') or 0).zfill(4) + '-' + str(len(o['rfqs']) + 1)
+    o['rfqs'].append({'folio': folio, 'proveedor': proveedor, 'contacto': contacto, 'indices': indices,
+                      'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M'), 'elaboro_email': firmante_email})
+    sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    return jsonify({'ok': True, 'folio': folio, 'indice': len(o['rfqs']) - 1})
+
+@app.route('/api/requisicion/<rid>/rfq/<int:idx>/pdf')
+def solicitud_a_proveedor_pdf(rid, idx):
+    """PDF 'Solicitud de cotizacion' para un proveedor: mismo encabezado que la PO, sin precios."""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.lib.units import cm
+    from reportlab.pdfgen import canvas as pdfcanvas
+    from reportlab.lib.utils import simpleSplit
+
+    rows = sb.select('requisiciones', select='data', id='eq.' + rid)
+    if not rows:
+        return jsonify({'error': 'No encontrado'}), 404
+    o = json.loads(rows[0]['data'])
+    rfqs = o.get('rfqs') or []
+    if idx < 0 or idx >= len(rfqs):
+        return jsonify({'error': 'No encontrada'}), 404
+    sc = rfqs[idx]
+    items = o.get('items') or []
+    partidas = [items[i] for i in sc.get('indices', []) if 0 <= i < len(items) and isinstance(items[i], dict)]
+
+    buf = io.BytesIO()
+    W, H = letter
+    c = pdfcanvas.Canvas(buf, pagesize=letter)
+    c.setTitle('Solicitud de cotización ' + sc['folio'])
+    AZUL = colors.HexColor('#1f3864')
+    NEGRO = colors.black
+    GRIS = colors.HexColor('#999999')
+    m = 0.75*cm
+    x0, x1 = m, W - m
+    y_top = H - m
+
+    def t(s, x, y, size=7, bold=False, color=NEGRO, align='left'):
+        c.setFont('Helvetica-Bold' if bold else 'Helvetica', size)
+        c.setFillColor(color)
+        s = str(s if s is not None else '')
+        if align == 'right':
+            c.drawRightString(x, y, s)
+        elif align == 'center':
+            c.drawCentredString(x, y, s)
+        else:
+            c.drawString(x, y, s)
+
+    c.setStrokeColor(NEGRO); c.setLineWidth(0.8)
+    c.rect(x0, m, x1 - x0, y_top - m)
+
+    # Emisor (igual que la PO)
+    lx = x0 + 0.4*cm
+    y = y_top - 0.75*cm
+    t(PO_EMISOR['nombre'], lx, y, 11, True, AZUL)
+    y -= 0.42*cm
+    t('R.F.C.: ' + PO_EMISOR['rfc'], lx, y, 8, True)
+    for linea in simpleSplit(PO_EMISOR['direccion'], 'Helvetica', 7, 10.5*cm):
+        y -= 0.33*cm
+        t(linea, lx, y, 7)
+
+    # Proveedor
+    y -= 1.3*cm
+    t('PROVEEDOR', lx, y, 7, True, GRIS)
+    y -= 0.42*cm
+    for linea in simpleSplit(sc.get('proveedor', ''), 'Helvetica-Bold', 9, 10.5*cm):
+        t(linea, lx, y, 9, True, AZUL)
+        y -= 0.38*cm
+    if sc.get('contacto'):
+        t('Contacto: ' + sc['contacto'], lx, y, 7.5)
+        y -= 0.33*cm
+    y_fin_encabezado = y - 0.4*cm
+
+    # Titulo, logo y folio
+    rx0, rx1 = x1 - 8.4*cm, x1 - 0.3*cm
+    rcx = (rx0 + rx1) / 2
+    t('SOLICITUD DE COTIZACIÓN', rcx, y_top - 0.8*cm, 12, True, AZUL, 'center')
+    logo = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'adpack-icon-web.png')
+    if os.path.exists(logo):
+        c.drawImage(logo, rcx - 1.25*cm, y_top - 3.25*cm, width=2.5*cm, height=2.2*cm,
+                    preserveAspectRatio=True, mask='auto')
+    by = y_top - 5.0*cm
+    c.rect(rx0, by, rx1 - rx0, 1.7*cm)
+    c.line(rx0, by + 1.0*cm, rx1, by + 1.0*cm)
+    t('Fecha: ' + (sc.get('fecha') or '')[:10], rcx, by + 1.25*cm, 8, True, AZUL, 'center')
+    t('Folio: ' + sc['folio'], rcx, by + 0.38*cm, 10.5, True, AZUL, 'center')
+
+    # Tabla de articulos: el proveedor llena precio y tiempo de entrega
+    ty = min(y_fin_encabezado, by - 0.5*cm)
+    c.setLineWidth(1)
+    c.line(x0, ty, x1, ty)
+    cols = {'n': x0 + 0.5*cm, 'cant': x0 + 1.6*cm, 'um': x0 + 3.0*cm, 'desc': x0 + 4.0*cm,
+            'pu': x0 + 14.2*cm, 'te': x0 + 17.1*cm}
+    hy = ty - 0.45*cm
+    t('#', cols['n'], hy, 6.5, True, NEGRO, 'center')
+    t('CANTIDAD', cols['cant'], hy, 6.5, True, NEGRO, 'center')
+    t('UNIDAD', cols['um'], hy, 6.5, True, NEGRO, 'center')
+    t('DESCRIPCIÓN', cols['desc'], hy, 6.5, True)
+    t('PRECIO UNITARIO', cols['pu'] + 1.3*cm, hy, 6.5, True, NEGRO, 'center')
+    t('TIEMPO DE ENTREGA', cols['te'] + 1.4*cm, hy, 6.5, True, NEGRO, 'center')
+    c.setLineWidth(0.8)
+    c.line(x0, ty - 0.7*cm, x1, ty - 0.7*cm)
+    py = ty - 1.25*cm
+    desc_w = cols['pu'] - cols['desc'] - 0.4*cm
+    c.setStrokeColor(colors.HexColor('#bbbbbb')); c.setLineWidth(0.5)
+    for n, it in enumerate(partidas, start=1):
+        lineas = simpleSplit(str(it.get('descripcion') or ''), 'Helvetica', 7.5, desc_w) or ['']
+        t(n, cols['n'], py, 7.5, False, NEGRO, 'center')
+        t(it.get('cantidad') or '', cols['cant'], py, 7.5, False, NEGRO, 'center')
+        t(it.get('unidad') or '', cols['um'], py, 7.5, False, NEGRO, 'center')
+        for i, linea in enumerate(lineas):
+            t(linea, cols['desc'], py - i*0.32*cm, 7.5)
+        c.line(cols['pu'], py - 0.08*cm, cols['pu'] + 2.6*cm, py - 0.08*cm)
+        c.line(cols['te'], py - 0.08*cm, cols['te'] + 2.8*cm, py - 0.08*cm)
+        py -= max(1, len(lineas)) * 0.32*cm + 0.35*cm
+    c.setStrokeColor(NEGRO)
+
+    # Alcance y nota
+    ay = min(py - 0.4*cm, 6.5*cm)
+    if o.get('alcance'):
+        t('ALCANCE / ESPECIFICACIONES', lx, ay, 7, True)
+        for i, linea in enumerate(simpleSplit(o['alcance'], 'Helvetica', 7.5, x1 - x0 - 1*cm)[:8]):
+            t(linea, lx, ay - 0.36*cm - i*0.32*cm, 7.5)
+    compras = email_compras_de(o)
+    t('Favor de enviar su cotización indicando precio unitario, tiempo de entrega y vigencia'
+      + (' a ' + compras if compras else '') + '.', lx, 2.2*cm, 8, True)
+    t('Referencia interna: REQ-' + str(o.get('folio') or 0).zfill(4), lx, 1.7*cm, 7, False, GRIS)
+    t('Este documento no es una orden de compra', W/2, m + 0.45*cm, 7.5, True, NEGRO, 'center')
+
+    c.save(); buf.seek(0)
+    nombre_prov = re.sub(r'[^A-Za-z0-9]+', '_', sc.get('proveedor') or '').strip('_')[:40]
+    return send_file(buf, mimetype='application/pdf',
+                     download_name='Solicitud de cotizacion ' + sc['folio'] + (' ' + nombre_prov if nombre_prov else '') + '.pdf',
+                     as_attachment=False)
+
 @app.route('/api/requisicion/<rid>/po/<int:idx>/pdf')
 def requisicion_po_pdf(rid, idx):
     from reportlab.lib.pagesizes import letter
@@ -2037,14 +2196,43 @@ def registrar_caja_chica_requisicion(rid):
     previas = sum(1 for p in o['pos'] if p.get('caja_chica'))
     numero = 'CAJA CHICA' + ('' if previas == 0 else ' ' + str(previas + 1))
     fecha = ahora_mx().strftime('%d/%m/%Y %H:%M')
+    gasto_email = (d.get('gasto_por_email') or '').strip().lower()
+    if not gasto_email:
+        return jsonify({'ok': False, 'error': 'Indica quién hizo el gasto (para el reembolso)'}), 400
+    u = sb.select('users', select='nombre', email='eq.' + gasto_email)
+    gasto_nombre = (u[0].get('nombre') if u else '') or gasto_email
     o['pos'].append({'numero': numero, 'caja_chica': True, 'monto': monto, 'proveedor_nombre': proveedor,
                      'fecha': fecha, 'creado': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
-                     'archivos': archivos, 'elaboro_email': firmante_email})
+                     'archivos': archivos, 'elaboro_email': firmante_email,
+                     'gasto_por': {'email': gasto_email, 'nombre': gasto_nombre}, 'reembolso': None})
     o['facturas'].append({'numero': 'Ticket caja chica', 'po_numero': numero, 'link': '', 'archivos': archivos,
                           'fecha': fecha})
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     avisar_compra_al_solicitante(o, rid, numero, caja_chica=True)
     return jsonify({'ok': True, 'numero': numero})
+
+@app.route('/api/requisicion/<rid>/caja-chica/reembolso', methods=['POST'])
+def reembolsar_caja_chica(rid):
+    """Compras registra que ya se le devolvio el dinero a quien hizo el gasto de caja chica."""
+    d = request.json or {}
+    firmante_email = (d.get('firmante_email') or '').strip().lower()
+    numero = (d.get('numero') or '').strip()
+    rows = sb.select('requisiciones', select='data', id='eq.' + rid)
+    if not rows:
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    o = json.loads(rows[0]['data'])
+    asignado = email_compras_de(o)
+    if asignado and firmante_email != asignado:
+        return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede registrar el reembolso'}), 403
+    p = next((p for p in (o.get('pos') or []) if p.get('caja_chica') and p.get('numero') == numero), None)
+    if not p:
+        return jsonify({'ok': False, 'error': 'No se encontró esa compra por caja chica'}), 404
+    if not p.get('reembolso'):
+        u = sb.select('users', select='nombre', email='eq.' + firmante_email) if firmante_email else []
+        p['reembolso'] = {'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M'), 'email': firmante_email,
+                          'nombre': (u[0].get('nombre') if u else '') or firmante_email}
+        sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    return jsonify({'ok': True})
 
 @app.route('/api/requisicion/<rid>/recibido', methods=['POST'])
 def marcar_recibido_requisicion(rid):
