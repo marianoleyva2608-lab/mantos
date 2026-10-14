@@ -4858,8 +4858,8 @@ async function verReq(id){
     var _altAj={}; try{ _ajustesCache=null; _altAj=JSON.parse((await _getAjustes()).aprobadores_alternos||'{}')||{}; }catch(e){ _altAj={}; }
     var esAlternoDe=function(email){ if(!email||!currentUser||!currentUser.email) return false; var a=_altAj[email.toLowerCase()]||_altAj[email]; return !!a && a.toLowerCase()===currentUser.email.toLowerCase(); };
     var _emComp=(o.email_aprobador||((o.firmas||{}).aprobo||{}).email||'').toLowerCase(), _emDir=(o.email_presidenta||'').toLowerCase(), _yo=(currentUser&&currentUser.email||'').toLowerCase();
-    // El solicitante no debe saber si la requisicion pasa de $10,000: solo Compras, Direccion (y alternos) y admins
-    var puedeVerMonto=!!_yo && ((_yo===_emComp || _yo===_emDir || esAlternoDe(_emComp) || esAlternoDe(_emDir)) || (userIsAdmin() && _yo!==(o.solicitante_email||'').toLowerCase()));
+    // Solo Compras y Direccion (y sus alternos) saben si la requisicion pasa de $10,000; ni solicitante ni supervisor ni admins
+    var puedeVerMonto=!!_yo && (_yo===_emComp || _yo===_emDir || esAlternoDe(_emComp) || esAlternoDe(_emDir));
     var nombrePorEmail={};
     try{
       var resU=await fetch('/api/users');
