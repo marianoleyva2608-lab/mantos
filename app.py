@@ -1413,7 +1413,7 @@ def save_requisicion():
             except ValueError:
                 previo = {}
             # Campos que no vienen del formulario: los pone el servidor o Compras
-            for campo in ('creado', 'mayor_10000'):
+            for campo in ('creado', 'mayor_10000', 'fecha_compromiso'):
                 if not d.get(campo) and previo.get(campo):
                     d[campo] = previo[campo]
     else:
@@ -2232,6 +2232,41 @@ def reembolsar_caja_chica(rid):
         p['reembolso'] = {'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M'), 'email': firmante_email,
                           'nombre': (u[0].get('nombre') if u else '') or firmante_email}
         sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    return jsonify({'ok': True})
+
+@app.route('/api/requisicion/<rid>/fecha-compromiso', methods=['POST'])
+def fecha_compromiso_requisicion(rid):
+    """Compras indica para cuando se compromete a entregar el material; se avisa al solicitante."""
+    d = request.json or {}
+    firmante_email = (d.get('firmante_email') or '').strip().lower()
+    fecha = (d.get('fecha') or '').strip()
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', fecha):
+        return jsonify({'ok': False, 'error': 'Elige la fecha compromiso de entrega'}), 400
+    rows = sb.select('requisiciones', select='data', id='eq.' + rid)
+    if not rows:
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    o = json.loads(rows[0]['data'])
+    asignado = email_compras_de(o)
+    if asignado and firmante_email != asignado:
+        return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede poner la fecha compromiso'}), 403
+    if o.get('tipo_doc') == 'cotizacion':
+        return jsonify({'ok': False, 'error': 'La solicitud de cotización no lleva fecha compromiso de entrega'}), 400
+    anterior = o.get('fecha_compromiso')
+    o['fecha_compromiso'] = fecha
+    sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    if fecha != anterior and o.get('solicitante_email'):
+        folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
+        link = BASE_URL_PUBLICO + '/?req=' + str(rid)
+        legible = '/'.join(reversed(fecha.split('-')))
+        cuerpo = ('<p>Hola ' + html_escape(o.get('solicitante') or '') + ',</p>'
+                  '<p>Compras ' + ('cambió' if anterior else 'puso') + ' la <b>fecha compromiso de entrega</b> de tu requisición <b>'
+                  + folio_txt + '</b>: <b>' + legible + '</b>.</p>'
+                  + _tabla_items_html(o) +
+                  '<p>Ver en el sistema: <a href="' + link + '">' + link + '</a></p>')
+        try:
+            enviar_correo(o['solicitante_email'], 'Requisición ' + folio_txt + ' — entrega comprometida para ' + legible, cuerpo)
+        except Exception:
+            pass
     return jsonify({'ok': True})
 
 @app.route('/api/requisicion/<rid>/recibido', methods=['POST'])

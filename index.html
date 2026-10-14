@@ -2775,10 +2775,6 @@ authInit();
         </select>
         <input id="req-departamento-otro" type="text" placeholder="Escribe el departamento..." style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:6px;display:none">
       </div>
-      <div id="req-fecha-compromiso-wrap" style="grid-column:1/-1">
-        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Fecha compromiso de entrega <span style="color:#c62828">*</span></label>
-        <input id="req-fecha-compromiso" type="date" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box">
-      </div>
       <div style="grid-column:1/-1">
         <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Tipo de Solicitud</label>
         <div style="display:flex;gap:16px">
@@ -3684,6 +3680,30 @@ function reqCrearRfq(btn){
   }).catch(function(){if(ventana)ventana.close();if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.innerHTML='&#128190; Generar solicitud de cotización';});
 }
 
+// Fecha compromiso de entrega: la pone Compras (no el solicitante); se avisa por correo al solicitante
+function reqFechaCompromisoHtml(o,id){
+  return '<div style="background:#e3f2fd;border:1.5px solid #1565c0;border-radius:8px;padding:10px;margin-bottom:10px">'
+    +'<div style="font-size:11px;font-weight:700;color:#1565c0;text-transform:uppercase;margin-bottom:6px">Fecha compromiso de entrega</div>'
+    +'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
+    +'<input id="ver-fcomp-'+id+'" type="date" value="'+escHtml(o.fecha_compromiso||'')+'" style="flex:1;min-width:150px;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">'
+    +'<button data-reqid="'+id+'" onclick="reqGuardarFechaCompromiso(this)" style="padding:8px 14px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; '+(o.fecha_compromiso?'Cambiar fecha':'Guardar fecha')+'</button></div>'
+    +'<div style="font-size:11px;color:#555;margin-top:4px">Al guardarla se le avisa por correo al solicitante.</div></div>';
+}
+function reqGuardarFechaCompromiso(btn){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  var id=btn.getAttribute('data-reqid');
+  var fecha=((document.getElementById('ver-fcomp-'+id)||{}).value||'');
+  if(!fecha){if(typeof showToast==='function')showToast('Elige la fecha compromiso de entrega');return;}
+  btn.disabled=true;btn.textContent='Guardando...';
+  fetch('/api/requisicion/'+id+'/fecha-compromiso',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    fecha:fecha, firmante_email:currentUser.email
+  })}).then(function(r){return r.json();}).then(function(d){
+    if(!d.ok){if(typeof showToast==='function')showToast('❌ '+(d.error||'Error al guardar'));btn.disabled=false;btn.innerHTML='&#128190; Guardar fecha';return;}
+    if(typeof showToast==='function')showToast('✅ Fecha guardada y avisada al solicitante');
+    verReq(id);
+  }).catch(function(){if(typeof showToast==='function')showToast('Error de conexión');btn.disabled=false;btn.innerHTML='&#128190; Guardar fecha';});
+}
+
 // Reembolso de caja chica: quien hizo el gasto y si Compras ya le devolvio el dinero
 function reqReembolsoHtml(p,id){
   var gasto=p.gasto_por?('<div style="font-size:12px;color:#555;margin-top:4px">Gastó: <b>'+escHtml(p.gasto_por.nombre||p.gasto_por.email||'')+'</b></div>'):'';
@@ -3897,7 +3917,6 @@ function reqTipoDocSel(){
 }
 function reqAplicarTipoDoc(){
   var cot=reqTipoDocSel()==='cotizacion';
-  var fcw=document.getElementById('req-fecha-compromiso-wrap'); if(fcw) fcw.style.display=cot?'none':'';
   var tt=document.getElementById('req-nueva-titulo'); if(tt) tt.innerHTML=cot?'&#128269; Nueva Solicitud de cotización':'&#128722; Nueva Requisición de compra';
   var ay=document.getElementById('req-tipo-doc-ayuda');
   if(ay) ay.textContent=cot?'Compras cotiza y te responde con las cotizaciones. No genera orden de compra; después la puedes convertir en requisición de compra.'
@@ -3964,7 +3983,6 @@ async function initReqForm(){
   var justEl=document.getElementById('req-justificacion');
   if(justEl) justEl.value='';
   var alcEl=document.getElementById('req-alcance'); if(alcEl) alcEl.value='';
-  var fcEl=document.getElementById('req-fecha-compromiso'); if(fcEl) fcEl.value='';
   _reqAdjuntos=[]; reqRenderAdjuntos();
   var valRevEl=document.getElementById('req-email-revisor');
   if(valRevEl){
@@ -4149,7 +4167,6 @@ async function guardarReq(){
     departamento:(function(){var s=document.getElementById('req-departamento');var o=document.getElementById('req-departamento-otro');return(s&&s.value==='otro')?(o?o.value.trim():''):(s?s.value:'');})(),
     tipo:tipoEl?tipoEl.value:'Normal',
     tipo_doc:reqTipoDocSel(),
-    fecha_compromiso:(reqTipoDocSel()==='cotizacion'?'':((document.getElementById('req-fecha-compromiso')||{}).value||'')),
     items:getReqItems(),
     justificacion:(document.getElementById('req-justificacion')||{}).value||'',
     alcance:((document.getElementById('req-alcance')||{}).value||'').trim(),
@@ -4166,10 +4183,6 @@ async function guardarReq(){
   var itemsValidos=data.items.filter(function(i){return (i.cantidad&&Number(i.cantidad)>0)&&i.descripcion;});
   if(itemsValidos.length===0){
     if(typeof showToast==='function') showToast('⚠️ Agrega al menos un artículo con cantidad y descripción');
-    return;
-  }
-  if(data.tipo_doc!=='cotizacion' && !data.fecha_compromiso){
-    if(typeof showToast==='function') showToast('⚠️ Indica la fecha compromiso de entrega');
     return;
   }
   if(!data.alcance){
@@ -5057,6 +5070,7 @@ async function verReq(id){
       h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
         +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Cierre de Compra</div>'
         +'<div style="padding:10px">';
+      h+=reqFechaCompromisoHtml(o,id);
       var listaPos=Array.isArray(o.pos)?o.pos:(o.po_numero?[{numero:o.po_numero,descripcion:o.po_descripcion,fecha:''}]:[]);
       var listaFacturas=Array.isArray(o.facturas)?o.facturas:(o.factura_numero?[{numero:o.factura_numero,fecha:''}]:[]);
       h+='<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:6px">Órdenes de compra (PO)</div>';
