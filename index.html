@@ -2685,7 +2685,9 @@ authInit();
     <button id="req-dashboard-link-wrap" onclick="showPage('req-dashboard');loadReqDashboard()" style="display:none;background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">&#128202; Dashboard</button>
   </div>
   <div style="margin:12px 12px 0;text-align:right">
-    <button onclick="showPage('req-nueva')" style="background:#1a5c2a;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
+    <button onclick="_reqTipoInicial='cotizacion';showPage('req-nueva')" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600;margin-right:6px">&#128269; + Solicitud de cotización</button>
+    <button onclick="_reqTipoInicial='requisicion';showPage('req-nueva')" style="background:#1a5c2a;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600">&#128722; + Requisición de compra</button>
+    <button onclick="showPage('req-proveedores');reqCargarProveedores()" style="background:#fff;color:#1a5c2a;border:1.5px solid #1a5c2a;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px;font-weight:600;margin-left:6px">&#128210; Artículos por proveedor</button>
   </div>
   <div id="req-list" style="padding:12px"></div>
 </div>
@@ -2757,6 +2759,10 @@ authInit();
           <option value="otro">+ Otro departamento...</option>
         </select>
         <input id="req-departamento-otro" type="text" placeholder="Escribe el departamento..." style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;margin-top:6px;display:none">
+      </div>
+      <div id="req-fecha-compromiso-wrap" style="grid-column:1/-1">
+        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Fecha compromiso de entrega <span style="color:#c62828">*</span></label>
+        <input id="req-fecha-compromiso" type="date" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box">
       </div>
       <div style="grid-column:1/-1">
         <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Tipo de Solicitud</label>
@@ -3704,6 +3710,7 @@ function reqTipoDocSel(){
 }
 function reqAplicarTipoDoc(){
   var cot=reqTipoDocSel()==='cotizacion';
+  var fcw=document.getElementById('req-fecha-compromiso-wrap'); if(fcw) fcw.style.display=cot?'none':'';
   var tt=document.getElementById('req-nueva-titulo'); if(tt) tt.innerHTML=cot?'&#128269; Nueva Solicitud de cotización':'&#128722; Nueva Requisición de compra';
   var ay=document.getElementById('req-tipo-doc-ayuda');
   if(ay) ay.textContent=cot?'Compras cotiza y te responde con las cotizaciones. No genera orden de compra; después la puedes convertir en requisición de compra.'
@@ -3711,6 +3718,7 @@ function reqAplicarTipoDoc(){
 }
 // Datos para precargar el formulario (convertir una solicitud de cotizacion en requisicion)
 var _reqPrefill=null;
+var _reqTipoInicial='requisicion'; // boton que abrio el formulario (requisicion o solicitud de cotizacion)
 function reqConvertirACompra(id){
   fetch('/api/requisiciones').then(function(r){return r.json();}).then(function(list){
     var o=list.find(function(x){return x.id===id;});
@@ -3744,7 +3752,8 @@ function reqAplicarPrefill(){
 
 async function initReqForm(){
   _reqCurrentId=null;
-  var _tdReq=document.querySelector('input[name="req-tipo-doc"][value="requisicion"]'); if(_tdReq) _tdReq.checked=true;
+  var _tdReq=document.querySelector('input[name="req-tipo-doc"][value="'+(_reqTipoInicial==='cotizacion'?'cotizacion':'requisicion')+'"]'); if(_tdReq) _tdReq.checked=true;
+  _reqTipoInicial='requisicion';
   reqAplicarTipoDoc();
   _reqSigs={realizo:null,reviso:null,aprobo:null,presidenta:null};
   _reqRowCount=0;
@@ -3765,6 +3774,7 @@ async function initReqForm(){
   var justEl=document.getElementById('req-justificacion');
   if(justEl) justEl.value='';
   var alcEl=document.getElementById('req-alcance'); if(alcEl) alcEl.value='';
+  var fcEl=document.getElementById('req-fecha-compromiso'); if(fcEl) fcEl.value='';
   _reqAdjuntos=[]; reqRenderAdjuntos();
   var valRevEl=document.getElementById('req-email-revisor');
   if(valRevEl){
@@ -3949,6 +3959,7 @@ async function guardarReq(){
     departamento:(function(){var s=document.getElementById('req-departamento');var o=document.getElementById('req-departamento-otro');return(s&&s.value==='otro')?(o?o.value.trim():''):(s?s.value:'');})(),
     tipo:tipoEl?tipoEl.value:'Normal',
     tipo_doc:reqTipoDocSel(),
+    fecha_compromiso:(reqTipoDocSel()==='cotizacion'?'':((document.getElementById('req-fecha-compromiso')||{}).value||'')),
     items:getReqItems(),
     justificacion:(document.getElementById('req-justificacion')||{}).value||'',
     alcance:((document.getElementById('req-alcance')||{}).value||'').trim(),
@@ -3965,6 +3976,10 @@ async function guardarReq(){
   var itemsValidos=data.items.filter(function(i){return (i.cantidad&&Number(i.cantidad)>0)&&i.descripcion;});
   if(itemsValidos.length===0){
     if(typeof showToast==='function') showToast('⚠️ Agrega al menos un artículo con cantidad y descripción');
+    return;
+  }
+  if(data.tipo_doc!=='cotizacion' && !data.fecha_compromiso){
+    if(typeof showToast==='function') showToast('⚠️ Indica la fecha compromiso de entrega');
     return;
   }
   if(!data.alcance){
@@ -4639,6 +4654,7 @@ async function verReq(id){
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">'
       +'<div><b>Fecha:</b> '+o.fecha+'</div><div><b>Solicitante:</b> '+(o.solicitante||'&#8212;')+'</div>'
       +'<div><b>Planta:</b> '+(o.planta||'&#8212;')+'</div><div><b>Depto:</b> '+(o.departamento||'&#8212;')+'</div>'
+      +(o.fecha_compromiso?('<div style="grid-column:1/-1"><b>Compromiso de entrega:</b> '+escHtml(o.fecha_compromiso.split('-').reverse().join('/'))+'</div>'):'')
       +'</div></div>';
     var _sla=reqSla(o);
     if(_sla){
