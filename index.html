@@ -2717,10 +2717,6 @@ authInit();
     <div style="flex:1"><h1 id="req-nueva-titulo">&#128722; Nueva Requisición de compra</h1></div>
   </div>
   <div style="padding:12px;display:flex;flex-direction:column;gap:10px">
-    <style>
-      #page-req-nueva.req-modo-compra #req-th-prov-alt,
-      #page-req-nueva.req-modo-compra td:has(> input[data-req="proveedor_alt"]){display:none}
-    </style>
     <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:8px">¿Qué necesitas?</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -2785,7 +2781,7 @@ authInit();
               <th style="padding:6px 4px;text-align:center;border:1px solid #ddd;width:70px">Unidad</th>
               <th style="padding:6px 4px;text-align:center;border:1px solid #ddd">Descripci&#243;n</th>
               <th style="padding:6px 4px;text-align:center;border:1px solid #ddd;width:110px">Aplicaci&#243;n o uso</th>
-              <th id="req-th-prov" style="padding:6px 4px;text-align:center;border:1px solid #ddd;width:120px">Proveedor</th>
+              <th id="req-th-prov" style="padding:6px 4px;text-align:center;border:1px solid #ddd;width:120px">Proveedor Sugerido</th>
               <th id="req-th-prov-alt" style="padding:6px 4px;text-align:center;border:1px solid #ddd;width:120px">Proveedor Alterno</th>
               <th style="padding:6px 4px;border:1px solid #ddd;width:28px"></th>
             </tr>
@@ -2808,7 +2804,7 @@ authInit();
       <textarea id="req-justificacion" rows="3" placeholder="Describe por qu&#233; se necesita este material..." style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
     </div>
     <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
-      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Alcance de la requisici&#243;n</label>
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Alcance de la requisici&#243;n <span style="color:#c62828">*</span></label>
       <textarea id="req-alcance" rows="3" placeholder="Qu&#233; incluye: especificaciones, trabajos, entregables, condiciones, lugar de entrega..." style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
       <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin:10px 0 6px">Archivos (PDF o Excel)</label>
       <div id="req-adjuntos-lista"></div>
@@ -3528,6 +3524,7 @@ async function reqRegistrarCajaChica(btn){
   var prov=((document.getElementById('ver-caja-prov-'+reqId)||{}).value||'').trim();
   var hayArchivo=((document.getElementById('ver-caja-archivo-'+reqId)||{}).files||[]).length>0;
   if(monto<=0){if(typeof showToast==='function')showToast('Escribe el monto pagado');return;}
+  if(monto>=2000){if(typeof showToast==='function')showToast('La caja chica es solo para compras menores a $2,000; esta compra necesita PO');return;}
   if(!hayArchivo){if(typeof showToast==='function')showToast('Adjunta el ticket o la nota');return;}
   btn.disabled=true;btn.textContent='Guardando...';
   try{
@@ -3700,16 +3697,13 @@ async function _getAjustes(){
   try{ var r=await fetch('/api/ajustes'); _ajustesCache=await r.json(); }catch(e){ _ajustesCache={}; }
   return _ajustesCache;
 }
-// Requisicion de compra (un proveedor) o Solicitud de cotizacion (proveedor sugerido + alterno)
+// Requisicion de compra o Solicitud de cotizacion (ambas con proveedor sugerido y alterno)
 function reqTipoDocSel(){
   var r=document.querySelector('input[name="req-tipo-doc"]:checked');
   return r?r.value:'requisicion';
 }
 function reqAplicarTipoDoc(){
   var cot=reqTipoDocSel()==='cotizacion';
-  var pg=document.getElementById('page-req-nueva');
-  if(pg) pg.classList.toggle('req-modo-compra',!cot);
-  var th=document.getElementById('req-th-prov'); if(th) th.textContent=cot?'Proveedor Sugerido':'Proveedor';
   var tt=document.getElementById('req-nueva-titulo'); if(tt) tt.innerHTML=cot?'&#128269; Nueva Solicitud de cotización':'&#128722; Nueva Requisición de compra';
   var ay=document.getElementById('req-tipo-doc-ayuda');
   if(ay) ay.textContent=cot?'Compras cotiza y te responde con las cotizaciones. No genera orden de compra; después la puedes convertir en requisición de compra.'
@@ -3937,7 +3931,7 @@ function getReqItems(){
   var rows=tbody.querySelectorAll('tr');
   rows.forEach(function(tr){
     var g=function(attr){var el=tr.querySelector('[data-req="'+attr+'"]');return el?el.value.trim():'';};
-    var item={cantidad:g('cantidad'),unidad:g('unidad'),descripcion:g('descripcion'),aplicacion:g('aplicacion'),proveedor:g('proveedor'),proveedor_alt:(reqTipoDocSel()==='cotizacion'?g('proveedor_alt'):''),accion:(reqTipoDocSel()==='cotizacion'?'Cotizar':'Comprar')};
+    var item={cantidad:g('cantidad'),unidad:g('unidad'),descripcion:g('descripcion'),aplicacion:g('aplicacion'),proveedor:g('proveedor'),proveedor_alt:g('proveedor_alt'),accion:(reqTipoDocSel()==='cotizacion'?'Cotizar':'Comprar')};
     if(item.cantidad||item.descripcion) items.push(item);
   });
   return items;
@@ -3971,6 +3965,11 @@ async function guardarReq(){
   var itemsValidos=data.items.filter(function(i){return (i.cantidad&&Number(i.cantidad)>0)&&i.descripcion;});
   if(itemsValidos.length===0){
     if(typeof showToast==='function') showToast('⚠️ Agrega al menos un artículo con cantidad y descripción');
+    return;
+  }
+  if(!data.alcance){
+    if(typeof showToast==='function') showToast('⚠️ Escribe la descripción del alcance');
+    var _alc=document.getElementById('req-alcance'); if(_alc) _alc.focus();
     return;
   }
   if(!data.justificacion){
@@ -4304,6 +4303,7 @@ function verReqFirmar(btn){
             +(rechazado?('<span style="font-weight:700;color:'+col+'">Motivo:</span><span>'+comentario+'</span>'):('<span style="font-weight:700;color:'+col+'">Serie X.509:</span><span style="font-family:monospace;font-size:9px">'+cert+'</span>'+(comentario?('<span style="font-weight:700;color:'+col+'">Comentario:</span><span>'+comentario+'</span>'):'')))
             +'<span style="font-weight:700;color:'+col+'">Estado:</span><span>'+(rechazado?'&#10060; Rechazado':'&#9989; Verificado')+'</span></div>';
           if(typeof showToast==='function')showToast(rechazado?('Rechazado - '+res.nombre):('Firmado - '+res.nombre));
+          verReq(reqId);
         }).catch(function(){if(typeof showToast==='function')showToast('Error de conexion');btn.disabled=false;btn.innerHTML=txtOriginal;});
     }).catch(function(){if(typeof showToast==='function')showToast('Error de conexion');btn.disabled=false;btn.innerHTML=txtOriginal;});
 }
@@ -4349,6 +4349,7 @@ function verReqFirmarSesion(btn){
         +(rechazado?('<span style="font-weight:700;color:'+col+'">Motivo:</span><span>'+comentario+'</span>'):('<span style="font-weight:700;color:'+col+'">Serie X.509:</span><span style="font-family:monospace;font-size:9px">'+cert+'</span>'+(comentario?('<span style="font-weight:700;color:'+col+'">Comentario:</span><span>'+comentario+'</span>'):'')))
         +'<span style="font-weight:700;color:'+col+'">Estado:</span><span>'+(rechazado?'&#10060; Rechazado':'&#9989; Verificado')+'</span></div>';
       if(typeof showToast==='function')showToast(rechazado?('Rechazado - '+currentUser.nombre):('Firmado - '+currentUser.nombre));
+      verReq(reqId);
     }).catch(function(){if(typeof showToast==='function')showToast('Error de conexion');btn.disabled=false;btn.innerHTML=txtOriginal;});
 }
 
@@ -4653,13 +4654,15 @@ async function verReq(id){
       h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
         +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Artículos</div>'
         +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
-        +'<tr style="background:#e8f5e9"><th style="padding:6px;border:1px solid #ddd">#</th><th style="padding:6px;border:1px solid #ddd">Cant.</th><th style="padding:6px;border:1px solid #ddd">Unidad</th><th style="padding:6px;border:1px solid #ddd">Descripción</th><th style="padding:6px;border:1px solid #ddd">Aplicación</th><th style="padding:6px;border:1px solid #ddd">Recibido</th></tr>';
+        +'<tr style="background:#e8f5e9"><th style="padding:6px;border:1px solid #ddd">#</th><th style="padding:6px;border:1px solid #ddd">Cant.</th><th style="padding:6px;border:1px solid #ddd">Unidad</th><th style="padding:6px;border:1px solid #ddd">Descripción</th><th style="padding:6px;border:1px solid #ddd">Aplicación</th><th style="padding:6px;border:1px solid #ddd">Proveedor sugerido</th><th style="padding:6px;border:1px solid #ddd">Proveedor alterno</th><th style="padding:6px;border:1px solid #ddd">Recibido</th></tr>';
       items.forEach(function(it,i){
         h+='<tr><td style="padding:5px;border:1px solid #eee;text-align:center">'+(i+1)+'</td>'
           +'<td style="padding:5px;border:1px solid #eee;text-align:center">'+it.cantidad+'</td>'
           +'<td style="padding:5px;border:1px solid #eee;text-align:center">'+it.unidad+'</td>'
           +'<td style="padding:5px;border:1px solid #eee">'+it.descripcion+'</td>'
           +'<td style="padding:5px;border:1px solid #eee">'+it.aplicacion+'</td>'
+          +'<td style="padding:5px;border:1px solid #eee;font-size:11px">'+escHtml(it.proveedor||'')+'</td>'
+          +'<td style="padding:5px;border:1px solid #eee;font-size:11px">'+escHtml(it.proveedor_alt||'')+'</td>'
           +reqRecibidoCelda(o,it,id)+'</tr>';
       });
       h+='</table></div></div>';
@@ -4865,8 +4868,8 @@ async function verReq(id){
       if(esCompras && !_hayCaja){
         h+=(_hayPO?'':(''+'<button onclick="document.getElementById(\'ver-caja-form-'+id+'\').style.display=\'block\';this.style.display=\'none\'" style="width:100%;padding:8px 14px;background:#fff8e1;color:#8a6100;border:2px dashed #f9a825;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">&#128181; Compra por caja chica</button>'
           +'<div id="ver-caja-form-'+id+'" style="display:none;border:1.5px solid #f9a825;border-radius:8px;padding:10px;margin-bottom:8px;background:#fffdf5">'
-          +'<div style="font-size:11px;color:#8a6100;margin-bottom:6px">Para compras pagadas con caja chica: no lleva PO ni factura. Registra el monto y adjunta el ticket o nota; la requisición queda cerrada.</div>'
-          +'<input id="ver-caja-monto-'+id+'" type="number" min="0" step="any" placeholder="Monto pagado ($)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
+          +'<div style="font-size:11px;color:#8a6100;margin-bottom:6px">Solo para compras menores a $2,000: no lleva cotización, PO ni factura. Registra el monto y adjunta el ticket o nota.</div>'
+          +'<input id="ver-caja-monto-'+id+'" type="number" min="0" max="1999.99" step="any" placeholder="Monto pagado (menos de $2,000)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +'<input id="ver-caja-prov-'+id+'" type="text" placeholder="Dónde se compró (opcional)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +reqArchivoInputHtml('ver-caja-archivo-'+id)
           +'<button data-reqid="'+id+'" onclick="reqRegistrarCajaChica(this)" style="width:100%;padding:8px 14px;background:#8a6100;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar compra por caja chica</button>'

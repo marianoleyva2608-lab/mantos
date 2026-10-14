@@ -1422,6 +1422,8 @@ def save_requisicion():
     if not d.get('creado'):
         d['creado'] = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
     if not folio:
+        if not (d.get('alcance') or '').strip():
+            return jsonify({'ok': False, 'error': 'Falta la descripción del alcance'}), 400
         todas = sb.select('requisiciones', select='folio')
         max_folio = max((r['folio'] or 0) for r in todas) if todas else 0
         folio = max_folio + 1
@@ -1997,6 +1999,9 @@ def registrar_cotizacion_requisicion(rid):
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     return jsonify({'ok': True})
 
+# Tope de la caja chica: compras menores a esto se pagan sin PO ni cotizacion
+CAJA_CHICA_MAX = 2000
+
 @app.route('/api/requisicion/<rid>/caja-chica', methods=['POST'])
 def registrar_caja_chica_requisicion(rid):
     """Compra pagada con caja chica: en lugar de PO + factura se registra el monto y el ticket.
@@ -2008,6 +2013,8 @@ def registrar_caja_chica_requisicion(rid):
     archivos = archivos_validos(d.get('archivos'))
     if monto <= 0:
         return jsonify({'ok': False, 'error': 'Escribe el monto pagado'}), 400
+    if monto >= CAJA_CHICA_MAX:
+        return jsonify({'ok': False, 'error': 'La caja chica es solo para compras menores a $2,000; esta compra necesita PO'}), 400
     if not archivos:
         return jsonify({'ok': False, 'error': 'Adjunta el ticket o la nota de la compra'}), 400
     rows = sb.select('requisiciones', select='data', id='eq.' + rid)
