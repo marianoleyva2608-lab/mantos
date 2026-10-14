@@ -3881,9 +3881,19 @@ function reqDeptoChange(sel){
   if(sel.value==='otro') otro.focus();
 }
 
-function reqAgregarFila(){
+function reqAgregarFila(forzar){
   var tbody=document.getElementById('req-items-tbody');
   if(!tbody){alert('Error: tabla no encontrada');return;}
+  // No se agrega otro renglon mientras el ultimo no tenga cantidad y descripcion
+  var _ult=tbody.querySelector('tr:last-child');
+  if(!forzar && _ult){
+    var _c=_ult.querySelector('[data-req="cantidad"]'), _d=_ult.querySelector('[data-req="descripcion"]');
+    if(!(_c && Number(_c.value)>0) || !(_d && _d.value.trim())){
+      if(typeof showToast==='function') showToast('Completa cantidad y descripción del artículo antes de agregar otro');
+      (!(_c && Number(_c.value)>0)?_c:_d).focus();
+      return;
+    }
+  }
   _reqRowCount++;
   var n=_reqRowCount;
   var row='<tr id="req-fila-'+n+'">'
@@ -3947,7 +3957,7 @@ function reqAplicarPrefill(){
   set('req-justificacion',p.justificacion);
   set('req-alcance',(p.alcance?p.alcance+'\n':'')+'Basada en la solicitud de cotización '+p.origen+'.');
   p.items.forEach(function(it,i){
-    if(i>0) reqAgregarFila();
+    if(i>0) reqAgregarFila(true);
     var n=_reqRowCount;
     ['cantidad','unidad','descripcion','aplicacion','proveedor'].forEach(function(k){
       var el=document.querySelector('#req-items-tbody [data-req="'+k+'"][data-row="'+n+'"]');
@@ -4184,6 +4194,17 @@ async function guardarReq(){
   if(itemsValidos.length===0){
     if(typeof showToast==='function') showToast('⚠️ Agrega al menos un artículo con cantidad y descripción');
     return;
+  }
+  for(var _ix=0;_ix<data.items.length;_ix++){
+    var _it=data.items[_ix];
+    if(!(_it.cantidad&&Number(_it.cantidad)>0) || !_it.descripcion){
+      if(typeof showToast==='function') showToast('⚠️ Completa cantidad y descripción del artículo '+(_ix+1)+' o quítalo con la ✕');
+      return;
+    }
+    if(_it.proveedor && _it.proveedor_alt && _it.proveedor.trim().toLowerCase()===_it.proveedor_alt.trim().toLowerCase()){
+      if(typeof showToast==='function') showToast('⚠️ Artículo '+(_ix+1)+': el proveedor alterno debe ser distinto al sugerido');
+      return;
+    }
   }
   if(!data.alcance){
     if(typeof showToast==='function') showToast('⚠️ Escribe la descripción del alcance');
