@@ -2301,7 +2301,8 @@ var currentUser = JSON.parse(localStorage.getItem('mantos_user') || 'null');
 var TABS_CONTROLADAS = [
   {id:'home', label:'Mantenimiento Preventivo', icon:'&#128295;', action:function(){showPage('home');}},
   {id:'etiquetas', label:'Etiquetas', icon:'&#127991;&#65039;', action:function(){window.location.href='/etiquetas';}},
-  {id:'req', label:'Requisiciones', icon:'&#128722;', action:function(){showPage('req'); if(typeof loadReqList==='function')loadReqList();}},
+  {id:'req', label:'Requisiciones', icon:'&#128722;', action:function(){_reqVista='requisicion'; showPage('req'); if(typeof loadReqList==='function')loadReqList();}},
+  {id:'cot', label:'Solicitudes de cotización', icon:'&#128269;', action:function(){_reqVista='cotizacion'; showPage('req'); if(typeof loadReqList==='function')loadReqList();}},
   {id:'orden', label:'Órdenes de Trabajo', icon:'&#128203;', action:function(){showPage('orden');}},
   {id:'rsp', label:'Respuesta a Solución de Problemas', icon:'&#128227;', action:function(){showPage('rsp'); if(typeof loadRspList==='function')loadRspList();}},
   {id:'reports', label:'Reportes', icon:'&#128196;', action:function(){showPage('reports');}},
@@ -2332,7 +2333,8 @@ function renderTabsPanel() {
   }
   var perms = userTabPermisos();
   var visibles = TABS_CONTROLADAS.filter(function(t){
-    return perms === 'all' || perms.indexOf(t.id) !== -1;
+    // Solicitudes de cotizacion: tambien la ve quien ya tiene acceso a Requisiciones
+    return perms === 'all' || perms.indexOf(t.id) !== -1 || (t.id === 'cot' && perms.indexOf('req') !== -1);
   });
   panel.innerHTML = '<div class="area-lbl">&#128203; Accesos</div><div class="mgrid">' +
     visibles.map(function(t){
@@ -2681,12 +2683,11 @@ authInit();
 <div id="page-req" class="page" style="background:#f5f5f5;padding-bottom:30px">
   <div class="hdr">
     <button class="back" onclick="showPage('menu')">&#8249;</button>
-    <div style="flex:1"><h1>&#128722; Requisiciones de Compra</h1></div>
+    <div style="flex:1"><h1 id="req-lista-titulo">&#128722; Requisiciones de Compra</h1></div>
     <button id="req-dashboard-link-wrap" onclick="showPage('req-dashboard');loadReqDashboard()" style="display:none;background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">&#128202; Dashboard</button>
   </div>
   <div style="margin:12px 12px 0;text-align:right">
-    <button onclick="_reqTipoInicial='cotizacion';showPage('req-nueva')" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600;margin-right:6px">&#128269; + Solicitud de cotización</button>
-    <button onclick="_reqTipoInicial='requisicion';showPage('req-nueva')" style="background:#1a5c2a;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600">&#128722; + Requisición de compra</button>
+    <button onclick="_reqTipoInicial=_reqVista;showPage('req-nueva')" style="background:#1a5c2a;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
     <button onclick="showPage('req-proveedores');reqCargarProveedores()" style="background:#fff;color:#1a5c2a;border:1.5px solid #1a5c2a;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px;font-weight:600;margin-left:6px">&#128210; Artículos por proveedor</button>
   </div>
   <div id="req-list" style="padding:12px"></div>
@@ -2733,7 +2734,7 @@ authInit();
     <div style="flex:1"><h1 id="req-nueva-titulo">&#128722; Nueva Requisición de compra</h1></div>
   </div>
   <div style="padding:12px;display:flex;flex-direction:column;gap:10px">
-    <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+    <div id="req-tipo-doc-box" style="display:none;background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:8px">¿Qué necesitas?</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <label style="display:flex;align-items:center;gap:8px;border:2px solid #1a5c2a;border-radius:8px;padding:10px;cursor:pointer;font-size:14px;font-weight:700;color:#1a5c2a">
@@ -3878,6 +3879,7 @@ function reqAplicarTipoDoc(){
 // Datos para precargar el formulario (convertir una solicitud de cotizacion en requisicion)
 var _reqPrefill=null;
 var _reqTipoInicial='requisicion'; // boton que abrio el formulario (requisicion o solicitud de cotizacion)
+var _reqVista='requisicion'; // lista abierta desde el menu: requisicion o cotizacion
 function reqConvertirACompra(id){
   fetch('/api/requisiciones').then(function(r){return r.json();}).then(function(list){
     var o=list.find(function(x){return x.id===id;});
@@ -4162,6 +4164,7 @@ async function guardarReq(){
       var msgOk='✅ REQ-'+String(j.folio).padStart(4,'0')+' guardada'+(data.email_revisor?(j.aviso_enviado?' · aviso enviado':' · no se pudo enviar el aviso'):'');
       if(typeof showToast==='function') showToast(msgOk);
       setTimeout(function(){
+        _reqVista=data.tipo_doc==='cotizacion'?'cotizacion':'requisicion';
         if(typeof showPage==='function'){showPage('req');loadReqList();}
       },900);
     } else { if(typeof showToast==='function') showToast('Error: '+(j.error||'?')); }
@@ -4231,11 +4234,14 @@ async function loadReqList(){
   el.innerHTML='<div style="text-align:center;color:#888;padding:20px">Cargando...</div>';
   try{
     var res=await fetch('/api/requisiciones');
-    var list=await res.json();
+    var todas=await res.json();
+    var esCot=_reqVista==='cotizacion';
+    var tit=document.getElementById('req-lista-titulo'); if(tit) tit.innerHTML=esCot?'&#128269; Solicitudes de cotización':'&#128722; Requisiciones de Compra';
+    var list=todas.filter(function(r){return esCot?r.tipo_doc==='cotizacion':r.tipo_doc!=='cotizacion';});
     var dashLinkWrap=document.getElementById('req-dashboard-link-wrap');
     if(dashLinkWrap) dashLinkWrap.style.display=puedeVerReporte?'block':'none';
     if(!list.length){
-      el.innerHTML='<div style="text-align:center;color:#888;padding:30px;font-size:14px">Sin requisiciones. Presiona + Nueva.</div>';
+      el.innerHTML='<div style="text-align:center;color:#888;padding:30px;font-size:14px">'+(esCot?'Sin solicitudes de cotización':'Sin requisiciones')+'. Presiona + Nueva.</div>';
       return;
     }
     el.innerHTML=list.map(function(r){
@@ -4280,8 +4286,8 @@ async function loadReqList(){
         +(userIsAdmin() ? '<div style="text-align:right;margin-top:8px"><button onclick="event.stopPropagation();reqEliminar(\''+r.id+'\')" style="background:#fff;color:#c62828;border:1px solid #c62828;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer">&#128465; Borrar</button></div>' : '')
         +'</div>';
     }).join('');
-    reqActualizarAlerta(list).then(function(p){ var ah=reqAlertaHtml(p)+reqPorRecibirHtml(list); if(ah) el.insertAdjacentHTML('afterbegin',ah); });
-    reqActualizarDatalistProveedores(list);
+    reqActualizarAlerta(todas).then(function(p){ var ah=esCot?'':reqAlertaHtml(p)+reqPorRecibirHtml(list); if(ah) el.insertAdjacentHTML('afterbegin',ah); });
+    reqActualizarDatalistProveedores(todas);
   } catch(e){ el.innerHTML='<div style="color:#c62828;padding:20px">Error: '+e.message+'</div>'; }
 }
 
