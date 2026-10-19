@@ -4018,6 +4018,8 @@ async function initReqForm(){
     var _ajustesReq=await _getAjustes();
     var _emailAprobador=_ajustesReq.email_aprobador||'';
     var _emailPresidenta=_ajustesReq.email_presidenta||'';
+    // Las requisiciones de Compras las supervisa Direccion
+    if(!_emailRevisor && currentUser && currentUser.cargo==='Compras') _emailRevisor=_emailPresidenta;
     var _nombrePorEmail={};
     var _usuariosReq=[];
     try{ var _usR=await fetch('/api/users'); _usuariosReq=await _usR.json(); _usuariosReq.forEach(function(u){_nombrePorEmail[(u.email||'').toLowerCase()]=u.nombre;}); }catch(eu){}
