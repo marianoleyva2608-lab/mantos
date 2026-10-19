@@ -399,6 +399,12 @@ def _normalizar_permisos(permisos):
 @app.route('/api/users/register', methods=['POST'])
 def register_user():
     d = request.json
+    # Solo un administrador da de alta usuarios (salvo el primero, para arrancar el sistema)
+    admin_email = (d.get('admin_email') or '').strip().lower()
+    if sb.select('users', select='id', limit=1):
+        a = sb.select('users', select='rol', email='eq.' + admin_email) if admin_email else []
+        if not a or (a[0].get('rol') or '') != 'admin':
+            return jsonify({'error': 'Solo un administrador puede registrar usuarios'}), 403
     nombre   = d.get('nombre','').strip()
     email    = d.get('email','').strip().lower()
     pin      = d.get('pin','').strip()

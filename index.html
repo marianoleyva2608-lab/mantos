@@ -280,18 +280,7 @@ window._jsQRLoaded=false;
         } else {err.textContent=d.error||'Error al crear cuenta';}
       }).catch(function(){err.textContent='Error de conexi\u00f3n';});
   };
-  // Link "Registrarte" en login
-  var regLink=document.querySelector('#ap-login .ap-card');
-  if(regLink){
-    var lnk=document.createElement('button');
-    lnk.textContent='\u00bfNo tienes cuenta? Reg\u00edstrate';
-    lnk.style.cssText='background:none;border:none;color:#1a5c2a;font-size:.88rem;cursor:pointer;margin-top:4px;text-decoration:underline';
-    lnk.onclick=function(){
-      document.getElementById('ap-login').style.display='none';
-      document.getElementById('ap-register').style.display='flex';
-    };
-    regLink.appendChild(lnk);
-  }
+  // Las cuentas solo las da de alta un administrador (Configuracion); no hay registro libre
   // Auto-login: si hay sesión guardada, saltar pantalla de login
   var _sess=null;
   try{_sess=JSON.parse(localStorage.getItem('mantos_user'));}catch(e){}
@@ -1387,7 +1376,7 @@ async function submitAddUser(){
   if(!supervisor_email && cargo==='Empleado'){err.style.color='#c62828';err.textContent='Asigna un supervisor';return;}
   err.textContent='⏳ Registrando...'; err.style.color='#666';
   try{
-    const res = await fetch('/api/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,email,pin,rol,permisos,supervisor_email,cargo})});
+    const res = await fetch('/api/users/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({admin_email:(currentUser&&currentUser.email)||'',nombre,email,pin,rol,permisos,supervisor_email,cargo})});
     const d = await res.json();
     if(d.error){err.style.color='#c62828';err.textContent=d.error;return;}
     err.style.color='#2e7d32';
@@ -2062,7 +2051,6 @@ checkURLHash();
       <input id="au-email" type="email" placeholder="Email" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:10px;font-size:14px">
       <input id="au-pin" type="password" placeholder="PIN (mínimo 4 caracteres)" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #c8e6c9;border-radius:8px;margin-bottom:14px;font-size:14px">
       <button onclick="doLogin()" style="width:100%;background:#1a5c2a;color:#fff;border:none;border-radius:8px;padding:12px;font-size:15px;font-weight:bold;cursor:pointer;margin-bottom:10px">Entrar</button>
-      <button onclick="showRegister()" style="width:100%;background:transparent;color:#1a5c2a;border:1px solid #1a5c2a;border-radius:8px;padding:10px;font-size:13px;cursor:pointer">¿No tienes cuenta? Registrarte</button>
       <div id="auth-err" style="color:#c62828;font-size:12px;text-align:center;margin-top:8px"></div>
     </div>
     <div id="auth-register" style="display:none">
