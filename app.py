@@ -1424,6 +1424,10 @@ def save_requisicion():
     if not folio:
         if not (d.get('alcance') or '').strip():
             return jsonify({'ok': False, 'error': 'Falta la descripción del alcance'}), 400
+        if not (d.get('email_revisor') or '').strip():
+            u = sb.select('users', select='cargo', email='eq.' + (d.get('solicitante_email') or '').strip().lower())
+            if not (u and (u[0].get('cargo') or '') == 'Dirección/Presidencia'):
+                return jsonify({'ok': False, 'error': 'Elige quién va a revisar la requisición (supervisor)'}), 400
         todas = sb.select('requisiciones', select='folio')
         max_folio = max((r['folio'] or 0) for r in todas) if todas else 0
         folio = max_folio + 1
