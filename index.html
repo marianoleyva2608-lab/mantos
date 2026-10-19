@@ -4216,8 +4216,8 @@ async function guardarReq(){
     return;
   }
   var cargoActual=(currentUser&&currentUser.cargo)||'Empleado';
-  // Toda requisicion necesita supervisor que la revise (excepto si la hace Direccion)
-  if(!data.email_revisor && cargoActual!=='Dirección/Presidencia'){
+  // Toda requisicion necesita supervisor que la revise (excepto si la hace Compras o Direccion)
+  if(!data.email_revisor && cargoActual!=='Dirección/Presidencia' && cargoActual!=='Compras'){
     if(typeof showToast==='function') showToast('⚠️ Elige quién va a revisar la requisición (tu supervisor). Si no aparece, pide a un administrador que te lo asigne en Configuración.');
     var _sup=document.getElementById('req-select-supervisor'); if(_sup) _sup.focus();
     return;
