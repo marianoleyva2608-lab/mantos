@@ -2676,7 +2676,7 @@ authInit();
   </div>
   <div style="margin:12px 12px 0;text-align:right">
     <button onclick="_reqTipoInicial=_reqVista;showPage('req-nueva')" style="background:#1a5c2a;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600">+ Nueva</button>
-    <button onclick="showPage('req-proveedores');reqCargarProveedores()" style="background:#fff;color:#1a5c2a;border:1.5px solid #1a5c2a;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px;font-weight:600;margin-left:6px">&#128210; Artículos por proveedor</button>
+    <button id="req-btn-proveedores" onclick="showPage('req-proveedores');reqCargarProveedores()" style="display:none;background:#fff;color:#1a5c2a;border:1.5px solid #1a5c2a;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px;font-weight:600;margin-left:6px">&#128210; Artículos por proveedor</button>
   </div>
   <div id="req-list" style="padding:12px"></div>
 </div>
@@ -3586,8 +3586,16 @@ document.addEventListener('input',function(e){
   if(t && t.getAttribute && t.getAttribute('data-req')==='descripcion' && t.closest && t.closest('#req-items-tbody')) reqFiltrarProveedoresFila(t);
 });
 
+// Compras = el correo de Compras de Configuracion (o cargo Compras). Solo Compras ve el catalogo de proveedores.
+async function reqEsCompras(){
+  if(!currentUser||!currentUser.email) return false;
+  if(currentUser.cargo==='Compras') return true;
+  var aj=await _getAjustes();
+  return (aj.email_aprobador||'').toLowerCase()===currentUser.email.toLowerCase();
+}
 async function reqCargarProveedores(){
   var body=document.getElementById('req-prov-body');
+  if(!(await reqEsCompras())){ if(body) body.innerHTML='<div style="text-align:center;color:#888;padding:30px">&#128274; Esta pantalla solo la puede ver Compras.</div>'; return; }
   if(body) body.innerHTML='<div style="text-align:center;color:#888;padding:20px">Cargando...</div>';
   try{
     var list=await (await fetch('/api/requisiciones')).json();
@@ -3599,7 +3607,7 @@ function reqRenderProveedores(){
   var body=document.getElementById('req-prov-body');
   if(!body) return;
   var q=((document.getElementById('req-prov-buscar')||{}).value||'').trim().toUpperCase();
-  var verPrecios=userIsAdmin() || (currentUser && currentUser.cargo==='Compras');
+  var verPrecios=true; // la pantalla ya solo la ve Compras
   var fmt=function(v){return '$'+Number(v).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});};
   var provs=_reqCatalogo.map(function(p){
     if(!q || p.nombre.toUpperCase().indexOf(q)!==-1) return p;
@@ -4293,6 +4301,7 @@ async function loadReqList(){
     var esCot=_reqVista==='cotizacion';
     var tit=document.getElementById('req-lista-titulo'); if(tit) tit.innerHTML=esCot?'&#128269; Solicitudes de cotización':'&#128722; Requisiciones de Compra';
     var list=todas.filter(function(r){return esCot?r.tipo_doc==='cotizacion':r.tipo_doc!=='cotizacion';});
+    reqEsCompras().then(function(si){ var b=document.getElementById('req-btn-proveedores'); if(b) b.style.display=si?'':'none'; });
     var dashLinkWrap=document.getElementById('req-dashboard-link-wrap');
     if(dashLinkWrap) dashLinkWrap.style.display=puedeVerReporte?'block':'none';
     if(!list.length){
