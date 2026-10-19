@@ -3554,10 +3554,15 @@ function reqArmarCatalogo(list){
     return {nombre:p.nombre, arts:Object.keys(p.arts).sort().map(function(a){return p.arts[a];})};
   });
 }
+// La lista desplegable de proveedores solo se le muestra a Compras; los demas pueden escribir el proveedor
+var _reqSoyCompras=false;
 function reqActualizarDatalistProveedores(list){
   _reqCatalogo=reqArmarCatalogo(list);
-  var dl=document.getElementById('req-prov-list');
-  if(dl) dl.innerHTML=_reqCatalogo.map(function(p){return '<option value="'+escHtml(p.nombre)+'">';}).join('');
+  reqEsCompras().then(function(si){
+    _reqSoyCompras=si;
+    var dl=document.getElementById('req-prov-list');
+    if(dl) dl.innerHTML=si?_reqCatalogo.map(function(p){return '<option value="'+escHtml(p.nombre)+'">';}).join(''):'';
+  });
 }
 // En el formulario: si el articulo ya tiene proveedores relacionados, el renglon solo ofrece esos
 function reqProveedoresDeArticulo(desc){
@@ -3569,7 +3574,7 @@ function reqProveedoresDeArticulo(desc){
 }
 function reqFiltrarProveedoresFila(inpDesc){
   var row=inpDesc.getAttribute('data-row');
-  var provs=reqProveedoresDeArticulo(inpDesc.value);
+  var provs=_reqSoyCompras?reqProveedoresDeArticulo(inpDesc.value):[];
   var dlId='req-prov-list-fila-'+row;
   var dl=document.getElementById(dlId);
   if(!dl){ dl=document.createElement('datalist'); dl.id=dlId; document.body.appendChild(dl); }
