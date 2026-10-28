@@ -4273,10 +4273,9 @@ def _ck_asignar_tipo(rows, horarios=None):
 
 @app.route('/api/checadas', methods=['GET'])
 def checadas_list():
-    params = _ck_filtros([('select', '*'), ('order', 'fecha_hora.desc'), ('limit', '1000')])
-    r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=20)
-    r.raise_for_status()
-    return jsonify(_ck_asignar_tipo(r.json(), _cargar_horarios()))
+    params = _ck_filtros([('select', '*'), ('order', 'fecha_hora.desc,id.desc')])
+    datos = _ck_todas(params)
+    return jsonify(_ck_asignar_tipo(datos, _cargar_horarios()))
 
 
 @app.route('/api/empleados', methods=['GET'])
