@@ -3914,7 +3914,12 @@ _CK_TIPO = {'checkIn': 'Entrada', 'checkOut': 'Salida',
 
 
 def _ck_extraer(payload):
-    ace = payload.get('AccessControllerEvent', {})
+    # El JSON puede venir envuelto ({...,"AccessControllerEvent":{...}}) o ser
+    # directamente el evento interno (con majorEventType en la raiz).
+    ace = payload.get('AccessControllerEvent')
+    if ace is None and 'majorEventType' in payload:
+        ace = payload
+    ace = ace or {}
     if ace.get('majorEventType') != 5:
         return None
     empleado = str(ace.get('employeeNoString') or ace.get('employeeNo') or '').strip()
@@ -3924,7 +3929,8 @@ def _ck_extraer(payload):
     sub = ace.get('subEventType')
     estado = ace.get('attendanceStatus') or ''
     return {
-        'fecha_hora': payload.get('dateTime') or ace.get('time') or None,
+        'fecha_hora': (payload.get('dateTime') or ace.get('time')
+                       or ace.get('dateTime') or None),
         'empleado_no': empleado,
         'nombre': nombre or '(sin nombre)',
         'tipo': _CK_TIPO.get(estado, estado or 's.d.'),
@@ -3935,16 +3941,31 @@ def _ck_extraer(payload):
 
 
 def _ck_payload():
-    if 'event_log' in request.form:
-        try:
-            return json.loads(request.form['event_log'])
-        except Exception:
-            pass
-    if 'event_log' in request.files:
-        try:
-            return json.loads(request.files['event_log'].read().decode('utf-8', 'ignore'))
-        except Exception:
-            pass
+    # Hikvision manda el JSON del evento en un campo del multipart. El nombre
+    # del campo cambia por firmware: event_log, AccessControllerEvent, etc.
+    for key in ('event_log', 'AccessControllerEvent', 'EventNotificationAlert',
+                'access_event'):
+        if key in request.form:
+            try:
+                return json.loads(request.form[key])
+            except Exception:
+                pass
+        if key in request.files:
+            try:
+                return json.loads(request.files[key].read().decode('utf-8', 'ignore'))
+            except Exception:
+                pass
+    # Cualquier otro campo del form que parsee como JSON
+    for v in request.form.values():
+        v = (v or '').strip()
+        if v.startswith('{'):
+            try:
+                d = json.loads(v)
+                if isinstance(d, dict):
+                    return d
+            except Exception:
+                pass
+    # Cuerpo crudo (por si viene JSON directo)
     data = (request.get_data(as_text=True) or '').strip()
     if data.startswith('{'):
         try:
