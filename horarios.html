@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Horarios · ADPACK</title>
+<style>
+  :root { --verde:#1F5C2E; --verde2:#2f6b3c; --borde:#e2e6e3; --bg:#f4f6f4; --txt:#1c2320; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--txt); }
+  .top { background:var(--verde); color:#fff; padding:14px 18px; display:flex; align-items:center; gap:12px; }
+  .top a.back { color:#fff; text-decoration:none; font-size:22px; line-height:1; }
+  .top h1 { margin:0; font-size:18px; }
+  .top .sub { opacity:.85; font-size:13px; }
+  .wrap { max-width:1000px; margin:0 auto; padding:16px; }
+  .bar { display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  .btn { background:var(--verde); color:#fff; border:0; border-radius:8px; padding:10px 18px; font-size:14px; cursor:pointer; }
+  .btn.sec { background:#fff; color:var(--verde); border:1px solid var(--verde); text-decoration:none; }
+  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--borde); border-radius:12px; overflow:hidden; }
+  th,td { padding:9px 10px; text-align:left; font-size:14px; border-bottom:1px solid var(--borde); }
+  th { background:#eef3ef; font-size:12px; text-transform:uppercase; color:#5b6560; }
+  tr:last-child td { border-bottom:0; }
+  input[type=time] { padding:6px 8px; border:1px solid var(--borde); border-radius:7px; font-size:14px; }
+  input.tol { width:60px; padding:6px 8px; border:1px solid var(--borde); border-radius:7px; font-size:14px; }
+  .meta { color:#5b6560; font-size:13px; margin:2px 0 12px; }
+  #msg { display:none; margin:0 0 12px; padding:10px 12px; border-radius:8px; font-size:13px; }
+  .dias { display:flex; gap:3px; }
+  .dias label { font-size:11px; display:flex; flex-direction:column; align-items:center; gap:2px; color:#5b6560; cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="top">
+  <a class="back" href="/asistencia" title="Volver">&#8592;</a>
+  <div>
+    <h1>&#9201; Horarios por empleado</h1>
+    <div class="sub">Define entrada, salida y tolerancia · Sucursal Maravillas</div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div id="msg"></div>
+  <div class="bar">
+    <button class="btn" onclick="guardar()">&#128190; Guardar cambios</button>
+    <a class="btn sec" href="/asistencia">Ver asistencia</a>
+    <span class="meta" id="meta" style="margin:0;"></span>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>No.</th><th>Nombre</th><th>Entrada</th><th>Break sale</th><th>Break regresa</th><th>Salida</th><th>Toler. (min)</th><th>Días</th><th>Activo</th></tr>
+    </thead>
+    <tbody id="tb"><tr><td colspan="9" style="padding:30px;text-align:center;color:#7a847f">Cargando…</td></tr></tbody>
+  </table>
+</div>
+
+<script>
+const DIAS=['L','M','X','J','V','S','D'];
+let empleados=[];
+
+function fila(e){
+  const diasSet=new Set((e.dias||'L,M,X,J,V,S').split(',').map(s=>s.trim()));
+  const diasHtml=DIAS.map(d=>`<label>${d}<input type="checkbox" data-dia="${d}" ${diasSet.has(d)?'checked':''}></label>`).join('');
+  return `<tr data-no="${e.empleado_no}" data-nombre="${(e.nombre||'').replace(/"/g,'&quot;')}">
+    <td>${e.empleado_no}</td>
+    <td>${e.nombre||''}</td>
+    <td><input type="time" class="f-ent" value="${e.hora_entrada||''}"></td>
+    <td><input type="time" class="f-bi" value="${e.hora_break_ini||''}"></td>
+    <td><input type="time" class="f-bf" value="${e.hora_break_fin||''}"></td>
+    <td><input type="time" class="f-sal" value="${e.hora_salida||''}"></td>
+    <td><input type="number" class="tol f-tol" min="0" value="${e.tolerancia_min!=null?e.tolerancia_min:10}"></td>
+    <td><div class="dias">${diasHtml}</div></td>
+    <td style="text-align:center"><input type="checkbox" class="f-act" ${e.activo!==false?'checked':''}></td>
+  </tr>`;
+}
+
+async function cargar(){
+  const tb=document.getElementById('tb');
+  try{
+    const r=await fetch('/api/empleados'); empleados=await r.json();
+    if(!empleados.length){ tb.innerHTML='<tr><td colspan="9" style="padding:30px;text-align:center;color:#7a847f">No hay empleados todavía. Aparecen aquí conforme checan en el aparato.</td></tr>'; return; }
+    tb.innerHTML=empleados.map(fila).join('');
+    document.getElementById('meta').textContent=empleados.length+' empleado(s)';
+  }catch(e){ tb.innerHTML='<tr><td colspan="9" style="padding:20px;color:#b23">Error al cargar: '+e+'</td></tr>'; }
+}
+
+async function guardar(){
+  const msg=document.getElementById('msg');
+  const filas=[...document.querySelectorAll('#tb tr[data-no]')].map(tr=>{
+    const dias=[...tr.querySelectorAll('input[data-dia]:checked')].map(c=>c.dataset.dia).join(',');
+    return {
+      empleado_no: tr.dataset.no,
+      nombre: tr.dataset.nombre,
+      hora_entrada: tr.querySelector('.f-ent').value,
+      hora_break_ini: tr.querySelector('.f-bi').value,
+      hora_break_fin: tr.querySelector('.f-bf').value,
+      hora_salida: tr.querySelector('.f-sal').value,
+      tolerancia_min: parseInt(tr.querySelector('.f-tol').value||'10'),
+      dias: dias,
+      activo: tr.querySelector('.f-act').checked
+    };
+  });
+  msg.style.display='block'; msg.style.background='#eef3ef'; msg.style.color='#5b6560'; msg.textContent='Guardando…';
+  try{
+    const r=await fetch('/api/horarios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(filas)});
+    const d=await r.json();
+    if(d.ok){ msg.style.background='#e3f3e6'; msg.style.color='#1F5C2E'; msg.textContent='✓ Guardado: '+d.guardados+' horario(s).'; }
+    else { msg.style.background='#fdeaea'; msg.style.color='#b23'; msg.textContent='Error: '+(d.error||'no se pudo guardar'); }
+  }catch(e){ msg.style.background='#fdeaea'; msg.style.color='#b23'; msg.textContent='Error: '+e; }
+}
+
+cargar();
+</script>
+</body>
+</html>

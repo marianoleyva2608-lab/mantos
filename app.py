@@ -4009,20 +4009,75 @@ def checador_ultimo():
         return jsonify({'info': 'aun no hay un evento con persona capturado'}), 200
 
 
-def _ck_asignar_tipo(rows):
-    """Calcula Entrada/Salida por persona y dia (1a del dia=Entrada, 2a=Salida, ...).
-    Solo rellena cuando el aparato no mando un estado real (tipo 's.d.' o vacio)."""
+def _hhmm_a_min(s):
+    """'08:30' -> 510 minutos. None si no es valido."""
+    try:
+        h, m = str(s).split(':')[:2]
+        return int(h) * 60 + int(m)
+    except Exception:
+        return None
+
+
+def _cargar_horarios():
+    """Devuelve dict empleado_no -> {entrada, salida, tol} (en minutos)."""
+    try:
+        filas = sb.select('horarios', select='*')
+    except Exception:
+        return {}
+    h = {}
+    for x in filas:
+        if not x.get('activo', True):
+            continue
+        h[str(x.get('empleado_no'))] = {
+            'entrada': _hhmm_a_min(x.get('hora_entrada')),
+            'break_ini': _hhmm_a_min(x.get('hora_break_ini')),
+            'break_fin': _hhmm_a_min(x.get('hora_break_fin')),
+            'salida': _hhmm_a_min(x.get('hora_salida')),
+            'tol': int(x.get('tolerancia_min') or 10),
+        }
+    return h
+
+
+def _ck_asignar_tipo(rows, horarios=None):
+    """Marca Entrada/Salida. Si el empleado tiene horario configurado, usa la
+    cercania a su hora de entrada/salida y marca retardo; si no, alterna
+    (1a del dia=Entrada, 2a=Salida, ...). Respeta el estado real del aparato."""
     from collections import defaultdict
+    horarios = horarios or {}
     grupos = defaultdict(list)
     for i, x in enumerate(rows):
         dia = str(x.get('fecha_hora') or '')[:10]
-        emp = x.get('empleado_no') or x.get('nombre') or ''
+        emp = str(x.get('empleado_no') or x.get('nombre') or '')
         grupos[(emp, dia)].append(i)
-    for idxs in grupos.values():
+
+    for (emp, _dia), idxs in grupos.items():
         idxs.sort(key=lambda i: str(rows[i].get('fecha_hora') or ''))
+        hor = horarios.get(emp)
+        # Puntos del turno definidos (hora, etiqueta), ordenados por hora
+        puntos = []
+        if hor:
+            for campo, etiqueta in (('entrada', 'Entrada'),
+                                    ('break_ini', 'Salida descanso'),
+                                    ('break_fin', 'Regreso descanso'),
+                                    ('salida', 'Salida')):
+                if hor.get(campo) is not None:
+                    puntos.append((hor[campo], etiqueta))
+            puntos.sort()
         for n, i in enumerate(idxs):
             actual = (rows[i].get('tipo') or '').strip().lower()
-            if actual in ('', 's.d.'):
+            if actual not in ('', 's.d.'):
+                continue  # el aparato ya mando un estado real
+            fh = str(rows[i].get('fecha_hora') or '')
+            tmin = _hhmm_a_min(fh[11:16])
+            if puntos and tmin is not None:
+                # Entrada vale antes o despues de su hora: se elige el punto mas cercano
+                hora_pt, etiqueta = min(puntos, key=lambda p: abs(tmin - p[0]))
+                rows[i]['retardo'] = False
+                if etiqueta == 'Entrada' and tmin > hor['entrada'] + hor['tol']:
+                    etiqueta = 'Entrada (tarde)'
+                    rows[i]['retardo'] = True
+                rows[i]['tipo'] = etiqueta
+            else:
                 rows[i]['tipo'] = 'Entrada' if n % 2 == 0 else 'Salida'
     return rows
 
@@ -4041,7 +4096,91 @@ def checadas_list():
         params.append(('or', f'(nombre.ilike.*{nombre}*,empleado_no.ilike.*{nombre}*)'))
     r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=20)
     r.raise_for_status()
-    return jsonify(_ck_asignar_tipo(r.json()))
+    return jsonify(_ck_asignar_tipo(r.json(), _cargar_horarios()))
+
+
+@app.route('/api/empleados', methods=['GET'])
+def empleados_list():
+    """Lista de empleados distintos (de las checadas) + su horario si existe."""
+    try:
+        chk = sb.select('checadas', select='empleado_no,nombre', order='nombre.asc')
+    except Exception:
+        chk = []
+    emp = {}
+    for x in chk:
+        no = str(x.get('empleado_no') or '').strip()
+        if not no:
+            continue
+        if no not in emp:
+            emp[no] = {'empleado_no': no, 'nombre': x.get('nombre') or ''}
+    try:
+        for h in sb.select('horarios', select='*'):
+            no = str(h.get('empleado_no') or '')
+            campos = {
+                'hora_entrada': h.get('hora_entrada') or '',
+                'hora_break_ini': h.get('hora_break_ini') or '',
+                'hora_break_fin': h.get('hora_break_fin') or '',
+                'hora_salida': h.get('hora_salida') or '',
+                'tolerancia_min': h.get('tolerancia_min') if h.get('tolerancia_min') is not None else 10,
+                'dias': h.get('dias') or 'L,M,X,J,V,S',
+                'activo': h.get('activo', True),
+            }
+            if no in emp:
+                emp[no].update(campos)
+            else:
+                emp[no] = dict({'empleado_no': no, 'nombre': h.get('nombre') or ''}, **campos)
+    except Exception:
+        pass
+    return jsonify(sorted(emp.values(), key=lambda e: (e.get('nombre') or '').upper()))
+
+
+@app.route('/api/horarios', methods=['GET'])
+def horarios_list():
+    try:
+        return jsonify(sb.select('horarios', select='*', order='nombre.asc'))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/horarios', methods=['POST'])
+def horarios_guardar():
+    data = request.get_json(force=True, silent=True)
+    if data is None:
+        return jsonify({'error': 'JSON invalido'}), 400
+    filas = data if isinstance(data, list) else [data]
+    limpio = []
+    for x in filas:
+        no = str(x.get('empleado_no') or '').strip()
+        if not no:
+            continue
+        limpio.append({
+            'empleado_no': no,
+            'nombre': x.get('nombre') or '',
+            'hora_entrada': (x.get('hora_entrada') or '').strip() or None,
+            'hora_break_ini': (x.get('hora_break_ini') or '').strip() or None,
+            'hora_break_fin': (x.get('hora_break_fin') or '').strip() or None,
+            'hora_salida': (x.get('hora_salida') or '').strip() or None,
+            'tolerancia_min': int(x.get('tolerancia_min') or 10),
+            'dias': x.get('dias') or 'L,M,X,J,V,S',
+            'activo': bool(x.get('activo', True)),
+            'actualizado': datetime.datetime.now(_tz.utc).isoformat(),
+        })
+    if not limpio:
+        return jsonify({'error': 'Sin datos validos'}), 400
+    try:
+        sb.insert('horarios', limpio, upsert=True, on_conflict='empleado_no',
+                  return_rows=False)
+        return jsonify({'ok': True, 'guardados': len(limpio)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/horarios')
+@app.route('/horarios.html')
+def horarios_page():
+    html = open('horarios.html', encoding='utf-8').read()
+    return html, 200, {'Content-Type': 'text/html; charset=utf-8',
+                       'Cache-Control': 'no-store'}
 
 
 @app.route('/api/checadas/export', methods=['GET'])
@@ -4062,7 +4201,7 @@ def checadas_export():
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(['Fecha y hora', 'No. empleado', 'Nombre', 'Tipo', 'Metodo'])
-    for x in _ck_asignar_tipo(r.json()):
+    for x in _ck_asignar_tipo(r.json(), _cargar_horarios()):
         w.writerow([x.get('fecha_hora'), x.get('empleado_no'), x.get('nombre'),
                     x.get('tipo'), x.get('metodo')])
     fname = 'checadas_' + datetime.date.today().isoformat() + '.csv'
@@ -4087,7 +4226,7 @@ def checadas_export_excel():
         params.append(('or', f'(nombre.ilike.*{nombre}*,empleado_no.ilike.*{nombre}*)'))
     r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=30)
     r.raise_for_status()
-    datos = _ck_asignar_tipo(r.json())
+    datos = _ck_asignar_tipo(r.json(), _cargar_horarios())
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -4107,12 +4246,12 @@ def checadas_export_excel():
         rango.append('desde ' + desde)
     if hasta:
         rango.append('hasta ' + hasta)
-    ws.merge_cells('A2:F2')
+    ws.merge_cells('A2:G2')
     ws['A2'] = ('Rango: ' + ' '.join(rango)) if rango else 'Todas las checadas'
     ws['A2'].font = Font(italic=True, color='5B6560')
 
     # Encabezados
-    heads = ['Fecha', 'Hora', 'No. empleado', 'Nombre', 'Tipo', 'Metodo']
+    heads = ['Fecha', 'Hora', 'No. empleado', 'Nombre', 'Tipo', 'Metodo', 'Retardo']
     hrow = 4
     for i, h in enumerate(heads, 1):
         cell = ws.cell(row=hrow, column=i, value=h)
@@ -4120,6 +4259,7 @@ def checadas_export_excel():
         cell.fill = PatternFill('solid', fgColor='2F6B3C')
         cell.alignment = Alignment(horizontal='center')
 
+    rojo = Font(color='B23030', bold=True)
     # Filas
     rownum = hrow + 1
     for x in datos:
@@ -4130,11 +4270,15 @@ def checadas_export_excel():
         ws.cell(row=rownum, column=2, value=hora)
         ws.cell(row=rownum, column=3, value=x.get('empleado_no'))
         ws.cell(row=rownum, column=4, value=x.get('nombre'))
-        ws.cell(row=rownum, column=5, value=x.get('tipo'))
+        ctipo = ws.cell(row=rownum, column=5, value=x.get('tipo'))
         ws.cell(row=rownum, column=6, value=x.get('metodo'))
+        if x.get('retardo'):
+            cret = ws.cell(row=rownum, column=7, value='Sí')
+            cret.font = rojo
+            ctipo.font = rojo
         rownum += 1
 
-    anchos = [12, 10, 16, 34, 16, 12]
+    anchos = [12, 10, 16, 34, 18, 12, 10]
     for i, w in enumerate(anchos, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
     ws.freeze_panes = 'A5'
