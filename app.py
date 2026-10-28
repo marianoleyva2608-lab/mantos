@@ -4009,6 +4009,24 @@ def checador_ultimo():
         return jsonify({'info': 'aun no hay un evento con persona capturado'}), 200
 
 
+def _ck_asignar_tipo(rows):
+    """Calcula Entrada/Salida por persona y dia (1a del dia=Entrada, 2a=Salida, ...).
+    Solo rellena cuando el aparato no mando un estado real (tipo 's.d.' o vacio)."""
+    from collections import defaultdict
+    grupos = defaultdict(list)
+    for i, x in enumerate(rows):
+        dia = str(x.get('fecha_hora') or '')[:10]
+        emp = x.get('empleado_no') or x.get('nombre') or ''
+        grupos[(emp, dia)].append(i)
+    for idxs in grupos.values():
+        idxs.sort(key=lambda i: str(rows[i].get('fecha_hora') or ''))
+        for n, i in enumerate(idxs):
+            actual = (rows[i].get('tipo') or '').strip().lower()
+            if actual in ('', 's.d.'):
+                rows[i]['tipo'] = 'Entrada' if n % 2 == 0 else 'Salida'
+    return rows
+
+
 @app.route('/api/checadas', methods=['GET'])
 def checadas_list():
     params = [('select', '*'), ('order', 'fecha_hora.desc'), ('limit', '1000')]
@@ -4023,7 +4041,7 @@ def checadas_list():
         params.append(('or', f'(nombre.ilike.*{nombre}*,empleado_no.ilike.*{nombre}*)'))
     r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=20)
     r.raise_for_status()
-    return jsonify(r.json())
+    return jsonify(_ck_asignar_tipo(r.json()))
 
 
 @app.route('/api/checadas/export', methods=['GET'])
@@ -4044,7 +4062,7 @@ def checadas_export():
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(['Fecha y hora', 'No. empleado', 'Nombre', 'Tipo', 'Metodo'])
-    for x in r.json():
+    for x in _ck_asignar_tipo(r.json()):
         w.writerow([x.get('fecha_hora'), x.get('empleado_no'), x.get('nombre'),
                     x.get('tipo'), x.get('metodo')])
     fname = 'checadas_' + datetime.date.today().isoformat() + '.csv'
@@ -4069,7 +4087,7 @@ def checadas_export_excel():
         params.append(('or', f'(nombre.ilike.*{nombre}*,empleado_no.ilike.*{nombre}*)'))
     r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=30)
     r.raise_for_status()
-    datos = r.json()
+    datos = _ck_asignar_tipo(r.json())
 
     wb = openpyxl.Workbook()
     ws = wb.active
