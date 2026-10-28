@@ -4051,6 +4051,83 @@ def checadas_export():
                      download_name=fname, mimetype='text/csv')
 
 
+@app.route('/api/checadas/export/excel', methods=['GET'])
+def checadas_export_excel():
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    params = [('select', 'fecha_hora,empleado_no,nombre,tipo,metodo'),
+              ('order', 'fecha_hora.asc')]
+    desde = (request.args.get('desde') or '').strip()
+    hasta = (request.args.get('hasta') or '').strip()
+    nombre = (request.args.get('nombre') or '').strip()
+    if desde:
+        params.append(('fecha_hora', f'gte.{desde}T00:00:00'))
+    if hasta:
+        params.append(('fecha_hora', f'lte.{hasta}T23:59:59'))
+    if nombre:
+        params.append(('or', f'(nombre.ilike.*{nombre}*,empleado_no.ilike.*{nombre}*)'))
+    r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=30)
+    r.raise_for_status()
+    datos = r.json()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Asistencia'
+
+    # Titulo
+    ws.merge_cells('A1:F1')
+    c = ws['A1']
+    c.value = 'Reporte de Asistencia - Sucursal Maravillas'
+    c.font = Font(bold=True, size=14, color='FFFFFF')
+    c.fill = PatternFill('solid', fgColor='1F5C2E')
+    c.alignment = Alignment(horizontal='center', vertical='center')
+    ws.row_dimensions[1].height = 24
+
+    rango = []
+    if desde:
+        rango.append('desde ' + desde)
+    if hasta:
+        rango.append('hasta ' + hasta)
+    ws.merge_cells('A2:F2')
+    ws['A2'] = ('Rango: ' + ' '.join(rango)) if rango else 'Todas las checadas'
+    ws['A2'].font = Font(italic=True, color='5B6560')
+
+    # Encabezados
+    heads = ['Fecha', 'Hora', 'No. empleado', 'Nombre', 'Tipo', 'Metodo']
+    hrow = 4
+    for i, h in enumerate(heads, 1):
+        cell = ws.cell(row=hrow, column=i, value=h)
+        cell.font = Font(bold=True, color='FFFFFF')
+        cell.fill = PatternFill('solid', fgColor='2F6B3C')
+        cell.alignment = Alignment(horizontal='center')
+
+    # Filas
+    rownum = hrow + 1
+    for x in datos:
+        fh = str(x.get('fecha_hora') or '').replace('T', ' ')
+        fecha = fh[:10]
+        hora = fh[11:19]
+        ws.cell(row=rownum, column=1, value=fecha)
+        ws.cell(row=rownum, column=2, value=hora)
+        ws.cell(row=rownum, column=3, value=x.get('empleado_no'))
+        ws.cell(row=rownum, column=4, value=x.get('nombre'))
+        ws.cell(row=rownum, column=5, value=x.get('tipo'))
+        ws.cell(row=rownum, column=6, value=x.get('metodo'))
+        rownum += 1
+
+    anchos = [12, 10, 16, 34, 16, 12]
+    for i, w in enumerate(anchos, 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+    ws.freeze_panes = 'A5'
+
+    bio = io.BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    fname = 'asistencia_' + datetime.date.today().isoformat() + '.xlsx'
+    return send_file(bio, as_attachment=True, download_name=fname,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
 def _ck_norm(s):
     """Normaliza encabezado: minusculas, sin acentos, sin espacios extra."""
     import unicodedata

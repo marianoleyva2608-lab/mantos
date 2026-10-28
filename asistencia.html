@@ -50,6 +50,7 @@
     <button class="btn" type="submit">Filtrar</button>
     <a class="btn sec" href="#" onclick="limpiar();return false;">Limpiar</a>
     <a class="btn sec" id="csv" href="#" onclick="exportar();return false;">&#11015; CSV</a>
+    <a class="btn" id="xls" href="#" onclick="exportarExcel();return false;">&#128202; Excel</a>
     <label class="btn sec" style="cursor:pointer;">&#11014; Importar
       <input type="file" id="imp" accept=".csv,.xlsx,.xlsm" style="display:none" onchange="importar(this)">
     </label>
@@ -72,6 +73,7 @@ function qs(){
 function fmt(s){ if(!s)return''; return String(s).replace('T',' ').replace(/[+-]\d\d:\d\d$/,'').slice(0,19); }
 function limpiar(){ document.getElementById('desde').value=''; document.getElementById('hasta').value=''; document.getElementById('nombre').value=''; cargar(); }
 function exportar(){ window.location.href='/api/checadas/export?'+qs(); }
+function exportarExcel(){ window.location.href='/api/checadas/export/excel?'+qs(); }
 async function importar(input){
   const file=input.files[0]; if(!file)return;
   const msg=document.getElementById('imp-msg');
