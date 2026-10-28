@@ -253,3 +253,20 @@ INSERT INTO banos_personal (nombre) VALUES
     ('JUAN MARIANO LEYVA VAZQUEZ'),
     ('JOSE ROMAN')
 ON CONFLICT (nombre) DO NOTHING;
+
+-- ============================================================
+-- CHECADAS (asistencia del checador Hikvision DS-K1T343, Maravillas)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS checadas (
+  id          bigserial PRIMARY KEY,
+  fecha_hora  timestamptz,
+  empleado_no text,
+  nombre      text,
+  tipo        text,
+  metodo      text,
+  serial_no   bigint,
+  raw         jsonb,
+  recibido_en timestamptz DEFAULT now(),
+  UNIQUE (empleado_no, fecha_hora, serial_no)
+);
+CREATE INDEX IF NOT EXISTS ix_checadas_fecha ON checadas (fecha_hora DESC);

@@ -1,4 +1,4 @@
-import os, io, re, base64, json, hashlib, datetime, smtplib
+import os, io, re, base64, json, hashlib, datetime, smtplib, csv
 from html import escape as html_escape
 from urllib.parse import quote
 from email.mime.text import MIMEText
@@ -3899,6 +3899,126 @@ def banos_salida():
     row = sb.update('banos_registro', {'salida': datetime.datetime.now(_tz.utc).isoformat()},
                      id='eq.' + str(abierto[0]['id']))
     return jsonify({'ok': True, 'registro': row[0] if row else None})
+
+
+# ===================== CHECADOR HIKVISION (asistencia) =====================
+# El checador Hikvision DS-K1T343 (sucursal Maravillas) empuja cada checada por
+# HTTP Listening a POST /checador. Se guarda en la tabla 'checadas' (Supabase) y
+# se consulta en la pagina /asistencia.
+
+_CK_METODO = {75: 'Cara', 76: 'Huella', 1: 'Tarjeta', 8: 'Tarjeta',
+              38: 'Cara', 10: 'Huella'}
+_CK_TIPO = {'checkIn': 'Entrada', 'checkOut': 'Salida',
+            'breakOut': 'Salida descanso', 'breakIn': 'Regreso descanso',
+            'overtimeIn': 'Entrada extra', 'overtimeOut': 'Salida extra'}
+
+
+def _ck_extraer(payload):
+    ace = payload.get('AccessControllerEvent', {})
+    if ace.get('majorEventType') != 5:
+        return None
+    empleado = str(ace.get('employeeNoString') or ace.get('employeeNo') or '').strip()
+    nombre = (ace.get('name') or '').strip()
+    if not empleado and not nombre:
+        return None
+    sub = ace.get('subEventType')
+    estado = ace.get('attendanceStatus') or ''
+    return {
+        'fecha_hora': payload.get('dateTime') or ace.get('time') or None,
+        'empleado_no': empleado,
+        'nombre': nombre or '(sin nombre)',
+        'tipo': _CK_TIPO.get(estado, estado or 's.d.'),
+        'metodo': _CK_METODO.get(sub, f'otro ({sub})' if sub is not None else 's.d.'),
+        'serial_no': ace.get('serialNo'),
+        'raw': payload,
+    }
+
+
+def _ck_payload():
+    if 'event_log' in request.form:
+        try:
+            return json.loads(request.form['event_log'])
+        except Exception:
+            pass
+    if 'event_log' in request.files:
+        try:
+            return json.loads(request.files['event_log'].read().decode('utf-8', 'ignore'))
+        except Exception:
+            pass
+    data = (request.get_data(as_text=True) or '').strip()
+    if data.startswith('{'):
+        try:
+            return json.loads(data)
+        except Exception:
+            pass
+    return None
+
+
+@app.route('/checador', methods=['POST'])
+def checador_recibir():
+    payload = _ck_payload()
+    if payload:
+        ev = _ck_extraer(payload)
+        if ev is not None:
+            try:
+                sb.insert('checadas', ev, upsert=True,
+                          on_conflict='empleado_no,fecha_hora,serial_no',
+                          return_rows=False)
+            except Exception as e:
+                print(f'[checador] error guardando: {e}')
+    # Siempre 200: si respondemos error el aparato reintenta y traba la cola.
+    return 'OK', 200
+
+
+@app.route('/api/checadas', methods=['GET'])
+def checadas_list():
+    params = [('select', '*'), ('order', 'fecha_hora.desc'), ('limit', '1000')]
+    desde = (request.args.get('desde') or '').strip()
+    hasta = (request.args.get('hasta') or '').strip()
+    nombre = (request.args.get('nombre') or '').strip()
+    if desde:
+        params.append(('fecha_hora', f'gte.{desde}T00:00:00'))
+    if hasta:
+        params.append(('fecha_hora', f'lte.{hasta}T23:59:59'))
+    if nombre:
+        params.append(('or', f'(nombre.ilike.*{nombre}*,empleado_no.ilike.*{nombre}*)'))
+    r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=20)
+    r.raise_for_status()
+    return jsonify(r.json())
+
+
+@app.route('/api/checadas/export', methods=['GET'])
+def checadas_export():
+    params = [('select', 'fecha_hora,empleado_no,nombre,tipo,metodo'),
+              ('order', 'fecha_hora.desc')]
+    desde = (request.args.get('desde') or '').strip()
+    hasta = (request.args.get('hasta') or '').strip()
+    nombre = (request.args.get('nombre') or '').strip()
+    if desde:
+        params.append(('fecha_hora', f'gte.{desde}T00:00:00'))
+    if hasta:
+        params.append(('fecha_hora', f'lte.{hasta}T23:59:59'))
+    if nombre:
+        params.append(('or', f'(nombre.ilike.*{nombre}*,empleado_no.ilike.*{nombre}*)'))
+    r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=20)
+    r.raise_for_status()
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(['Fecha y hora', 'No. empleado', 'Nombre', 'Tipo', 'Metodo'])
+    for x in r.json():
+        w.writerow([x.get('fecha_hora'), x.get('empleado_no'), x.get('nombre'),
+                    x.get('tipo'), x.get('metodo')])
+    fname = 'checadas_' + datetime.date.today().isoformat() + '.csv'
+    return send_file(io.BytesIO(buf.getvalue().encode('utf-8')), as_attachment=True,
+                     download_name=fname, mimetype='text/csv')
+
+
+@app.route('/asistencia')
+@app.route('/asistencia.html')
+def asistencia_page():
+    html = open('asistencia.html', encoding='utf-8').read()
+    return html, 200, {'Content-Type': 'text/html; charset=utf-8',
+                       'Cache-Control': 'no-store'}
 
 
 if __name__ == '__main__':
