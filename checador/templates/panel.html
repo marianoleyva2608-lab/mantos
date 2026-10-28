@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+<style>
+  :root { --verde:#2f6b3c; --borde:#e2e6e3; --bg:#f6f7f6; --txt:#1c2320; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+         background:var(--bg); color:var(--txt); }
+  header { background:var(--verde); color:#fff; padding:16px 20px; }
+  header h1 { margin:0; font-size:18px; }
+  header small { opacity:.85; }
+  .wrap { max-width:1000px; margin:0 auto; padding:16px; }
+  form.filtros { display:flex; flex-wrap:wrap; gap:10px; align-items:end;
+                 background:#fff; border:1px solid var(--borde); border-radius:10px;
+                 padding:14px; margin-bottom:14px; }
+  .campo { display:flex; flex-direction:column; gap:4px; }
+  .campo label { font-size:12px; color:#5b6560; }
+  input { padding:8px 10px; border:1px solid var(--borde); border-radius:8px; font-size:14px; }
+  .btn { background:var(--verde); color:#fff; border:0; border-radius:8px;
+         padding:9px 16px; font-size:14px; cursor:pointer; text-decoration:none; display:inline-block; }
+  .btn.sec { background:#fff; color:var(--verde); border:1px solid var(--verde); }
+  table { width:100%; border-collapse:collapse; background:#fff;
+          border:1px solid var(--borde); border-radius:10px; overflow:hidden; }
+  th,td { padding:10px 12px; text-align:left; font-size:14px; border-bottom:1px solid var(--borde); }
+  th { background:#eef2ef; font-size:12px; text-transform:uppercase; letter-spacing:.03em; color:#5b6560; }
+  tr:last-child td { border-bottom:0; }
+  .tipo { padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; }
+  .t-ent { background:#e3f3e6; color:#2f6b3c; }
+  .t-sal { background:#fdeaea; color:#b23; }
+  .meta { color:#5b6560; font-size:13px; margin:4px 0 12px; }
+  .vacio { text-align:center; padding:40px; color:#7a847f; }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{ title }}</h1>
+  <small>Asistencia · Sucursal Maravillas</small>
+</header>
+
+<div class="wrap">
+  <form class="filtros" method="get">
+    <div class="campo">
+      <label>Desde</label>
+      <input type="date" name="desde" value="{{ f.get('desde','') }}">
+    </div>
+    <div class="campo">
+      <label>Hasta</label>
+      <input type="date" name="hasta" value="{{ f.get('hasta','') }}">
+    </div>
+    <div class="campo" style="flex:1; min-width:160px;">
+      <label>Nombre o No. empleado</label>
+      <input type="text" name="nombre" placeholder="Buscar…" value="{{ f.get('nombre','') }}">
+    </div>
+    <button class="btn" type="submit">Filtrar</button>
+    <a class="btn sec" href="/">Limpiar</a>
+    <a class="btn sec" href="/export?{{ request.query_string.decode() }}">⬇ CSV</a>
+  </form>
+
+  {% if error %}
+  <div class="meta" style="background:#fdeaea;color:#b23;padding:10px;border-radius:8px;">
+    No se pudo leer de la base de datos: {{ error }}
+  </div>
+  {% endif %}
+
+  <div class="meta">Mostrando {{ mostrados }} de {{ total }} checadas registradas.</div>
+
+  {% if filas %}
+  <table>
+    <thead>
+      <tr><th>Fecha y hora</th><th>No.</th><th>Nombre</th><th>Tipo</th><th>Método</th></tr>
+    </thead>
+    <tbody>
+      {% for r in filas %}
+      <tr>
+        <td>{{ r['fecha_hora'] }}</td>
+        <td>{{ r['empleado_no'] }}</td>
+        <td>{{ r['nombre'] }}</td>
+        <td>
+          {% set t = r['tipo'] %}
+          <span class="tipo {{ 't-ent' if 'ntrada' in t else ('t-sal' if 'alida' in t else '') }}">{{ t }}</span>
+        </td>
+        <td>{{ r['metodo'] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="vacio">Aún no hay checadas con estos filtros.<br>
+    Cuando alguien checa en el aparato, aparecerá aquí.</div>
+  {% endif %}
+</div>
+</body>
+</html>
