@@ -3977,27 +3977,18 @@ def _ck_payload():
 
 @app.route('/checador', methods=['GET', 'POST'])
 def checador_recibir():
-    # --- LOG TEMPORAL DE DIAGNOSTICO ---
-    import sys as _sys
-    try:
-        ct = request.content_type
-        keys = list(request.form.keys())
-        files = list(request.files.keys())
-        raw = request.get_data(cache=True, as_text=True) or ''
-        print(f'[checador][IN] metodo={request.method} ct={ct} form={keys} '
-              f'files={files} len={len(raw)} body={raw[:1500]!r}', flush=True)
-        _sys.stdout.flush()
-    except Exception as _e:
-        print(f'[checador][IN] no se pudo leer request: {_e}', flush=True)
     if request.method == 'GET':
         return 'checador endpoint vivo', 200
-    # --- FIN LOG TEMPORAL ---
     payload = _ck_payload()
-    print(f'[checador][PARSE] payload={"SI" if payload else "NO"} '
-          f'evento={_ck_extraer(payload) if payload else None}', flush=True)
     if payload:
         ev = _ck_extraer(payload)
         if ev is not None:
+            # Guarda el ultimo evento con persona, para diagnostico (ver /checador/ultimo)
+            try:
+                with open('/tmp/checador_ultimo.json', 'w') as _fp:
+                    json.dump(payload, _fp, ensure_ascii=False)
+            except Exception:
+                pass
             try:
                 sb.insert('checadas', ev, upsert=True,
                           on_conflict='empleado_no,fecha_hora,serial_no',
@@ -4006,6 +3997,16 @@ def checador_recibir():
                 print(f'[checador] error guardando: {e}')
     # Siempre 200: si respondemos error el aparato reintenta y traba la cola.
     return 'OK', 200
+
+
+@app.route('/checador/ultimo')
+def checador_ultimo():
+    """Muestra el ultimo evento con persona que mando el aparato (diagnostico)."""
+    try:
+        with open('/tmp/checador_ultimo.json') as _fp:
+            return app.response_class(_fp.read(), mimetype='application/json')
+    except Exception:
+        return jsonify({'info': 'aun no hay un evento con persona capturado'}), 200
 
 
 @app.route('/api/checadas', methods=['GET'])
