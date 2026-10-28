@@ -109,6 +109,8 @@ async function cargar(){
   }catch(e){ meta.textContent='Error al leer las checadas: '+e; }
 }
 cargar();
+// Auto-actualiza cada 15 s para mostrar checadas nuevas sin recargar
+setInterval(cargar, 15000);
 </script>
 </body>
 </html>
