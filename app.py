@@ -3957,19 +3957,23 @@ def _ck_payload():
 @app.route('/checador', methods=['GET', 'POST'])
 def checador_recibir():
     # --- LOG TEMPORAL DE DIAGNOSTICO ---
+    import sys as _sys
     try:
         ct = request.content_type
         keys = list(request.form.keys())
         files = list(request.files.keys())
-        body = (request.get_data(as_text=True) or '')[:300]
+        raw = request.get_data(cache=True, as_text=True) or ''
         print(f'[checador][IN] metodo={request.method} ct={ct} form={keys} '
-              f'files={files} body={body!r}')
+              f'files={files} len={len(raw)} body={raw[:1500]!r}', flush=True)
+        _sys.stdout.flush()
     except Exception as _e:
-        print(f'[checador][IN] no se pudo leer request: {_e}')
+        print(f'[checador][IN] no se pudo leer request: {_e}', flush=True)
     if request.method == 'GET':
         return 'checador endpoint vivo', 200
     # --- FIN LOG TEMPORAL ---
     payload = _ck_payload()
+    print(f'[checador][PARSE] payload={"SI" if payload else "NO"} '
+          f'evento={_ck_extraer(payload) if payload else None}', flush=True)
     if payload:
         ev = _ck_extraer(payload)
         if ev is not None:
