@@ -4363,16 +4363,28 @@ def horarios_page():
                        'Cache-Control': 'no-store'}
 
 
+def _ck_todas(params):
+    """Trae todas las checadas del filtro: Supabase entrega maximo 1000 por consulta."""
+    filas, off = [], 0
+    while True:
+        r = requests.get(f'{sb.base}/checadas', headers=sb.headers, timeout=30,
+                         params=params + [('limit', '1000'), ('offset', str(off))])
+        r.raise_for_status()
+        lote = r.json()
+        filas.extend(lote)
+        if len(lote) < 1000:
+            return filas
+        off += len(lote)
+
+
 @app.route('/api/checadas/export', methods=['GET'])
 def checadas_export():
     # select=* para no fallar si la columna 'planta' aun no existe
-    params = _ck_filtros([('select', '*'), ('order', 'fecha_hora.desc')])
-    r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=20)
-    r.raise_for_status()
+    params = _ck_filtros([('select', '*'), ('order', 'fecha_hora.desc,id.desc')])
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(['Fecha y hora', 'Planta', 'No. empleado', 'Nombre', 'Tipo', 'Metodo'])
-    for x in _ck_asignar_tipo(r.json(), _cargar_horarios()):
+    for x in _ck_asignar_tipo(_ck_todas(params), _cargar_horarios()):
         w.writerow([x.get('fecha_hora'), x.get('planta') or 'Matriz', x.get('empleado_no'),
                     x.get('nombre'), x.get('tipo'), x.get('metodo')])
     fname = 'checadas_' + datetime.date.today().isoformat() + '.csv'
@@ -4387,10 +4399,8 @@ def checadas_export_excel():
     desde = (request.args.get('desde') or '').strip()
     hasta = (request.args.get('hasta') or '').strip()
     planta = (request.args.get('planta') or '').strip()
-    params = _ck_filtros([('select', '*'), ('order', 'fecha_hora.asc')])
-    r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=30)
-    r.raise_for_status()
-    datos = _ck_asignar_tipo(r.json(), _cargar_horarios())
+    params = _ck_filtros([('select', '*'), ('order', 'fecha_hora.asc,id.asc')])
+    datos = _ck_asignar_tipo(_ck_todas(params), _cargar_horarios())
 
     wb = openpyxl.Workbook()
     ws = wb.active
