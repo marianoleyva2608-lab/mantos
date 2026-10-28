@@ -3902,9 +3902,13 @@ def banos_salida():
 
 
 # ===================== CHECADOR HIKVISION (asistencia) =====================
-# El checador Hikvision DS-K1T343 (sucursal Maravillas) empuja cada checada por
-# HTTP Listening a POST /checador. Se guarda en la tabla 'checadas' (Supabase) y
-# se consulta en la pagina /asistencia.
+# Cada checador Hikvision DS-K1T343 empuja sus checadas por HTTP Listening:
+#   planta Matriz     -> POST /checador            (o /checador/matriz)
+#   planta Conversion -> POST /checador/conversion
+# Se guardan en la tabla 'checadas' (Supabase) con su planta y se consultan en
+# la pagina /asistencia.
+
+_CK_PLANTAS = {'matriz': 'Matriz', 'conversion': 'Conversión'}
 
 _CK_METODO = {75: 'Cara', 76: 'Huella', 1: 'Tarjeta', 8: 'Tarjeta',
               38: 'Cara', 10: 'Huella'}
@@ -3975,38 +3979,81 @@ def _ck_payload():
     return None
 
 
+def _ck_guardar(fila):
+    try:
+        sb.insert('checadas', fila, upsert=True,
+                  on_conflict='empleado_no,fecha_hora,serial_no', return_rows=False)
+    except Exception as e:
+        # Si la tabla aun no tiene la columna 'planta' (falta correr
+        # schema_checadas_planta.sql), guarda sin ella para no perder la checada.
+        if 'planta' not in fila:
+            raise
+        print(f'[checador] reintento sin planta: {e}')
+        fila = {k: v for k, v in fila.items() if k != 'planta'}
+        sb.insert('checadas', fila, upsert=True,
+                  on_conflict='empleado_no,fecha_hora,serial_no', return_rows=False)
+
+
 @app.route('/checador', methods=['GET', 'POST'])
-def checador_recibir():
+@app.route('/checador/<planta>', methods=['GET', 'POST'])
+def checador_recibir(planta='matriz'):
+    planta = planta.lower()
+    nombre_planta = _CK_PLANTAS.get(planta, planta.capitalize())
     if request.method == 'GET':
-        return 'checador endpoint vivo', 200
+        return f'checador endpoint vivo ({nombre_planta})', 200
     payload = _ck_payload()
     if payload:
         ev = _ck_extraer(payload)
         if ev is not None:
+            ev['planta'] = nombre_planta
             # Guarda el ultimo evento con persona, para diagnostico (ver /checador/ultimo)
             try:
-                with open('/tmp/checador_ultimo.json', 'w') as _fp:
+                with open(f'/tmp/checador_ultimo_{planta}.json', 'w') as _fp:
                     json.dump(payload, _fp, ensure_ascii=False)
             except Exception:
                 pass
             try:
-                sb.insert('checadas', ev, upsert=True,
-                          on_conflict='empleado_no,fecha_hora,serial_no',
-                          return_rows=False)
+                _ck_guardar(ev)
             except Exception as e:
-                print(f'[checador] error guardando: {e}')
+                print(f'[checador {planta}] error guardando: {e}')
     # Siempre 200: si respondemos error el aparato reintenta y traba la cola.
     return 'OK', 200
 
 
 @app.route('/checador/ultimo')
-def checador_ultimo():
+@app.route('/checador/<planta>/ultimo')
+def checador_ultimo(planta='matriz'):
     """Muestra el ultimo evento con persona que mando el aparato (diagnostico)."""
     try:
-        with open('/tmp/checador_ultimo.json') as _fp:
+        with open(f'/tmp/checador_ultimo_{planta.lower()}.json') as _fp:
             return app.response_class(_fp.read(), mimetype='application/json')
     except Exception:
         return jsonify({'info': 'aun no hay un evento con persona capturado'}), 200
+
+
+def _ck_filtros(params):
+    """Agrega a la consulta de checadas los filtros desde/hasta/nombre/planta."""
+    desde = (request.args.get('desde') or '').strip()
+    hasta = (request.args.get('hasta') or '').strip()
+    nombre = (request.args.get('nombre') or '').strip()
+    planta = (request.args.get('planta') or '').strip()
+    if desde:
+        params.append(('fecha_hora', f'gte.{desde}T00:00:00'))
+    if hasta:
+        params.append(('fecha_hora', f'lte.{hasta}T23:59:59'))
+    ors = []
+    if nombre:
+        ors.append(f'nombre.ilike.*{nombre}*,empleado_no.ilike.*{nombre}*')
+    if planta == 'Matriz':
+        # Las checadas de antes de separar plantas no tienen planta: son de Matriz
+        ors.append('planta.eq.Matriz,planta.is.null')
+    elif planta:
+        params.append(('planta', f'eq.{planta}'))
+    if len(ors) == 1:
+        params.append(('or', f'({ors[0]})'))
+    elif ors:
+        params.append(('and', '(' + ','.join(f'or({o})' for o in ors) + ')'))
+    return params
 
 
 def _hhmm_a_min(s):
@@ -4084,16 +4131,7 @@ def _ck_asignar_tipo(rows, horarios=None):
 
 @app.route('/api/checadas', methods=['GET'])
 def checadas_list():
-    params = [('select', '*'), ('order', 'fecha_hora.desc'), ('limit', '1000')]
-    desde = (request.args.get('desde') or '').strip()
-    hasta = (request.args.get('hasta') or '').strip()
-    nombre = (request.args.get('nombre') or '').strip()
-    if desde:
-        params.append(('fecha_hora', f'gte.{desde}T00:00:00'))
-    if hasta:
-        params.append(('fecha_hora', f'lte.{hasta}T23:59:59'))
-    if nombre:
-        params.append(('or', f'(nombre.ilike.*{nombre}*,empleado_no.ilike.*{nombre}*)'))
+    params = _ck_filtros([('select', '*'), ('order', 'fecha_hora.desc'), ('limit', '1000')])
     r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=20)
     r.raise_for_status()
     return jsonify(_ck_asignar_tipo(r.json(), _cargar_horarios()))
@@ -4185,25 +4223,16 @@ def horarios_page():
 
 @app.route('/api/checadas/export', methods=['GET'])
 def checadas_export():
-    params = [('select', 'fecha_hora,empleado_no,nombre,tipo,metodo'),
-              ('order', 'fecha_hora.desc')]
-    desde = (request.args.get('desde') or '').strip()
-    hasta = (request.args.get('hasta') or '').strip()
-    nombre = (request.args.get('nombre') or '').strip()
-    if desde:
-        params.append(('fecha_hora', f'gte.{desde}T00:00:00'))
-    if hasta:
-        params.append(('fecha_hora', f'lte.{hasta}T23:59:59'))
-    if nombre:
-        params.append(('or', f'(nombre.ilike.*{nombre}*,empleado_no.ilike.*{nombre}*)'))
+    # select=* para no fallar si la columna 'planta' aun no existe
+    params = _ck_filtros([('select', '*'), ('order', 'fecha_hora.desc')])
     r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=20)
     r.raise_for_status()
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(['Fecha y hora', 'No. empleado', 'Nombre', 'Tipo', 'Metodo'])
+    w.writerow(['Fecha y hora', 'Planta', 'No. empleado', 'Nombre', 'Tipo', 'Metodo'])
     for x in _ck_asignar_tipo(r.json(), _cargar_horarios()):
-        w.writerow([x.get('fecha_hora'), x.get('empleado_no'), x.get('nombre'),
-                    x.get('tipo'), x.get('metodo')])
+        w.writerow([x.get('fecha_hora'), x.get('planta') or 'Matriz', x.get('empleado_no'),
+                    x.get('nombre'), x.get('tipo'), x.get('metodo')])
     fname = 'checadas_' + datetime.date.today().isoformat() + '.csv'
     return send_file(io.BytesIO(buf.getvalue().encode('utf-8')), as_attachment=True,
                      download_name=fname, mimetype='text/csv')
@@ -4213,17 +4242,10 @@ def checadas_export():
 def checadas_export_excel():
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
-    params = [('select', 'fecha_hora,empleado_no,nombre,tipo,metodo'),
-              ('order', 'fecha_hora.asc')]
     desde = (request.args.get('desde') or '').strip()
     hasta = (request.args.get('hasta') or '').strip()
-    nombre = (request.args.get('nombre') or '').strip()
-    if desde:
-        params.append(('fecha_hora', f'gte.{desde}T00:00:00'))
-    if hasta:
-        params.append(('fecha_hora', f'lte.{hasta}T23:59:59'))
-    if nombre:
-        params.append(('or', f'(nombre.ilike.*{nombre}*,empleado_no.ilike.*{nombre}*)'))
+    planta = (request.args.get('planta') or '').strip()
+    params = _ck_filtros([('select', '*'), ('order', 'fecha_hora.asc')])
     r = requests.get(f'{sb.base}/checadas', headers=sb.headers, params=params, timeout=30)
     r.raise_for_status()
     datos = _ck_asignar_tipo(r.json(), _cargar_horarios())
@@ -4233,9 +4255,9 @@ def checadas_export_excel():
     ws.title = 'Asistencia'
 
     # Titulo
-    ws.merge_cells('A1:F1')
+    ws.merge_cells('A1:H1')
     c = ws['A1']
-    c.value = 'Reporte de Asistencia - Sucursal Maravillas'
+    c.value = 'Reporte de Asistencia - ' + (f'Planta {planta}' if planta else 'Todas las plantas')
     c.font = Font(bold=True, size=14, color='FFFFFF')
     c.fill = PatternFill('solid', fgColor='1F5C2E')
     c.alignment = Alignment(horizontal='center', vertical='center')
@@ -4246,12 +4268,12 @@ def checadas_export_excel():
         rango.append('desde ' + desde)
     if hasta:
         rango.append('hasta ' + hasta)
-    ws.merge_cells('A2:G2')
+    ws.merge_cells('A2:H2')
     ws['A2'] = ('Rango: ' + ' '.join(rango)) if rango else 'Todas las checadas'
     ws['A2'].font = Font(italic=True, color='5B6560')
 
     # Encabezados
-    heads = ['Fecha', 'Hora', 'No. empleado', 'Nombre', 'Tipo', 'Metodo', 'Retardo']
+    heads = ['Fecha', 'Hora', 'Planta', 'No. empleado', 'Nombre', 'Tipo', 'Metodo', 'Retardo']
     hrow = 4
     for i, h in enumerate(heads, 1):
         cell = ws.cell(row=hrow, column=i, value=h)
@@ -4268,17 +4290,18 @@ def checadas_export_excel():
         hora = fh[11:19]
         ws.cell(row=rownum, column=1, value=fecha)
         ws.cell(row=rownum, column=2, value=hora)
-        ws.cell(row=rownum, column=3, value=x.get('empleado_no'))
-        ws.cell(row=rownum, column=4, value=x.get('nombre'))
-        ctipo = ws.cell(row=rownum, column=5, value=x.get('tipo'))
-        ws.cell(row=rownum, column=6, value=x.get('metodo'))
+        ws.cell(row=rownum, column=3, value=x.get('planta') or 'Matriz')
+        ws.cell(row=rownum, column=4, value=x.get('empleado_no'))
+        ws.cell(row=rownum, column=5, value=x.get('nombre'))
+        ctipo = ws.cell(row=rownum, column=6, value=x.get('tipo'))
+        ws.cell(row=rownum, column=7, value=x.get('metodo'))
         if x.get('retardo'):
-            cret = ws.cell(row=rownum, column=7, value='Sí')
+            cret = ws.cell(row=rownum, column=8, value='Sí')
             cret.font = rojo
             ctipo.font = rojo
         rownum += 1
 
-    anchos = [12, 10, 16, 34, 18, 12, 10]
+    anchos = [12, 10, 14, 16, 34, 18, 12, 10]
     for i, w in enumerate(anchos, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
     ws.freeze_panes = 'A5'
@@ -4355,6 +4378,7 @@ def checadas_import():
     if len(filas) < 2:
         return jsonify({'error': 'El archivo no tiene datos'}), 400
 
+    planta = (request.form.get('planta') or '').strip() or 'Matriz'
     headers = filas[0]
     m = _ck_map_col(headers)
     if 'nombre' not in m and 'empleado_no' not in m:
@@ -4393,10 +4417,10 @@ def checadas_import():
             'tipo': tipo, 'metodo': metodo,
             'serial_no': _ck_serial(empleado, fh, tipo),
             'raw': {'origen': 'import', 'archivo': f.filename},
+            'planta': planta,
         }
         try:
-            sb.insert('checadas', fila, upsert=True,
-                      on_conflict='empleado_no,fecha_hora,serial_no', return_rows=False)
+            _ck_guardar(fila)
             insertados += 1
         except Exception as e:
             print(f'[import] error fila: {e}')

@@ -255,7 +255,7 @@ INSERT INTO banos_personal (nombre) VALUES
 ON CONFLICT (nombre) DO NOTHING;
 
 -- ============================================================
--- CHECADAS (asistencia del checador Hikvision DS-K1T343, Maravillas)
+-- CHECADAS (asistencia de los checadores Hikvision DS-K1T343: Matriz y Conversión)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS checadas (
   id          bigserial PRIMARY KEY,
@@ -266,6 +266,7 @@ CREATE TABLE IF NOT EXISTS checadas (
   metodo      text,
   serial_no   bigint,
   raw         jsonb,
+  planta      text,
   recibido_en timestamptz DEFAULT now(),
   UNIQUE (empleado_no, fecha_hora, serial_no)
 );

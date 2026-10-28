@@ -35,12 +35,13 @@
   <a class="back" href="/" title="Inicio">&#8592;</a>
   <div>
     <h1>&#128197; Asistencia</h1>
-    <div class="sub">Checadas del checador · Sucursal Maravillas</div>
+    <div class="sub">Checadas de los checadores · Matriz y Conversión</div>
   </div>
 </div>
 
 <div class="wrap">
   <form class="filtros" onsubmit="cargar();return false;">
+    <div class="campo"><label>Planta</label><select id="planta" onchange="cargar()" style="padding:9px 10px;border:1px solid var(--borde);border-radius:8px;font-size:14px;"><option value="">Todas</option><option>Matriz</option><option>Conversión</option></select></div>
     <div class="campo"><label>Desde</label><input type="date" id="desde"></div>
     <div class="campo"><label>Hasta</label><input type="date" id="hasta"></div>
     <div class="campo" style="flex:1;min-width:160px;">
@@ -68,11 +69,12 @@ function qs(){
   const d=document.getElementById('desde').value;
   const h=document.getElementById('hasta').value;
   const n=document.getElementById('nombre').value.trim();
-  if(d)p.set('desde',d); if(h)p.set('hasta',h); if(n)p.set('nombre',n);
+  const pl=document.getElementById('planta').value;
+  if(d)p.set('desde',d); if(h)p.set('hasta',h); if(n)p.set('nombre',n); if(pl)p.set('planta',pl);
   return p.toString();
 }
 function fmt(s){ if(!s)return''; return String(s).replace('T',' ').replace(/[+-]\d\d:\d\d$/,'').slice(0,19); }
-function limpiar(){ document.getElementById('desde').value=''; document.getElementById('hasta').value=''; document.getElementById('nombre').value=''; cargar(); }
+function limpiar(){ document.getElementById('desde').value=''; document.getElementById('hasta').value=''; document.getElementById('nombre').value=''; document.getElementById('planta').value=''; cargar(); }
 function exportar(){ window.location.href='/api/checadas/export?'+qs(); }
 function exportarExcel(){ window.location.href='/api/checadas/export/excel?'+qs(); }
 async function importar(input){
@@ -80,7 +82,9 @@ async function importar(input){
   const msg=document.getElementById('imp-msg');
   msg.style.display='block'; msg.style.background='#eef3ef'; msg.style.color='#5b6560';
   msg.textContent='Importando '+file.name+'…';
-  const fd=new FormData(); fd.append('archivo',file);
+  const pl=document.getElementById('planta').value;
+  if(!pl){ msg.style.background='#fdeaea'; msg.style.color='#b23'; msg.textContent='Elige primero la planta (Matriz o Conversión) a la que pertenece el archivo.'; input.value=''; return; }
+  const fd=new FormData(); fd.append('archivo',file); fd.append('planta',pl);
   try{
     const r=await fetch('/api/checadas/import',{method:'POST',body:fd});
     const d=await r.json();
@@ -102,11 +106,11 @@ async function cargar(){
     const filas=await r.json();
     meta.textContent='Mostrando '+filas.length+' checada(s).';
     if(!filas.length){ cont.innerHTML='<div class="vacio">Aún no hay checadas con estos filtros.<br>Cuando alguien checa en el aparato, aparece aquí.</div>'; return; }
-    let t='<table><thead><tr><th>Fecha y hora</th><th>No.</th><th>Nombre</th><th>Tipo</th><th>Método</th></tr></thead><tbody>';
+    let t='<table><thead><tr><th>Fecha y hora</th><th>Planta</th><th>No.</th><th>Nombre</th><th>Tipo</th><th>Método</th></tr></thead><tbody>';
     for(const x of filas){
       const tipo=x.tipo||'';
       const cls = tipo.includes('ntrada')?'t-ent':(tipo.includes('alida')?'t-sal':'');
-      t+='<tr><td>'+fmt(x.fecha_hora)+'</td><td>'+(x.empleado_no||'')+'</td><td>'+(x.nombre||'')+'</td><td><span class="tipo '+cls+'">'+tipo+'</span></td><td>'+(x.metodo||'')+'</td></tr>';
+      t+='<tr><td>'+fmt(x.fecha_hora)+'</td><td>'+(x.planta||'Matriz')+'</td><td>'+(x.empleado_no||'')+'</td><td>'+(x.nombre||'')+'</td><td><span class="tipo '+cls+'">'+tipo+'</span></td><td>'+(x.metodo||'')+'</td></tr>';
     }
     t+='</tbody></table>'; cont.innerHTML=t;
   }catch(e){ meta.textContent='Error al leer las checadas: '+e; }
