@@ -50,7 +50,11 @@
     <button class="btn" type="submit">Filtrar</button>
     <a class="btn sec" href="#" onclick="limpiar();return false;">Limpiar</a>
     <a class="btn sec" id="csv" href="#" onclick="exportar();return false;">&#11015; CSV</a>
+    <label class="btn sec" style="cursor:pointer;">&#11014; Importar
+      <input type="file" id="imp" accept=".csv,.xlsx,.xlsm" style="display:none" onchange="importar(this)">
+    </label>
   </form>
+  <div id="imp-msg" style="display:none;margin:0 0 12px;padding:10px 12px;border-radius:8px;font-size:13px;"></div>
 
   <div class="meta" id="meta">Cargando…</div>
   <div id="cont"></div>
@@ -68,6 +72,25 @@ function qs(){
 function fmt(s){ if(!s)return''; return String(s).replace('T',' ').replace(/[+-]\d\d:\d\d$/,'').slice(0,19); }
 function limpiar(){ document.getElementById('desde').value=''; document.getElementById('hasta').value=''; document.getElementById('nombre').value=''; cargar(); }
 function exportar(){ window.location.href='/api/checadas/export?'+qs(); }
+async function importar(input){
+  const file=input.files[0]; if(!file)return;
+  const msg=document.getElementById('imp-msg');
+  msg.style.display='block'; msg.style.background='#eef3ef'; msg.style.color='#5b6560';
+  msg.textContent='Importando '+file.name+'…';
+  const fd=new FormData(); fd.append('archivo',file);
+  try{
+    const r=await fetch('/api/checadas/import',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.ok){ msg.style.background='#e3f3e6'; msg.style.color='#1F5C2E';
+      msg.textContent='✓ Listo: '+d.cargadas+' checada(s) cargadas (de '+d.leidas+' filas leídas).';
+      cargar();
+    } else {
+      msg.style.background='#fdeaea'; msg.style.color='#b23';
+      msg.textContent='Error: '+(d.error||'no se pudo importar')+(d.encabezados_detectados?(' · Columnas: '+d.encabezados_detectados.join(', ')):'');
+    }
+  }catch(e){ msg.style.background='#fdeaea'; msg.style.color='#b23'; msg.textContent='Error: '+e; }
+  input.value='';
+}
 async function cargar(){
   const meta=document.getElementById('meta'), cont=document.getElementById('cont');
   meta.textContent='Cargando…'; cont.innerHTML='';

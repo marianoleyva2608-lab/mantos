@@ -4030,6 +4030,118 @@ def checadas_export():
                      download_name=fname, mimetype='text/csv')
 
 
+def _ck_norm(s):
+    """Normaliza encabezado: minusculas, sin acentos, sin espacios extra."""
+    import unicodedata
+    s = unicodedata.normalize('NFKD', str(s or '')).encode('ascii', 'ignore').decode()
+    return s.strip().lower()
+
+
+def _ck_map_col(headers):
+    """Mapea columnas del archivo a nuestros campos, por palabras clave."""
+    m = {}
+    for i, h in enumerate(headers):
+        n = _ck_norm(h)
+        if 'nombre' in n or n == 'name' or 'persona' in n:
+            m.setdefault('nombre', i)
+        elif ('empleado' in n or 'employee' in n or n in ('id', 'no', 'num')
+              or 'person id' in n or 'no.' in n or 'numero' in n):
+            m.setdefault('empleado_no', i)
+        elif 'fecha' in n and 'hora' in n or 'datetime' in n or n == 'time' or 'fecha/hora' in n:
+            m.setdefault('fecha_hora', i)
+        elif 'fecha' in n or 'date' in n:
+            m.setdefault('fecha', i)
+        elif 'hora' in n or 'time' in n:
+            m.setdefault('hora', i)
+        elif ('estado' in n or 'status' in n or 'tipo' in n or 'evento' in n
+              or 'check' in n or 'entrada' in n or 'salida' in n):
+            m.setdefault('tipo', i)
+        elif 'metodo' in n or 'method' in n or 'verif' in n:
+            m.setdefault('metodo', i)
+    return m
+
+
+def _ck_serial(empleado, fecha_hora, tipo):
+    """Serial estable (crc32) para deduplicar importaciones."""
+    import zlib
+    base = f'{empleado}|{fecha_hora}|{tipo}'.encode('utf-8')
+    return -int(zlib.crc32(base))  # negativo para no chocar con los serial reales del aparato
+
+
+@app.route('/api/checadas/import', methods=['POST'])
+def checadas_import():
+    f = request.files.get('archivo')
+    if not f:
+        return jsonify({'error': 'No se recibió archivo'}), 400
+    nombre_arch = (f.filename or '').lower()
+
+    # Leer filas (lista de listas): primera fila = encabezados
+    filas = []
+    try:
+        if nombre_arch.endswith('.xlsx') or nombre_arch.endswith('.xlsm'):
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(f.read()), read_only=True, data_only=True)
+            ws = wb.active
+            for row in ws.iter_rows(values_only=True):
+                filas.append(['' if c is None else c for c in row])
+        else:  # csv
+            data = f.read().decode('utf-8-sig', 'ignore')
+            filas = list(csv.reader(io.StringIO(data)))
+    except Exception as e:
+        return jsonify({'error': f'No se pudo leer el archivo: {e}'}), 400
+
+    filas = [r for r in filas if any(str(c).strip() for c in r)]
+    if len(filas) < 2:
+        return jsonify({'error': 'El archivo no tiene datos'}), 400
+
+    headers = filas[0]
+    m = _ck_map_col(headers)
+    if 'nombre' not in m and 'empleado_no' not in m:
+        return jsonify({'error': 'No encontré columna de nombre o empleado',
+                        'encabezados_detectados': [str(h) for h in headers]}), 400
+    if 'fecha_hora' not in m and 'fecha' not in m:
+        return jsonify({'error': 'No encontré columna de fecha',
+                        'encabezados_detectados': [str(h) for h in headers]}), 400
+
+    def val(row, key):
+        i = m.get(key)
+        return str(row[i]).strip() if i is not None and i < len(row) else ''
+
+    registros, insertados = 0, 0
+    for row in filas[1:]:
+        nombre = val(row, 'nombre') or '(sin nombre)'
+        empleado = val(row, 'empleado_no')
+        if 'fecha_hora' in m:
+            fh = val(row, 'fecha_hora')
+        else:
+            fh = (val(row, 'fecha') + ' ' + val(row, 'hora')).strip()
+        if not fh:
+            continue
+        tipo_raw = val(row, 'tipo')
+        tn = _ck_norm(tipo_raw)
+        if 'in' in tn or 'entrada' in tn:
+            tipo = 'Entrada'
+        elif 'out' in tn or 'salida' in tn:
+            tipo = 'Salida'
+        else:
+            tipo = tipo_raw or 's.d.'
+        metodo = val(row, 'metodo') or 'Importado'
+        registros += 1
+        fila = {
+            'fecha_hora': fh, 'empleado_no': empleado, 'nombre': nombre,
+            'tipo': tipo, 'metodo': metodo,
+            'serial_no': _ck_serial(empleado, fh, tipo),
+            'raw': {'origen': 'import', 'archivo': f.filename},
+        }
+        try:
+            sb.insert('checadas', fila, upsert=True,
+                      on_conflict='empleado_no,fecha_hora,serial_no', return_rows=False)
+            insertados += 1
+        except Exception as e:
+            print(f'[import] error fila: {e}')
+    return jsonify({'ok': True, 'leidas': registros, 'cargadas': insertados})
+
+
 @app.route('/asistencia')
 @app.route('/asistencia.html')
 def asistencia_page():
