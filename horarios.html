@@ -12,82 +12,216 @@
   .top a.back { color:#fff; text-decoration:none; font-size:22px; line-height:1; }
   .top h1 { margin:0; font-size:18px; }
   .top .sub { opacity:.85; font-size:13px; }
-  .wrap { max-width:1000px; margin:0 auto; padding:16px; }
+  .wrap { max-width:1200px; margin:0 auto; padding:16px; }
+  h2 { font-size:16px; margin:22px 0 4px; }
+  .ayuda { color:#5b6560; font-size:13px; margin:0 0 10px; }
   .bar { display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
   .btn { background:var(--verde); color:#fff; border:0; border-radius:8px; padding:10px 18px; font-size:14px; cursor:pointer; }
   .btn.sec { background:#fff; color:var(--verde); border:1px solid var(--verde); text-decoration:none; }
-  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--borde); border-radius:12px; overflow:hidden; }
+  .btn.chico { padding:6px 10px; font-size:13px; }
+  .btn.rojo { background:#fff; color:#b23; border:1px solid #e3b5b5; }
+  .scroll { overflow-x:auto; border:1px solid var(--borde); border-radius:12px; background:#fff; }
+  table { width:100%; border-collapse:collapse; background:#fff; }
   th,td { padding:9px 10px; text-align:left; font-size:14px; border-bottom:1px solid var(--borde); }
-  th { background:#eef3ef; font-size:12px; text-transform:uppercase; color:#5b6560; }
+  th { background:#eef3ef; font-size:12px; text-transform:uppercase; color:#5b6560; white-space:nowrap; }
+  th small { display:block; text-transform:none; font-weight:400; }
   tr:last-child td { border-bottom:0; }
-  input[type=time] { padding:6px 8px; border:1px solid var(--borde); border-radius:7px; font-size:14px; }
+  input[type=time], input[type=text], select { padding:6px 8px; border:1px solid var(--borde); border-radius:7px; font-size:14px; background:#fff; }
   input.tol { width:60px; padding:6px 8px; border:1px solid var(--borde); border-radius:7px; font-size:14px; }
+  input.nom { width:150px; }
   .meta { color:#5b6560; font-size:13px; margin:2px 0 12px; }
-  #msg { display:none; margin:0 0 12px; padding:10px 12px; border-radius:8px; font-size:13px; }
+  .msg { display:none; margin:0 0 12px; padding:10px 12px; border-radius:8px; font-size:13px; }
   .dias { display:flex; gap:3px; }
   .dias label { font-size:11px; display:flex; flex-direction:column; align-items:center; gap:2px; color:#5b6560; cursor:pointer; }
+  .masivo { display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:#fff; border:1px solid var(--borde); border-radius:12px; padding:10px 14px; margin-bottom:12px; }
+  .con-turno .indiv { opacity:.35; pointer-events:none; }
+  .rango-ok { background:#e3f3e6; }
+  .rango-tarde { background:#fff3df; }
+  .rango-sal { background:#fdeaea; }
 </style>
 </head>
 <body>
 <div class="top">
   <a class="back" href="/asistencia" title="Volver">&#8592;</a>
   <div>
-    <h1>&#9201; Horarios por empleado</h1>
-    <div class="sub">Define entrada, salida y tolerancia · Matriz y Conversión</div>
+    <h1>&#9201; Horarios y turnos</h1>
+    <div class="sub">Crea los turnos y asígnalos a varias personas a la vez · Matriz y Conversión</div>
   </div>
 </div>
 
 <div class="wrap">
-  <div id="msg"></div>
-  <div class="bar">
-    <button class="btn" onclick="guardar()">&#128190; Guardar cambios</button>
-    <a class="btn sec" href="/asistencia">Ver asistencia</a>
+  <h2>Turnos</h2>
+  <p class="ayuda">Checar dentro del rango <b>verde</b> es entrada a tiempo; dentro del <b>naranja</b> es retardo; dentro del <b>rojo</b> es la salida. Ejemplo: entrada desde 04:00, entrada 08:00, retardo hasta 09:00, salida 17:30, salida hasta 23:59.</p>
+  <div id="msg-t" class="msg"></div>
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>Nombre</th>
+        <th class="rango-ok">Entrada desde<small>a tiempo</small></th>
+        <th class="rango-ok">Entrada<small>hora oficial</small></th>
+        <th class="rango-ok">Toler.<small>min</small></th>
+        <th class="rango-tarde">Retardo hasta</th>
+        <th>Break sale<small>opcional</small></th>
+        <th>Break regresa</th>
+        <th class="rango-sal">Salida<small>desde</small></th>
+        <th class="rango-sal">Salida hasta</th>
+        <th>Días</th><th></th>
+      </tr></thead>
+      <tbody id="tb-t"></tbody>
+    </table>
+  </div>
+  <div class="bar" style="margin-top:10px;">
+    <button class="btn sec" onclick="agregarTurno()">+ Agregar turno</button>
+    <button class="btn" onclick="guardarTurnos()">&#128190; Guardar turnos</button>
+  </div>
+
+  <h2>Empleados</h2>
+  <p class="ayuda">Marca a las personas y elige el turno para asignarlo a todas de una vez. Quien tiene turno usa los rangos del turno; quien no tiene, usa su horario individual.</p>
+  <div id="msg" class="msg"></div>
+  <div class="masivo">
+    <label style="display:flex;gap:6px;align-items:center;font-size:14px;"><input type="checkbox" id="todos" onchange="marcarTodos(this.checked)"> Todos</label>
+    <span class="meta" id="sel" style="margin:0;">0 seleccionados</span>
+    <select id="turno-masivo"></select>
+    <button class="btn chico" onclick="asignarMasivo()">Asignar a seleccionados</button>
+    <span style="flex:1"></span>
+    <button class="btn chico sec" onclick="guardar()">&#128190; Guardar horarios individuales</button>
+    <a class="btn chico sec" href="/asistencia">Ver asistencia</a>
     <span class="meta" id="meta" style="margin:0;"></span>
   </div>
 
-  <table>
-    <thead>
-      <tr><th>No.</th><th>Nombre</th><th>Entrada</th><th>Break sale</th><th>Break regresa</th><th>Salida</th><th>Toler. (min)</th><th>Días</th><th>Activo</th></tr>
-    </thead>
-    <tbody id="tb"><tr><td colspan="9" style="padding:30px;text-align:center;color:#7a847f">Cargando…</td></tr></tbody>
-  </table>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th></th><th>No.</th><th>Nombre</th><th>Turno</th><th>Entrada</th><th>Break sale</th><th>Break regresa</th><th>Salida</th><th>Toler. (min)</th><th>Días</th><th>Activo</th></tr>
+      </thead>
+      <tbody id="tb"><tr><td colspan="11" style="padding:30px;text-align:center;color:#7a847f">Cargando…</td></tr></tbody>
+    </table>
+  </div>
 </div>
 
 <script>
 const DIAS=['L','M','X','J','V','S','D'];
-let empleados=[];
+let empleados=[], turnos=[], asignacion={};
 
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function aviso(id,tipo,txt){
+  const m=document.getElementById(id); m.style.display='block';
+  const c={ok:['#e3f3e6','#1F5C2E'],err:['#fdeaea','#b23'],info:['#eef3ef','#5b6560']}[tipo];
+  m.style.background=c[0]; m.style.color=c[1]; m.textContent=txt;
+}
+function diasHtml(valor){
+  const s=new Set((valor||'').split(',').map(x=>x.trim()));
+  return DIAS.map(d=>`<label>${d}<input type="checkbox" data-dia="${d}" ${s.has(d)?'checked':''}></label>`).join('');
+}
+function leerDias(tr){ return [...tr.querySelectorAll('input[data-dia]:checked')].map(c=>c.dataset.dia).join(','); }
+
+/* ---------- turnos ---------- */
+function filaTurno(t){
+  const h=(k,v)=>`<input type="time" data-k="${k}" value="${esc(v||'')}">`;
+  return `<tr data-id="${esc(t.id||'')}">
+    <td><input type="text" class="nom" data-k="nombre" value="${esc(t.nombre||'')}" placeholder="Ej. Administrativo"></td>
+    <td class="rango-ok">${h('entrada_desde',t.entrada_desde)}</td>
+    <td class="rango-ok">${h('entrada',t.entrada)}</td>
+    <td class="rango-ok"><input type="number" class="tol" min="0" data-k="tolerancia_min" value="${t.tolerancia_min!=null?t.tolerancia_min:0}"></td>
+    <td class="rango-tarde">${h('retardo_hasta',t.retardo_hasta)}</td>
+    <td>${h('break_ini',t.break_ini)}</td>
+    <td>${h('break_fin',t.break_fin)}</td>
+    <td class="rango-sal">${h('salida',t.salida)}</td>
+    <td class="rango-sal">${h('salida_hasta',t.salida_hasta)}</td>
+    <td><div class="dias">${diasHtml(t.dias||'L,M,X,J,V')}</div></td>
+    <td><button class="btn chico rojo" onclick="this.closest('tr').remove()">Quitar</button></td>
+  </tr>`;
+}
+function pintarTurnos(){
+  const tb=document.getElementById('tb-t');
+  tb.innerHTML=turnos.length?turnos.map(filaTurno).join('')
+    :'<tr><td colspan="11" style="padding:20px;text-align:center;color:#7a847f">Aún no hay turnos. Usa “+ Agregar turno”.</td></tr>';
+  const opts='<option value="">Sin turno (horario individual)</option>'+turnos.map(t=>`<option value="${esc(t.id)}">${esc(t.nombre)}</option>`).join('');
+  document.getElementById('turno-masivo').innerHTML=opts;
+}
+function agregarTurno(){
+  const tb=document.getElementById('tb-t');
+  if(!tb.querySelector('tr[data-id]')) tb.innerHTML='';
+  tb.insertAdjacentHTML('beforeend',filaTurno({nombre:'',entrada_desde:'04:00',entrada:'08:00',tolerancia_min:0,
+    retardo_hasta:'09:00',salida:'17:30',salida_hasta:'23:59',dias:'L,M,X,J,V'}));
+}
+async function guardarTurnos(){
+  const lista=[...document.querySelectorAll('#tb-t tr[data-id]')].map(tr=>{
+    const t={id:tr.dataset.id,dias:leerDias(tr)};
+    tr.querySelectorAll('[data-k]').forEach(el=>t[el.dataset.k]=el.value);
+    return t;
+  });
+  aviso('msg-t','info','Guardando turnos…');
+  try{
+    const r=await fetch('/api/turnos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({turnos:lista})});
+    const d=await r.json();
+    if(!d.ok) return aviso('msg-t','err','Error: '+(d.error||'no se pudo guardar'));
+    aviso('msg-t','ok','✓ Guardado: '+d.turnos.length+' turno(s).');
+    await cargar();
+  }catch(e){ aviso('msg-t','err','Error: '+e); }
+}
+
+/* ---------- empleados ---------- */
 function fila(e){
-  const diasSet=new Set((e.dias||'L,M,X,J,V,S').split(',').map(s=>s.trim()));
-  const diasHtml=DIAS.map(d=>`<label>${d}<input type="checkbox" data-dia="${d}" ${diasSet.has(d)?'checked':''}></label>`).join('');
-  return `<tr data-no="${e.empleado_no}" data-nombre="${(e.nombre||'').replace(/"/g,'&quot;')}">
-    <td>${e.empleado_no}</td>
-    <td>${e.nombre||''}</td>
-    <td><input type="time" class="f-ent" value="${e.hora_entrada||''}"></td>
-    <td><input type="time" class="f-bi" value="${e.hora_break_ini||''}"></td>
-    <td><input type="time" class="f-bf" value="${e.hora_break_fin||''}"></td>
-    <td><input type="time" class="f-sal" value="${e.hora_salida||''}"></td>
-    <td><input type="number" class="tol f-tol" min="0" value="${e.tolerancia_min!=null?e.tolerancia_min:10}"></td>
-    <td><div class="dias">${diasHtml}</div></td>
+  const tid=asignacion[e.empleado_no]||'';
+  const sel='<select class="f-turno" onchange="asignar([this.closest(\'tr\').dataset.no],this.value)"><option value="">— Individual —</option>'
+    +turnos.map(t=>`<option value="${esc(t.id)}" ${t.id===tid?'selected':''}>${esc(t.nombre)}</option>`).join('')+'</select>';
+  return `<tr data-no="${esc(e.empleado_no)}" data-nombre="${esc(e.nombre||'')}" class="${tid?'con-turno':''}">
+    <td><input type="checkbox" class="f-sel" onchange="contar()"></td>
+    <td>${esc(e.empleado_no)}</td>
+    <td>${esc(e.nombre||'')}</td>
+    <td>${sel}</td>
+    <td class="indiv"><input type="time" class="f-ent" value="${esc(e.hora_entrada||'')}"></td>
+    <td class="indiv"><input type="time" class="f-bi" value="${esc(e.hora_break_ini||'')}"></td>
+    <td class="indiv"><input type="time" class="f-bf" value="${esc(e.hora_break_fin||'')}"></td>
+    <td class="indiv"><input type="time" class="f-sal" value="${esc(e.hora_salida||'')}"></td>
+    <td class="indiv"><input type="number" class="tol f-tol" min="0" value="${e.tolerancia_min!=null?e.tolerancia_min:10}"></td>
+    <td class="indiv"><div class="dias">${diasHtml(e.dias||'L,M,X,J,V,S')}</div></td>
     <td style="text-align:center"><input type="checkbox" class="f-act" ${e.activo!==false?'checked':''}></td>
   </tr>`;
+}
+function contar(){
+  const n=document.querySelectorAll('#tb .f-sel:checked').length;
+  document.getElementById('sel').textContent=n+' seleccionado(s)';
+}
+function marcarTodos(v){ document.querySelectorAll('#tb .f-sel').forEach(c=>c.checked=v); contar(); }
+async function asignar(emps,tid){
+  aviso('msg','info','Asignando…');
+  try{
+    const r=await fetch('/api/turnos/asignar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({empleados:emps,turno_id:tid})});
+    const d=await r.json();
+    if(!d.ok) return aviso('msg','err','Error: '+(d.error||'no se pudo asignar'));
+    emps.forEach(e=>{ if(tid) asignacion[e]=tid; else delete asignacion[e]; });
+    const nom=tid?(turnos.find(t=>t.id===tid)||{}).nombre:'horario individual';
+    aviso('msg','ok','✓ '+d.asignados+' empleado(s) con '+(tid?'turno “'+nom+'”':nom)+'.');
+    pintarEmpleados();
+  }catch(e){ aviso('msg','err','Error: '+e); }
+}
+function asignarMasivo(){
+  const emps=[...document.querySelectorAll('#tb .f-sel:checked')].map(c=>c.closest('tr').dataset.no);
+  if(!emps.length) return aviso('msg','err','Marca primero a las personas a las que les vas a asignar el turno.');
+  asignar(emps,document.getElementById('turno-masivo').value);
+}
+function pintarEmpleados(){
+  const tb=document.getElementById('tb');
+  if(!empleados.length){ tb.innerHTML='<tr><td colspan="11" style="padding:30px;text-align:center;color:#7a847f">No hay empleados todavía. Aparecen aquí conforme checan en el aparato.</td></tr>'; return; }
+  tb.innerHTML=empleados.map(fila).join('');
+  document.getElementById('todos').checked=false; contar();
+  document.getElementById('meta').textContent=empleados.length+' empleado(s)';
 }
 
 async function cargar(){
   const tb=document.getElementById('tb');
   try{
-    const r=await fetch('/api/empleados'); empleados=await r.json();
-    if(!empleados.length){ tb.innerHTML='<tr><td colspan="9" style="padding:30px;text-align:center;color:#7a847f">No hay empleados todavía. Aparecen aquí conforme checan en el aparato.</td></tr>'; return; }
-    tb.innerHTML=empleados.map(fila).join('');
-    document.getElementById('meta').textContent=empleados.length+' empleado(s)';
-  }catch(e){ tb.innerHTML='<tr><td colspan="9" style="padding:20px;color:#b23">Error al cargar: '+e+'</td></tr>'; }
+    const [re,rt]=await Promise.all([fetch('/api/empleados'),fetch('/api/turnos')]);
+    empleados=await re.json();
+    const dt=await rt.json(); turnos=dt.turnos||[]; asignacion=dt.asignacion||{};
+    pintarTurnos(); pintarEmpleados();
+  }catch(e){ tb.innerHTML='<tr><td colspan="11" style="padding:20px;color:#b23">Error al cargar: '+e+'</td></tr>'; }
 }
 
 async function guardar(){
-  const msg=document.getElementById('msg');
-  const filas=[...document.querySelectorAll('#tb tr[data-no]')].map(tr=>{
-    const dias=[...tr.querySelectorAll('input[data-dia]:checked')].map(c=>c.dataset.dia).join(',');
-    return {
+  const filas=[...document.querySelectorAll('#tb tr[data-no]')].map(tr=>({
       empleado_no: tr.dataset.no,
       nombre: tr.dataset.nombre,
       hora_entrada: tr.querySelector('.f-ent').value,
@@ -95,17 +229,16 @@ async function guardar(){
       hora_break_fin: tr.querySelector('.f-bf').value,
       hora_salida: tr.querySelector('.f-sal').value,
       tolerancia_min: parseInt(tr.querySelector('.f-tol').value||'10'),
-      dias: dias,
+      dias: leerDias(tr),
       activo: tr.querySelector('.f-act').checked
-    };
-  });
-  msg.style.display='block'; msg.style.background='#eef3ef'; msg.style.color='#5b6560'; msg.textContent='Guardando…';
+  }));
+  aviso('msg','info','Guardando…');
   try{
     const r=await fetch('/api/horarios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(filas)});
     const d=await r.json();
-    if(d.ok){ msg.style.background='#e3f3e6'; msg.style.color='#1F5C2E'; msg.textContent='✓ Guardado: '+d.guardados+' horario(s).'; }
-    else { msg.style.background='#fdeaea'; msg.style.color='#b23'; msg.textContent='Error: '+(d.error||'no se pudo guardar'); }
-  }catch(e){ msg.style.background='#fdeaea'; msg.style.color='#b23'; msg.textContent='Error: '+e; }
+    if(d.ok) aviso('msg','ok','✓ Guardado: '+d.guardados+' horario(s).');
+    else aviso('msg','err','Error: '+(d.error||'no se pudo guardar'));
+  }catch(e){ aviso('msg','err','Error: '+e); }
 }
 
 cargar();

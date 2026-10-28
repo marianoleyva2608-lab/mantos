@@ -26,6 +26,7 @@
   .tipo { padding:2px 9px; border-radius:999px; font-size:12px; font-weight:600; }
   .t-ent { background:#e3f3e6; color:#1F5C2E; }
   .t-sal { background:#fdeaea; color:#b23; }
+  .t-tarde { background:#fff3df; color:#9a5b00; }
   .meta { color:#5b6560; font-size:13px; margin:2px 0 12px; }
   .vacio { text-align:center; padding:44px; color:#7a847f; background:#fff; border:1px solid var(--borde); border-radius:12px; }
 </style>
@@ -109,7 +110,7 @@ async function cargar(){
     let t='<table><thead><tr><th>Fecha y hora</th><th>Planta</th><th>No.</th><th>Nombre</th><th>Tipo</th><th>Método</th></tr></thead><tbody>';
     for(const x of filas){
       const tipo=x.tipo||'';
-      const cls = tipo.includes('ntrada')?'t-ent':(tipo.includes('alida')?'t-sal':'');
+      const cls = x.retardo?'t-tarde':(tipo.includes('ntrada')?'t-ent':(tipo.includes('alida')?'t-sal':''));
       t+='<tr><td>'+fmt(x.fecha_hora)+'</td><td>'+(x.planta||'Matriz')+'</td><td>'+(x.empleado_no||'')+'</td><td>'+(x.nombre||'')+'</td><td><span class="tipo '+cls+'">'+tipo+'</span></td><td>'+(x.metodo||'')+'</td></tr>';
     }
     t+='</tbody></table>'; cont.innerHTML=t;

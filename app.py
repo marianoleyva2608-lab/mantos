@@ -4037,10 +4037,11 @@ def _ck_filtros(params):
     hasta = (request.args.get('hasta') or '').strip()
     nombre = (request.args.get('nombre') or '').strip()
     planta = (request.args.get('planta') or '').strip()
+    # Los dias son de hora de planta (UTC-6), no UTC
     if desde:
-        params.append(('fecha_hora', f'gte.{desde}T00:00:00'))
+        params.append(('fecha_hora', f'gte.{desde}T00:00:00-06:00'))
     if hasta:
-        params.append(('fecha_hora', f'lte.{hasta}T23:59:59'))
+        params.append(('fecha_hora', f'lte.{hasta}T23:59:59-06:00'))
     ors = []
     if nombre:
         ors.append(f'nombre.ilike.*{nombre}*,empleado_no.ilike.*{nombre}*')
@@ -4082,15 +4083,153 @@ def _cargar_horarios():
             'salida': _hhmm_a_min(x.get('hora_salida')),
             'tol': int(x.get('tolerancia_min') or 10),
         }
+    # El turno asignado manda sobre el horario individual
+    turnos, asign = _ck_turnos()
+    por_id = {t['id']: t for t in turnos}
+    for emp, tid in asign.items():
+        t = por_id.get(tid)
+        if t:
+            h[str(emp)] = {'turno': t['nombre'], 'rangos': {
+                k: _hhmm_a_min(t.get(k)) for k in
+                ('entrada_desde', 'entrada', 'retardo_hasta', 'break_ini',
+                 'break_fin', 'salida', 'salida_hasta')},
+                'tol': int(t.get('tolerancia_min') or 0)}
     return h
 
 
+# ---- Turnos: plantillas de horario con rangos, asignables a varios empleados.
+# Se guardan en 'ajustes' (JSON): turnos_asistencia = [turno, ...] y
+# turnos_asignacion = {empleado_no: turno_id}.
+_TURNO_CAMPOS = ('entrada_desde', 'entrada', 'retardo_hasta', 'break_ini',
+                 'break_fin', 'salida', 'salida_hasta')
+
+
+def _ck_turnos():
+    try:
+        rows = sb.select('ajustes', select='clave,valor',
+                         clave='in.(turnos_asistencia,turnos_asignacion)')
+        aj = {r['clave']: r['valor'] for r in rows}
+        return (json.loads(aj.get('turnos_asistencia') or '[]'),
+                json.loads(aj.get('turnos_asignacion') or '{}'))
+    except Exception:
+        return [], {}
+
+
+def _ck_guardar_ajuste(clave, valor):
+    sb.insert('ajustes', {'clave': clave, 'valor': json.dumps(valor, ensure_ascii=False)},
+              upsert=True, on_conflict='clave', return_rows=False)
+
+
+@app.route('/api/turnos', methods=['GET'])
+def turnos_get():
+    turnos, asign = _ck_turnos()
+    return jsonify({'turnos': turnos, 'asignacion': asign})
+
+
+@app.route('/api/turnos', methods=['POST'])
+def turnos_guardar():
+    data = request.get_json(force=True, silent=True) or {}
+    limpio = []
+    for t in data.get('turnos') or []:
+        nombre = (t.get('nombre') or '').strip()
+        if not nombre:
+            return jsonify({'error': 'Cada turno necesita un nombre'}), 400
+        x = {'id': (t.get('id') or '').strip() or os.urandom(4).hex(), 'nombre': nombre,
+             'tolerancia_min': int(t.get('tolerancia_min') or 0),
+             'dias': t.get('dias') or 'L,M,X,J,V'}
+        for k in _TURNO_CAMPOS:
+            x[k] = (t.get(k) or '').strip()
+        m = {k: _hhmm_a_min(x[k]) for k in _TURNO_CAMPOS}
+        for k in ('entrada_desde', 'entrada', 'retardo_hasta', 'salida', 'salida_hasta'):
+            if m[k] is None:
+                return jsonify({'error': f'Turno "{nombre}": faltan horas de entrada o salida'}), 400
+        if not (m['entrada_desde'] <= m['entrada'] <= m['retardo_hasta'] < m['salida'] <= m['salida_hasta']):
+            return jsonify({'error': f'Turno "{nombre}": las horas deben ir en orden '
+                            '(entrada desde ≤ entrada ≤ retardo hasta < salida ≤ salida hasta)'}), 400
+        if (m['break_ini'] is None) != (m['break_fin'] is None):
+            return jsonify({'error': f'Turno "{nombre}": pon las dos horas del break o ninguna'}), 400
+        limpio.append(x)
+    _, asign = _ck_turnos()
+    ids = {t['id'] for t in limpio}
+    asign = {e: tid for e, tid in asign.items() if tid in ids}  # quita asignaciones de turnos borrados
+    _ck_guardar_ajuste('turnos_asistencia', limpio)
+    _ck_guardar_ajuste('turnos_asignacion', asign)
+    return jsonify({'ok': True, 'turnos': limpio})
+
+
+@app.route('/api/turnos/asignar', methods=['POST'])
+def turnos_asignar():
+    """{empleados: [no, ...], turno_id: 'xx' | ''} ('' = quitar turno)."""
+    data = request.get_json(force=True, silent=True) or {}
+    emps = [str(e).strip() for e in (data.get('empleados') or []) if str(e).strip()]
+    tid = (data.get('turno_id') or '').strip()
+    if not emps:
+        return jsonify({'error': 'Selecciona al menos un empleado'}), 400
+    turnos, asign = _ck_turnos()
+    if tid and tid not in {t['id'] for t in turnos}:
+        return jsonify({'error': 'Ese turno no existe'}), 400
+    for e in emps:
+        if tid:
+            asign[e] = tid
+        else:
+            asign.pop(e, None)
+    _ck_guardar_ajuste('turnos_asignacion', asign)
+    return jsonify({'ok': True, 'asignados': len(emps)})
+
+
+def _ck_a_local(fh):
+    """Supabase regresa fecha_hora en UTC; se muestra y se calcula en hora de planta."""
+    try:
+        d = datetime.datetime.fromisoformat(str(fh).replace('Z', '+00:00'))
+        if d.tzinfo is None:
+            return str(fh)
+        return d.astimezone(TRAZA_TZ).isoformat()
+    except Exception:
+        return fh
+
+
+def _ck_tipo_turno(rows, idxs, hor):
+    """Clasifica las checadas de un dia con los rangos del turno."""
+    r, tol = hor['rangos'], hor['tol']
+    ya_entrada = False
+    for i in idxs:
+        rows[i]['turno'] = hor['turno']
+        actual = (rows[i].get('tipo') or '').strip().lower()
+        if actual not in ('', 's.d.'):
+            ya_entrada = ya_entrada or 'entrada' in actual
+            continue  # el aparato ya mando un estado real
+        t = _hhmm_a_min(str(rows[i].get('fecha_hora') or '')[11:16])
+        if t is None:
+            continue
+        retardo = False
+        if r['entrada_desde'] <= t <= r['entrada'] + tol:
+            tipo = 'Entrada'
+        elif t <= r['retardo_hasta']:
+            tipo, retardo = 'Entrada (tarde)', True
+        elif r['salida'] <= t <= r['salida_hasta']:
+            tipo = 'Salida'
+        elif t < r['entrada_desde'] or t > r['salida_hasta']:
+            tipo = 'Fuera de horario'
+        elif not ya_entrada:
+            tipo, retardo = 'Entrada (fuera de rango)', True
+        elif r['break_ini'] is not None:
+            tipo = ('Salida descanso' if abs(t - r['break_ini']) <= abs(t - r['break_fin'])
+                    else 'Regreso descanso')
+        else:
+            tipo = 'Salida anticipada'
+        ya_entrada = ya_entrada or tipo.startswith('Entrada')
+        rows[i]['tipo'], rows[i]['retardo'] = tipo, retardo
+
+
 def _ck_asignar_tipo(rows, horarios=None):
-    """Marca Entrada/Salida. Si el empleado tiene horario configurado, usa la
-    cercania a su hora de entrada/salida y marca retardo; si no, alterna
-    (1a del dia=Entrada, 2a=Salida, ...). Respeta el estado real del aparato."""
+    """Marca Entrada/Salida. Si el empleado tiene turno, usa sus rangos; si tiene
+    horario individual, usa la cercania a su hora de entrada/salida y marca
+    retardo; si no, alterna (1a del dia=Entrada, 2a=Salida, ...). Respeta el
+    estado real del aparato."""
     from collections import defaultdict
     horarios = horarios or {}
+    for x in rows:
+        x['fecha_hora'] = _ck_a_local(x.get('fecha_hora'))
     grupos = defaultdict(list)
     for i, x in enumerate(rows):
         dia = str(x.get('fecha_hora') or '')[:10]
@@ -4100,6 +4239,9 @@ def _ck_asignar_tipo(rows, horarios=None):
     for (emp, _dia), idxs in grupos.items():
         idxs.sort(key=lambda i: str(rows[i].get('fecha_hora') or ''))
         hor = horarios.get(emp)
+        if hor and hor.get('rangos'):
+            _ck_tipo_turno(rows, idxs, hor)
+            continue
         # Puntos del turno definidos (hora, etiqueta), ordenados por hora
         puntos = []
         if hor:
