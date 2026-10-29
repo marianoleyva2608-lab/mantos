@@ -4465,6 +4465,164 @@ def checadas_export_excel():
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
+_DIAS_ES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+_DIAS_LETRA = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+
+
+@app.route('/api/checadas/export/semanal', methods=['GET'])
+def checadas_export_semanal():
+    """Reporte por persona: entrada y salida de cada dia + llegadas tarde y faltas.
+    Con ?planta= sale de esa planta; sin planta es el reporte general.
+    Sin desde/hasta toma la semana actual (lunes a hoy)."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from collections import defaultdict, Counter
+    planta = (request.args.get('planta') or '').strip()
+    hoy = datetime.datetime.now(TRAZA_TZ).date()
+    try:
+        desde = datetime.date.fromisoformat((request.args.get('desde') or '').strip())
+    except ValueError:
+        desde = hoy - datetime.timedelta(days=hoy.weekday())
+    try:
+        hasta = datetime.date.fromisoformat((request.args.get('hasta') or '').strip())
+    except ValueError:
+        hasta = hoy
+    if hasta < desde:
+        desde, hasta = hasta, desde
+    if (hasta - desde).days > 62:
+        return jsonify({'error': 'El rango maximo del reporte es de 2 meses'}), 400
+
+    params = [p for p in _ck_filtros([('select', '*'), ('order', 'fecha_hora.asc,id.asc')])
+              if p[0] != 'fecha_hora']
+    params += [('fecha_hora', f'gte.{desde}T00:00:00-06:00'),
+               ('fecha_hora', f'lte.{hasta}T23:59:59-06:00')]
+    horarios = _cargar_horarios()
+    datos = _ck_asignar_tipo(_ck_todas(params), horarios)
+    turnos, asign = _ck_turnos()
+    dias_turno = {t['id']: set((t.get('dias') or '').split(',')) for t in turnos}
+
+    # empleado -> dia -> checadas del dia (ya en orden)
+    por_emp = defaultdict(lambda: defaultdict(list))
+    info = {}
+    for x in datos:
+        emp = str(x.get('empleado_no') or x.get('nombre') or '')
+        por_emp[emp][str(x.get('fecha_hora') or '')[:10]].append(x)
+        i = info.setdefault(emp, {'nombre': x.get('nombre') or '', 'plantas': Counter()})
+        i['plantas'][x.get('planta') or 'Matriz'] += 1
+
+    # Dias del reporte: lunes a viernes, mas sabado/domingo si alguien checo
+    con_datos = {d for e in por_emp.values() for d in e}
+    dias, d = [], desde
+    while d <= hasta:
+        if d.weekday() < 5 or d.isoformat() in con_datos:
+            dias.append(d)
+        d += datetime.timedelta(days=1)
+
+    def entrada_salida(lista):
+        ent = next((x for x in lista if (x.get('tipo') or '').startswith('Entrada')), lista[0])
+        sal = None
+        for x in reversed(lista):
+            if x is not ent and (x.get('tipo') or '').startswith('Salida') and 'descanso' not in x.get('tipo'):
+                sal = x
+                break
+        if sal is None and len(lista) > 1 and lista[-1] is not ent:
+            sal = lista[-1]
+        return ent, sal
+
+    hm = lambda x: str(x.get('fecha_hora') or '')[11:16]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Semanal'
+    ncol = 3 + len(dias) + 2
+    ult = openpyxl.utils.get_column_letter(ncol)
+    ws.merge_cells(f'A1:{ult}1')
+    ws['A1'] = 'Reporte de asistencia - ' + (f'Planta {planta}' if planta else 'General (todas las plantas)')
+    ws['A1'].font = Font(bold=True, size=14, color='FFFFFF')
+    ws['A1'].fill = PatternFill('solid', fgColor='1F5C2E')
+    ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+    ws.row_dimensions[1].height = 24
+    ws.merge_cells(f'A2:{ult}2')
+    ws['A2'] = f'Del {desde.strftime("%d/%m/%Y")} al {hasta.strftime("%d/%m/%Y")} · arriba entrada, abajo salida'
+    ws['A2'].font = Font(italic=True, color='5B6560')
+
+    heads = (['Número', 'Nombre', 'Planta']
+             + [f'{_DIAS_ES[d.weekday()]}\n{d.strftime("%d/%m")}' for d in dias]
+             + ['Llegadas tarde', 'Faltas'])
+    hrow = 4
+    fino = Side(style='thin', color='C9D2CC')
+    borde = Border(left=fino, right=fino, top=fino, bottom=fino)
+    for i, h in enumerate(heads, 1):
+        c = ws.cell(row=hrow, column=i, value=h)
+        c.font = Font(bold=True, color='FFFFFF')
+        c.fill = PatternFill('solid', fgColor='2F6B3C')
+        c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        c.border = borde
+    ws.row_dimensions[hrow].height = 32
+
+    naranja = PatternFill('solid', fgColor='FFE2B8')
+    rojo_f = PatternFill('solid', fgColor='FDE0DE')
+    centro = Alignment(horizontal='center', vertical='center')
+    fila = hrow + 1
+    orden = sorted(por_emp, key=lambda e: (info[e]['nombre'] or '').upper())
+    for emp in orden:
+        tid = asign.get(emp)
+        laborables = dias_turno.get(tid)
+        tarde = faltas = 0
+        for col, dia in enumerate(dias, 4):
+            lista = por_emp[emp].get(dia.isoformat())
+            c_ent = ws.cell(row=fila, column=col)
+            c_sal = ws.cell(row=fila + 1, column=col)
+            if lista:
+                ent, sal = entrada_salida(lista)
+                c_ent.value = hm(ent)
+                if ent.get('retardo'):
+                    tarde += 1
+                    c_ent.fill = naranja
+                    c_ent.font = Font(bold=True, color='9A5B00')
+                c_sal.value = hm(sal) if sal else 'Sin salida'
+                if not sal:
+                    c_sal.font = Font(italic=True, color='9AA39E')
+            elif dia <= hoy and (laborables is None and dia.weekday() < 5
+                                 or laborables and _DIAS_LETRA[dia.weekday()] in laborables):
+                faltas += 1
+                c_ent.value = 'Falta'
+                c_ent.fill = rojo_f
+                c_ent.font = Font(bold=True, color='B23030')
+                ws.merge_cells(start_row=fila, start_column=col, end_row=fila + 1, end_column=col)
+            for c in (c_ent, c_sal):
+                c.alignment = centro
+                c.border = borde
+        valores = [(1, emp), (2, info[emp]['nombre']),
+                   (3, info[emp]['plantas'].most_common(1)[0][0]),
+                   (ncol - 1, tarde), (ncol, faltas)]
+        for col, v in valores:
+            ws.merge_cells(start_row=fila, start_column=col, end_row=fila + 1, end_column=col)
+            c = ws.cell(row=fila, column=col, value=v)
+            c.alignment = Alignment(horizontal='left' if col == 2 else 'center',
+                                    vertical='center', wrap_text=True)
+            c.border = borde
+            ws.cell(row=fila + 1, column=col).border = borde
+        if tarde:
+            ws.cell(row=fila, column=ncol - 1).font = Font(bold=True, color='9A5B00')
+        if faltas:
+            ws.cell(row=fila, column=ncol).font = Font(bold=True, color='B23030')
+        fila += 2
+
+    anchos = [13, 34, 13] + [11] * len(dias) + [13, 9]
+    for i, w in enumerate(anchos, 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+    ws.freeze_panes = 'D5'
+
+    bio = io.BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    sufijo = _ck_norm(planta).replace(' ', '_') if planta else 'general'
+    fname = f'asistencia_semanal_{sufijo}_{desde.isoformat()}.xlsx'
+    return send_file(bio, as_attachment=True, download_name=fname,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
 def _ck_norm(s):
     """Normaliza encabezado: minusculas, sin acentos, sin espacios extra."""
     import unicodedata

@@ -53,6 +53,7 @@
     <a class="btn sec" href="#" onclick="limpiar();return false;">Limpiar</a>
     <a class="btn sec" id="csv" href="#" onclick="exportar();return false;">&#11015; CSV</a>
     <a class="btn" id="xls" href="#" onclick="exportarExcel();return false;">&#128202; Excel</a>
+    <a class="btn" id="sem" href="#" onclick="exportarSemanal();return false;" title="Entrada y salida por día de cada persona, llegadas tarde y faltas. Elige la planta o deja Todas para el reporte general. Sin fechas toma la semana actual.">&#128197; Reporte semanal</a>
     <label class="btn sec" style="cursor:pointer;">&#11014; Importar
       <input type="file" id="imp" accept=".csv,.xlsx,.xlsm" style="display:none" onchange="importar(this)">
     </label>
@@ -78,6 +79,7 @@ function fmt(s){ if(!s)return''; return String(s).replace('T',' ').replace(/[+-]
 function limpiar(){ document.getElementById('desde').value=''; document.getElementById('hasta').value=''; document.getElementById('nombre').value=''; document.getElementById('planta').value=''; cargar(); }
 function exportar(){ window.location.href='/api/checadas/export?'+qs(); }
 function exportarExcel(){ window.location.href='/api/checadas/export/excel?'+qs(); }
+function exportarSemanal(){ window.location.href='/api/checadas/export/semanal?'+qs(); }
 async function importar(input){
   const file=input.files[0]; if(!file)return;
   const msg=document.getElementById('imp-msg');
