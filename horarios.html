@@ -35,7 +35,7 @@
   .dias label { font-size:11px; display:flex; flex-direction:column; align-items:center; gap:2px; color:#5b6560; cursor:pointer; }
   .masivo { display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:#fff; border:1px solid var(--borde); border-radius:12px; padding:10px 14px; margin-bottom:12px; }
   .con-turno .indiv { opacity:.35; pointer-events:none; }
-  .foto { width:38px; height:38px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:8px; background:#e2e6e3; }
+  .foto { width:38px; height:38px; flex:0 0 38px; border-radius:50%; object-fit:cover; background:#e2e6e3; display:inline-block; }
   .rango-ok { background:#e3f3e6; }
   .rango-tarde { background:#fff3df; }
   .rango-sal { background:#fdeaea; }
@@ -172,7 +172,7 @@ function fila(e){
   return `<tr data-no="${esc(e.empleado_no)}" data-nombre="${esc(e.nombre||'')}" class="${tid?'con-turno':''}">
     <td><input type="checkbox" class="f-sel" onchange="contar()"></td>
     <td>${esc(e.empleado_no)}</td>
-    <td style="white-space:nowrap">${fotos[e.empleado_no]?`<img class="foto" loading="lazy" src="/api/empleados/${encodeURIComponent(e.empleado_no)}/foto?v=${fotos[e.empleado_no]}" alt="">`:''}<span style="display:inline-block;vertical-align:middle;white-space:normal;max-width:180px">${esc(e.nombre||'')}</span></td>
+    <td><div style="display:flex;align-items:center;gap:8px;min-width:200px">${fotos[e.empleado_no]?`<img class="foto" loading="lazy" src="/api/empleados/${encodeURIComponent(e.empleado_no)}/foto?v=${fotos[e.empleado_no]}" alt="">`:'<span class="foto"></span>'}<span>${esc(e.nombre||'')}</span></div></td>
     <td>${esc(e.planta||'')}</td>
     <td>${sel}</td>
     <td class="indiv"><input type="time" class="f-ent" value="${esc(e.hora_entrada||'')}"></td>
