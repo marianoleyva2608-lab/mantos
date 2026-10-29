@@ -4226,6 +4226,28 @@ def _ck_tipo_turno(rows, idxs, hor):
         rows[i]['tipo'], rows[i]['retardo'] = tipo, retardo
 
 
+_CK_REPETIDA_MIN = 5
+
+
+def _ck_quitar_repetidas(rows, idxs):
+    """Si la persona vuelve a checar dentro de 5 min de su checada anterior
+    (no vio la confirmacion), la segunda se marca 'Repetida' y no cuenta para
+    entrada/salida/retardo. Regresa solo las checadas que si cuentan."""
+    validas, ultima = [], None
+    for i in idxs:
+        try:
+            t = datetime.datetime.fromisoformat(str(rows[i].get('fecha_hora')))
+        except Exception:
+            validas.append(i)
+            continue
+        if ultima is not None and (t - ultima).total_seconds() <= _CK_REPETIDA_MIN * 60:
+            rows[i]['tipo'], rows[i]['retardo'], rows[i]['repetida'] = 'Repetida', False, True
+            continue
+        validas.append(i)
+        ultima = t
+    return validas
+
+
 def _ck_asignar_tipo(rows, horarios=None):
     """Marca Entrada/Salida. Si el empleado tiene turno, usa sus rangos; si tiene
     horario individual, usa la cercania a su hora de entrada/salida y marca
@@ -4243,6 +4265,7 @@ def _ck_asignar_tipo(rows, horarios=None):
 
     for (emp, _dia), idxs in grupos.items():
         idxs.sort(key=lambda i: str(rows[i].get('fecha_hora') or ''))
+        idxs = _ck_quitar_repetidas(rows, idxs)
         hor = horarios.get(emp)
         if hor and hor.get('rangos'):
             _ck_tipo_turno(rows, idxs, hor)
@@ -4693,6 +4716,7 @@ def checadas_export_semanal():
         d += datetime.timedelta(days=1)
 
     def entrada_salida(lista):
+        lista = [x for x in lista if not x.get('repetida')] or lista
         ent = next((x for x in lista if (x.get('tipo') or '').startswith('Entrada')), lista[0])
         sal = None
         for x in reversed(lista):
