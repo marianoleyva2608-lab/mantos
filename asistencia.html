@@ -72,7 +72,9 @@ function qs(){
   return p.toString();
 }
 function fmt(s){ if(!s)return''; return String(s).replace('T',' ').replace(/[+-]\d\d:\d\d$/,'').slice(0,19); }
-function limpiar(){ document.getElementById('desde').value=''; document.getElementById('hasta').value=''; document.getElementById('nombre').value=''; document.getElementById('planta').value=''; cargar(); }
+function hoyISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function ponerHoy(){ document.getElementById('desde').value=hoyISO(); document.getElementById('hasta').value=hoyISO(); }
+function limpiar(){ ponerHoy(); document.getElementById('nombre').value=''; document.getElementById('planta').value=''; cargar(); }
 function exportar(){ window.location.href='/api/checadas/export?'+qs(); }
 function exportarExcel(){ window.location.href='/api/checadas/export/excel?'+qs(); }
 function exportarSemanal(){ window.location.href='/api/checadas/export/semanal?'+qs(); }
@@ -99,10 +101,10 @@ async function importar(input){
 }
 let FOTOS=null;
 function foto(no){ const v=FOTOS&&FOTOS[no]; return v?'<img class="foto" loading="lazy" src="/api/empleados/'+encodeURIComponent(no)+'/foto?v='+v+'" alt="">':''; }
-async function cargar(){
+async function cargar(silencioso){
   if(FOTOS===null){ try{ FOTOS=await (await fetch('/api/empleados/fotos')).json(); }catch(e){ FOTOS={}; } }
   const meta=document.getElementById('meta'), cont=document.getElementById('cont');
-  meta.textContent='Cargando…'; cont.innerHTML='';
+  if(!silencioso){ meta.textContent='Cargando…'; cont.innerHTML=''; }
   try{
     const r=await fetch('/api/checadas?'+qs());
     const filas=await r.json();
@@ -117,9 +119,24 @@ async function cargar(){
     t+='</tbody></table>'; cont.innerHTML=t;
   }catch(e){ meta.textContent='Error al leer las checadas: '+e; }
 }
+// Por default solo el dia de hoy, para que la lista no crezca sin fin
+ponerHoy();
 cargar();
-// Auto-actualiza cada 15 s para mostrar checadas nuevas sin recargar
-setInterval(cargar, 15000);
+// Cada 15 s pregunta solo cual es la ultima checada (consulta minima);
+// la lista completa se recarga unicamente cuando alguien checo.
+let ULTIMA=null;
+async function revisarNuevas(){
+  if(document.hidden) return;
+  try{
+    const d=await (await fetch('/api/checadas/ultima')).json();
+    if(d.id==null) return;
+    if(ULTIMA!==null && d.id!==ULTIMA) cargar(true);
+    ULTIMA=d.id;
+  }catch(e){}
+}
+revisarNuevas();
+setInterval(revisarNuevas, 15000);
+document.addEventListener('visibilitychange', revisarNuevas);
 </script>
 </body>
 </html>

@@ -4278,6 +4278,17 @@ def checadas_list():
     return jsonify(_ck_asignar_tipo(datos, _cargar_horarios()))
 
 
+@app.route('/api/checadas/ultima', methods=['GET'])
+def checadas_ultima():
+    """Consulta minima para que la pantalla sepa si hay checadas nuevas
+    (solo recarga la lista completa cuando este id cambia)."""
+    try:
+        r = sb.select('checadas', select='id', order='id.desc', limit=1)
+        return jsonify({'id': r[0]['id'] if r else 0})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/empleados', methods=['GET'])
 def empleados_list():
     """Lista de empleados distintos (de las checadas) + su horario si existe.
