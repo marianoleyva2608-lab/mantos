@@ -51,12 +51,7 @@
     </div>
     <button class="btn" type="submit">Filtrar</button>
     <a class="btn sec" href="#" onclick="limpiar();return false;">Limpiar</a>
-    <a class="btn sec" id="csv" href="#" onclick="exportar();return false;">&#11015; CSV</a>
-    <a class="btn" id="xls" href="#" onclick="exportarExcel();return false;">&#128202; Excel</a>
     <a class="btn" id="sem" href="#" onclick="exportarSemanal();return false;" title="Entrada y salida por día de cada persona, llegadas tarde y faltas. Elige la planta o deja Todas para el reporte general. Sin fechas toma la semana actual.">&#128197; Reporte semanal</a>
-    <label class="btn sec" style="cursor:pointer;">&#11014; Importar
-      <input type="file" id="imp" accept=".csv,.xlsx,.xlsm" style="display:none" onchange="importar(this)">
-    </label>
     <a class="btn sec" href="/horarios">&#9201; Horarios</a>
   </form>
   <div id="imp-msg" style="display:none;margin:0 0 12px;padding:10px 12px;border-radius:8px;font-size:13px;"></div>
