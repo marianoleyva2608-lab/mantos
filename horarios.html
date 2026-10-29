@@ -35,6 +35,7 @@
   .dias label { font-size:11px; display:flex; flex-direction:column; align-items:center; gap:2px; color:#5b6560; cursor:pointer; }
   .masivo { display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:#fff; border:1px solid var(--borde); border-radius:12px; padding:10px 14px; margin-bottom:12px; }
   .con-turno .indiv { opacity:.35; pointer-events:none; }
+  .foto { width:38px; height:38px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:8px; background:#e2e6e3; }
   .rango-ok { background:#e3f3e6; }
   .rango-tarde { background:#fff3df; }
   .rango-sal { background:#fdeaea; }
@@ -86,6 +87,7 @@
     <span style="flex:1"></span>
     <button class="btn chico sec" onclick="guardar()">&#128190; Guardar horarios individuales</button>
     <label class="btn chico sec" style="cursor:pointer;" title="Excel de personas exportado del checador (Person Information Template)">&#11014; Importar personas<input type="file" accept=".xlsx" style="display:none" onchange="importarPersonas(this)"></label>
+    <label class="btn chico sec" style="cursor:pointer;" title="Excel de fotos exportado del checador (Person Profile Picture)">&#128247; Importar fotos<input type="file" accept=".xlsx" style="display:none" onchange="importarFotos(this)"></label>
     <a class="btn chico sec" href="/asistencia">Ver asistencia</a>
     <span class="meta" id="meta" style="margin:0;"></span>
   </div>
@@ -102,7 +104,7 @@
 
 <script>
 const DIAS=['L','M','X','J','V','S','D'];
-let empleados=[], turnos=[], asignacion={};
+let empleados=[], turnos=[], asignacion={}, fotos={};
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function aviso(id,tipo,txt){
@@ -170,7 +172,7 @@ function fila(e){
   return `<tr data-no="${esc(e.empleado_no)}" data-nombre="${esc(e.nombre||'')}" class="${tid?'con-turno':''}">
     <td><input type="checkbox" class="f-sel" onchange="contar()"></td>
     <td>${esc(e.empleado_no)}</td>
-    <td>${esc(e.nombre||'')}</td>
+    <td style="white-space:nowrap">${fotos[e.empleado_no]?`<img class="foto" loading="lazy" src="/api/empleados/${encodeURIComponent(e.empleado_no)}/foto?v=${fotos[e.empleado_no]}" alt="">`:''}<span style="display:inline-block;vertical-align:middle;white-space:normal;max-width:180px">${esc(e.nombre||'')}</span></td>
     <td>${esc(e.planta||'')}</td>
     <td>${sel}</td>
     <td class="indiv"><input type="time" class="f-ent" value="${esc(e.hora_entrada||'')}"></td>
@@ -215,7 +217,8 @@ function pintarEmpleados(){
 async function cargar(){
   const tb=document.getElementById('tb');
   try{
-    const [re,rt]=await Promise.all([fetch('/api/empleados'),fetch('/api/turnos')]);
+    const [re,rt,rf]=await Promise.all([fetch('/api/empleados'),fetch('/api/turnos'),fetch('/api/empleados/fotos')]);
+    try{ fotos=await rf.json(); }catch(e){ fotos={}; }
     empleados=await re.json();
     const dt=await rt.json(); turnos=dt.turnos||[]; asignacion=dt.asignacion||{};
     pintarTurnos(); pintarEmpleados();
@@ -243,6 +246,18 @@ async function guardar(){
   }catch(e){ aviso('msg','err','Error: '+e); }
 }
 
+async function importarFotos(input){
+  const file=input.files[0]; if(!file)return;
+  aviso('msg','info','Subiendo fotos de '+file.name+'…');
+  const fd=new FormData(); fd.append('archivo',file);
+  try{
+    const r=await fetch('/api/empleados/fotos',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.ok) aviso('msg','err','Error: '+(d.error||'no se pudieron subir'));
+    else { aviso('msg','ok','✓ '+d.guardadas+' foto(s) guardada(s) de '+d.encontradas+' en el archivo.'); await cargar(); }
+  }catch(e){ aviso('msg','err','Error: '+e); }
+  input.value='';
+}
 async function importarPersonas(input){
   const file=input.files[0]; if(!file)return;
   aviso('msg','info','Importando '+file.name+'…');

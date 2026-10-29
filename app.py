@@ -4359,6 +4359,118 @@ def empleados_import():
     return jsonify({'ok': True, 'leidas': leidas, 'agregadas': len(nuevos)})
 
 
+# ---- Fotos de empleados: se cargan del Excel "Person Profile Picture" que
+# exporta el checador (foto pegada en la fila de cada ID). Se guardan en el
+# bucket de Storage como fotos/<empleado_no>.jpg; en ajustes 'fotos_empleados'
+# queda {empleado_no: version} para que el navegador sepa quien tiene foto.
+
+def _fotos_mapa():
+    try:
+        rows = sb.select('ajustes', select='valor', clave='eq.fotos_empleados')
+        return json.loads(rows[0]['valor']) if rows else {}
+    except Exception:
+        return {}
+
+
+def _fotos_del_excel(datos):
+    """Devuelve [(empleado_no, bytes, ext)] del Excel de fotos del checador."""
+    import zipfile
+    import posixpath
+    import xml.etree.ElementTree as ET
+    N = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+         'x': 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
+         'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+         'pr': 'http://schemas.openxmlformats.org/package/2006/relationships'}
+    R_ID = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'
+    z = zipfile.ZipFile(io.BytesIO(datos))
+    nombres = set(z.namelist())
+
+    def rels(parte):
+        ruta = posixpath.join(posixpath.dirname(parte), '_rels', posixpath.basename(parte) + '.rels')
+        if ruta not in nombres:
+            return {}
+        return {r.get('Id'): posixpath.normpath(posixpath.join(posixpath.dirname(parte), r.get('Target')))
+                for r in ET.fromstring(z.read(ruta)).findall('pr:Relationship', N)}
+
+    textos = []
+    if 'xl/sharedStrings.xml' in nombres:
+        for si in ET.fromstring(z.read('xl/sharedStrings.xml')).findall('m:si', N):
+            textos.append(''.join(t.text or '' for t in si.iter('{%s}t' % N['m'])))
+    hoja = 'xl/worksheets/sheet1.xml'
+    id_por_fila = {}
+    for row in ET.fromstring(z.read(hoja)).iter('{%s}row' % N['m']):
+        for c in row.findall('m:c', N):
+            if re.match(r'^A\d+$', c.get('r') or ''):
+                v = c.find('m:v', N)
+                val = (v.text or '') if v is not None else ''
+                if c.get('t') == 's' and val.isdigit():
+                    val = textos[int(val)]
+                elif c.get('t') == 'inlineStr':
+                    val = ''.join(t.text or '' for t in c.iter('{%s}t' % N['m']))
+                id_por_fila[int(row.get('r')) - 1] = val.strip()
+    salida = []
+    for dibujo in (t for t in rels(hoja).values() if '/drawings/' in t):
+        medios = rels(dibujo)
+        raiz = ET.fromstring(z.read(dibujo))
+        for anc in list(raiz):
+            fila = anc.find('x:from/x:row', N)
+            blip = anc.find('.//a:blip', N)
+            if fila is None or blip is None:
+                continue
+            emp = id_por_fila.get(int(fila.text))
+            media = medios.get(blip.get(R_ID + 'embed'))
+            if emp and emp.upper() != 'ID' and media in nombres:
+                salida.append((emp, z.read(media), os.path.splitext(media)[1].lower()))
+    return salida
+
+
+@app.route('/api/empleados/fotos', methods=['POST'])
+def empleados_fotos_import():
+    f = request.files.get('archivo')
+    if not f:
+        return jsonify({'error': 'No se recibió archivo'}), 400
+    try:
+        fotos = _fotos_del_excel(f.read())
+    except Exception as e:
+        return jsonify({'error': f'No se pudo leer el archivo: {e}'}), 400
+    if not fotos:
+        return jsonify({'error': 'No encontré fotos. Usa el Excel "Person Profile Picture" del checador.'}), 400
+    _asegurar_bucket()
+    mapa = _fotos_mapa()
+    version = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    ok = 0
+    for emp, img, ext in fotos:
+        seguro = re.sub(r'[^A-Za-z0-9_-]', '_', emp)
+        h = _storage_headers('image/png' if ext == '.png' else 'image/jpeg')
+        h['x-upsert'] = 'true'
+        r = requests.post(f'{SB_URL}/storage/v1/object/{ADJ_BUCKET}/fotos/{seguro}.img',
+                          headers=h, data=img, timeout=60)
+        if r.status_code in (200, 201):
+            mapa[emp] = version
+            ok += 1
+        else:
+            print(f'[fotos] {emp}: {r.status_code} {r.text[:200]}')
+    _ck_guardar_ajuste('fotos_empleados', mapa)
+    return jsonify({'ok': True, 'encontradas': len(fotos), 'guardadas': ok})
+
+
+@app.route('/api/empleados/fotos', methods=['GET'])
+def empleados_fotos_mapa():
+    return jsonify(_fotos_mapa())
+
+
+@app.route('/api/empleados/<emp>/foto', methods=['GET'])
+def empleado_foto(emp):
+    seguro = re.sub(r'[^A-Za-z0-9_-]', '_', emp)
+    r = requests.get(f'{SB_URL}/storage/v1/object/{ADJ_BUCKET}/fotos/{seguro}.img',
+                     headers=_storage_headers(), timeout=30)
+    if r.status_code != 200:
+        return jsonify({'error': 'Sin foto'}), 404
+    resp = send_file(io.BytesIO(r.content), mimetype=r.headers.get('Content-Type') or 'image/jpeg')
+    resp.headers['Cache-Control'] = 'private, max-age=86400'
+    return resp
+
+
 @app.route('/api/horarios', methods=['GET'])
 def horarios_list():
     try:

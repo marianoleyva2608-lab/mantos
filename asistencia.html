@@ -28,6 +28,7 @@
   .t-sal { background:#fdeaea; color:#b23; }
   .t-tarde { background:#fff3df; color:#9a5b00; }
   .meta { color:#5b6560; font-size:13px; margin:2px 0 12px; }
+  .foto { width:34px; height:34px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:8px; background:#e2e6e3; }
   .vacio { text-align:center; padding:44px; color:#7a847f; background:#fff; border:1px solid var(--borde); border-radius:12px; }
 </style>
 </head>
@@ -96,7 +97,10 @@ async function importar(input){
   }catch(e){ msg.style.background='#fdeaea'; msg.style.color='#b23'; msg.textContent='Error: '+e; }
   input.value='';
 }
+let FOTOS=null;
+function foto(no){ const v=FOTOS&&FOTOS[no]; return v?'<img class="foto" loading="lazy" src="/api/empleados/'+encodeURIComponent(no)+'/foto?v='+v+'" alt="">':''; }
 async function cargar(){
+  if(FOTOS===null){ try{ FOTOS=await (await fetch('/api/empleados/fotos')).json(); }catch(e){ FOTOS={}; } }
   const meta=document.getElementById('meta'), cont=document.getElementById('cont');
   meta.textContent='Cargando…'; cont.innerHTML='';
   try{
@@ -108,7 +112,7 @@ async function cargar(){
     for(const x of filas){
       const tipo=x.tipo||'';
       const cls = x.retardo?'t-tarde':(tipo.includes('ntrada')?'t-ent':(tipo.includes('alida')?'t-sal':''));
-      t+='<tr><td>'+fmt(x.fecha_hora)+'</td><td>'+(x.planta||'Matriz')+'</td><td>'+(x.empleado_no||'')+'</td><td>'+(x.nombre||'')+'</td><td><span class="tipo '+cls+'">'+tipo+'</span></td><td>'+(x.metodo||'')+'</td></tr>';
+      t+='<tr><td>'+fmt(x.fecha_hora)+'</td><td>'+(x.planta||'Matriz')+'</td><td>'+(x.empleado_no||'')+'</td><td>'+foto(x.empleado_no)+(x.nombre||'')+'</td><td><span class="tipo '+cls+'">'+tipo+'</span></td><td>'+(x.metodo||'')+'</td></tr>';
     }
     t+='</tbody></table>'; cont.innerHTML=t;
   }catch(e){ meta.textContent='Error al leer las checadas: '+e; }
