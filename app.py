@@ -4192,7 +4192,8 @@ def _ck_tipo_turno(rows, idxs, hor):
     """Clasifica las checadas de un dia con los rangos del turno."""
     r, tol = hor['rangos'], hor['tol']
     ya_entrada = False
-    for i in idxs:
+    hoy = datetime.datetime.now(TRAZA_TZ).date().isoformat()
+    for n, i in enumerate(idxs):
         rows[i]['turno'] = hor['turno']
         actual = (rows[i].get('tipo') or '').strip().lower()
         if actual not in ('', 's.d.'):
@@ -4215,8 +4216,12 @@ def _ck_tipo_turno(rows, idxs, hor):
         elif r['break_ini'] is not None:
             tipo = ('Salida descanso' if abs(t - r['break_ini']) <= abs(t - r['break_fin'])
                     else 'Regreso descanso')
-        else:
+        elif n == len(idxs) - 1 and str(rows[i].get('fecha_hora') or '')[:10] < hoy:
+            # Ultima checada de un dia que ya termino, antes de su hora de salida
             tipo = 'Salida anticipada'
+        else:
+            # Hoy todavia puede checar su salida, o despues hubo mas checadas
+            tipo = 'Checada intermedia'
         ya_entrada = ya_entrada or tipo.startswith('Entrada')
         rows[i]['tipo'], rows[i]['retardo'] = tipo, retardo
 
@@ -4694,7 +4699,8 @@ def checadas_export_semanal():
             if x is not ent and (x.get('tipo') or '').startswith('Salida') and 'descanso' not in x.get('tipo'):
                 sal = x
                 break
-        if sal is None and len(lista) > 1 and lista[-1] is not ent:
+        if (sal is None and len(lista) > 1 and lista[-1] is not ent
+                and lista[-1].get('tipo') != 'Checada intermedia'):
             sal = lista[-1]
         return ent, sal
 
