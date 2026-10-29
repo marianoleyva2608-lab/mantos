@@ -4280,9 +4280,11 @@ def checadas_list():
 
 @app.route('/api/empleados', methods=['GET'])
 def empleados_list():
-    """Lista de empleados distintos (de las checadas) + su horario si existe."""
+    """Lista de empleados distintos (de las checadas) + su horario si existe.
+    Se usa el nombre y la planta de su checada mas reciente."""
     try:
-        chk = sb.select('checadas', select='empleado_no,nombre', order='nombre.asc')
+        chk = _ck_todas([('select', 'empleado_no,nombre,planta'),
+                         ('order', 'fecha_hora.desc,id.desc')])
     except Exception:
         chk = []
     emp = {}
@@ -4291,7 +4293,8 @@ def empleados_list():
         if not no:
             continue
         if no not in emp:
-            emp[no] = {'empleado_no': no, 'nombre': x.get('nombre') or ''}
+            emp[no] = {'empleado_no': no, 'nombre': x.get('nombre') or '',
+                       'planta': x.get('planta') or 'Matriz'}
     try:
         for h in sb.select('horarios', select='*'):
             no = str(h.get('empleado_no') or '')
@@ -4311,6 +4314,49 @@ def empleados_list():
     except Exception:
         pass
     return jsonify(sorted(emp.values(), key=lambda e: (e.get('nombre') or '').upper()))
+
+
+@app.route('/api/empleados/import', methods=['POST'])
+def empleados_import():
+    """Da de alta a las personas del Excel que exporta el checador
+    ("Person Information Template": ID, First Name, Last Name, Department).
+    Solo agrega a quien no existe; no toca horarios ya capturados."""
+    import openpyxl
+    f = request.files.get('archivo')
+    if not f:
+        return jsonify({'error': 'No se recibió archivo'}), 400
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(f.read()), read_only=True, data_only=True)
+        filas = [['' if c is None else str(c).strip() for c in r]
+                 for r in wb.active.iter_rows(values_only=True)]
+    except Exception as e:
+        return jsonify({'error': f'No se pudo leer el archivo: {e}'}), 400
+    # El encabezado esta despues de varias filas de instrucciones
+    hi = next((i for i, r in enumerate(filas) if r and _ck_norm(r[0]) == 'id'), None)
+    if hi is None:
+        return jsonify({'error': 'No encontré la columna ID. Usa el Excel de personas que exporta el checador.'}), 400
+    heads = [_ck_norm(h).lstrip('*') for h in filas[hi]]
+    col = lambda k: next((i for i, h in enumerate(heads) if k in h), None)
+    c_id, c_nom, c_ape = 0, col('first name'), col('last name')
+    try:
+        existentes = {str(h.get('empleado_no')) for h in sb.select('horarios', select='empleado_no')}
+    except Exception as e:
+        return jsonify({'error': f'No se pudo leer horarios: {e}'}), 500
+    nuevos, leidas = [], 0
+    for r in filas[hi + 1:]:
+        no = r[c_id] if len(r) > c_id else ''
+        if not no:
+            continue
+        leidas += 1
+        if no in existentes:
+            continue
+        partes = [r[c] for c in (c_nom, c_ape) if c is not None and c < len(r) and r[c]]
+        nuevos.append({'empleado_no': no, 'nombre': ' '.join(partes), 'activo': True,
+                       'tolerancia_min': 10, 'dias': 'L,M,X,J,V,S'})
+        existentes.add(no)
+    if nuevos:
+        sb.insert('horarios', nuevos, return_rows=False)
+    return jsonify({'ok': True, 'leidas': leidas, 'agregadas': len(nuevos)})
 
 
 @app.route('/api/horarios', methods=['GET'])

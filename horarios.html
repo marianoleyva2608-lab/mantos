@@ -85,6 +85,7 @@
     <button class="btn chico" onclick="asignarMasivo()">Asignar a seleccionados</button>
     <span style="flex:1"></span>
     <button class="btn chico sec" onclick="guardar()">&#128190; Guardar horarios individuales</button>
+    <label class="btn chico sec" style="cursor:pointer;" title="Excel de personas exportado del checador (Person Information Template)">&#11014; Importar personas<input type="file" accept=".xlsx" style="display:none" onchange="importarPersonas(this)"></label>
     <a class="btn chico sec" href="/asistencia">Ver asistencia</a>
     <span class="meta" id="meta" style="margin:0;"></span>
   </div>
@@ -92,9 +93,9 @@
   <div class="scroll">
     <table>
       <thead>
-        <tr><th></th><th>No.</th><th>Nombre</th><th>Turno</th><th>Entrada</th><th>Break sale</th><th>Break regresa</th><th>Salida</th><th>Toler. (min)</th><th>Días</th><th>Activo</th></tr>
+        <tr><th></th><th>No.</th><th>Nombre</th><th>Planta</th><th>Turno</th><th>Entrada</th><th>Break sale</th><th>Break regresa</th><th>Salida</th><th>Toler. (min)</th><th>Días</th><th>Activo</th></tr>
       </thead>
-      <tbody id="tb"><tr><td colspan="11" style="padding:30px;text-align:center;color:#7a847f">Cargando…</td></tr></tbody>
+      <tbody id="tb"><tr><td colspan="12" style="padding:30px;text-align:center;color:#7a847f">Cargando…</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -135,7 +136,7 @@ function filaTurno(t){
 function pintarTurnos(){
   const tb=document.getElementById('tb-t');
   tb.innerHTML=turnos.length?turnos.map(filaTurno).join('')
-    :'<tr><td colspan="11" style="padding:20px;text-align:center;color:#7a847f">Aún no hay turnos. Usa “+ Agregar turno”.</td></tr>';
+    :'<tr><td colspan="12" style="padding:20px;text-align:center;color:#7a847f">Aún no hay turnos. Usa “+ Agregar turno”.</td></tr>';
   const opts='<option value="">Sin turno (horario individual)</option>'+turnos.map(t=>`<option value="${esc(t.id)}">${esc(t.nombre)}</option>`).join('');
   document.getElementById('turno-masivo').innerHTML=opts;
 }
@@ -170,6 +171,7 @@ function fila(e){
     <td><input type="checkbox" class="f-sel" onchange="contar()"></td>
     <td>${esc(e.empleado_no)}</td>
     <td>${esc(e.nombre||'')}</td>
+    <td>${esc(e.planta||'')}</td>
     <td>${sel}</td>
     <td class="indiv"><input type="time" class="f-ent" value="${esc(e.hora_entrada||'')}"></td>
     <td class="indiv"><input type="time" class="f-bi" value="${esc(e.hora_break_ini||'')}"></td>
@@ -204,7 +206,7 @@ function asignarMasivo(){
 }
 function pintarEmpleados(){
   const tb=document.getElementById('tb');
-  if(!empleados.length){ tb.innerHTML='<tr><td colspan="11" style="padding:30px;text-align:center;color:#7a847f">No hay empleados todavía. Aparecen aquí conforme checan en el aparato.</td></tr>'; return; }
+  if(!empleados.length){ tb.innerHTML='<tr><td colspan="12" style="padding:30px;text-align:center;color:#7a847f">No hay empleados todavía. Aparecen aquí conforme checan en el aparato.</td></tr>'; return; }
   tb.innerHTML=empleados.map(fila).join('');
   document.getElementById('todos').checked=false; contar();
   document.getElementById('meta').textContent=empleados.length+' empleado(s)';
@@ -217,7 +219,7 @@ async function cargar(){
     empleados=await re.json();
     const dt=await rt.json(); turnos=dt.turnos||[]; asignacion=dt.asignacion||{};
     pintarTurnos(); pintarEmpleados();
-  }catch(e){ tb.innerHTML='<tr><td colspan="11" style="padding:20px;color:#b23">Error al cargar: '+e+'</td></tr>'; }
+  }catch(e){ tb.innerHTML='<tr><td colspan="12" style="padding:20px;color:#b23">Error al cargar: '+e+'</td></tr>'; }
 }
 
 async function guardar(){
@@ -239,6 +241,19 @@ async function guardar(){
     if(d.ok) aviso('msg','ok','✓ Guardado: '+d.guardados+' horario(s).');
     else aviso('msg','err','Error: '+(d.error||'no se pudo guardar'));
   }catch(e){ aviso('msg','err','Error: '+e); }
+}
+
+async function importarPersonas(input){
+  const file=input.files[0]; if(!file)return;
+  aviso('msg','info','Importando '+file.name+'…');
+  const fd=new FormData(); fd.append('archivo',file);
+  try{
+    const r=await fetch('/api/empleados/import',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.ok) aviso('msg','err','Error: '+(d.error||'no se pudo importar'));
+    else { aviso('msg','ok','✓ '+d.leidas+' persona(s) en el archivo, '+d.agregadas+' nueva(s) agregada(s).'); await cargar(); }
+  }catch(e){ aviso('msg','err','Error: '+e); }
+  input.value='';
 }
 
 cargar();
