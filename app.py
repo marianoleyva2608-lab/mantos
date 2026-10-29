@@ -4580,7 +4580,8 @@ def checadas_export_semanal():
                     tarde += 1
                     c_ent.fill = naranja
                     c_ent.font = Font(bold=True, color='9A5B00')
-                c_sal.value = hm(sal) if sal else 'Sin salida'
+                # Hoy todavia no termina el dia: sin salida se deja en blanco
+                c_sal.value = hm(sal) if sal else ('' if dia == hoy else 'Sin salida')
                 if not sal:
                     c_sal.font = Font(italic=True, color='9AA39E')
             elif dia <= hoy and (laborables is None and dia.weekday() < 5
