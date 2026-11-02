@@ -5358,6 +5358,8 @@ function invNum(n){ return Number(n||0).toLocaleString('es-MX', {maximumFraction
 function invCerrar(id){ document.getElementById(id).style.display = 'none'; }
 function invAbrirModal(id){ document.getElementById(id).style.display = 'flex'; }
 function invEmail(){ return currentUser ? currentUser.email : ''; }
+// Si el servidor truena devuelve HTML, no JSON: se muestra el codigo en vez de 'Error de conexion'
+function invJson(r){ return r.json().catch(function(){ return {error: 'Error del servidor (' + r.status + '). Avisa a sistemas.'}; }); }
 
 function invAbrir(){
   try { var p = localStorage.getItem('inv_planta'); if (p && INV_PLANTAS.indexOf(p) !== -1) document.getElementById('inv-planta').value = p; } catch(e){}
@@ -5510,7 +5512,7 @@ function invGuardarMov(){
   if (!entrada && !body.destino.trim()) { err.textContent = 'Indica el destino (máquina o área)'; return; }
   var btn = document.getElementById('inv-mov-guardar'); btn.disabled = true;
   fetch('/api/inv/movimientos', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
-    .then(function(r){ return r.json(); })
+    .then(invJson)
     .then(function(d){
       btn.disabled = false;
       if (!d.ok) { err.textContent = d.error || 'No se pudo guardar'; return; }
@@ -5633,7 +5635,7 @@ function invGuardarArt(){
   var err = document.getElementById('inv-art-err');
   if (!body.descripcion.trim()) { err.textContent = 'La descripción es obligatoria'; return; }
   fetch('/api/inv/articulos', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
-    .then(function(r){ return r.json(); })
+    .then(invJson)
     .then(function(d){
       if (!d.ok) { err.textContent = d.error || 'No se pudo guardar'; return; }
       invCerrar('inv-art-modal');

@@ -5166,7 +5166,7 @@ def inv_registrar_movimiento():
         fecha += ':00-06:00'
     else:
         fecha = datetime.datetime.utcnow().isoformat() + 'Z'
-    rows = sb.insert('inv_movimientos', {
+    fila = {
         'articulo_id': art_id, 'planta': planta, 'tipo': tipo, 'cantidad': cantidad,
         'lote': lote,
         'lote_proveedor': (d.get('lote_proveedor') or '').strip().upper() if tipo == 'entrada' else '',
@@ -5176,7 +5176,23 @@ def inv_registrar_movimiento():
         'notas': (d.get('notas') or '').strip(),
         'fecha': fecha,
         'usuario_email': u['email'], 'usuario_nombre': u['nombre'],
-    })
+    }
+    try:
+        try:
+            rows = sb.insert('inv_movimientos', fila)
+        except requests.HTTPError as e:
+            # Tabla creada antes de existir la columna lote_proveedor: se guarda
+            # igual y el lote del proveedor queda en las notas.
+            if 'lote_proveedor' not in (e.response.text if e.response is not None else ''):
+                raise
+            lote_prov = fila.pop('lote_proveedor')
+            if lote_prov:
+                fila['notas'] = ('Lote prov.: ' + lote_prov + '. ' + fila['notas']).strip()
+            rows = sb.insert('inv_movimientos', fila)
+    except requests.HTTPError as e:
+        detalle = e.response.text[:300] if e.response is not None else str(e)
+        print(f'[inventario] error al guardar movimiento: {detalle}')
+        return jsonify({'error': 'No se pudo guardar en la base de datos: ' + detalle}), 500
     return jsonify({'ok': True, 'lote': lote, 'movimiento': rows[0] if rows else None})
 
 
