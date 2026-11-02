@@ -5268,7 +5268,7 @@ async function verReq(id){
 </div>
 
 <!-- Modal: registrar entrada / salida -->
-<div id="inv-mov-modal" class="inv-modal" onclick="if(event.target===this)invCerrar('inv-mov-modal')">
+<div id="inv-mov-modal" class="inv-modal">
   <div>
     <button class="inv-x" onclick="invCerrar('inv-mov-modal')">&times;</button>
     <div id="inv-mov-titulo" style="font-size:16px;font-weight:700;margin-bottom:2px"></div>
@@ -5303,7 +5303,7 @@ async function verReq(id){
 </div>
 
 <!-- Modal: alta / edicion de articulo -->
-<div id="inv-art-modal" class="inv-modal" onclick="if(event.target===this)invCerrar('inv-art-modal')">
+<div id="inv-art-modal" class="inv-modal">
   <div>
     <button class="inv-x" onclick="invCerrar('inv-art-modal')">&times;</button>
     <div id="inv-art-titulo" style="font-size:16px;font-weight:700;margin-bottom:12px"></div>
@@ -5340,7 +5340,7 @@ async function verReq(id){
 </div>
 
 <!-- Modal: kardex de un articulo -->
-<div id="inv-kardex-modal" class="inv-modal" onclick="if(event.target===this)invCerrar('inv-kardex-modal')">
+<div id="inv-kardex-modal" class="inv-modal" onmousedown="this._fuera=(event.target===this)" onclick="if(event.target===this&&this._fuera)invCerrar('inv-kardex-modal')">
   <div style="max-width:560px">
     <button class="inv-x" onclick="invCerrar('inv-kardex-modal')">&times;</button>
     <div id="inv-kardex-body"></div>
