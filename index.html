@@ -2295,6 +2295,7 @@ var TABS_CONTROLADAS = [
   {id:'rsp', label:'Respuesta a Solución de Problemas', icon:'&#128227;', action:function(){showPage('rsp'); if(typeof loadRspList==='function')loadRspList();}},
   {id:'reports', label:'Reportes', icon:'&#128196;', action:function(){showPage('reports');}},
   {id:'refacciones', label:'Refacciones', icon:'&#128230;', action:function(){showPage('refacciones'); if(typeof loadRefacciones==='function')loadRefacciones();}},
+  {id:'inventario', label:'Inventario Materia Prima', icon:'&#127981;', action:function(){invAbrir();}},
   {id:'trazabilidad', label:'Trazabilidad', icon:'&#128202;', action:function(){window.location.href='/trazabilidad';}},
   {id:'banos', label:'Control de Baños', icon:'&#128701;', action:function(){window.location.href='/banos';}},
   {id:'asistencia', label:'Asistencia', icon:'&#128197;', action:function(){window.location.href='/asistencia';}},
@@ -5201,6 +5202,452 @@ async function verReq(id){
 })();
 </script>
 
+
+<!-- ══ INVENTARIO DE MATERIA PRIMA ══ -->
+<style>
+.inv-tab{flex:1;padding:9px 6px;border:none;background:#fff;color:#1F5C2E;font-size:13px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent}
+.inv-tab.on{border-bottom-color:#1F5C2E;background:#eef5ef}
+.inv-lbl{font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px}
+.inv-in{width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;background:#fff}
+.inv-card{background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);cursor:pointer}
+.inv-card.bajo{border-left:4px solid #C62828}
+.inv-btn{border:none;padding:9px 14px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;color:#fff}
+.inv-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:6000;align-items:center;justify-content:center}
+.inv-modal>div{background:#fff;border-radius:14px;padding:20px 18px;max-width:440px;width:92%;max-height:88vh;overflow-y:auto;position:relative;box-sizing:border-box}
+.inv-x{position:absolute;top:10px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#555}
+.inv-mov{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid #eee;font-size:13px}
+.inv-mov.cancel{opacity:.5;text-decoration:line-through}
+</style>
+<div id="page-inv" class="page" style="background:#f5f5f5;padding-bottom:30px">
+  <div class="hdr">
+    <button class="back" onclick="showPage('menu')" title="Inicio">&#8249;</button>
+    <div style="flex:1"><h1>&#127981; Inventario de Materia Prima</h1><div class="sub">Entradas, salidas y existencias por planta</div></div>
+  </div>
+  <div style="padding:12px 14px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <select id="inv-planta" onchange="invCambiarPlanta()" class="inv-in" style="flex:1;min-width:150px;font-weight:700">
+      <option value="Termoformado">Termoformado</option>
+      <option value="Conversión">Conversión</option>
+      <option value="Tepezalá">Tepezalá</option>
+    </select>
+    <button class="inv-btn" style="background:#2E7D32" onclick="invAbrirMov('entrada')">&#43; Entrada</button>
+    <button class="inv-btn" style="background:#E65100" onclick="invAbrirMov('salida')">&#8722; Salida</button>
+  </div>
+  <div style="display:flex;margin:12px 14px 0;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+    <button class="inv-tab on" data-sec="exist" onclick="invTab('exist')">Existencias</button>
+    <button class="inv-tab" data-sec="movs" onclick="invTab('movs')">Movimientos</button>
+    <button class="inv-tab" data-sec="cat" onclick="invTab('cat')">Catálogo</button>
+  </div>
+
+  <div id="inv-sec-exist" class="inv-sec" style="padding:12px 14px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+      <input id="inv-buscar" type="text" placeholder="Buscar código, descripción o lote..." oninput="invRenderExist()" class="inv-in" style="flex:1;min-width:180px">
+      <label style="font-size:13px;display:flex;align-items:center;gap:5px;cursor:pointer"><input id="inv-solo-bajo" type="checkbox" onchange="invRenderExist()">Solo bajo mínimo</label>
+      <a id="inv-exist-xls" href="#" class="inv-btn" style="background:#1565C0;text-decoration:none">&#128196; Excel</a>
+    </div>
+    <div id="inv-exist-resumen" style="font-size:12px;color:#777;margin-bottom:8px"></div>
+    <div id="inv-exist-list"></div>
+  </div>
+
+  <div id="inv-sec-movs" class="inv-sec" style="padding:12px 14px;display:none">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end">
+      <div><span class="inv-lbl">Desde</span><input id="inv-desde" type="date" class="inv-in"></div>
+      <div><span class="inv-lbl">Hasta</span><input id="inv-hasta" type="date" class="inv-in"></div>
+      <button class="inv-btn" style="background:#1F5C2E" onclick="invCargarMovs()">Buscar</button>
+      <a href="#" class="inv-btn" style="background:#1565C0;text-decoration:none" onclick="invMovsExcel();return false">&#128196; Excel</a>
+    </div>
+    <div id="inv-movs-list" style="background:#fff;border-radius:10px;padding:4px 14px;box-shadow:0 1px 4px rgba(0,0,0,.1)"></div>
+  </div>
+
+  <div id="inv-sec-cat" class="inv-sec" style="padding:12px 14px;display:none">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="inv-btn" style="background:#2E7D32" onclick="invAbrirArt()">&#43; Nuevo artículo</button>
+    </div>
+    <div style="font-size:12px;color:#777;margin-bottom:8px">Catálogo único para las 3 plantas. El mínimo se captura por planta.</div>
+    <div id="inv-cat-list"></div>
+  </div>
+</div>
+
+<!-- Modal: registrar entrada / salida -->
+<div id="inv-mov-modal" class="inv-modal" onclick="if(event.target===this)invCerrar('inv-mov-modal')">
+  <div>
+    <button class="inv-x" onclick="invCerrar('inv-mov-modal')">&times;</button>
+    <div id="inv-mov-titulo" style="font-size:16px;font-weight:700;margin-bottom:2px"></div>
+    <div id="inv-mov-planta" style="font-size:12px;color:#888;margin-bottom:12px"></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div><span class="inv-lbl">Artículo</span>
+        <select id="inv-mov-art" class="inv-in" onchange="invMovArtCambio()"></select>
+        <div id="inv-mov-disp" style="font-size:12px;color:#555;margin-top:4px"></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><span class="inv-lbl">Cantidad <span id="inv-mov-unidad" style="text-transform:none;color:#888"></span></span>
+          <input id="inv-mov-cant" type="number" min="0" step="any" inputmode="decimal" class="inv-in"></div>
+        <div><span class="inv-lbl">Lote</span>
+          <input id="inv-mov-lote" type="text" class="inv-in" placeholder="Lote del proveedor">
+          <select id="inv-mov-lote-sel" class="inv-in" style="display:none"></select></div>
+      </div>
+      <div class="inv-solo-entrada"><span class="inv-lbl">Proveedor</span>
+        <input id="inv-mov-prov" type="text" class="inv-in"></div>
+      <div><span class="inv-lbl" id="inv-mov-ref-lbl">Referencia</span>
+        <input id="inv-mov-ref" type="text" class="inv-in"></div>
+      <div class="inv-solo-salida"><span class="inv-lbl">Destino (máquina / área)</span>
+        <input id="inv-mov-dest" type="text" class="inv-in" placeholder="Ej. Termoformadora 3"></div>
+      <div><span class="inv-lbl">Fecha y hora</span>
+        <input id="inv-mov-fecha" type="datetime-local" class="inv-in"></div>
+      <div><span class="inv-lbl">Notas</span>
+        <textarea id="inv-mov-notas" rows="2" class="inv-in"></textarea></div>
+      <div id="inv-mov-err" style="color:#C62828;font-size:13px"></div>
+      <button id="inv-mov-guardar" class="inv-btn" style="padding:12px;font-size:15px" onclick="invGuardarMov()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: alta / edicion de articulo -->
+<div id="inv-art-modal" class="inv-modal" onclick="if(event.target===this)invCerrar('inv-art-modal')">
+  <div>
+    <button class="inv-x" onclick="invCerrar('inv-art-modal')">&times;</button>
+    <div id="inv-art-titulo" style="font-size:16px;font-weight:700;margin-bottom:12px"></div>
+    <input type="hidden" id="inv-art-id">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><span class="inv-lbl">Código</span><input id="inv-art-codigo" type="text" class="inv-in" placeholder="Ej. PET-500"></div>
+        <div><span class="inv-lbl">Unidad</span>
+          <input id="inv-art-unidad" type="text" class="inv-in" list="inv-unidades" placeholder="kg">
+          <datalist id="inv-unidades"><option value="kg"><option value="rollo"><option value="pza"><option value="lt"><option value="caja"><option value="saco"><option value="m"></datalist></div>
+      </div>
+      <div><span class="inv-lbl">Descripción</span><input id="inv-art-desc" type="text" class="inv-in" placeholder="Ej. Rollo PET cristal 500 mm cal. 20"></div>
+      <div><span class="inv-lbl">Tipo</span>
+        <select id="inv-art-tipo" class="inv-in">
+          <option value="">—</option><option>Rollo / Lámina</option><option>Resina</option><option>Pigmento / Masterbatch</option>
+          <option>Tinta</option><option>Adhesivo</option><option>Empaque</option><option>Otro</option>
+        </select></div>
+      <div><span class="inv-lbl">Proveedor habitual</span><input id="inv-art-prov" type="text" class="inv-in"></div>
+      <div><span class="inv-lbl">Mínimo por planta</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <div><div style="font-size:11px;color:#777">Termoformado</div><input id="inv-art-min-0" type="number" min="0" step="any" class="inv-in"></div>
+          <div><div style="font-size:11px;color:#777">Conversión</div><input id="inv-art-min-1" type="number" min="0" step="any" class="inv-in"></div>
+          <div><div style="font-size:11px;color:#777">Tepezalá</div><input id="inv-art-min-2" type="number" min="0" step="any" class="inv-in"></div>
+        </div></div>
+      <div><span class="inv-lbl">Notas</span><textarea id="inv-art-notas" rows="2" class="inv-in"></textarea></div>
+      <label style="font-size:13px;display:flex;align-items:center;gap:6px"><input id="inv-art-activo" type="checkbox" checked>Activo</label>
+      <div id="inv-art-err" style="color:#C62828;font-size:13px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="inv-btn" style="background:#1F5C2E;flex:1;padding:12px" onclick="invGuardarArt()">Guardar</button>
+        <button id="inv-art-borrar" class="inv-btn" style="background:#fff;color:#C62828;border:1px solid #C62828" onclick="invBorrarArt()">Borrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: kardex de un articulo -->
+<div id="inv-kardex-modal" class="inv-modal" onclick="if(event.target===this)invCerrar('inv-kardex-modal')">
+  <div style="max-width:560px">
+    <button class="inv-x" onclick="invCerrar('inv-kardex-modal')">&times;</button>
+    <div id="inv-kardex-body"></div>
+  </div>
+</div>
+
+<script>
+var INV_PLANTAS = ['Termoformado', 'Conversión', 'Tepezalá'];
+var _invArts = [];      // catalogo (incluye inactivos)
+var _invExist = [];     // existencias de la planta actual
+var _invMovTipo = 'entrada';
+
+function invPlanta(){ return document.getElementById('inv-planta').value; }
+function invNum(n){ return Number(n||0).toLocaleString('es-MX', {maximumFractionDigits:3}); }
+function invCerrar(id){ document.getElementById(id).style.display = 'none'; }
+function invAbrirModal(id){ document.getElementById(id).style.display = 'flex'; }
+function invEmail(){ return currentUser ? currentUser.email : ''; }
+
+function invAbrir(){
+  try { var p = localStorage.getItem('inv_planta'); if (p && INV_PLANTAS.indexOf(p) !== -1) document.getElementById('inv-planta').value = p; } catch(e){}
+  showPage('inv');
+  invTab('exist');
+  invCargarTodo();
+}
+function invCambiarPlanta(){
+  try { localStorage.setItem('inv_planta', invPlanta()); } catch(e){}
+  invCargarTodo();
+  if (document.getElementById('inv-sec-movs').style.display !== 'none') invCargarMovs();
+}
+function invTab(sec){
+  document.querySelectorAll('.inv-tab').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-sec') === sec); });
+  document.querySelectorAll('.inv-sec').forEach(function(s){ s.style.display = (s.id === 'inv-sec-' + sec) ? '' : 'none'; });
+  if (sec === 'movs') {
+    if (!document.getElementById('inv-desde').value) {
+      var hoy = new Date(); var hace = new Date(Date.now() - 30*86400000);
+      document.getElementById('inv-hasta').value = hoy.toLocaleDateString('en-CA');
+      document.getElementById('inv-desde').value = hace.toLocaleDateString('en-CA');
+    }
+    invCargarMovs();
+  }
+  if (sec === 'cat') invRenderCat();
+}
+function invCargarTodo(){
+  var planta = invPlanta();
+  document.getElementById('inv-exist-xls').href = '/api/inv/existencias/excel?planta=' + encodeURIComponent(planta);
+  document.getElementById('inv-exist-list').innerHTML = '<p style="color:#888;text-align:center;padding:20px">Cargando...</p>';
+  return Promise.all([
+    fetch('/api/inv/articulos?todos=1').then(function(r){ return r.json(); }),
+    fetch('/api/inv/existencias?planta=' + encodeURIComponent(planta)).then(function(r){ return r.json(); })
+  ]).then(function(res){
+    if (res[0].error || res[1].error) throw new Error(res[0].error || res[1].error);
+    _invArts = res[0]; _invExist = res[1];
+    invRenderExist(); invRenderCat();
+  }).catch(function(e){
+    document.getElementById('inv-exist-list').innerHTML = '<p style="color:#C62828;text-align:center;padding:20px">No se pudo cargar el inventario. ¿Ya se crearon las tablas (schema_inventario_mp.sql)?</p>';
+  });
+}
+
+function invRenderExist(){
+  var q = (document.getElementById('inv-buscar').value || '').trim().toLowerCase();
+  var soloBajo = document.getElementById('inv-solo-bajo').checked;
+  var bajos = _invExist.filter(function(a){ return a.bajo_minimo; }).length;
+  document.getElementById('inv-exist-resumen').textContent = _invExist.length + ' artículos' + (bajos ? ' · ' + bajos + ' bajo mínimo' : '');
+  var lista = _invExist.filter(function(a){
+    if (soloBajo && !a.bajo_minimo) return false;
+    if (!q) return true;
+    var txt = [a.codigo, a.descripcion, a.tipo, a.proveedor].concat(a.lotes.map(function(l){ return l.lote; })).join(' ').toLowerCase();
+    return txt.indexOf(q) !== -1;
+  });
+  var el = document.getElementById('inv-exist-list');
+  if (!_invExist.length) { el.innerHTML = '<p style="color:#888;text-align:center;padding:30px">Sin artículos. Da de alta la materia prima en la pestaña Catálogo.</p>'; return; }
+  if (!lista.length) { el.innerHTML = '<p style="color:#888;text-align:center;padding:30px">Sin resultados</p>'; return; }
+  el.innerHTML = lista.map(function(a){
+    var color = a.stock <= 0 ? '#888' : (a.bajo_minimo ? '#C62828' : '#1F5C2E');
+    return '<div class="inv-card' + (a.bajo_minimo ? ' bajo' : '') + '" onclick="invKardex(' + a.id + ')">' +
+      '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">' +
+        '<div style="min-width:0"><div style="font-size:14px;font-weight:600">' + escHtml(a.descripcion) + (a.activo ? '' : ' <span style="font-size:11px;color:#888">(inactivo)</span>') + '</div>' +
+          '<div style="font-size:12px;color:#888">' + escHtml([a.codigo, a.tipo].filter(Boolean).join(' · ')) + '</div></div>' +
+        '<div style="text-align:right;white-space:nowrap"><div style="font-size:18px;font-weight:700;color:' + color + '">' + invNum(a.stock) + ' <span style="font-size:12px;font-weight:400">' + escHtml(a.unidad) + '</span></div>' +
+          (a.minimo ? '<div style="font-size:11px;color:' + (a.bajo_minimo ? '#C62828' : '#888') + '">mín. ' + invNum(a.minimo) + (a.bajo_minimo ? ' &#9888;' : '') + '</div>' : '') + '</div>' +
+      '</div>' +
+      (a.lotes.length ? '<div style="font-size:12px;color:#555;margin-top:6px">Lotes: ' + a.lotes.map(function(l){ return '<b>' + escHtml(l.lote || 's/lote') + '</b> ' + invNum(l.stock); }).join(' · ') + '</div>' : '') +
+      (a.ultimo_mov ? '<div style="font-size:11px;color:#aaa;margin-top:3px">Último movimiento: ' + a.ultimo_mov + '</div>' : '') +
+    '</div>';
+  }).join('');
+}
+
+function invRenderCat(){
+  var el = document.getElementById('inv-cat-list');
+  if (!_invArts.length) { el.innerHTML = '<p style="color:#888;text-align:center;padding:30px">Catálogo vacío</p>'; return; }
+  el.innerHTML = _invArts.map(function(a){
+    var mins = INV_PLANTAS.filter(function(p){ return (a.minimos||{})[p]; }).map(function(p){ return p + ' ' + invNum(a.minimos[p]); }).join(' · ');
+    return '<div class="inv-card" onclick="invAbrirArt(' + a.id + ')" style="' + (a.activo ? '' : 'opacity:.55') + '">' +
+      '<div style="font-size:14px;font-weight:600">' + escHtml(a.descripcion) + (a.activo ? '' : ' <span style="font-size:11px;color:#888">(inactivo)</span>') + '</div>' +
+      '<div style="font-size:12px;color:#888">' + escHtml([a.codigo, a.tipo, a.unidad, a.proveedor].filter(Boolean).join(' · ')) + '</div>' +
+      (mins ? '<div style="font-size:11px;color:#555;margin-top:3px">Mínimos: ' + escHtml(mins) + '</div>' : '') +
+    '</div>';
+  }).join('');
+}
+
+// ── Entradas / salidas ──
+function invAbrirMov(tipo, artId){
+  var activos = _invArts.filter(function(a){ return a.activo; });
+  if (!activos.length) { alert('Primero da de alta artículos en la pestaña Catálogo.'); invTab('cat'); return; }
+  _invMovTipo = tipo;
+  var entrada = tipo === 'entrada';
+  document.getElementById('inv-mov-titulo').innerHTML = entrada ? '&#43; Entrada de materia prima' : '&#8722; Salida de materia prima';
+  document.getElementById('inv-mov-titulo').style.color = entrada ? '#2E7D32' : '#E65100';
+  document.getElementById('inv-mov-planta').textContent = 'Almacén ' + invPlanta();
+  document.getElementById('inv-mov-guardar').style.background = entrada ? '#2E7D32' : '#E65100';
+  document.getElementById('inv-mov-ref-lbl').textContent = entrada ? 'Factura / remisión' : 'Orden de producción';
+  document.querySelectorAll('.inv-solo-entrada').forEach(function(e){ e.style.display = entrada ? '' : 'none'; });
+  document.querySelectorAll('.inv-solo-salida').forEach(function(e){ e.style.display = entrada ? 'none' : ''; });
+  document.getElementById('inv-mov-lote').style.display = entrada ? '' : 'none';
+  document.getElementById('inv-mov-lote-sel').style.display = entrada ? 'none' : '';
+  var opciones = activos;
+  if (!entrada) {
+    var conStock = {}; _invExist.forEach(function(a){ if (a.stock > 0) conStock[a.id] = 1; });
+    opciones = activos.filter(function(a){ return conStock[a.id]; });
+    if (!opciones.length) { alert('No hay existencias en ' + invPlanta() + ' para dar salida.'); return; }
+  }
+  document.getElementById('inv-mov-art').innerHTML = '<option value="">Selecciona...</option>' + opciones.map(function(a){
+    return '<option value="' + a.id + '">' + escHtml((a.codigo ? a.codigo + ' — ' : '') + a.descripcion) + '</option>';
+  }).join('');
+  ['inv-mov-cant','inv-mov-lote','inv-mov-prov','inv-mov-ref','inv-mov-dest','inv-mov-notas'].forEach(function(id){ document.getElementById(id).value = ''; });
+  var ahora = new Date(); ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
+  document.getElementById('inv-mov-fecha').value = ahora.toISOString().slice(0,16);
+  document.getElementById('inv-mov-err').textContent = '';
+  document.getElementById('inv-mov-art').value = artId ? String(artId) : '';
+  invMovArtCambio();
+  invAbrirModal('inv-mov-modal');
+}
+function invMovArtCambio(){
+  var id = Number(document.getElementById('inv-mov-art').value);
+  var art = _invArts.find(function(a){ return a.id === id; });
+  var ex = _invExist.find(function(a){ return a.id === id; });
+  document.getElementById('inv-mov-unidad').textContent = art ? '(' + art.unidad + ')' : '';
+  document.getElementById('inv-mov-disp').textContent = ex ? 'Existencia en ' + invPlanta() + ': ' + invNum(ex.stock) + ' ' + ex.unidad : '';
+  if (_invMovTipo === 'entrada') {
+    var prov = document.getElementById('inv-mov-prov');
+    if (art && !prov.value) prov.value = art.proveedor || '';
+  } else {
+    var lotes = ex ? ex.lotes.filter(function(l){ return l.stock > 0; }) : [];
+    document.getElementById('inv-mov-lote-sel').innerHTML = lotes.length
+      ? lotes.map(function(l){ return '<option value="' + escHtml(l.lote) + '">' + escHtml(l.lote || 'Sin lote') + ' — ' + invNum(l.stock) + '</option>'; }).join('')
+      : '<option value="">Sin lote</option>';
+  }
+}
+function invGuardarMov(){
+  var entrada = _invMovTipo === 'entrada';
+  var body = {
+    usuario_email: invEmail(), planta: invPlanta(), tipo: _invMovTipo,
+    articulo_id: document.getElementById('inv-mov-art').value,
+    cantidad: document.getElementById('inv-mov-cant').value,
+    lote: entrada ? document.getElementById('inv-mov-lote').value : document.getElementById('inv-mov-lote-sel').value,
+    proveedor: document.getElementById('inv-mov-prov').value,
+    referencia: document.getElementById('inv-mov-ref').value,
+    destino: document.getElementById('inv-mov-dest').value,
+    fecha: document.getElementById('inv-mov-fecha').value,
+    notas: document.getElementById('inv-mov-notas').value
+  };
+  var err = document.getElementById('inv-mov-err');
+  if (!body.articulo_id) { err.textContent = 'Selecciona un artículo'; return; }
+  if (!(Number(body.cantidad) > 0)) { err.textContent = 'Captura una cantidad mayor a 0'; return; }
+  if (!entrada && !body.destino.trim()) { err.textContent = 'Indica el destino (máquina o área)'; return; }
+  var btn = document.getElementById('inv-mov-guardar'); btn.disabled = true;
+  fetch('/api/inv/movimientos', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      btn.disabled = false;
+      if (!d.ok) { err.textContent = d.error || 'No se pudo guardar'; return; }
+      invCerrar('inv-mov-modal');
+      invCargarTodo();
+      if (document.getElementById('inv-sec-movs').style.display !== 'none') invCargarMovs();
+    })
+    .catch(function(){ btn.disabled = false; err.textContent = 'Error de conexión'; });
+}
+
+// ── Movimientos ──
+function invMovHtml(m, saldo){
+  var entrada = m.tipo === 'entrada';
+  var det = [m.lote ? 'Lote ' + m.lote : '', entrada ? m.proveedor : m.destino, m.referencia].filter(Boolean).join(' · ');
+  var cancel = m.cancelado ? '<div style="font-size:11px;color:#C62828;text-decoration:none">Cancelado por ' + escHtml(m.cancelado.nombre) + ' (' + escHtml(m.cancelado.fecha) + '): ' + escHtml(m.cancelado.motivo) + '</div>' : '';
+  var btn = (!m.cancelado && userIsAdmin()) ? ' <a href="#" onclick="invCancelarMov(' + m.id + ');return false" style="font-size:11px;color:#C62828">cancelar</a>' : '';
+  return '<div class="inv-mov' + (m.cancelado ? ' cancel' : '') + '">' +
+    '<div style="min-width:0"><div><b style="color:' + (entrada ? '#2E7D32' : '#E65100') + '">' + (entrada ? 'ENTRADA' : 'SALIDA') + '</b> ' +
+      (m.descripcion ? escHtml(m.descripcion) : '') + '</div>' +
+      (det ? '<div style="font-size:12px;color:#666">' + escHtml(det) + '</div>' : '') +
+      '<div style="font-size:11px;color:#999">' + escHtml(m.fecha_mx) + ' · ' + escHtml(m.usuario_nombre || '') + btn + '</div>' +
+      (m.notas ? '<div style="font-size:11px;color:#777">' + escHtml(m.notas) + '</div>' : '') + cancel + '</div>' +
+    '<div style="text-align:right;white-space:nowrap;font-weight:700;color:' + (entrada ? '#2E7D32' : '#E65100') + '">' + (entrada ? '+' : '−') + invNum(m.cantidad) + ' ' + escHtml(m.unidad) +
+      (saldo != null ? '<div style="font-size:11px;font-weight:400;color:#777">saldo ' + invNum(saldo) + '</div>' : '') + '</div>' +
+  '</div>';
+}
+function invCargarMovs(){
+  var el = document.getElementById('inv-movs-list');
+  el.innerHTML = '<p style="color:#888;text-align:center;padding:20px">Cargando...</p>';
+  var qs = 'planta=' + encodeURIComponent(invPlanta()) + '&desde=' + document.getElementById('inv-desde').value + '&hasta=' + document.getElementById('inv-hasta').value;
+  fetch('/api/inv/movimientos?' + qs).then(function(r){ return r.json(); }).then(function(data){
+    if (data.error) throw new Error(data.error);
+    el.innerHTML = data.length ? data.map(function(m){ return invMovHtml(m); }).join('') : '<p style="color:#888;text-align:center;padding:20px">Sin movimientos en el periodo</p>';
+  }).catch(function(){ el.innerHTML = '<p style="color:#C62828;text-align:center;padding:20px">No se pudieron cargar los movimientos</p>'; });
+}
+function invMovsExcel(){
+  window.location.href = '/api/inv/movimientos/excel?planta=' + encodeURIComponent(invPlanta()) + '&desde=' + document.getElementById('inv-desde').value + '&hasta=' + document.getElementById('inv-hasta').value;
+}
+function invCancelarMov(id){
+  var motivo = prompt('Motivo de la cancelación (el movimiento deja de contar en la existencia):');
+  if (motivo === null) return;
+  if (!motivo.trim()) { alert('Escribe el motivo'); return; }
+  fetch('/api/inv/movimientos/' + id + '/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({usuario_email: invEmail(), motivo: motivo})})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) { alert(d.error || 'No se pudo cancelar'); return; }
+      invCargarTodo().then(function(){
+        if (document.getElementById('inv-kardex-modal').style.display === 'flex' && _invKardexId) invKardex(_invKardexId);
+      });
+      if (document.getElementById('inv-sec-movs').style.display !== 'none') invCargarMovs();
+    });
+}
+
+// ── Kardex ──
+var _invKardexId = null;
+function invKardex(id){
+  _invKardexId = id;
+  var a = _invExist.find(function(x){ return x.id === id; }) || _invArts.find(function(x){ return x.id === id; });
+  if (!a) return;
+  var body = document.getElementById('inv-kardex-body');
+  var cab = '<div style="font-size:16px;font-weight:700;padding-right:24px">' + escHtml(a.descripcion) + '</div>' +
+    '<div style="font-size:12px;color:#888;margin-bottom:10px">' + escHtml([a.codigo, a.tipo, 'Almacén ' + invPlanta()].filter(Boolean).join(' · ')) + '</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:12px">' +
+      '<button class="inv-btn" style="background:#2E7D32;flex:1" onclick="invCerrar(\'inv-kardex-modal\');invAbrirMov(\'entrada\',' + id + ')">&#43; Entrada</button>' +
+      '<button class="inv-btn" style="background:#E65100;flex:1" onclick="invCerrar(\'inv-kardex-modal\');invAbrirMov(\'salida\',' + id + ')">&#8722; Salida</button></div>' +
+    '<div style="font-size:22px;font-weight:700;color:#1F5C2E">' + invNum(a.stock) + ' <span style="font-size:13px;font-weight:400">' + escHtml(a.unidad) + '</span></div>' +
+    (a.lotes && a.lotes.length ? '<div style="font-size:12px;color:#555;margin:4px 0 8px">' + a.lotes.map(function(l){ return '<b>' + escHtml(l.lote || 's/lote') + '</b>: ' + invNum(l.stock); }).join(' · ') + '</div>' : '') +
+    '<div class="inv-lbl" style="margin-top:12px">Kardex</div>';
+  body.innerHTML = cab + '<p style="color:#888;padding:10px 0">Cargando...</p>';
+  invAbrirModal('inv-kardex-modal');
+  fetch('/api/inv/movimientos?planta=' + encodeURIComponent(invPlanta()) + '&articulo_id=' + id + '&limit=1000')
+    .then(function(r){ return r.json(); })
+    .then(function(movs){
+      if (movs.error) throw new Error(movs.error);
+      // saldo acumulado: de lo mas viejo a lo mas nuevo, sin cancelados
+      var saldo = 0, saldos = {};
+      movs.slice().reverse().forEach(function(m){
+        if (!m.cancelado) saldo += (m.tipo === 'entrada' ? 1 : -1) * Number(m.cantidad);
+        saldos[m.id] = m.cancelado ? null : saldo;
+      });
+      body.innerHTML = cab + (movs.length ? movs.map(function(m){ return invMovHtml(m, saldos[m.id]); }).join('') : '<p style="color:#888;padding:10px 0">Sin movimientos en esta planta</p>') +
+        (movs.length >= 1000 ? '<p style="font-size:11px;color:#888">Se muestran los últimos 1000 movimientos; el saldo parte de ahí.</p>' : '');
+    })
+    .catch(function(){ body.innerHTML = cab + '<p style="color:#C62828">No se pudo cargar el kardex</p>'; });
+}
+
+// ── Catalogo ──
+function invAbrirArt(id){
+  var a = id ? _invArts.find(function(x){ return x.id === id; }) : null;
+  document.getElementById('inv-art-titulo').textContent = a ? 'Editar artículo' : 'Nuevo artículo';
+  document.getElementById('inv-art-id').value = a ? a.id : '';
+  document.getElementById('inv-art-codigo').value = a ? (a.codigo || '') : '';
+  document.getElementById('inv-art-desc').value = a ? a.descripcion : '';
+  document.getElementById('inv-art-tipo').value = a ? (a.tipo || '') : '';
+  document.getElementById('inv-art-unidad').value = a ? (a.unidad || '') : 'kg';
+  document.getElementById('inv-art-prov').value = a ? (a.proveedor || '') : '';
+  document.getElementById('inv-art-notas').value = a ? (a.notas || '') : '';
+  document.getElementById('inv-art-activo').checked = a ? !!a.activo : true;
+  INV_PLANTAS.forEach(function(p, i){ document.getElementById('inv-art-min-' + i).value = a && a.minimos && a.minimos[p] ? a.minimos[p] : ''; });
+  document.getElementById('inv-art-borrar').style.display = a ? '' : 'none';
+  document.getElementById('inv-art-err').textContent = '';
+  invAbrirModal('inv-art-modal');
+}
+function invGuardarArt(){
+  var minimos = {};
+  INV_PLANTAS.forEach(function(p, i){ var v = document.getElementById('inv-art-min-' + i).value; if (v) minimos[p] = v; });
+  var body = {
+    usuario_email: invEmail(),
+    id: document.getElementById('inv-art-id').value || null,
+    codigo: document.getElementById('inv-art-codigo').value,
+    descripcion: document.getElementById('inv-art-desc').value,
+    tipo: document.getElementById('inv-art-tipo').value,
+    unidad: document.getElementById('inv-art-unidad').value,
+    proveedor: document.getElementById('inv-art-prov').value,
+    notas: document.getElementById('inv-art-notas').value,
+    activo: document.getElementById('inv-art-activo').checked,
+    minimos: minimos
+  };
+  var err = document.getElementById('inv-art-err');
+  if (!body.descripcion.trim()) { err.textContent = 'La descripción es obligatoria'; return; }
+  fetch('/api/inv/articulos', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) { err.textContent = d.error || 'No se pudo guardar'; return; }
+      invCerrar('inv-art-modal');
+      invCargarTodo();
+    })
+    .catch(function(){ err.textContent = 'Error de conexión'; });
+}
+function invBorrarArt(){
+  var id = document.getElementById('inv-art-id').value;
+  if (!id || !confirm('¿Borrar este artículo del catálogo?')) return;
+  fetch('/api/inv/articulos/' + id + '?usuario_email=' + encodeURIComponent(invEmail()), {method:'DELETE'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) { document.getElementById('inv-art-err').textContent = d.error || 'No se pudo borrar'; return; }
+      invCerrar('inv-art-modal');
+      invCargarTodo();
+    });
+}
+</script>
 
 <div id="page-refacciones" class="page">
   <div class="hdr">

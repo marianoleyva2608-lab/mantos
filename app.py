@@ -383,7 +383,7 @@ def normalizar_link(url):
         url = 'https://' + url
     return url
 
-TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'trazabilidad', 'banos', 'settings')
+TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'inventario', 'trazabilidad', 'banos', 'settings')
 CARGOS_VALIDOS = ('Empleado', 'Supervisor', 'Compras', 'Dirección/Presidencia')
 BASE_URL_PUBLICO = 'https://adpacksystem.cloud'
 
@@ -4942,6 +4942,316 @@ def asistencia_page():
     html = open('asistencia.html', encoding='utf-8').read()
     return html, 200, {'Content-Type': 'text/html; charset=utf-8',
                        'Cache-Control': 'no-store'}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# INVENTARIO DE MATERIA PRIMA (almacen por planta)
+# Tablas inv_articulos / inv_movimientos (schema_inventario_mp.sql). La
+# existencia no se guarda: se calcula con las entradas menos las salidas
+# vigentes (no canceladas), por planta y por lote.
+# ══════════════════════════════════════════════════════════════════════════
+INV_PLANTAS = ('Termoformado', 'Conversión', 'Tepezalá')
+INV_TIPOS_MOV = ('entrada', 'salida')
+
+
+def _inv_usuario(email):
+    """Usuario con acceso al inventario (admin o permiso 'inventario'), o None."""
+    email = (email or '').strip().lower()
+    if not email:
+        return None
+    rows = sb.select('users', select='nombre,email,rol,permisos', email='eq.' + email)
+    if not rows:
+        return None
+    u = rows[0]
+    permisos = [p.strip() for p in (u.get('permisos') or '').split(',')]
+    if u.get('rol') == 'admin' or u.get('permisos') == 'all' or 'inventario' in permisos:
+        return u
+    return None
+
+
+def _inv_num(valor):
+    try:
+        return float(str(valor).replace(',', '').strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _inv_fecha_mx(valor):
+    """timestamptz de Supabase -> 'dd/mm/aaaa HH:MM' hora de planta."""
+    if not valor:
+        return ''
+    try:
+        dt = datetime.datetime.fromisoformat(str(valor).replace('Z', '+00:00'))
+    except ValueError:
+        return str(valor)
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=6)
+    return dt.strftime('%d/%m/%Y %H:%M')
+
+
+def _inv_existencias(planta, articulo_id=None):
+    """{articulo_id: {'stock': n, 'lotes': {lote: n}, 'ultimo': iso}} de una planta."""
+    filtros = {'planta': 'eq.' + planta, 'cancelado': 'is.null'}
+    if articulo_id:
+        filtros['articulo_id'] = 'eq.' + str(articulo_id)
+    # PostgREST corta en 1000 filas por consulta: se pagina para sumar todo
+    movs, pagina = [], 1000
+    while True:
+        bloque = sb.select('inv_movimientos', select='articulo_id,tipo,cantidad,lote,fecha',
+                           order='id.asc', limit=pagina, offset=len(movs), **filtros)
+        movs += bloque
+        if len(bloque) < pagina:
+            break
+    res = {}
+    for m in movs:
+        e = res.setdefault(m['articulo_id'], {'stock': 0.0, 'lotes': {}, 'ultimo': ''})
+        q = float(m['cantidad'] or 0) * (1 if m['tipo'] == 'entrada' else -1)
+        e['stock'] += q
+        lote = (m.get('lote') or '').strip()
+        e['lotes'][lote] = e['lotes'].get(lote, 0.0) + q
+        if (m.get('fecha') or '') > e['ultimo']:
+            e['ultimo'] = m['fecha']
+    return res
+
+
+@app.route('/api/inv/articulos', methods=['GET'])
+def inv_articulos():
+    filtros = {} if request.args.get('todos') else {'activo': 'is.true'}
+    return jsonify(sb.select('inv_articulos', order='descripcion.asc', **filtros))
+
+
+@app.route('/api/inv/articulos', methods=['POST'])
+def inv_guardar_articulo():
+    d = request.json or {}
+    if not _inv_usuario(d.get('usuario_email')):
+        return jsonify({'error': 'No tienes acceso al inventario'}), 403
+    descripcion = (d.get('descripcion') or '').strip()
+    if not descripcion:
+        return jsonify({'error': 'La descripción es obligatoria'}), 400
+    minimos = {}
+    for planta, valor in (d.get('minimos') or {}).items():
+        n = _inv_num(valor)
+        if planta in INV_PLANTAS and n:
+            minimos[planta] = n
+    data = {
+        'codigo': (d.get('codigo') or '').strip().upper() or None,
+        'descripcion': descripcion,
+        'tipo': (d.get('tipo') or '').strip(),
+        'unidad': (d.get('unidad') or 'kg').strip(),
+        'minimos': minimos,
+        'proveedor': (d.get('proveedor') or '').strip(),
+        'notas': (d.get('notas') or '').strip(),
+        'activo': bool(d.get('activo', True)),
+        'actualizado': datetime.datetime.utcnow().isoformat() + 'Z',
+    }
+    if data['codigo']:
+        dup = sb.select('inv_articulos', select='id', codigo='eq.' + data['codigo'])
+        if dup and str(dup[0]['id']) != str(d.get('id') or ''):
+            return jsonify({'error': 'Ya existe un artículo con el código ' + data['codigo']}), 400
+    if d.get('id'):
+        rows = sb.update('inv_articulos', data, id='eq.' + str(int(d['id'])))
+    else:
+        rows = sb.insert('inv_articulos', data)
+    return jsonify({'ok': True, 'articulo': rows[0] if rows else None})
+
+
+@app.route('/api/inv/articulos/<int:art_id>', methods=['DELETE'])
+def inv_borrar_articulo(art_id):
+    if not _inv_usuario(request.args.get('usuario_email')):
+        return jsonify({'error': 'No tienes acceso al inventario'}), 403
+    if sb.select('inv_movimientos', select='id', articulo_id='eq.' + str(art_id), limit=1):
+        return jsonify({'error': 'El artículo ya tiene movimientos; desactívalo en lugar de borrarlo'}), 400
+    sb.delete('inv_articulos', return_rows=False, id='eq.' + str(art_id))
+    return jsonify({'ok': True})
+
+
+def _inv_lista_existencias(planta):
+    exist = _inv_existencias(planta)
+    out = []
+    for a in sb.select('inv_articulos', order='descripcion.asc'):
+        e = exist.get(a['id'])
+        if not a.get('activo') and not (e and round(e['stock'], 3)):
+            continue
+        e = e or {'stock': 0.0, 'lotes': {}, 'ultimo': ''}
+        minimo = float((a.get('minimos') or {}).get(planta) or 0)
+        out.append(dict(a,
+            stock=round(e['stock'], 3),
+            minimo=minimo,
+            bajo_minimo=bool(minimo) and e['stock'] <= minimo,
+            lotes=[{'lote': l, 'stock': round(q, 3)} for l, q in sorted(e['lotes'].items()) if round(q, 3)],
+            ultimo_mov=_inv_fecha_mx(e['ultimo'])))
+    return out
+
+
+@app.route('/api/inv/existencias', methods=['GET'])
+def inv_existencias():
+    planta = request.args.get('planta', '')
+    if planta not in INV_PLANTAS:
+        return jsonify({'error': 'Planta no válida'}), 400
+    return jsonify(_inv_lista_existencias(planta))
+
+
+def _inv_buscar_movimientos(args):
+    filtros = {'planta': 'eq.' + args.get('planta', '')}
+    if args.get('articulo_id'):
+        filtros['articulo_id'] = 'eq.' + str(int(args['articulo_id']))
+    rango = []
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', args.get('desde') or ''):
+        rango.append('fecha.gte.' + args['desde'] + 'T00:00:00-06:00')
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', args.get('hasta') or ''):
+        rango.append('fecha.lte.' + args['hasta'] + 'T23:59:59-06:00')
+    if rango:
+        filtros['and'] = '(' + ','.join(rango) + ')'
+    limite = int(args.get('limit') or 500)
+    movs = sb.select('inv_movimientos', order='fecha.desc,id.desc', limit=limite, **filtros)
+    arts = {a['id']: a for a in sb.select('inv_articulos', select='id,codigo,descripcion,unidad')}
+    for m in movs:
+        a = arts.get(m['articulo_id']) or {}
+        m['codigo'] = a.get('codigo') or ''
+        m['descripcion'] = a.get('descripcion') or ''
+        m['unidad'] = a.get('unidad') or ''
+        m['fecha_mx'] = _inv_fecha_mx(m.get('fecha'))
+    return movs
+
+
+@app.route('/api/inv/movimientos', methods=['GET'])
+def inv_movimientos():
+    if request.args.get('planta', '') not in INV_PLANTAS:
+        return jsonify({'error': 'Planta no válida'}), 400
+    return jsonify(_inv_buscar_movimientos(request.args))
+
+
+@app.route('/api/inv/movimientos', methods=['POST'])
+def inv_registrar_movimiento():
+    d = request.json or {}
+    u = _inv_usuario(d.get('usuario_email'))
+    if not u:
+        return jsonify({'error': 'No tienes acceso al inventario'}), 403
+    planta = d.get('planta', '')
+    tipo = d.get('tipo', '')
+    if planta not in INV_PLANTAS or tipo not in INV_TIPOS_MOV:
+        return jsonify({'error': 'Planta o tipo de movimiento no válido'}), 400
+    try:
+        art_id = int(d.get('articulo_id'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Selecciona un artículo'}), 400
+    art = sb.select('inv_articulos', select='id,descripcion,unidad,activo', id='eq.' + str(art_id))
+    if not art or not art[0].get('activo'):
+        return jsonify({'error': 'Artículo no encontrado o inactivo'}), 400
+    cantidad = _inv_num(d.get('cantidad'))
+    if not cantidad or cantidad <= 0:
+        return jsonify({'error': 'La cantidad debe ser mayor a 0'}), 400
+    lote = (d.get('lote') or '').strip().upper()
+    if tipo == 'salida':
+        e = _inv_existencias(planta, art_id).get(art_id) or {'stock': 0.0, 'lotes': {}}
+        disponible = e['lotes'].get(lote, 0.0) if lote else e['stock']
+        if cantidad > round(disponible, 3):
+            donde = ' del lote ' + lote if lote else ''
+            return jsonify({'error': f'Solo hay {round(disponible, 3)} {art[0]["unidad"]}{donde} en {planta}'}), 400
+    fecha = (d.get('fecha') or '').strip()   # 'aaaa-mm-ddTHH:MM' hora de planta
+    if fecha:
+        if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$', fecha):
+            return jsonify({'error': 'Fecha no válida'}), 400
+        fecha += ':00-06:00'
+    else:
+        fecha = datetime.datetime.utcnow().isoformat() + 'Z'
+    rows = sb.insert('inv_movimientos', {
+        'articulo_id': art_id, 'planta': planta, 'tipo': tipo, 'cantidad': cantidad,
+        'lote': lote,
+        'proveedor': (d.get('proveedor') or '').strip() if tipo == 'entrada' else '',
+        'referencia': (d.get('referencia') or '').strip(),
+        'destino': (d.get('destino') or '').strip() if tipo == 'salida' else '',
+        'notas': (d.get('notas') or '').strip(),
+        'fecha': fecha,
+        'usuario_email': u['email'], 'usuario_nombre': u['nombre'],
+    })
+    return jsonify({'ok': True, 'movimiento': rows[0] if rows else None})
+
+
+@app.route('/api/inv/movimientos/<int:mov_id>/cancelar', methods=['POST'])
+def inv_cancelar_movimiento(mov_id):
+    """Solo admin. No borra: marca el movimiento como cancelado (deja de contar)."""
+    d = request.json or {}
+    u = _inv_usuario(d.get('usuario_email'))
+    if not u or u.get('rol') != 'admin':
+        return jsonify({'error': 'Solo un administrador puede cancelar movimientos'}), 403
+    motivo = (d.get('motivo') or '').strip()
+    if not motivo:
+        return jsonify({'error': 'Escribe el motivo de la cancelación'}), 400
+    rows = sb.select('inv_movimientos', select='id,articulo_id,planta,tipo,cantidad,lote,cancelado', id='eq.' + str(mov_id))
+    if not rows:
+        return jsonify({'error': 'Movimiento no encontrado'}), 404
+    m = rows[0]
+    if m.get('cancelado'):
+        return jsonify({'error': 'El movimiento ya estaba cancelado'}), 400
+    if m['tipo'] == 'entrada':
+        # Cancelar una entrada no puede dejar existencia negativa (ya se consumio)
+        e = _inv_existencias(m['planta'], m['articulo_id']).get(m['articulo_id']) or {'stock': 0.0, 'lotes': {}}
+        lote = (m.get('lote') or '').strip()
+        disponible = e['lotes'].get(lote, 0.0) if lote else e['stock']
+        if float(m['cantidad']) > round(disponible, 3):
+            return jsonify({'error': 'No se puede cancelar: ese material ya tiene salidas. Cancela primero las salidas.'}), 400
+    sb.update('inv_movimientos', {'cancelado': {
+        'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M'), 'email': u['email'],
+        'nombre': u['nombre'], 'motivo': motivo}}, return_rows=False, id='eq.' + str(mov_id))
+    return jsonify({'ok': True})
+
+
+def _inv_excel(titulo, encabezados, filas, anchos):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = titulo[:31]
+    ws.append(encabezados)
+    for c in ws[1]:
+        c.font = Font(bold=True, color='FFFFFF')
+        c.fill = PatternFill('solid', fgColor='1F5C2E')
+        c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    for f in filas:
+        ws.append(f)
+    for i, w in enumerate(anchos, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = 'A2'
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+@app.route('/api/inv/existencias/excel', methods=['GET'])
+def inv_existencias_excel():
+    planta = request.args.get('planta', '')
+    if planta not in INV_PLANTAS:
+        return jsonify({'error': 'Planta no válida'}), 400
+    filas = [[a.get('codigo') or '', a['descripcion'], a.get('tipo') or '', a.get('unidad') or '',
+              a['stock'], a['minimo'] or '', 'BAJO MÍNIMO' if a['bajo_minimo'] else '',
+              ', '.join(f"{l['lote'] or 's/lote'}: {l['stock']}" for l in a['lotes']),
+              a.get('proveedor') or '', a['ultimo_mov']] for a in _inv_lista_existencias(planta)]
+    buf = _inv_excel('Existencias', ['CÓDIGO', 'DESCRIPCIÓN', 'TIPO', 'UNIDAD', 'EXISTENCIA', 'MÍNIMO',
+                                     'ESTADO', 'LOTES', 'PROVEEDOR', 'ÚLTIMO MOVIMIENTO'],
+                     filas, [14, 40, 16, 9, 12, 10, 14, 40, 24, 18])
+    nombre = f"Existencias_MP_{_norm(planta).title()}_{ahora_mx().strftime('%Y-%m-%d')}.xlsx"
+    return send_file(buf, as_attachment=True, download_name=nombre,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@app.route('/api/inv/movimientos/excel', methods=['GET'])
+def inv_movimientos_excel():
+    planta = request.args.get('planta', '')
+    if planta not in INV_PLANTAS:
+        return jsonify({'error': 'Planta no válida'}), 400
+    args = request.args.to_dict()
+    args['limit'] = 20000
+    filas = [[m['fecha_mx'], m['tipo'].upper(), m['codigo'], m['descripcion'],
+              float(m['cantidad']), m['unidad'], m.get('lote') or '', m.get('proveedor') or '',
+              m.get('referencia') or '', m.get('destino') or '', m.get('usuario_nombre') or '',
+              ('CANCELADO: ' + (m['cancelado'].get('motivo') or '')) if m.get('cancelado') else '',
+              m.get('notas') or ''] for m in _inv_buscar_movimientos(args)]
+    buf = _inv_excel('Movimientos', ['FECHA', 'TIPO', 'CÓDIGO', 'DESCRIPCIÓN', 'CANTIDAD', 'UNIDAD', 'LOTE',
+                                     'PROVEEDOR', 'REFERENCIA', 'DESTINO', 'REGISTRÓ', 'ESTADO', 'NOTAS'],
+                     filas, [16, 9, 14, 36, 11, 8, 14, 22, 18, 18, 22, 24, 30])
+    nombre = f"Movimientos_MP_{_norm(planta).title()}_{ahora_mx().strftime('%Y-%m-%d')}.xlsx"
+    return send_file(buf, as_attachment=True, download_name=nombre,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 if __name__ == '__main__':
