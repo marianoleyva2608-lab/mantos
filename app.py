@@ -4989,6 +4989,15 @@ def _inv_fecha_mx(valor):
     return dt.strftime('%d/%m/%Y %H:%M')
 
 
+def _inv_siguiente_lote():
+    """Lote interno consecutivo del dia, unico para las 3 plantas: MP-AAMMDD-001."""
+    prefijo = 'MP-' + ahora_mx().strftime('%y%m%d') + '-'
+    ult = sb.select('inv_movimientos', select='lote', lote='like.' + prefijo + '*',
+                    order='lote.desc', limit=1)
+    n = int(ult[0]['lote'][len(prefijo):]) + 1 if ult and ult[0]['lote'][len(prefijo):].isdigit() else 1
+    return prefijo + str(n).zfill(3)
+
+
 def _inv_existencias(planta, articulo_id=None):
     """{articulo_id: {'stock': n, 'lotes': {lote: n}, 'ultimo': iso}} de una planta."""
     filtros = {'planta': 'eq.' + planta, 'cancelado': 'is.null'}
@@ -5142,6 +5151,8 @@ def inv_registrar_movimiento():
     if not cantidad or cantidad <= 0:
         return jsonify({'error': 'La cantidad debe ser mayor a 0'}), 400
     lote = (d.get('lote') or '').strip().upper()
+    if tipo == 'entrada':
+        lote = _inv_siguiente_lote()
     if tipo == 'salida':
         e = _inv_existencias(planta, art_id).get(art_id) or {'stock': 0.0, 'lotes': {}}
         disponible = e['lotes'].get(lote, 0.0) if lote else e['stock']
@@ -5158,6 +5169,7 @@ def inv_registrar_movimiento():
     rows = sb.insert('inv_movimientos', {
         'articulo_id': art_id, 'planta': planta, 'tipo': tipo, 'cantidad': cantidad,
         'lote': lote,
+        'lote_proveedor': (d.get('lote_proveedor') or '').strip().upper() if tipo == 'entrada' else '',
         'proveedor': (d.get('proveedor') or '').strip() if tipo == 'entrada' else '',
         'referencia': (d.get('referencia') or '').strip(),
         'destino': (d.get('destino') or '').strip() if tipo == 'salida' else '',
@@ -5165,7 +5177,7 @@ def inv_registrar_movimiento():
         'fecha': fecha,
         'usuario_email': u['email'], 'usuario_nombre': u['nombre'],
     })
-    return jsonify({'ok': True, 'movimiento': rows[0] if rows else None})
+    return jsonify({'ok': True, 'lote': lote, 'movimiento': rows[0] if rows else None})
 
 
 @app.route('/api/inv/movimientos/<int:mov_id>/cancelar', methods=['POST'])
@@ -5242,13 +5254,14 @@ def inv_movimientos_excel():
     args = request.args.to_dict()
     args['limit'] = 20000
     filas = [[m['fecha_mx'], m['tipo'].upper(), m['codigo'], m['descripcion'],
-              float(m['cantidad']), m['unidad'], m.get('lote') or '', m.get('proveedor') or '',
+              float(m['cantidad']), m['unidad'], m.get('lote') or '', m.get('lote_proveedor') or '',
+              m.get('proveedor') or '',
               m.get('referencia') or '', m.get('destino') or '', m.get('usuario_nombre') or '',
               ('CANCELADO: ' + (m['cancelado'].get('motivo') or '')) if m.get('cancelado') else '',
               m.get('notas') or ''] for m in _inv_buscar_movimientos(args)]
-    buf = _inv_excel('Movimientos', ['FECHA', 'TIPO', 'CÓDIGO', 'DESCRIPCIÓN', 'CANTIDAD', 'UNIDAD', 'LOTE',
+    buf = _inv_excel('Movimientos', ['FECHA', 'TIPO', 'CÓDIGO', 'DESCRIPCIÓN', 'CANTIDAD', 'UNIDAD', 'LOTE', 'LOTE PROV.',
                                      'PROVEEDOR', 'REFERENCIA', 'DESTINO', 'REGISTRÓ', 'ESTADO', 'NOTAS'],
-                     filas, [16, 9, 14, 36, 11, 8, 14, 22, 18, 18, 22, 24, 30])
+                     filas, [16, 9, 14, 36, 11, 8, 16, 14, 22, 18, 18, 22, 24, 30])
     nombre = f"Movimientos_MP_{_norm(planta).title()}_{ahora_mx().strftime('%Y-%m-%d')}.xlsx"
     return send_file(buf, as_attachment=True, download_name=nombre,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

@@ -5280,10 +5280,12 @@ async function verReq(id){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><span class="inv-lbl">Cantidad <span id="inv-mov-unidad" style="text-transform:none;color:#888"></span></span>
           <input id="inv-mov-cant" type="number" min="0" step="any" inputmode="decimal" class="inv-in"></div>
-        <div><span class="inv-lbl">Lote</span>
-          <input id="inv-mov-lote" type="text" class="inv-in" placeholder="Lote del proveedor">
+        <div><span class="inv-lbl" id="inv-mov-lote-lbl">Lote</span>
+          <input id="inv-mov-lote" type="text" class="inv-in" placeholder="Opcional">
           <select id="inv-mov-lote-sel" class="inv-in" style="display:none"></select></div>
       </div>
+      <div class="inv-solo-entrada" style="background:#eef5ef;border-radius:7px;padding:8px 10px;font-size:12px;color:#1F5C2E">
+        El sistema asigna el <b>número de lote interno</b> (MP-AAMMDD-001) al guardar.</div>
       <div class="inv-solo-entrada"><span class="inv-lbl">Proveedor</span>
         <input id="inv-mov-prov" type="text" class="inv-in"></div>
       <div><span class="inv-lbl" id="inv-mov-ref-lbl">Referencia</span>
@@ -5452,6 +5454,7 @@ function invAbrirMov(tipo, artId){
   document.getElementById('inv-mov-ref-lbl').textContent = entrada ? 'Factura / remisión' : 'Orden de producción';
   document.querySelectorAll('.inv-solo-entrada').forEach(function(e){ e.style.display = entrada ? '' : 'none'; });
   document.querySelectorAll('.inv-solo-salida').forEach(function(e){ e.style.display = entrada ? 'none' : ''; });
+  document.getElementById('inv-mov-lote-lbl').textContent = entrada ? 'Lote del proveedor' : 'Lote';
   document.getElementById('inv-mov-lote').style.display = entrada ? '' : 'none';
   document.getElementById('inv-mov-lote-sel').style.display = entrada ? 'none' : '';
   var opciones = activos;
@@ -5493,7 +5496,8 @@ function invGuardarMov(){
     usuario_email: invEmail(), planta: invPlanta(), tipo: _invMovTipo,
     articulo_id: document.getElementById('inv-mov-art').value,
     cantidad: document.getElementById('inv-mov-cant').value,
-    lote: entrada ? document.getElementById('inv-mov-lote').value : document.getElementById('inv-mov-lote-sel').value,
+    lote: entrada ? '' : document.getElementById('inv-mov-lote-sel').value,
+    lote_proveedor: entrada ? document.getElementById('inv-mov-lote').value : '',
     proveedor: document.getElementById('inv-mov-prov').value,
     referencia: document.getElementById('inv-mov-ref').value,
     destino: document.getElementById('inv-mov-dest').value,
@@ -5511,6 +5515,7 @@ function invGuardarMov(){
       btn.disabled = false;
       if (!d.ok) { err.textContent = d.error || 'No se pudo guardar'; return; }
       invCerrar('inv-mov-modal');
+      if (entrada && d.lote) alert('Entrada registrada.\n\nNúmero de lote asignado: ' + d.lote + '\n\nAnótalo en la etiqueta del material.');
       invCargarTodo();
       if (document.getElementById('inv-sec-movs').style.display !== 'none') invCargarMovs();
     })
@@ -5520,7 +5525,7 @@ function invGuardarMov(){
 // ── Movimientos ──
 function invMovHtml(m, saldo){
   var entrada = m.tipo === 'entrada';
-  var det = [m.lote ? 'Lote ' + m.lote : '', entrada ? m.proveedor : m.destino, m.referencia].filter(Boolean).join(' · ');
+  var det = [m.lote ? 'Lote ' + m.lote : '', m.lote_proveedor ? 'Lote prov. ' + m.lote_proveedor : '', entrada ? m.proveedor : m.destino, m.referencia].filter(Boolean).join(' · ');
   var cancel = m.cancelado ? '<div style="font-size:11px;color:#C62828;text-decoration:none">Cancelado por ' + escHtml(m.cancelado.nombre) + ' (' + escHtml(m.cancelado.fecha) + '): ' + escHtml(m.cancelado.motivo) + '</div>' : '';
   var btn = (!m.cancelado && userIsAdmin()) ? ' <a href="#" onclick="invCancelarMov(' + m.id + ');return false" style="font-size:11px;color:#C62828">cancelar</a>' : '';
   return '<div class="inv-mov' + (m.cancelado ? ' cancel' : '') + '">' +

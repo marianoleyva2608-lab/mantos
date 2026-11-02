@@ -24,7 +24,8 @@ create table if not exists inv_movimientos (
   planta          text not null,
   tipo            text not null check (tipo in ('entrada', 'salida')),
   cantidad        numeric not null check (cantidad > 0),
-  lote            text default '',
+  lote            text default '',           -- lote interno MP-AAMMDD-NNN (lo asigna el sistema en entradas)
+  lote_proveedor  text default '',
   proveedor       text default '',           -- entradas
   referencia      text default '',           -- factura / remisión (entrada) u orden de producción (salida)
   destino         text default '',           -- máquina / área (salidas)
@@ -38,6 +39,9 @@ create table if not exists inv_movimientos (
 
 create index if not exists ix_inv_mov_planta on inv_movimientos (planta, fecha desc);
 create index if not exists ix_inv_mov_articulo on inv_movimientos (articulo_id, planta, fecha desc);
+
+-- Por si la tabla ya existia sin la columna de lote del proveedor:
+alter table inv_movimientos add column if not exists lote_proveedor text default '';
 
 -- Que la API vea las tablas nuevas de inmediato
 notify pgrst, 'reload schema';
