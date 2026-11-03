@@ -383,7 +383,7 @@ def normalizar_link(url):
         url = 'https://' + url
     return url
 
-TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'inventario', 'trazabilidad', 'banos', 'settings')
+TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'inventario', 'trazabilidad', 'banos', 'asistencia', 'cot', 'settings')
 CARGOS_VALIDOS = ('Empleado', 'Supervisor', 'Compras', 'Dirección/Presidencia')
 BASE_URL_PUBLICO = 'https://adpacksystem.cloud'
 
