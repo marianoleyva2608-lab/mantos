@@ -5418,14 +5418,19 @@ function invRenderExist(){
   el.innerHTML = lista.map(function(a){
     var color = a.stock <= 0 ? '#888' : (a.bajo_minimo ? '#C62828' : '#1F5C2E');
     return '<div class="inv-card' + (a.bajo_minimo ? ' bajo' : '') + '" onclick="invKardex(' + a.id + ')">' +
-      '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">' +
-        '<div style="min-width:0"><div style="font-size:14px;font-weight:600">' + escHtml(a.descripcion) + (a.activo ? '' : ' <span style="font-size:11px;color:#888">(inactivo)</span>') + '</div>' +
-          '<div style="font-size:12px;color:#888">' + escHtml([a.codigo, a.tipo].filter(Boolean).join(' · ')) + '</div></div>' +
-        '<div style="text-align:right;white-space:nowrap"><div style="font-size:18px;font-weight:700;color:' + color + '">' + invNum(a.stock) + ' <span style="font-size:12px;font-weight:400">' + escHtml(a.unidad) + '</span></div>' +
-          (a.minimo ? '<div style="font-size:11px;color:' + (a.bajo_minimo ? '#C62828' : '#888') + '">mín. ' + invNum(a.minimo) + (a.bajo_minimo ? ' &#9888;' : '') + '</div>' : '') + '</div>' +
+      '<div style="display:flex;gap:14px;align-items:center">' +
+        '<div style="flex:none;min-width:84px;text-align:center;white-space:nowrap">' +
+          '<div style="font-size:36px;line-height:1.1;font-weight:700;color:' + color + '">' + invNum(a.stock) + '</div>' +
+          '<div style="font-size:12px;color:' + color + '">' + escHtml(a.unidad) + '</div>' +
+          (a.minimo ? '<div style="font-size:11px;color:' + (a.bajo_minimo ? '#C62828' : '#888') + '">mín. ' + invNum(a.minimo) + (a.bajo_minimo ? ' &#9888;' : '') + '</div>' : '') +
+        '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:14px;font-weight:600">' + escHtml(a.descripcion) + (a.activo ? '' : ' <span style="font-size:11px;color:#888">(inactivo)</span>') + '</div>' +
+          '<div style="font-size:12px;color:#888">' + escHtml([a.codigo, a.tipo].filter(Boolean).join(' · ')) + '</div>' +
+          (a.lotes.length ? '<div style="font-size:12px;color:#555;margin-top:6px">Lotes: ' + a.lotes.map(function(l){ return '<b>' + escHtml(l.lote || 's/lote') + '</b> ' + invNum(l.stock); }).join(' · ') + '</div>' : '') +
+          (a.ultimo_mov ? '<div style="font-size:11px;color:#aaa;margin-top:3px">Último movimiento: ' + a.ultimo_mov + '</div>' : '') +
+        '</div>' +
       '</div>' +
-      (a.lotes.length ? '<div style="font-size:12px;color:#555;margin-top:6px">Lotes: ' + a.lotes.map(function(l){ return '<b>' + escHtml(l.lote || 's/lote') + '</b> ' + invNum(l.stock); }).join(' · ') + '</div>' : '') +
-      (a.ultimo_mov ? '<div style="font-size:11px;color:#aaa;margin-top:3px">Último movimiento: ' + a.ultimo_mov + '</div>' : '') +
     '</div>';
   }).join('');
 }
