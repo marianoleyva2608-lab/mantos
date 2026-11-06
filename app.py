@@ -2,6 +2,8 @@ import os, io, re, base64, json, hashlib, datetime, smtplib, csv
 from html import escape as html_escape
 from urllib.parse import quote
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 import requests
 from flask import Flask, request, send_file, jsonify, send_from_directory
 from qr_catalog import CATEGORIA_FIJA as QR_CATEGORIA_FIJA, GRUPOS as QR_GRUPOS, PLANTA as QR_PLANTA, PROVEEDORES as QR_PROVEEDORES
@@ -88,12 +90,20 @@ def _justificacion_html(o):
             + html_escape(a.get('nombre') or a['ruta']) + '</a>' for a in adjuntos) + '</p>'
     return html
 
-def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, responder_a=None):
+def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, responder_a=None, adjunto_pdf=None):
+    """adjunto_pdf: (nombre_archivo, bytes), opcional."""
     if not destinatario:
         return False, 'Falta destinatario'
     remitente = os.environ.get('GRAPH_SENDER_EMAIL', '')
     usa_graph = bool(remitente and os.environ.get('GRAPH_CLIENT_ID'))
     msg = MIMEText(cuerpo_html, 'html', 'utf-8')
+    if adjunto_pdf:
+        cuerpo = msg
+        msg = MIMEMultipart()
+        msg.attach(cuerpo)
+        parte = MIMEApplication(adjunto_pdf[1], _subtype='pdf')
+        parte.add_header('Content-Disposition', 'attachment', filename=adjunto_pdf[0])
+        msg.attach(parte)
     msg['Subject'] = asunto
     # El envio siempre se autentica con la cuenta del sistema, pero se
     # muestra con el nombre de quien genero la requisicion; si responden,
@@ -5329,6 +5339,53 @@ def _qr_buscar(desde, hasta, limite=None):
     return regs
 
 
+QR_ARCHIVO_PRESENTACION = 'presentacion-adpack.pdf'
+
+
+def _qr_enviar_presentacion(registro, u):
+    """Manda la presentacion al correo del registro y anota el resultado en sus datos."""
+    datos = registro.get('datos') or []
+    correo = next((limpiar_email(c['v']) for c in datos if limpiar_email(c['v'])), '')
+    if not correo:
+        return False, 'El registro no tiene correo'
+    nombre = next((c['v'] for c in datos if c['k'].lower() == 'nombre'), '')
+    saludo = 'Hola ' + html_escape(nombre) + ',' if nombre else 'Hola,'
+    html = ('<p>' + saludo + '</p>'
+            '<p>Gracias por tu interés en AD-PACK. Te compartimos nuestra presentación en el archivo adjunto.</p>'
+            '<p>Si tienes alguna duda, puedes responder a este correo. También puedes visitar '
+            '<a href="https://www.ad-pack.com.mx">www.ad-pack.com.mx</a>.</p>'
+            '<p>Saludos,<br>' + html_escape(u['nombre']) + '<br>AD-PACK</p>')
+    try:
+        with open(QR_ARCHIVO_PRESENTACION, 'rb') as f:
+            pdf = f.read()
+    except OSError as e:
+        ok, error = False, 'No se encontró la presentación: ' + str(e)
+    else:
+        ok, error = enviar_correo(correo, 'Presentación de AD-PACK', html, nombre_remitente=u['nombre'],
+                                  responder_a=u['email'], adjunto_pdf=('Presentacion_AD-PACK.pdf', pdf))
+    estado = ('Enviada ' if ok else 'No enviada ') + ahora_mx().strftime('%d/%m/%Y %H:%M')
+    nuevos = [c for c in datos if c['k'] != 'Presentación'] + [{'k': 'Presentación', 'v': estado}]
+    try:
+        sb.update('qr_registros', {'datos': nuevos}, return_rows=False, id='eq.' + str(registro['id']))
+    except requests.HTTPError as e:
+        print(f'[qr] no se pudo anotar el envio del registro {registro["id"]}: {e}')
+    if not ok:
+        print(f'[qr] no se pudo enviar la presentacion del registro {registro["id"]}: {error}')
+    return ok, error
+
+
+@app.route('/api/qr/registros/<int:reg_id>/enviar', methods=['POST'])
+def qr_reenviar_presentacion(reg_id):
+    u = _qr_usuario((request.json or {}).get('usuario_email'))
+    if not u:
+        return jsonify({'error': 'No tienes acceso a Información QR'}), 403
+    rows = sb.select('qr_registros', id='eq.' + str(reg_id))
+    if not rows:
+        return jsonify({'error': 'Registro no encontrado'}), 404
+    ok, error = _qr_enviar_presentacion(rows[0], u)
+    return jsonify({'ok': ok, 'error': error})
+
+
 @app.route('/api/qr/registros', methods=['GET'])
 def qr_registros():
     if not _qr_usuario(request.headers.get('X-Usuario-Email')):
@@ -5365,7 +5422,11 @@ def qr_guardar_registro():
         detalle = e.response.text[:300] if e.response is not None else str(e)
         print(f'[qr] error al guardar: {detalle}')
         return jsonify({'error': 'No se pudo guardar en la base de datos: ' + detalle}), 500
-    return jsonify({'ok': True, 'registro': rows[0] if rows else None})
+    # El registro ya quedo guardado: si el correo falla se puede reenviar desde la lista
+    enviado, error = None, None
+    if d.get('enviar_presentacion') and rows:
+        enviado, error = _qr_enviar_presentacion(rows[0], u)
+    return jsonify({'ok': True, 'registro': rows[0] if rows else None, 'correo_enviado': enviado, 'correo_error': error})
 
 
 @app.route('/api/qr/registros/excel', methods=['GET'])

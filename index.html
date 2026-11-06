@@ -5700,8 +5700,12 @@ function invBorrarArt(){
     <button class="inv-x" onclick="invCerrar('qr-motivo-modal')">&times;</button>
     <div style="font-size:16px;font-weight:700;margin-bottom:10px">Información del QR</div>
     <div id="qr-motivo-info" style="background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:14px;word-break:break-word"></div>
+    <div id="qr-correo-box" style="margin-bottom:10px">
+      <label class="inv-lbl" for="qr-correo">Correo</label>
+      <input id="qr-correo" type="email" class="inv-in" maxlength="150" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="correo@empresa.com">
+    </div>
     <div id="qr-nombre-box" style="margin-bottom:10px">
-      <label class="inv-lbl" for="qr-nombre">Nombre</label>
+      <label class="inv-lbl" for="qr-nombre">Nombre (opcional)</label>
       <input id="qr-nombre" type="text" class="inv-in" maxlength="150" placeholder="Nombre de la persona">
     </div>
     <div id="qr-empresa-box" style="margin-bottom:10px">
@@ -5710,6 +5714,7 @@ function invBorrarArt(){
     </div>
     <label class="inv-lbl" for="qr-motivo">Motivo</label>
     <textarea id="qr-motivo" class="inv-in" rows="3" maxlength="1000" placeholder="Escribe el motivo de la persona..." style="resize:vertical;font-family:inherit"></textarea>
+    <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-top:10px;cursor:pointer"><input id="qr-enviar" type="checkbox" checked>Enviar la presentación de AD-PACK a su correo</label>
     <div id="qr-motivo-err" style="color:#C62828;font-size:13px;margin-top:6px"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="inv-btn" style="background:#888;flex:1" onclick="invCerrar('qr-motivo-modal')">Cancelar</button>
@@ -5761,8 +5766,27 @@ function qrRender(){
       qrCamposHtml(r.datos && r.datos.length ? r.datos : [{k:'Contenido', v:r.contenido}]) +
       '<div style="margin-top:6px;padding-top:6px;border-top:1px solid #eee"><b>Motivo:</b> ' + escHtml(r.motivo) + '</div>' +
       '<div style="font-size:12px;color:#777;margin-top:4px">' + escHtml(r.fecha_mx) + ' &middot; ' + escHtml(r.usuario_nombre || '') + '</div>' +
+      (qrPuedeEnviar(r) ? '<button class="inv-btn" style="background:#1565C0;margin-top:8px;font-size:13px;padding:7px 12px" onclick="qrEnviar(' + Number(r.id) + ', this)">&#9993; Enviar presentación</button>' : '') +
     '</div>';
   }).join('') : '<p style="color:#888;text-align:center;padding:20px">Sin registros en el periodo</p>';
+}
+// El boton aparece si hay correo y la presentacion aun no se ha enviado
+function qrPuedeEnviar(r){
+  var datos = r.datos || [];
+  var enviada = datos.some(function(c){ return c.k === 'Presentación' && c.v.indexOf('Enviada') === 0; });
+  return !enviada && datos.some(function(c){ return QR_CORREO.test(c.v); });
+}
+function qrEnviar(id, btn){
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  fetch('/api/qr/registros/' + id + '/enviar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({usuario_email: invEmail()})})
+    .then(invJson)
+    .then(function(d){
+      if (d.ok) showToast('Presentación enviada');
+      else alert('No se pudo enviar la presentación: ' + (d.error || 'error desconocido'));
+      qrCargar();
+    })
+    .catch(function(){ alert('Error de conexión. Intenta de nuevo.'); qrCargar(); });
 }
 // Separa el contenido del QR en campos. Lo que no se reconoce queda como "Contenido".
 function qrParse(t){
@@ -5806,16 +5830,24 @@ function qrParse(t){
 function qrEscaneado(texto){
   _qrActual = {contenido: texto, datos: qrParse(texto)};
   document.getElementById('qr-motivo-info').innerHTML = qrCamposHtml(_qrActual.datos);
+  document.getElementById('qr-enviar').checked = true;
+  document.getElementById('qr-correo').value = '';
   document.getElementById('qr-nombre').value = '';
   document.getElementById('qr-empresa').value = '';
   document.getElementById('qr-motivo').value = '';
   document.getElementById('qr-motivo-err').textContent = '';
-  // Nombre y Empresa solo se piden si el QR no los trae
+  // Correo, Nombre y Empresa solo se piden si el QR no los trae
+  var pideCorreo = !qrTraeCorreo();
   var pideNombre = !qrTraeCampo('nombre');
+  document.getElementById('qr-correo-box').style.display = pideCorreo ? '' : 'none';
   document.getElementById('qr-nombre-box').style.display = pideNombre ? '' : 'none';
   document.getElementById('qr-empresa-box').style.display = qrTraeCampo('empresa') ? 'none' : '';
   invAbrirModal('qr-motivo-modal');
-  document.getElementById(pideNombre ? 'qr-nombre' : 'qr-motivo').focus();
+  document.getElementById(pideCorreo ? 'qr-correo' : pideNombre ? 'qr-nombre' : 'qr-motivo').focus();
+}
+var QR_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function qrTraeCorreo(){
+  return _qrActual.datos.some(function(c){ return QR_CORREO.test(c.v); });
 }
 function qrTraeCampo(k){
   return _qrActual.datos.some(function(c){ return c.k.toLowerCase() === k; });
@@ -5824,11 +5856,13 @@ function qrGuardar(){
   var motivo = document.getElementById('qr-motivo').value.trim();
   var err = document.getElementById('qr-motivo-err');
   var datos = _qrActual.datos.slice();
-  if (!qrTraeCampo('nombre')) {
-    var nombre = document.getElementById('qr-nombre').value.trim();
-    if (!nombre) { err.textContent = 'Escribe el nombre'; return; }
-    datos.push({k:'Nombre', v:nombre});
+  if (!qrTraeCorreo()) {
+    var correo = document.getElementById('qr-correo').value.trim().toLowerCase();
+    if (!QR_CORREO.test(correo)) { err.textContent = 'Escribe un correo válido'; return; }
+    datos.push({k:'Correo', v:correo});
   }
+  var nombre = document.getElementById('qr-nombre').value.trim();
+  if (nombre && !qrTraeCampo('nombre')) datos.push({k:'Nombre', v:nombre});
   var empresa = document.getElementById('qr-empresa').value.trim();
   if (empresa && !qrTraeCampo('empresa')) datos.push({k:'Empresa', v:empresa});
   if (!motivo) { err.textContent = 'Escribe el motivo'; return; }
@@ -5836,12 +5870,13 @@ function qrGuardar(){
   btn.disabled = true;
   err.textContent = '';
   fetch('/api/qr/registros', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({usuario_email: invEmail(), contenido: _qrActual.contenido, datos: datos, motivo: motivo})})
+    body: JSON.stringify({usuario_email: invEmail(), contenido: _qrActual.contenido, datos: datos, motivo: motivo, enviar_presentacion: document.getElementById('qr-enviar').checked})})
     .then(invJson)
     .then(function(d){
       if (!d.ok) { err.textContent = d.error || 'No se pudo guardar'; return; }
       invCerrar('qr-motivo-modal');
-      showToast('Registro guardado');
+      if (d.correo_enviado === false) alert('El registro se guardó, pero no se pudo enviar la presentación: ' + (d.correo_error || 'error desconocido') + '. Puedes reenviarla desde la lista.');
+      else showToast(d.correo_enviado ? 'Registro guardado y presentación enviada' : 'Registro guardado');
       qrCargar();
     })
     .catch(function(){ err.textContent = 'Error de conexión. Intenta de nuevo.'; })
