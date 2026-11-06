@@ -383,7 +383,7 @@ def normalizar_link(url):
         url = 'https://' + url
     return url
 
-TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'inventario', 'trazabilidad', 'banos', 'asistencia', 'cot', 'settings')
+TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'inventario', 'trazabilidad', 'banos', 'asistencia', 'cot', 'qr', 'settings')
 CARGOS_VALIDOS = ('Empleado', 'Supervisor', 'Compras', 'Dirección/Presidencia')
 BASE_URL_PUBLICO = 'https://adpacksystem.cloud'
 
@@ -5280,6 +5280,119 @@ def inv_movimientos_excel():
                      filas, [16, 9, 14, 36, 11, 8, 16, 14, 22, 18, 18, 22, 24, 30])
     nombre = f"Movimientos_MP_{_norm(planta).title()}_{ahora_mx().strftime('%Y-%m-%d')}.xlsx"
     return send_file(buf, as_attachment=True, download_name=nombre,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# INFORMACION QR: se lee un QR con la camara y se guarda con el motivo de la
+# persona (tabla qr_registros, schema_qr_registros.sql). El navegador separa
+# el contenido en campos (vCard, JSON, "Clave: valor") y los manda en 'datos'.
+# ══════════════════════════════════════════════════════════════════════════
+def _qr_usuario(email):
+    """Usuario con acceso al modulo (admin o permiso 'qr'), o None."""
+    email = (email or '').strip().lower()
+    if not email:
+        return None
+    rows = sb.select('users', select='nombre,email,rol,permisos', email='eq.' + email)
+    if not rows:
+        return None
+    u = rows[0]
+    permisos = [p.strip() for p in (u.get('permisos') or '').split(',')]
+    if u.get('rol') == 'admin' or u.get('permisos') == 'all' or 'qr' in permisos:
+        return u
+    return None
+
+
+def _qr_limpio(valor, maximo):
+    """Texto sin caracteres de control (Postgres y Excel los rechazan)."""
+    return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', str(valor or '')).strip()[:maximo]
+
+
+def _qr_buscar(desde, hasta, limite=None):
+    """Registros del periodo, recientes primero. Sin limite pagina todo (tope de 1000 de PostgREST)."""
+    filtros, rango = {}, []
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', desde or ''):
+        rango.append('fecha.gte.' + desde + 'T00:00:00-06:00')
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', hasta or ''):
+        rango.append('fecha.lte.' + hasta + 'T23:59:59-06:00')
+    if rango:
+        filtros['and'] = '(' + ','.join(rango) + ')'
+    regs, pagina = [], min(limite or 1000, 1000)
+    while True:
+        bloque = sb.select('qr_registros', order='fecha.desc,id.desc', limit=pagina, offset=len(regs), **filtros)
+        regs += bloque
+        if limite or len(bloque) < pagina:
+            break
+    for r in regs:
+        r['fecha_mx'] = _inv_fecha_mx(r.get('fecha'))
+    return regs
+
+
+@app.route('/api/qr/registros', methods=['GET'])
+def qr_registros():
+    if not _qr_usuario(request.headers.get('X-Usuario-Email')):
+        return jsonify({'error': 'No tienes acceso a Información QR'}), 403
+    try:
+        return jsonify(_qr_buscar(request.args.get('desde'), request.args.get('hasta'), limite=500))
+    except requests.HTTPError as e:
+        detalle = e.response.text[:300] if e.response is not None else str(e)
+        print(f'[qr] error al consultar: {detalle}')
+        return jsonify({'error': 'No se pudieron cargar los registros: ' + detalle}), 500
+
+
+@app.route('/api/qr/registros', methods=['POST'])
+def qr_guardar_registro():
+    d = request.json or {}
+    u = _qr_usuario(d.get('usuario_email'))
+    if not u:
+        return jsonify({'error': 'No tienes acceso a Información QR'}), 403
+    contenido = _qr_limpio(d.get('contenido'), 4000)
+    motivo = _qr_limpio(d.get('motivo'), 1000)
+    if not contenido:
+        return jsonify({'error': 'El QR no trae información'}), 400
+    if not motivo:
+        return jsonify({'error': 'Escribe el motivo'}), 400
+    datos = []
+    for c in (d.get('datos') if isinstance(d.get('datos'), list) else [])[:50]:
+        if isinstance(c, dict) and _qr_limpio(c.get('v'), 1):
+            datos.append({'k': _qr_limpio(c.get('k'), 60) or 'Contenido', 'v': _qr_limpio(c.get('v'), 4000)})
+    fila = {'contenido': contenido, 'datos': datos, 'motivo': motivo,
+            'usuario_email': u['email'], 'usuario_nombre': u['nombre']}
+    try:
+        rows = sb.insert('qr_registros', fila)
+    except requests.HTTPError as e:
+        detalle = e.response.text[:300] if e.response is not None else str(e)
+        print(f'[qr] error al guardar: {detalle}')
+        return jsonify({'error': 'No se pudo guardar en la base de datos: ' + detalle}), 500
+    return jsonify({'ok': True, 'registro': rows[0] if rows else None})
+
+
+@app.route('/api/qr/registros/excel', methods=['GET'])
+def qr_registros_excel():
+    if not _qr_usuario(request.headers.get('X-Usuario-Email')):
+        return jsonify({'error': 'No tienes acceso a Información QR'}), 403
+    regs = _qr_buscar(request.args.get('desde'), request.args.get('hasta'))
+
+    def celda(valor):
+        # Un QR que empieza con '=' no debe ejecutarse como formula en Excel
+        return "'" + valor if valor.startswith('=') else valor
+
+    # Una columna por cada campo distinto que traigan los QR del periodo
+    claves = []
+    for r in regs:
+        for c in r.get('datos') or []:
+            if c['k'] not in claves:
+                claves.append(c['k'])
+    filas = []
+    for r in regs:
+        valores = {}
+        for c in r.get('datos') or []:
+            valores[c['k']] = (valores[c['k']] + ', ' + c['v']) if c['k'] in valores else c['v']
+        filas.append([r['fecha_mx']] + [celda(valores.get(k, '')) for k in claves] +
+                     [celda(r.get('motivo') or ''), r.get('usuario_nombre') or ''])
+    buf = _inv_excel('Información QR', ['FECHA'] + [k.upper() for k in claves] + ['MOTIVO', 'REGISTRÓ'],
+                     filas, [16] + [28] * len(claves) + [45, 24])
+    return send_file(buf, as_attachment=True, download_name=f"Informacion_QR_{ahora_mx().strftime('%Y-%m-%d')}.xlsx",
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 

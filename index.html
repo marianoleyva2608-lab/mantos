@@ -2299,6 +2299,7 @@ var TABS_CONTROLADAS = [
   {id:'trazabilidad', label:'Trazabilidad', icon:'&#128202;', action:function(){window.location.href='/trazabilidad';}},
   {id:'banos', label:'Control de Baños', icon:'&#128701;', action:function(){window.location.href='/banos';}},
   {id:'asistencia', label:'Asistencia', icon:'&#128197;', action:function(){window.location.href='/asistencia';}},
+  {id:'qr', label:'Información QR', icon:'&#128241;', action:function(){qrAbrir();}},
   {id:'settings', label:'Configuración', icon:'&#9881;&#65039;', action:function(){showPage('settings');}}
 ];
 
@@ -5661,6 +5662,167 @@ function invBorrarArt(){
 }
 </script>
 
+<!-- ══ INFORMACION QR ══ (usa el lector de camara de Refacciones y los estilos inv-*) -->
+<div id="page-qr" class="page" style="background:#f5f5f5;padding-bottom:30px">
+  <div class="hdr">
+    <button class="back" onclick="showPage('menu')" title="Inicio">&#8249;</button>
+    <div style="flex:1"><h1>&#128241; Información QR</h1><div class="sub">Lee un QR y registra el motivo de la persona</div></div>
+  </div>
+  <div style="padding:14px">
+    <button class="inv-btn" style="background:#1F5C2E;width:100%;padding:16px;font-size:17px" onclick="abrirEscanerQR()">&#128247; Leer QR</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px;align-items:flex-end">
+      <div><span class="inv-lbl">Desde</span><input id="qr-desde" type="date" class="inv-in"></div>
+      <div><span class="inv-lbl">Hasta</span><input id="qr-hasta" type="date" class="inv-in"></div>
+      <button class="inv-btn" style="background:#1F5C2E" onclick="qrCargar()">Buscar</button>
+      <button class="inv-btn" style="background:#1565C0" onclick="qrExcel()">&#128196; Excel</button>
+    </div>
+    <input id="qr-buscar" type="text" placeholder="Filtrar por nombre, motivo o quien registró..." oninput="qrRender()" class="inv-in" style="margin-bottom:10px">
+    <div id="qr-lista"></div>
+  </div>
+</div>
+
+<!-- Modal: motivo despues de escanear -->
+<div id="qr-motivo-modal" class="inv-modal">
+  <div>
+    <button class="inv-x" onclick="invCerrar('qr-motivo-modal')">&times;</button>
+    <div style="font-size:16px;font-weight:700;margin-bottom:10px">Información del QR</div>
+    <div id="qr-motivo-info" style="background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:14px;word-break:break-word"></div>
+    <label class="inv-lbl" for="qr-motivo">Motivo</label>
+    <textarea id="qr-motivo" class="inv-in" rows="3" maxlength="1000" placeholder="Escribe el motivo de la persona..." style="resize:vertical;font-family:inherit"></textarea>
+    <div id="qr-motivo-err" style="color:#C62828;font-size:13px;margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="inv-btn" style="background:#888;flex:1" onclick="invCerrar('qr-motivo-modal')">Cancelar</button>
+      <button id="qr-motivo-guardar" class="inv-btn" style="background:#2E7D32;flex:1" onclick="qrGuardar()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var _qrRegistros = [];
+var _qrActual = null;   // {contenido, datos} del QR recien leido
+
+function qrAbrir(){
+  if (!document.getElementById('qr-desde').value) {
+    document.getElementById('qr-hasta').value = new Date().toLocaleDateString('en-CA');
+    document.getElementById('qr-desde').value = new Date(Date.now() - 30*86400000).toLocaleDateString('en-CA');
+  }
+  showPage('qr');
+  qrCargar();
+}
+function qrQuery(){
+  return 'desde=' + document.getElementById('qr-desde').value + '&hasta=' + document.getElementById('qr-hasta').value;
+}
+function qrCargar(){
+  var el = document.getElementById('qr-lista');
+  el.innerHTML = '<p style="color:#888;text-align:center;padding:20px">Cargando...</p>';
+  fetch('/api/qr/registros?' + qrQuery(), {headers:{'X-Usuario-Email': invEmail()}})
+    .then(invJson)
+    .then(function(data){
+      if (data.error) throw new Error(data.error);
+      _qrRegistros = data;
+      qrRender();
+    })
+    .catch(function(e){ el.innerHTML = '<p style="color:#C62828;text-align:center;padding:20px">' + escHtml(e.message) + '</p>'; });
+}
+function qrCamposHtml(datos){
+  return datos.map(function(c){
+    return '<div><b>' + escHtml(c.k) + ':</b> ' + escHtml(c.v) + '</div>';
+  }).join('');
+}
+function qrRender(){
+  var q = document.getElementById('qr-buscar').value.trim().toLowerCase();
+  var regs = _qrRegistros.filter(function(r){
+    return !q || (r.contenido + ' ' + r.motivo + ' ' + (r.usuario_nombre || '')).toLowerCase().indexOf(q) !== -1;
+  });
+  document.getElementById('qr-lista').innerHTML = regs.length ? regs.map(function(r){
+    return '<div class="inv-card" style="cursor:default;font-size:14px;word-break:break-word">' +
+      qrCamposHtml(r.datos && r.datos.length ? r.datos : [{k:'Contenido', v:r.contenido}]) +
+      '<div style="margin-top:6px;padding-top:6px;border-top:1px solid #eee"><b>Motivo:</b> ' + escHtml(r.motivo) + '</div>' +
+      '<div style="font-size:12px;color:#777;margin-top:4px">' + escHtml(r.fecha_mx) + ' &middot; ' + escHtml(r.usuario_nombre || '') + '</div>' +
+    '</div>';
+  }).join('') : '<p style="color:#888;text-align:center;padding:20px">Sin registros en el periodo</p>';
+}
+// Separa el contenido del QR en campos. Lo que no se reconoce queda como "Contenido".
+function qrParse(t){
+  var campos = [];
+  function add(k, v){ v = String(v == null ? '' : v).trim(); if (v) campos.push({k:k, v:v}); }
+  var etiquetas = {N:'Nombre', FN:'Nombre', ORG:'Empresa', TITLE:'Puesto', TEL:'Teléfono', EMAIL:'Correo', ADR:'Dirección', NOTE:'Nota', URL:'Sitio web'};
+  if (/^BEGIN:VCARD/i.test(t)) {
+    var tieneFN = /^FN[:;]/im.test(t);
+    t.replace(/\r?\n[ \t]/g, '').split(/\r?\n/).forEach(function(l){
+      var i = l.indexOf(':');
+      if (i < 0) return;
+      var clave = l.slice(0, i).split(';')[0].toUpperCase().replace(/^ITEM\d+\./, '');
+      if (!etiquetas[clave] || (clave === 'N' && tieneFN)) return;
+      add(etiquetas[clave], l.slice(i + 1).replace(/\\[,;]|;+/g, function(m){ return m.charAt(0) === '\\' ? m.charAt(1) : ' '; }));
+    });
+  } else if (/^MECARD:/i.test(t)) {
+    var re = /([A-Z-]+):((?:\\.|[^;\\])*);/gi, m, cuerpo = t.slice(7);
+    while ((m = re.exec(cuerpo))) {
+      var et = etiquetas[m[1].toUpperCase()];
+      if (et) add(et, m[2].replace(/\\(.)/g, '$1').replace(/,/g, ' '));
+    }
+  } else if (t.charAt(0) === '{') {
+    try {
+      var obj = JSON.parse(t);
+      Object.keys(obj).forEach(function(k){
+        add(k, typeof obj[k] === 'object' && obj[k] !== null ? JSON.stringify(obj[k]) : obj[k]);
+      });
+    } catch(e){}
+  } else {
+    var lineas = t.split(/\r?\n/).filter(function(l){ return l.trim(); });
+    var pares = lineas.map(function(l){ return /^[a-z][a-z0-9+.-]*:\/\//i.test(l.trim()) ? null : l.match(/^\s*([^:=]{1,40}?)\s*[:=]\s*(.+)$/); });
+    if (pares.every(Boolean)) pares.forEach(function(p){ add(p[1], p[2]); });
+  }
+  if (!campos.length) add('Contenido', t);
+  return campos;
+}
+function qrEscaneado(texto){
+  _qrActual = {contenido: texto, datos: qrParse(texto)};
+  document.getElementById('qr-motivo-info').innerHTML = qrCamposHtml(_qrActual.datos);
+  document.getElementById('qr-motivo').value = '';
+  document.getElementById('qr-motivo-err').textContent = '';
+  invAbrirModal('qr-motivo-modal');
+  document.getElementById('qr-motivo').focus();
+}
+function qrGuardar(){
+  var motivo = document.getElementById('qr-motivo').value.trim();
+  var err = document.getElementById('qr-motivo-err');
+  if (!motivo) { err.textContent = 'Escribe el motivo'; return; }
+  var btn = document.getElementById('qr-motivo-guardar');
+  btn.disabled = true;
+  err.textContent = '';
+  fetch('/api/qr/registros', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({usuario_email: invEmail(), contenido: _qrActual.contenido, datos: _qrActual.datos, motivo: motivo})})
+    .then(invJson)
+    .then(function(d){
+      if (!d.ok) { err.textContent = d.error || 'No se pudo guardar'; return; }
+      invCerrar('qr-motivo-modal');
+      showToast('Registro guardado');
+      qrCargar();
+    })
+    .catch(function(){ err.textContent = 'Error de conexión. Intenta de nuevo.'; })
+    .then(function(){ btn.disabled = false; });
+}
+function qrExcel(){
+  fetch('/api/qr/registros/excel?' + qrQuery(), {headers:{'X-Usuario-Email': invEmail()}})
+    .then(function(r){
+      if (!r.ok) throw new Error();
+      return r.blob();
+    })
+    .then(function(blob){
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'Informacion_QR_' + new Date().toLocaleDateString('en-CA') + '.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+    })
+    .catch(function(){ showToast('No se pudo generar el Excel'); });
+}
+</script>
+
 <div id="page-refacciones" class="page">
   <div class="hdr">
     <button class="back" onclick="showPage('menu')" title="Inicio">&#8249;</button>
@@ -6404,6 +6566,12 @@ function _qrScanTick(){
   _qrScanRAF=requestAnimationFrame(_qrScanTick);
 }
 function _qrScanEncontrado(texto){
+  // En el modulo Informacion QR el resultado va al formulario del motivo
+  if(document.getElementById('page-qr').classList.contains('active')){
+    cerrarEscanerQR();
+    qrEscaneado(texto.trim());
+    return;
+  }
   document.getElementById('ref-search').value=texto.trim();
   filterRef();
   cerrarEscanerQR();
