@@ -2352,6 +2352,19 @@ function authInit() {
   }
   applyTabAccess();
   abrirDeepLinkReq();
+  abrirLigaQr();
+}
+
+// Liga directa /qr: abre Informacion QR (si no hay sesion, al iniciarla)
+function abrirLigaQr() {
+  if (!currentUser || location.pathname !== '/qr') return;
+  var abrir = function () {
+    var perms = userTabPermisos();
+    if (perms === 'all' || perms.indexOf('qr') !== -1) qrAbrir();
+    else showToast('No tienes acceso a Información QR');
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', abrir);
+  else abrir();
 }
 
 function abrirDeepLinkReq() {

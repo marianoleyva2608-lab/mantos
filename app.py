@@ -976,6 +976,7 @@ def api_import_reports():
 
 
 @app.route('/')
+@app.route('/qr')  # liga directa al modulo Informacion QR (la abre index.html)
 def index():
     return send_file('index.html', mimetype='text/html', max_age=0, conditional=True, last_modified=os.path.getmtime('index.html'))
 
