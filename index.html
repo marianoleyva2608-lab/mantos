@@ -7123,6 +7123,19 @@ function deleteRef(id){
     </div>
   </div>
 </div>
+<div id="qr-instalar-ios" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);align-items:flex-end;justify-content:center">
+  <div style="background:#fff;width:100%;max-width:440px;border-radius:16px 16px 0 0;padding:22px 20px 28px;font-family:inherit">
+    <div style="font-size:18px;font-weight:bold;color:#1a5c2a;margin-bottom:6px">&#128242; Instalar QR AD-PACK en iPhone</div>
+    <div style="font-size:13px;color:#666;margin-bottom:14px">Apple no permite instalar con un solo botón; son 3 toques:</div>
+    <div style="font-size:15px;line-height:1.6">
+      <b>1.</b> Toca <b>Compartir</b> <span style="font-size:18px">&#11014;&#65039;</span> <span class="qr-ios-donde" style="color:#666;font-size:13px"></span><br>
+      <b>2.</b> Elige <b>Agregar a pantalla de inicio</b><br>
+      <b>3.</b> Toca <b>Agregar</b>
+    </div>
+    <div style="font-size:12px;color:#888;margin-top:10px">Requiere iOS 16.4 o más reciente si usas Chrome.</div>
+    <button onclick="document.getElementById('qr-instalar-ios').style.display='none'" style="margin-top:16px;width:100%;background:#1a5c2a;color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:bold">Entendido</button>
+  </div>
+</div>
 <button id="qr-instalar" onclick="qrInstalarApp()" style="display:none;position:fixed;right:16px;bottom:16px;z-index:9999;background:#1a5c2a;color:#fff;border:none;border-radius:24px;padding:12px 18px;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,.25);cursor:pointer">&#128242; Descargar app</button>
 <script>
 // Boton para instalar la PWA "QR AD-PACK" (solo en /qr y si aun no esta instalada)
@@ -7147,7 +7160,12 @@ function qrInstalarApp() {
     p.userChoice.then(function () { window._qrPromptInstalar = null; });
     return;
   }
-  alert('Para instalar QR AD-PACK:\n\n1. Toca el botón Compartir (cuadro con flecha hacia arriba).\n2. Elige "Agregar a pantalla de inicio".\n3. Toca "Agregar".');
+  var chrome = /CriOS/i.test(navigator.userAgent);
+  var m = document.getElementById('qr-instalar-ios');
+  m.querySelector('.qr-ios-donde').textContent = chrome
+    ? 'arriba a la derecha, junto a la barra de direcciones'
+    : 'en la barra de abajo de Safari';
+  m.style.display = 'flex';
 }
 </script>
 <script>
