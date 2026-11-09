@@ -5365,7 +5365,7 @@ def _qr_enviar_presentacion(registro, u):
             '<p>Muchas gracias por visitarnos en nuestro stand en el 6.º B2B de Norteamérica.</p>'
             '<p>Adjunto encontrarás nuestra presentación corporativa.</p>'
             '<p>En breve, nuestro gerente de ventas se pondrá en contacto contigo para revisar a detalle '
-            'el tema de tu interés con base en tu visita al stand.</p>'
+            'el tema de tu interés con base a tu visita al stand.</p>'
             '<p>Gracias.</p>'
             '<p>Saludos,<br>' + html_escape(u['nombre']) + '<br>AD-PACK<br>'
             'Tel. <a href="tel:+524499127615">+52 449 912 7615</a> / <a href="tel:+524499969629">+52 449 996 9629</a><br>'
