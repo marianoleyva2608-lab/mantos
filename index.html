@@ -5809,14 +5809,16 @@ function qrPuedeEnviar(r){
 function qrEnviar(id, btn){
   btn.disabled = true;
   btn.textContent = 'Enviando...';
+  qrCargando('Enviando presentación...');
   fetch('/api/qr/registros/' + id + '/enviar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({usuario_email: invEmail()})})
     .then(invJson)
     .then(function(d){
+      qrCargando('');
       if (d.ok) showToast('Presentación enviada');
       else alert('No se pudo enviar la presentación: ' + (d.error || 'error desconocido'));
       qrCargar();
     })
-    .catch(function(){ alert('Error de conexión. Intenta de nuevo.'); qrCargar(); });
+    .catch(function(){ qrCargando(''); alert('Error de conexión. Intenta de nuevo.'); qrCargar(); });
 }
 // Separa el contenido del QR en campos. Lo que no se reconoce queda como "Contenido".
 function qrParse(t){
@@ -5882,6 +5884,11 @@ function qrTraeCorreo(){
 function qrTraeCampo(k){
   return _qrActual.datos.some(function(c){ return c.k.toLowerCase() === k; });
 }
+function qrCargando(texto){
+  var o = document.getElementById('qr-cargando');
+  document.getElementById('qr-cargando-txt').textContent = texto || '';
+  o.style.display = texto ? 'flex' : 'none';
+}
 function qrGuardar(){
   var motivo = document.getElementById('qr-motivo').value.trim();
   var err = document.getElementById('qr-motivo-err');
@@ -5899,6 +5906,7 @@ function qrGuardar(){
   var btn = document.getElementById('qr-motivo-guardar');
   btn.disabled = true;
   err.textContent = '';
+  qrCargando(document.getElementById('qr-enviar').checked ? 'Guardando y enviando presentación...' : 'Guardando registro...');
   fetch('/api/qr/registros', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({usuario_email: invEmail(), contenido: _qrActual.contenido, datos: datos, motivo: motivo, enviar_presentacion: document.getElementById('qr-enviar').checked})})
     .then(invJson)
@@ -5910,7 +5918,7 @@ function qrGuardar(){
       qrCargar();
     })
     .catch(function(){ err.textContent = 'Error de conexión. Intenta de nuevo.'; })
-    .then(function(){ btn.disabled = false; });
+    .then(function(){ btn.disabled = false; qrCargando(''); });
 }
 function qrExcel(){
   fetch('/api/qr/registros/excel?' + qrQuery(), {headers:{'X-Usuario-Email': invEmail()}})
@@ -7152,6 +7160,11 @@ function deleteRef(id){
       <button onclick="imprimirQRLote()" style="background:#1F5C2E;color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:13px">🖨️ Imprimir</button>
     </div>
   </div>
+</div>
+<style>@keyframes qrGira{to{transform:rotate(360deg)}}</style>
+<div id="qr-cargando" style="display:none;position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.45);align-items:center;justify-content:center;flex-direction:column">
+  <div style="width:56px;height:56px;border:6px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:qrGira .8s linear infinite"></div>
+  <div id="qr-cargando-txt" style="color:#fff;font-size:16px;font-weight:bold;margin-top:16px;text-align:center;padding:0 20px"></div>
 </div>
 <div id="qr-instalar-ios" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);align-items:flex-end;justify-content:center">
   <div style="background:#fff;width:100%;max-width:440px;border-radius:16px 16px 0 0;padding:22px 20px 28px;font-family:inherit">
