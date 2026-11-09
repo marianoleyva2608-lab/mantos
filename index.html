@@ -7123,6 +7123,33 @@ function deleteRef(id){
     </div>
   </div>
 </div>
+<button id="qr-instalar" onclick="qrInstalarApp()" style="display:none;position:fixed;right:16px;bottom:16px;z-index:9999;background:#1a5c2a;color:#fff;border:none;border-radius:24px;padding:12px 18px;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,.25);cursor:pointer">&#128242; Descargar app</button>
+<script>
+// Boton para instalar la PWA "QR AD-PACK" (solo en /qr y si aun no esta instalada)
+(function () {
+  var instalada = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (location.pathname !== '/qr' || instalada) return;
+  var btn = document.getElementById('qr-instalar');
+  var esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  window._qrPromptInstalar = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    window._qrPromptInstalar = e;
+    btn.style.display = 'block';
+  });
+  window.addEventListener('appinstalled', function () { btn.style.display = 'none'; });
+  if (esIOS) btn.style.display = 'block';
+})();
+function qrInstalarApp() {
+  var p = window._qrPromptInstalar;
+  if (p) {
+    p.prompt();
+    p.userChoice.then(function () { window._qrPromptInstalar = null; });
+    return;
+  }
+  alert('Para instalar QR AD-PACK:\n\n1. Toca el botón Compartir (cuadro con flecha hacia arriba).\n2. Elige "Agregar a pantalla de inicio".\n3. Toca "Agregar".');
+}
+</script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
