@@ -5688,7 +5688,6 @@ function invBorrarArt(){
       <div style="flex:1;min-width:0"><span class="inv-lbl">Hasta</span><input id="qr-hasta" type="date" class="inv-in" style="padding:7px 4px;font-size:13px"></div>
       <button class="inv-btn qr-ico" style="background:#1F5C2E" onclick="qrCargar()" title="Buscar" aria-label="Buscar">&#128269;</button>
       <button class="inv-btn qr-ico" style="background:#1565C0" onclick="qrExcel()" title="Descargar Excel" aria-label="Descargar Excel">&#128196;</button>
-      <button id="qr-borrar-todos" class="inv-btn qr-ico" style="background:#C62828;display:none" onclick="qrBorrarTodos()" title="Borrar todos" aria-label="Borrar todos">&#128465;</button>
     </div>
     <style>.qr-ico{flex:0 0 38px;width:38px;height:36px;padding:0;font-size:17px;line-height:36px;text-align:center}</style>
     <input id="qr-buscar" type="text" placeholder="Filtrar por nombre, motivo o quien registró..." oninput="qrRender()" class="inv-in" style="margin-bottom:10px">
@@ -5734,7 +5733,6 @@ function qrAbrir(){
     document.getElementById('qr-hasta').value = new Date().toLocaleDateString('en-CA');
     document.getElementById('qr-desde').value = new Date(Date.now() - 30*86400000).toLocaleDateString('en-CA');
   }
-  document.getElementById('qr-borrar-todos').style.display = (currentUser && (currentUser.rol === 'admin' || currentUser.permisos === 'all')) ? '' : 'none';
   showPage('qr');
   qrCargar();
 }
@@ -5772,33 +5770,6 @@ function qrRender(){
       (qrPuedeEnviar(r) ? '<button class="inv-btn" style="background:#1565C0;margin-top:8px;font-size:12px;padding:5px 10px" onclick="qrEnviar(' + Number(r.id) + ', this)" title="Enviar presentación">&#9993; Enviar</button>' : '') +
     '</div>';
   }).join('') : '<p style="color:#888;text-align:center;padding:20px">Sin registros en el periodo</p>';
-}
-function qrBorrar(id, btn){
-  if (!confirm('¿Borrar este registro? No se puede deshacer.')) return;
-  btn.disabled = true;
-  fetch('/api/qr/registros/' + id, {method:'DELETE', headers:{'X-Usuario-Email': invEmail()}})
-    .then(invJson)
-    .then(function(d){
-      if (d.ok) showToast('Registro borrado');
-      else alert('No se pudo borrar: ' + (d.error || 'error desconocido'));
-      qrCargar();
-    })
-    .catch(function(){ alert('Error de conexión. Intenta de nuevo.'); qrCargar(); });
-}
-function qrBorrarTodos(){
-  var n = (_qrRegistros || []).length;
-  if (!n) { alert('No hay registros en el periodo.'); return; }
-  var desde = document.getElementById('qr-desde').value, hasta = document.getElementById('qr-hasta').value;
-  if (!confirm('¿Borrar los ' + n + ' registros del ' + desde + ' al ' + hasta + '? No se puede deshacer.\n\nTe recomendamos descargar el Excel antes.')) return;
-  if (prompt('Para confirmar escribe BORRAR') !== 'BORRAR') return;
-  fetch('/api/qr/registros?' + qrQuery(), {method:'DELETE', headers:{'X-Usuario-Email': invEmail()}})
-    .then(invJson)
-    .then(function(d){
-      if (d.ok) showToast(d.borrados + ' registros borrados');
-      else alert('No se pudo borrar: ' + (d.error || 'error desconocido'));
-      qrCargar();
-    })
-    .catch(function(){ alert('Error de conexión. Intenta de nuevo.'); qrCargar(); });
 }
 // El boton aparece si hay correo y la presentacion aun no se ha enviado
 function qrPuedeEnviar(r){

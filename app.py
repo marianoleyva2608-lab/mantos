@@ -5444,39 +5444,6 @@ def qr_guardar_registro():
     return jsonify({'ok': True, 'registro': rows[0] if rows else None, 'correo_enviado': enviado, 'correo_error': error})
 
 
-@app.route('/api/qr/registros/<int:reg_id>', methods=['DELETE'])
-def qr_borrar_registro(reg_id):
-    if not _qr_usuario(request.headers.get('X-Usuario-Email')):
-        return jsonify({'error': 'No tienes acceso a Información QR'}), 403
-    try:
-        borrados = sb.delete('qr_registros', id='eq.' + str(reg_id)) or []
-    except requests.HTTPError as e:
-        detalle = e.response.text[:300] if e.response is not None else str(e)
-        return jsonify({'error': 'No se pudo borrar: ' + detalle}), 500
-    return jsonify({'ok': True, 'borrados': len(borrados)})
-
-
-@app.route('/api/qr/registros', methods=['DELETE'])
-def qr_borrar_periodo():
-    """Borra todos los registros del periodo desde/hasta (solo administradores)."""
-    u = _qr_usuario(request.headers.get('X-Usuario-Email'))
-    if not u or not (u.get('rol') == 'admin' or u.get('permisos') == 'all'):
-        return jsonify({'error': 'Solo un administrador puede borrar todos los registros'}), 403
-    desde, hasta = request.args.get('desde'), request.args.get('hasta')
-    rango = []
-    if re.match(r'^\d{4}-\d{2}-\d{2}$', desde or ''):
-        rango.append('fecha.gte.' + desde + 'T00:00:00-06:00')
-    if re.match(r'^\d{4}-\d{2}-\d{2}$', hasta or ''):
-        rango.append('fecha.lte.' + hasta + 'T23:59:59-06:00')
-    filtros = {'and': '(' + ','.join(rango) + ')'} if rango else {'id': 'gt.0'}
-    try:
-        borrados = sb.delete('qr_registros', **filtros) or []
-    except requests.HTTPError as e:
-        detalle = e.response.text[:300] if e.response is not None else str(e)
-        return jsonify({'error': 'No se pudo borrar: ' + detalle}), 500
-    return jsonify({'ok': True, 'borrados': len(borrados)})
-
-
 @app.route('/api/qr/registros/excel', methods=['GET'])
 def qr_registros_excel():
     if not _qr_usuario(request.headers.get('X-Usuario-Email')):
