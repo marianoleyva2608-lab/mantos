@@ -5696,41 +5696,59 @@ function invBorrarArt(){
 </script>
 
 <!-- ══ INFORMACION QR ══ (usa el lector de camara de Refacciones y los estilos inv-*) -->
-<div id="page-hxh" class="page" style="background:#fff;padding-bottom:30px">
+<div id="page-hxh" class="page" style="background:#eef2f5;padding-bottom:30px">
   <div class="hdr">
     <button class="back" onclick="hxhSalir()" title="Inicio">&#8249;</button>
     <div style="flex:1"><h1>&#9201;&#65039; Hora por Hora</h1><div class="sub">Tablero de producción en vivo</div></div>
   </div>
   <style>
-    .hx{border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:12px;color:#273746;white-space:nowrap}
-    .hx td,.hx th{border:1px solid #d5dde3;padding:0;height:24px}
-    .hx th{background:#E7EDF2;color:#1E3444;font-weight:700;font-size:12px;padding:3px 6px}
-    .hx th.fr{background:#EEF3F6;min-width:44px}
-    .hx th.tot{background:#DDE7EE}
-    .hx .cap{background:#FFF8E7}
-    .hx .calc{background:#F4F7F9;text-align:right;padding:0 6px}
-    .hx .mh{background:#F2F5F7;font-weight:700;text-align:right;padding:0 6px}
-    .hx select,.hx input{border:none;background:transparent;font:inherit;color:inherit;width:100%;height:24px;padding:0 4px;box-sizing:border-box;outline:none}
-    .hx input.n{text-align:right;width:52px}
-    .hx td.ok{background:#C6EFCE}.hx td.ok input{color:#006100;font-weight:700}
-    .hx td.no{background:#FFC7CE}.hx td.no input{color:#9C0006;font-weight:700}
-    .hx input:focus,.hx select:focus{background:#fffbe0;box-shadow:inset 0 0 0 2px #1a5c2a}
-    .hx .neg{color:#c00000}
-    .hxtop td{padding:4px 8px;font-family:Calibri,Arial,sans-serif;font-size:13px}
+    #page-hxh{font-family:'Inter','Segoe UI',system-ui,sans-serif}
+    .hxbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+    .hxbar .ctl{background:#fff;border-radius:12px;padding:6px 12px;box-shadow:0 1px 3px rgba(16,42,67,.08);display:flex;align-items:center;gap:8px;font-size:12px;color:#62748a;font-weight:600}
+    .hxbar .ctl input,.hxbar .ctl select{border:none;font:inherit;font-size:14px;color:#102a43;font-weight:700;background:transparent;outline:none}
+    .hxclock{margin-left:auto;background:linear-gradient(135deg,#123F5D,#1a5c2a);color:#fff;border-radius:12px;padding:8px 16px;font-weight:800;font-size:18px;letter-spacing:1px;font-variant-numeric:tabular-nums;box-shadow:0 4px 12px rgba(18,63,93,.3)}
+    .hxkpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+    .hxkpi{background:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 1px 3px rgba(16,42,67,.08);position:relative;overflow:hidden}
+    .hxkpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c,#1a5c2a)}
+    .hxkpi .v{font-size:26px;font-weight:800;color:#102a43;font-variant-numeric:tabular-nums;line-height:1.1}
+    .hxkpi .l{font-size:11px;font-weight:700;color:#829ab1;text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
+    .hxwrap{background:#fff;border-radius:16px;box-shadow:0 2px 10px rgba(16,42,67,.08);overflow:auto;max-height:calc(100vh - 290px)}
+    .hx{border-collapse:separate;border-spacing:0;font-size:13px;color:#243b53;white-space:nowrap;width:100%}
+    .hx th{position:sticky;top:0;z-index:2;background:#102a43;color:#d9e2ec;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:10px 6px;text-align:center}
+    .hx th:first-child{left:0;z-index:3}
+    .hx th.fr{min-width:56px}
+    .hx th.tot{background:#1a5c2a;color:#fff}
+    .hx td{border-bottom:1px solid #eef2f5;padding:4px;height:38px;text-align:center}
+    .hx tr:hover td{background-color:#f7fafc}
+    .hx td.est{position:sticky;left:0;background:#fff;z-index:1;font-weight:800;min-width:120px}
+    .hx select,.hx input{border:1px solid transparent;border-radius:8px;background:transparent;font:inherit;color:inherit;width:100%;height:30px;padding:0 6px;box-sizing:border-box;outline:none;transition:all .15s;-webkit-appearance:none;appearance:none}
+    .hx select{cursor:pointer;text-overflow:ellipsis}
+    .hx select:hover,.hx input:hover{background:#f0f4f8}
+    .hx input:focus,.hx select:focus{background:#fff;border-color:#2f855a;box-shadow:0 0 0 3px rgba(47,133,90,.18)}
+    .hx input.n{text-align:center;width:50px;font-weight:700;font-variant-numeric:tabular-nums}
+    .hx td.ok input{background:#d3f9d8;color:#1b5e20}
+    .hx td.no input{background:#ffe3e3;color:#b71c1c}
+    .hx td.mh{font-weight:800;color:#486581}
+    .hx td.calc{font-weight:700;font-variant-numeric:tabular-nums;color:#334e68}
+    .hx .neg{color:#c62828}.hx .pos{color:#2e7d32}
+    .hxpct{display:flex;align-items:center;gap:6px;min-width:90px}
+    .hxpct .b{flex:1;height:6px;border-radius:3px;background:#e4e7eb;overflow:hidden}
+    .hxpct .b i{display:block;height:100%;border-radius:3px}
+    .hxadd{margin-top:10px;background:#fff;border:2px dashed #bcccdc;color:#486581;border-radius:12px;padding:10px 16px;font-weight:700;cursor:pointer;width:100%}
+    .hxadd:hover{border-color:#2f855a;color:#2f855a}
+    .hxleg{font-size:12px;color:#62748a;display:flex;gap:12px;align-items:center}
+    .hxleg i{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:4px;vertical-align:-1px}
   </style>
-  <div style="padding:10px;overflow-x:auto">
-    <table class="hxtop" style="border-collapse:collapse;margin-bottom:6px;min-width:900px;width:100%">
-      <tr><td colspan="6" style="background:#F8FAFC;color:#1E3444;font-weight:700;font-size:15px;border-bottom:2px solid #123F5D">TABLERO HORA POR HORA — PRODUCCIÓN EN VIVO</td></tr>
-      <tr>
-        <td style="background:#F8FAFC;color:#667482;font-weight:700;width:50px">Fecha</td>
-        <td style="width:150px"><input id="hxh-fecha" type="date" onchange="hxhCargar()" style="border:1px solid #d5dde3;font-weight:700;color:#1E3444;padding:2px 4px"></td>
-        <td style="background:#F8FAFC;color:#667482;font-weight:700;width:50px">Turno</td>
-        <td style="width:70px"><select id="hxh-turno" onchange="hxhCargar()" style="border:1px solid #d5dde3;font-weight:700;padding:2px 4px"><option>1</option><option>2</option><option>3</option></select></td>
-        <td style="background:#F2F5F7;color:#5F7080;font-weight:700;font-size:11px">VERDE: cumple Meta/h ajustada | ROJO: no cumple</td>
-        <td id="hxh-reloj" style="background:#123F5D;color:#fff;font-weight:700;text-align:center;width:110px"></td>
-      </tr>
-    </table>
-    <table class="hx" id="hxh-tabla"></table>
+  <div style="padding:14px">
+    <div class="hxbar">
+      <div class="ctl">&#128197; Fecha <input id="hxh-fecha" type="date" onchange="hxhCargar()"></div>
+      <div class="ctl">&#128336; Turno <select id="hxh-turno" onchange="hxhCargar()"><option>1</option><option>2</option><option>3</option></select></div>
+      <div class="hxleg"><span><i style="background:#d3f9d8"></i>Cumple meta ajustada</span><span><i style="background:#ffe3e3"></i>No cumple</span></div>
+      <div class="hxclock" id="hxh-reloj"></div>
+    </div>
+    <div class="hxkpis" id="hxh-kpis"></div>
+    <div class="hxwrap"><table class="hx" id="hxh-tabla"></table></div>
+    <button class="hxadd" onclick="hxhAgregar()">&#10133; Agregar estación</button>
   </div>
 </div>
 
@@ -5848,7 +5866,6 @@ function hxhCargar(){
       var filas = [];
       HXH_EST_INICIALES.forEach(function(e){ filas.push(porEst[e] || {est: e, desc: '', op: '', coment: '', reales: {}}); });
       orden.forEach(function(e){ if (HXH_EST_INICIALES.indexOf(e) === -1) filas.push(porEst[e]); });
-      while (filas.length < HXH_FILAS) filas.push({est: '', desc: '', op: '', coment: '', reales: {}});
       _hxhFilas = filas;
       hxhPintar();
     })
@@ -5859,7 +5876,7 @@ function hxhOpciones(lista, sel, vacio){
 }
 function hxhPintar(){
   var ops = (_hxhCat.operadores['11-12'] || []).concat(_hxhCat.operadores['12-1'] || []).sort();
-  var h = '<tr><th>Estación</th><th style="min-width:300px">Descripción</th><th style="min-width:140px">Operador</th><th>Meta/h</th>' +
+  var h = '<tr><th>Estación</th><th style="min-width:280px">Descripción</th><th style="min-width:150px">Operador</th><th>Meta/h</th>' +
     HXH_FRANJAS.map(function(f){ return '<th class="fr">' + f[0] + '</th>'; }).join('') +
     '<th class="tot">Meta total</th><th class="tot">Real</th><th class="tot">% Cumpl.</th><th class="tot">Diferencia</th><th class="tot" style="min-width:260px">Comentarios</th></tr>';
   _hxhFilas.forEach(function(f, i){
@@ -5869,9 +5886,9 @@ function hxhPintar(){
     var descs = _hxhCat.catalogo.filter(function(c){ return c.estacion === f.est; }).map(function(c){ return c.descripcion; });
     if (f.desc && descs.indexOf(f.desc) === -1) descs.unshift(f.desc);
     h += '<tr id="hxh-f' + i + '">' +
-      '<td class="cap" style="font-weight:700;min-width:110px"><select onchange="hxhCambio(' + i + ',\'est\',this.value)"' + (tieneDatos ? ' disabled title="Ya tiene producción capturada"' : '') + '>' + hxhOpciones(estLibres, f.est) + '</select></td>' +
-      '<td class="cap"><select onchange="hxhCambio(' + i + ',\'desc\',this.value)">' + hxhOpciones(descs, f.desc) + '</select></td>' +
-      '<td class="cap"><select onchange="hxhCambio(' + i + ',\'op\',this.value)">' + hxhOpciones(ops.indexOf(f.op) === -1 && f.op ? [f.op].concat(ops) : ops, f.op) + '</select></td>' +
+      '<td class="est"><select onchange="hxhCambio(' + i + ',\'est\',this.value)"' + (tieneDatos ? ' disabled title="Ya tiene producción capturada"' : '') + '>' + hxhOpciones(estLibres, f.est) + '</select></td>' +
+      '<td style="text-align:left"><select onchange="hxhCambio(' + i + ',\'desc\',this.value)">' + hxhOpciones(descs, f.desc) + '</select></td>' +
+      '<td style="text-align:left"><select onchange="hxhCambio(' + i + ',\'op\',this.value)">' + hxhOpciones(ops.indexOf(f.op) === -1 && f.op ? [f.op].concat(ops) : ops, f.op) + '</select></td>' +
       '<td class="mh" id="hxh-mh' + i + '"></td>' +
       HXH_FRANJAS.map(function(fr, k){
         var v = f.reales[fr[0]];
@@ -5879,7 +5896,7 @@ function hxhPintar(){
           ' onchange="hxhCelda(' + i + ',' + k + ',this)"></td>';
       }).join('') +
       '<td class="calc" id="hxh-mt' + i + '"></td><td class="calc" id="hxh-re' + i + '"></td><td class="calc" id="hxh-pc' + i + '"></td><td class="calc" style="font-weight:700" id="hxh-di' + i + '"></td>' +
-      '<td class="cap"><input value="' + escHtml(f.coment) + '"' + (f.est ? '' : ' disabled') + ' onchange="hxhCambio(' + i + ',\'coment\',this.value)"></td>' +
+      '<td><input placeholder="Causa / acción" value="' + escHtml(f.coment) + '"' + (f.est ? '' : ' disabled') + ' onchange="hxhCambio(' + i + ',\'coment\',this.value)"></td>' +
     '</tr>';
   });
   document.getElementById('hxh-tabla').innerHTML = h;
@@ -5900,10 +5917,35 @@ function hxhCalcFila(i){
   var metaT = (metaH && opValido) ? Math.round(metaH * ((_hxhCat.minutos_turno || 510) / 60)) : '';
   document.getElementById('hxh-mt' + i).textContent = hxhNum(metaT);
   document.getElementById('hxh-re' + i).textContent = n ? hxhNum(real) : '';
-  document.getElementById('hxh-pc' + i).textContent = (n && metaT) ? Math.round(100 * real / metaT) + '%' : '';
+  var pc = (n && metaT) ? Math.round(100 * real / metaT) : null, col = pc === null ? '#bcccdc' : (pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828'));
+  document.getElementById('hxh-pc' + i).innerHTML = pc === null ? '' : '<div class="hxpct"><div class="b"><i style="width:' + Math.min(pc, 100) + '%;background:' + col + '"></i></div><b style="color:' + col + '">' + pc + '%</b></div>';
   var di = document.getElementById('hxh-di' + i), dif = (n && metaT !== '') ? real - metaT : '';
   di.textContent = dif === '' ? '' : (dif < 0 ? '(' + hxhNum(-dif) + ')' : hxhNum(dif));
-  di.className = 'calc' + (dif !== '' && dif < 0 ? ' neg' : '');
+  di.className = 'calc' + (dif === '' ? '' : (dif < 0 ? ' neg' : ' pos'));
+  hxhKpis();
+}
+function hxhKpis(){
+  var meta = 0, real = 0, activas = 0, ok = 0, tot = 0;
+  _hxhFilas.forEach(function(f){
+    var metaH = (f.est && f.desc) ? hxhMetaH(f.est, f.desc) : 0, op = !!hxhComidaDe(f.op);
+    var ks = Object.keys(f.reales);
+    if (!ks.length) return;
+    activas++;
+    ks.forEach(function(h){ real += Number(f.reales[h]) || 0; if (metaH && op) { tot++; if (f.reales[h] >= Math.round(metaH * hxhMinutos(h, f.op) / 60)) ok++; } });
+    if (metaH && op) meta += Math.round(metaH * ((_hxhCat.minutos_turno || 510) / 60));
+  });
+  var pc = meta ? Math.round(100 * real / meta) : null;
+  function k(l, v, c){ return '<div class="hxkpi" style="--c:' + c + '"><div class="v">' + v + '</div><div class="l">' + l + '</div></div>'; }
+  document.getElementById('hxh-kpis').innerHTML =
+    k('Meta planta', hxhNum(meta) || '—', '#486581') + k('Real', hxhNum(real) || '0', '#1565C0') +
+    k('% Cumplimiento', pc === null ? '—' : pc + '%', pc === null ? '#bcccdc' : (pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828'))) +
+    k('Horas en meta', tot ? ok + ' / ' + tot : '—', '#2f855a') + k('Estaciones activas', activas, '#6A1B9A');
+}
+function hxhAgregar(){
+  _hxhFilas.push({est: '', desc: '', op: '', coment: '', reales: {}});
+  hxhPintar();
+  var sels = document.querySelectorAll('#hxh-tabla td.est select');
+  if (sels.length) { sels[sels.length - 1].focus(); sels[sels.length - 1].scrollIntoView({block: 'nearest'}); }
 }
 function hxhPost(datos){
   return fetch('/api/hxh', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({
