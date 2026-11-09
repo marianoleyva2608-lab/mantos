@@ -5364,7 +5364,7 @@ def _qr_enviar_presentacion(registro, u):
     html = ('<p>' + saludo + '</p>'
             '<p>Muchas gracias por visitarnos en nuestro stand en el 6.º B2B de Norteamérica.</p>'
             '<p>Adjunto encontrarás nuestra presentación corporativa.</p>'
-            '<p>En breve, nuestro equipo de asesora se pondrá en contacto contigo para revisar a detalle '
+            '<p>En breve, nuestro equipo de asesores se pondrá en contacto contigo para revisar a detalle '
             'el tema de tu interés con base a tu visita al stand.</p>'
             '<p>Gracias.</p>'
             '<p>Saludos,<br>' + html_escape(u['nombre']) + '<br>AD-PACK<br>'
