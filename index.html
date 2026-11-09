@@ -5696,33 +5696,41 @@ function invBorrarArt(){
 </script>
 
 <!-- ══ INFORMACION QR ══ (usa el lector de camara de Refacciones y los estilos inv-*) -->
-<div id="page-hxh" class="page" style="background:#f5f5f5;padding-bottom:30px">
+<div id="page-hxh" class="page" style="background:#fff;padding-bottom:30px">
   <div class="hdr">
     <button class="back" onclick="hxhSalir()" title="Inicio">&#8249;</button>
-    <div style="flex:1"><h1>&#9201;&#65039; Tablero Hora por Hora</h1><div class="sub">Producción en vivo</div></div>
+    <div style="flex:1"><h1>&#9201;&#65039; Hora por Hora</h1><div class="sub">Tablero de producción en vivo</div></div>
   </div>
-  <div style="padding:12px">
-    <div style="display:flex;gap:6px;margin-bottom:10px">
-      <button id="hxh-tab-cap" class="inv-btn" style="flex:1;background:#1a5c2a" onclick="hxhVista('cap')">&#9997;&#65039; Capturar</button>
-      <button id="hxh-tab-tab" class="inv-btn" style="flex:1;background:#90a4ae" onclick="hxhVista('tab')">&#128202; Tablero</button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div><span class="inv-lbl">Fecha</span><input id="hxh-fecha" type="date" class="inv-in" onchange="hxhCargar()"></div>
-      <div><span class="inv-lbl">Turno</span><select id="hxh-turno" class="inv-in" onchange="hxhCargar()"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
-    </div>
-    <div id="hxh-cap">
-      <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px">
-        <div><span class="inv-lbl">Estación</span><select id="hxh-est" class="inv-in" onchange="hxhCambioEstacion()"></select></div>
-        <div><span class="inv-lbl">Descripción</span><select id="hxh-desc" class="inv-in" onchange="hxhRender()"></select></div>
-        <div><span class="inv-lbl">Operador</span><select id="hxh-op" class="inv-in" onchange="hxhRender()"></select></div>
-      </div>
-      <div id="hxh-resumen" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0"></div>
-      <div id="hxh-horas"></div>
-    </div>
-    <div id="hxh-tab" style="display:none;margin-top:10px">
-      <div style="font-size:12px;color:#666;margin-bottom:6px"><span style="background:#c8e6c9;padding:1px 6px;border-radius:4px">VERDE</span> cumple Meta/h ajustada &middot; <span style="background:#ffcdd2;padding:1px 6px;border-radius:4px">ROJO</span> no cumple &middot; se actualiza cada minuto</div>
-      <div style="overflow-x:auto;background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.1)"><table id="hxh-tabla" style="border-collapse:collapse;font-size:12px;min-width:100%;white-space:nowrap"></table></div>
-    </div>
+  <style>
+    .hx{border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:12px;color:#273746;white-space:nowrap}
+    .hx td,.hx th{border:1px solid #d5dde3;padding:0;height:24px}
+    .hx th{background:#E7EDF2;color:#1E3444;font-weight:700;font-size:12px;padding:3px 6px}
+    .hx th.fr{background:#EEF3F6;min-width:44px}
+    .hx th.tot{background:#DDE7EE}
+    .hx .cap{background:#FFF8E7}
+    .hx .calc{background:#F4F7F9;text-align:right;padding:0 6px}
+    .hx .mh{background:#F2F5F7;font-weight:700;text-align:right;padding:0 6px}
+    .hx select,.hx input{border:none;background:transparent;font:inherit;color:inherit;width:100%;height:24px;padding:0 4px;box-sizing:border-box;outline:none}
+    .hx input.n{text-align:right;width:52px}
+    .hx td.ok{background:#C6EFCE}.hx td.ok input{color:#006100;font-weight:700}
+    .hx td.no{background:#FFC7CE}.hx td.no input{color:#9C0006;font-weight:700}
+    .hx input:focus,.hx select:focus{background:#fffbe0;box-shadow:inset 0 0 0 2px #1a5c2a}
+    .hx .neg{color:#c00000}
+    .hxtop td{padding:4px 8px;font-family:Calibri,Arial,sans-serif;font-size:13px}
+  </style>
+  <div style="padding:10px;overflow-x:auto">
+    <table class="hxtop" style="border-collapse:collapse;margin-bottom:6px;min-width:900px;width:100%">
+      <tr><td colspan="6" style="background:#F8FAFC;color:#1E3444;font-weight:700;font-size:15px;border-bottom:2px solid #123F5D">TABLERO HORA POR HORA — PRODUCCIÓN EN VIVO</td></tr>
+      <tr>
+        <td style="background:#F8FAFC;color:#667482;font-weight:700;width:50px">Fecha</td>
+        <td style="width:150px"><input id="hxh-fecha" type="date" onchange="hxhCargar()" style="border:1px solid #d5dde3;font-weight:700;color:#1E3444;padding:2px 4px"></td>
+        <td style="background:#F8FAFC;color:#667482;font-weight:700;width:50px">Turno</td>
+        <td style="width:70px"><select id="hxh-turno" onchange="hxhCargar()" style="border:1px solid #d5dde3;font-weight:700;padding:2px 4px"><option>1</option><option>2</option><option>3</option></select></td>
+        <td style="background:#F2F5F7;color:#5F7080;font-weight:700;font-size:11px">VERDE: cumple Meta/h ajustada | ROJO: no cumple</td>
+        <td id="hxh-reloj" style="background:#123F5D;color:#fff;font-weight:700;text-align:center;width:110px"></td>
+      </tr>
+    </table>
+    <table class="hx" id="hxh-tabla"></table>
   </div>
 </div>
 
@@ -5779,10 +5787,11 @@ var _qrRegistros = [];
 var _qrActual = null;   // {contenido, datos} del QR recien leido
 
 // ─── Hora por Hora (igual al Excel "Tablero Hora por Hora") ─────────────
-// Franjas del turno y minutos productivos de cada una. La franja de comida
-// del operador (11-12 o 12-1) cuenta 30 min.
+// Franjas del turno y minutos productivos de cada una; la franja de comida
+// del operador (11-12 o 12-1) cuenta 30 min. Cada celda se guarda al salir de ella.
 var HXH_FRANJAS = [['8-9',50],['9-10',60],['10-11',60],['11-12',60],['12-1',60],['1-2',60],['2-3',60],['3-4',60],['4-5',60],['5-5:30',20]];
-var _hxhCat = null, _hxhDatos = [], _hxhVista = 'cap', _hxhTimer = null;
+var HXH_FILAS = 30, HXH_EST_INICIALES = ['TERMO 7','TERMO 2','TERMO 3','TERMO 5','TERMO 6','MESA 1','MESA 2'];
+var _hxhCat = null, _hxhFilas = [], _hxhTimer = null, _hxhReloj = null;
 function hxhNum(n, d){ return (n == null || n === '' || isNaN(n)) ? '' : Number(n).toLocaleString('es-MX', {maximumFractionDigits: d || 0}); }
 function hxhComidaDe(op){
   if (!_hxhCat || !op) return '';
@@ -5792,9 +5801,7 @@ function hxhComidaDe(op){
 }
 function hxhMinutos(franja, op){
   var f = HXH_FRANJAS.find(function(x){ return x[0] === franja; });
-  var min = f ? f[1] : 60;
-  if (franja === hxhComidaDe(op)) min = 30;
-  return min;
+  return franja === hxhComidaDe(op) ? 30 : (f ? f[1] : 60);
 }
 function hxhMetaH(est, desc){
   var c = (_hxhCat ? _hxhCat.catalogo : []).find(function(x){ return x.estacion === est && x.descripcion === desc; });
@@ -5803,157 +5810,132 @@ function hxhMetaH(est, desc){
 function hxhAbrir(){
   document.getElementById('hxh-fecha').value = new Date().toLocaleDateString('en-CA');
   showPage('hxh');
+  clearInterval(_hxhReloj);
+  var reloj = function(){ document.getElementById('hxh-reloj').textContent = new Date().toLocaleTimeString('es-MX'); };
+  reloj(); _hxhReloj = setInterval(reloj, 1000);
   var listo = _hxhCat ? Promise.resolve() :
     fetch('/api/hxh/catalogo', {headers:{'X-Usuario-Email': invEmail()}}).then(invJson).then(function(c){
       if (c.error) throw new Error(c.error);
       _hxhCat = c;
-      document.getElementById('hxh-est').innerHTML = c.estaciones.map(function(e){ return '<option>' + escHtml(e) + '</option>'; }).join('');
-      var ops = (c.operadores['11-12'] || []).concat(c.operadores['12-1'] || []).sort();
-      document.getElementById('hxh-op').innerHTML = '<option value="">— Selecciona —</option>' + ops.map(function(o){ return '<option>' + escHtml(o) + '</option>'; }).join('');
-      try {
-        var g = JSON.parse(localStorage.getItem('hxh_sel') || '{}');
-        if (g.est) document.getElementById('hxh-est').value = g.est;
-        hxhLlenarDesc();
-        if (g.desc) document.getElementById('hxh-desc').value = g.desc;
-        if (g.op) document.getElementById('hxh-op').value = g.op;
-      } catch(e){ hxhLlenarDesc(); }
     });
-  listo.then(function(){ hxhVista(_hxhVista); })
-    .catch(function(e){ document.getElementById('hxh-horas').innerHTML = '<p style="color:#c62828;text-align:center;padding:20px">' + escHtml(e.message || 'Error al cargar el catálogo') + '</p>'; });
+  listo.then(function(){
+    hxhCargar();
+    clearInterval(_hxhTimer);
+    _hxhTimer = setInterval(function(){
+      if (!document.getElementById('page-hxh').classList.contains('active')) return;
+      var a = document.activeElement;
+      if (a && a.closest && a.closest('#hxh-tabla')) return;   // no recargar mientras alguien escribe
+      hxhCargar();
+    }, 60000);
+  }).catch(function(e){ document.getElementById('hxh-tabla').innerHTML = '<tr><td style="color:#c62828;padding:20px">' + escHtml(e.message || 'Error al cargar el catálogo') + '</td></tr>'; });
 }
-function hxhSalir(){ clearInterval(_hxhTimer); showPage('menu'); }
-function hxhLlenarDesc(){
-  var est = document.getElementById('hxh-est').value;
-  var ds = _hxhCat.catalogo.filter(function(c){ return c.estacion === est; });
-  document.getElementById('hxh-desc').innerHTML = ds.length
-    ? ds.map(function(c){ return '<option>' + escHtml(c.descripcion) + '</option>'; }).join('')
-    : '<option value="">(sin descripciones en catálogo)</option>';
-}
-function hxhCambioEstacion(){ hxhLlenarDesc(); hxhRender(); }
-function hxhVista(v){
-  _hxhVista = v;
-  document.getElementById('hxh-cap').style.display = v === 'cap' ? '' : 'none';
-  document.getElementById('hxh-tab').style.display = v === 'tab' ? '' : 'none';
-  document.getElementById('hxh-tab-cap').style.background = v === 'cap' ? '#1a5c2a' : '#90a4ae';
-  document.getElementById('hxh-tab-tab').style.background = v === 'tab' ? '#1a5c2a' : '#90a4ae';
-  clearInterval(_hxhTimer);
-  if (v === 'tab') _hxhTimer = setInterval(function(){ if (document.getElementById('page-hxh').classList.contains('active')) hxhCargar(); else clearInterval(_hxhTimer); }, 60000);
-  hxhCargar();
-}
+function hxhSalir(){ clearInterval(_hxhTimer); clearInterval(_hxhReloj); showPage('menu'); }
 function hxhCargar(){
   var q = 'fecha=' + document.getElementById('hxh-fecha').value + '&turno=' + document.getElementById('hxh-turno').value;
   fetch('/api/hxh?' + q, {headers:{'X-Usuario-Email': invEmail()}})
     .then(invJson)
     .then(function(d){
       if (!Array.isArray(d)) throw new Error(d.error || 'Error');
-      _hxhDatos = d;
-      if (_hxhVista === 'tab') hxhTablero(); else hxhRender();
+      var porEst = {}, orden = [];
+      d.forEach(function(r){
+        if (!porEst[r.maquina_id]) { porEst[r.maquina_id] = {est: r.maquina_id, desc: '', op: '', coment: '', reales: {}, t: ''}; orden.push(r.maquina_id); }
+        var f = porEst[r.maquina_id];
+        if (String(r.actualizado) >= f.t) { f.t = String(r.actualizado); if (r.numero_parte) f.desc = r.numero_parte; if (r.operador_linea) f.op = r.operador_linea; }
+        if (r.hora === 'fila') { f.coment = r.comentario || ''; f.desc = r.numero_parte || f.desc; f.op = r.operador_linea || f.op; }
+        else f.reales[r.hora] = r.real;
+      });
+      // Primero las estaciones del Excel, despues las demas que ya tengan datos, y renglones vacios hasta 30
+      var filas = [];
+      HXH_EST_INICIALES.forEach(function(e){ filas.push(porEst[e] || {est: e, desc: '', op: '', coment: '', reales: {}}); });
+      orden.forEach(function(e){ if (HXH_EST_INICIALES.indexOf(e) === -1) filas.push(porEst[e]); });
+      while (filas.length < HXH_FILAS) filas.push({est: '', desc: '', op: '', coment: '', reales: {}});
+      _hxhFilas = filas;
+      hxhPintar();
     })
-    .catch(function(e){ document.getElementById(_hxhVista === 'tab' ? 'hxh-tabla' : 'hxh-horas').innerHTML = '<tr><td style="color:#c62828;padding:20px">' + escHtml(e.message || 'Error de conexión') + '</td></tr>'; });
+    .catch(function(e){ document.getElementById('hxh-tabla').innerHTML = '<tr><td style="color:#c62828;padding:20px">' + escHtml(e.message || 'Error de conexión') + '</td></tr>'; });
 }
-function hxhSel(){
-  return {est: document.getElementById('hxh-est').value, desc: document.getElementById('hxh-desc').value, op: document.getElementById('hxh-op').value};
+function hxhOpciones(lista, sel, vacio){
+  return '<option value="">' + (vacio || '') + '</option>' + lista.map(function(x){ return '<option' + (x === sel ? ' selected' : '') + '>' + escHtml(x) + '</option>'; }).join('');
 }
-function hxhRender(){
-  if (!_hxhCat) return;
-  var s = hxhSel();
-  try { localStorage.setItem('hxh_sel', JSON.stringify(s)); } catch(e){}
-  var metaH = hxhMetaH(s.est, s.desc);
-  var mias = {}; _hxhDatos.forEach(function(r){ if (r.maquina_id === s.est) mias[r.hora] = r; });
-  var opcP = '<option value="">Sin pérdida</option>' + _hxhCat.perdidas.map(function(p){ return '<option>' + escHtml(p) + '</option>'; }).join('');
-  var real = 0;
-  document.getElementById('hxh-horas').innerHTML =
-    '<div style="font-size:13px;margin-bottom:8px;color:#555">Meta/h: <b>' + (metaH ? hxhNum(metaH, 2) : '<span style="color:#c62828">sin meta en catálogo</span>') + '</b>' +
-    (s.op ? ' &middot; Comida: <b>' + (hxhComidaDe(s.op) || '—') + '</b>' : '') + '</div>' +
-    HXH_FRANJAS.map(function(f, i){
-      var r = mias[f[0]] || {}, ok = r.id != null;
-      var metaAj = Math.round(metaH * hxhMinutos(f[0], s.op) / 60);
-      if (ok) real += r.real || 0;
-      var cumple = ok && metaAj > 0 ? (r.real >= metaAj) : null;
-      var bg = cumple === null ? (ok ? '#fff' : '#fff') : (cumple ? '#e8f5e9' : '#ffebee');
-      var borde = cumple === null ? '#ddd' : (cumple ? '#2e7d32' : '#c62828');
-      return '<div class="inv-card" style="cursor:default;background:' + bg + ';border-left:5px solid ' + borde + ';padding:10px 12px">' +
-        '<div style="display:flex;align-items:center;gap:8px">' +
-          '<b style="width:58px;font-size:15px">' + f[0] + '</b>' +
-          '<div style="font-size:11px;color:#666;width:58px;text-align:center">Meta<br><b style="font-size:14px;color:#333">' + (metaAj || '—') + '</b></div>' +
-          '<input id="hxh-r' + i + '" type="number" min="0" inputmode="numeric" class="inv-in" placeholder="Real" style="flex:1;font-size:16px;font-weight:700" value="' + (ok ? r.real : '') + '">' +
-          '<button class="inv-btn" style="background:#1a5c2a;padding:9px 12px" onclick="hxhGuardar(' + i + ', this)">' + (ok ? '&#10003;' : 'Guardar') + '</button>' +
-        '</div>' +
-        '<div style="display:flex;gap:6px;margin-top:6px">' +
-          '<select id="hxh-p' + i + '" class="inv-in" style="flex:1;font-size:13px">' + opcP + '</select>' +
-          '<input id="hxh-c' + i + '" class="inv-in" style="flex:1;font-size:13px" placeholder="Comentario / acción" value="' + escHtml(r.comentario || '') + '">' +
-        '</div>' +
-      '</div>';
-    }).join('');
-  HXH_FRANJAS.forEach(function(f, i){ var r = mias[f[0]]; if (r && r.causa) document.getElementById('hxh-p' + i).value = r.causa; });
-  var metaT = Math.round(metaH * ((_hxhCat.minutos_turno || 510) / 60));
-  var cumpl = metaT ? Math.round(100 * real / metaT) + '%' : '—';
-  function caja(lbl, v, bg){ return '<div style="background:' + bg + ';color:#fff;border-radius:10px;padding:8px 4px;text-align:center"><div style="font-size:17px;font-weight:800">' + v + '</div><div style="font-size:11px;opacity:.9">' + lbl + '</div></div>'; }
-  document.getElementById('hxh-resumen').innerHTML = caja('Meta total', hxhNum(metaT), '#455A64') + caja('Real', hxhNum(real), '#1565C0') +
-    caja('% Cumpl.', cumpl, '#1a5c2a') + caja('Brecha', metaT ? hxhNum(real - metaT) : '—', real - metaT >= 0 ? '#2e7d32' : '#c62828');
-}
-function hxhGuardar(i, btn){
-  var s = hxhSel(), f = HXH_FRANJAS[i];
-  if (!s.op) { alert('Selecciona el operador'); return; }
-  var real = document.getElementById('hxh-r' + i).value;
-  if (real === '') { alert('Escribe la producción real de ' + f[0]); return; }
-  var metaH = hxhMetaH(s.est, s.desc);
-  btn.disabled = true;
-  qrCargando('Guardando ' + f[0] + '...');
-  fetch('/api/hxh', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
-      usuario_email: invEmail(), fecha: document.getElementById('hxh-fecha').value, turno: document.getElementById('hxh-turno').value,
-      maquina_id: s.est, maquina_nombre: s.est, hora: f[0], numero_parte: s.desc, operador_linea: s.op,
-      meta_h: metaH, meta: Math.round(metaH * hxhMinutos(f[0], s.op) / 60), real: real,
-      causa: document.getElementById('hxh-p' + i).value, comentario: document.getElementById('hxh-c' + i).value.trim()})})
-    .then(invJson)
-    .then(function(d){
-      qrCargando('');
-      if (!d.ok) { alert(d.error || 'No se pudo guardar'); btn.disabled = false; return; }
-      _hxhDatos = _hxhDatos.filter(function(r){ return !(r.maquina_id === s.est && r.hora === f[0]); }).concat([d.registro]);
-      showToast(f[0] + ' guardado');
-      hxhRender();
-    })
-    .catch(function(){ qrCargando(''); btn.disabled = false; alert('Error de conexión. Intenta de nuevo.'); });
-}
-function hxhTablero(){
-  var porEst = {};
-  _hxhDatos.forEach(function(r){ (porEst[r.maquina_id] = porEst[r.maquina_id] || {})[r.hora] = r; });
-  var th = 'style="background:#1a5c2a;color:#fff;padding:6px 8px;position:sticky;top:0"';
-  var h = '<tr><th ' + th + '>Estación</th><th ' + th + '>Descripción</th><th ' + th + '>Operador</th><th ' + th + '>Meta/h</th>' +
-    HXH_FRANJAS.map(function(f){ return '<th ' + th + '>' + f[0] + '</th>'; }).join('') +
-    '<th ' + th + '>Meta total</th><th ' + th + '>Real</th><th ' + th + '>% Cumpl.</th><th ' + th + '>Brecha</th><th ' + th + '>Comentarios</th></tr>';
-  var td = 'padding:6px 8px;border-bottom:1px solid #eee;text-align:center';
-  var gMeta = 0, gReal = 0;
-  _hxhCat.estaciones.forEach(function(est){
-    var fr = porEst[est] || {}, filas = Object.keys(fr).map(function(k){ return fr[k]; });
-    var ult = filas.sort(function(a, b){ return String(a.actualizado).localeCompare(String(b.actualizado)); })[filas.length - 1] || {};
-    var metaH = Number(ult.meta_h) || hxhMetaH(est, ult.numero_parte);
-    var real = 0, coment = [];
-    var celdas = HXH_FRANJAS.map(function(f){
-      var r = fr[f[0]];
-      if (!r) return '<td style="' + td + ';color:#bbb">·</td>';
-      real += r.real || 0;
-      if (r.causa || r.comentario) coment.push(f[0] + ': ' + [r.causa, r.comentario].filter(Boolean).join(' – '));
-      var cumple = r.meta > 0 ? r.real >= r.meta : null;
-      var bg = cumple === null ? '#fff8e1' : (cumple ? '#c8e6c9' : '#ffcdd2');
-      return '<td style="' + td + ';background:' + bg + ';font-weight:700" title="Meta ' + r.meta + '">' + hxhNum(r.real) + '</td>';
-    }).join('');
-    var metaT = filas.length ? Math.round(metaH * ((_hxhCat.minutos_turno || 510) / 60)) : 0;
-    gMeta += metaT; gReal += real;
-    var pct = metaT && filas.length ? Math.round(100 * real / metaT) : null;
-    h += '<tr><td style="' + td + ';text-align:left;font-weight:700">' + escHtml(est) + '</td>' +
-      '<td style="' + td + ';text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="' + escHtml(ult.numero_parte || '') + '">' + escHtml(ult.numero_parte || '') + '</td>' +
-      '<td style="' + td + ';text-align:left">' + escHtml(ult.operador_linea || '') + '</td>' +
-      '<td style="' + td + '">' + (filas.length ? hxhNum(metaH, 2) : '') + '</td>' + celdas +
-      '<td style="' + td + '">' + (filas.length ? hxhNum(metaT) : '') + '</td>' +
-      '<td style="' + td + ';font-weight:700">' + (filas.length ? hxhNum(real) : '') + '</td>' +
-      '<td style="' + td + ';font-weight:700;color:' + (pct === null ? '#333' : (pct >= 100 ? '#2e7d32' : '#c62828')) + '">' + (pct === null ? '' : pct + '%') + '</td>' +
-      '<td style="' + td + ';color:' + (real - metaT >= 0 ? '#2e7d32' : '#c62828') + '">' + (filas.length ? hxhNum(real - metaT) : '') + '</td>' +
-      '<td style="' + td + ';text-align:left;white-space:normal;min-width:180px;font-size:11px">' + escHtml(coment.join(' | ')) + '</td></tr>';
+function hxhPintar(){
+  var ops = (_hxhCat.operadores['11-12'] || []).concat(_hxhCat.operadores['12-1'] || []).sort();
+  var h = '<tr><th>Estación</th><th style="min-width:300px">Descripción</th><th style="min-width:140px">Operador</th><th>Meta/h</th>' +
+    HXH_FRANJAS.map(function(f){ return '<th class="fr">' + f[0] + '</th>'; }).join('') +
+    '<th class="tot">Meta total</th><th class="tot">Real</th><th class="tot">% Cumpl.</th><th class="tot">Diferencia</th><th class="tot" style="min-width:260px">Comentarios</th></tr>';
+  _hxhFilas.forEach(function(f, i){
+    var usadas = _hxhFilas.map(function(x){ return x.est; });
+    var estLibres = _hxhCat.estaciones.filter(function(e){ return e === f.est || usadas.indexOf(e) === -1; });
+    var tieneDatos = Object.keys(f.reales).length > 0;
+    var descs = _hxhCat.catalogo.filter(function(c){ return c.estacion === f.est; }).map(function(c){ return c.descripcion; });
+    if (f.desc && descs.indexOf(f.desc) === -1) descs.unshift(f.desc);
+    h += '<tr id="hxh-f' + i + '">' +
+      '<td class="cap" style="font-weight:700;min-width:110px"><select onchange="hxhCambio(' + i + ',\'est\',this.value)"' + (tieneDatos ? ' disabled title="Ya tiene producción capturada"' : '') + '>' + hxhOpciones(estLibres, f.est) + '</select></td>' +
+      '<td class="cap"><select onchange="hxhCambio(' + i + ',\'desc\',this.value)">' + hxhOpciones(descs, f.desc) + '</select></td>' +
+      '<td class="cap"><select onchange="hxhCambio(' + i + ',\'op\',this.value)">' + hxhOpciones(ops.indexOf(f.op) === -1 && f.op ? [f.op].concat(ops) : ops, f.op) + '</select></td>' +
+      '<td class="mh" id="hxh-mh' + i + '"></td>' +
+      HXH_FRANJAS.map(function(fr, k){
+        var v = f.reales[fr[0]];
+        return '<td id="hxh-c' + i + '_' + k + '"><input class="n" type="number" min="0" inputmode="numeric" value="' + (v == null ? '' : v) + '"' + (f.est ? '' : ' disabled') +
+          ' onchange="hxhCelda(' + i + ',' + k + ',this)"></td>';
+      }).join('') +
+      '<td class="calc" id="hxh-mt' + i + '"></td><td class="calc" id="hxh-re' + i + '"></td><td class="calc" id="hxh-pc' + i + '"></td><td class="calc" style="font-weight:700" id="hxh-di' + i + '"></td>' +
+      '<td class="cap"><input value="' + escHtml(f.coment) + '"' + (f.est ? '' : ' disabled') + ' onchange="hxhCambio(' + i + ',\'coment\',this.value)"></td>' +
+    '</tr>';
   });
-  var gp = gMeta ? Math.round(100 * gReal / gMeta) + '%' : '';
-  h += '<tr style="background:#eceff1;font-weight:800"><td style="' + td + ';text-align:left" colspan="' + (4 + HXH_FRANJAS.length) + '">TOTAL PLANTA</td><td style="' + td + '">' + hxhNum(gMeta) + '</td><td style="' + td + '">' + hxhNum(gReal) + '</td><td style="' + td + '">' + gp + '</td><td style="' + td + '">' + (gMeta ? hxhNum(gReal - gMeta) : '') + '</td><td></td></tr>';
   document.getElementById('hxh-tabla').innerHTML = h;
+  _hxhFilas.forEach(function(f, i){ hxhCalcFila(i); });
+}
+// Recalcula Meta/h, semaforo de cada franja y totales del renglon (mismas formulas del Excel)
+function hxhCalcFila(i){
+  var f = _hxhFilas[i], metaH = (f.est && f.desc) ? hxhMetaH(f.est, f.desc) : 0;
+  var opValido = !!hxhComidaDe(f.op), real = 0, n = 0;
+  document.getElementById('hxh-mh' + i).textContent = metaH ? hxhNum(Math.round(metaH)) : '';
+  HXH_FRANJAS.forEach(function(fr, k){
+    var td = document.getElementById('hxh-c' + i + '_' + k), v = f.reales[fr[0]];
+    td.className = '';
+    if (v == null || v === '') return;
+    real += Number(v); n++;
+    if (metaH && opValido) td.className = Number(v) >= Math.round(metaH * hxhMinutos(fr[0], f.op) / 60) ? 'ok' : 'no';
+  });
+  var metaT = (metaH && opValido) ? Math.round(metaH * ((_hxhCat.minutos_turno || 510) / 60)) : '';
+  document.getElementById('hxh-mt' + i).textContent = hxhNum(metaT);
+  document.getElementById('hxh-re' + i).textContent = n ? hxhNum(real) : '';
+  document.getElementById('hxh-pc' + i).textContent = (n && metaT) ? Math.round(100 * real / metaT) + '%' : '';
+  var di = document.getElementById('hxh-di' + i), dif = (n && metaT !== '') ? real - metaT : '';
+  di.textContent = dif === '' ? '' : (dif < 0 ? '(' + hxhNum(-dif) + ')' : hxhNum(dif));
+  di.className = 'calc' + (dif !== '' && dif < 0 ? ' neg' : '');
+}
+function hxhPost(datos){
+  return fetch('/api/hxh', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({
+    usuario_email: invEmail(), fecha: document.getElementById('hxh-fecha').value, turno: document.getElementById('hxh-turno').value}, datos))})
+    .then(invJson).then(function(d){ if (!d.ok) throw new Error(d.error || 'No se pudo guardar'); return d; });
+}
+function hxhGuardarFila(i){
+  var f = _hxhFilas[i];
+  if (!f.est) return Promise.resolve();
+  return hxhPost({maquina_id: f.est, maquina_nombre: f.est, hora: 'fila', numero_parte: f.desc, operador_linea: f.op,
+                  meta_h: hxhMetaH(f.est, f.desc), comentario: f.coment, real: 0})
+    .catch(function(e){ alert(e.message || 'Error de conexión'); });
+}
+function hxhCambio(i, campo, valor){
+  var f = _hxhFilas[i];
+  f[campo] = valor;
+  if (campo === 'est') { f.desc = ''; hxhPintar(); }
+  else if (campo === 'desc' || campo === 'op') hxhCalcFila(i);
+  hxhGuardarFila(i);
+}
+function hxhCelda(i, k, inp){
+  var f = _hxhFilas[i], fr = HXH_FRANJAS[k];
+  if (!f.desc || !f.op) { alert('Primero selecciona Descripción y Operador de ' + f.est); inp.value = f.reales[fr[0]] == null ? '' : f.reales[fr[0]]; return; }
+  if (inp.value === '') return;
+  var real = Number(inp.value), metaH = hxhMetaH(f.est, f.desc);
+  f.reales[fr[0]] = real;
+  hxhCalcFila(i);
+  var td = inp.parentNode; td.style.outline = '2px solid #ffb300';
+  hxhPost({maquina_id: f.est, maquina_nombre: f.est, hora: fr[0], numero_parte: f.desc, operador_linea: f.op, meta_h: metaH,
+           meta: Math.round(metaH * hxhMinutos(fr[0], f.op) / 60), real: real})
+    .then(function(){ td.style.outline = ''; })
+    .catch(function(e){ td.style.outline = '2px solid #c62828'; alert('No se guardó ' + f.est + ' ' + fr[0] + ': ' + (e.message || 'error de conexión')); });
 }
 function qrAbrir(){
   if (!document.getElementById('qr-desde').value) {
