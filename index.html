@@ -5769,7 +5769,6 @@ function qrRender(){
       '<div style="margin-top:6px;padding-top:6px;border-top:1px solid #eee"><b>Motivo:</b> ' + escHtml(r.motivo) + '</div>' +
       '<div style="font-size:12px;color:#777;margin-top:4px">' + escHtml(r.fecha_mx) + ' &middot; ' + escHtml(r.usuario_nombre || '') + '</div>' +
       (qrPuedeEnviar(r) ? '<button class="inv-btn" style="background:#1565C0;margin-top:8px;font-size:13px;padding:7px 12px" onclick="qrEnviar(' + Number(r.id) + ', this)">&#9993; Enviar presentación</button>' : '') +
-      '<button class="inv-btn" style="background:#C62828;margin-top:8px;margin-left:6px;font-size:13px;padding:7px 12px" onclick="qrBorrar(' + Number(r.id) + ', this)">&#128465; Borrar</button>' +
     '</div>';
   }).join('') : '<p style="color:#888;text-align:center;padding:20px">Sin registros en el periodo</p>';
 }
