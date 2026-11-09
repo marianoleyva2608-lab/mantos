@@ -5349,12 +5349,14 @@ def _qr_enviar_presentacion(registro, u):
     if not correo:
         return False, 'El registro no tiene correo'
     nombre = next((c['v'] for c in datos if c['k'].lower() == 'nombre'), '')
-    saludo = 'Hola ' + html_escape(nombre) + ',' if nombre else 'Hola,'
+    saludo = 'Buen día, ' + html_escape(nombre) + ':' if nombre else 'Buen día:'
     html = ('<p>' + saludo + '</p>'
-            '<p>Gracias por tu interés en AD-PACK. Te compartimos nuestra presentación en el archivo adjunto.</p>'
-            '<p>Si tienes alguna duda, puedes responder a este correo. También puedes visitar '
-            '<a href="https://www.ad-pack.com.mx">www.ad-pack.com.mx</a>.</p>'
-            '<p>Saludos,<br>' + html_escape(u['nombre']) + '<br>AD-PACK</p>')
+            '<p>Muchas gracias por visitarnos en nuestro stand en el 6.º B2B de Norteamérica.</p>'
+            '<p>Adjunto encontrarás nuestra presentación corporativa.</p>'
+            '<p>Gracias.</p>'
+            '<p>Saludos,<br>' + html_escape(u['nombre']) + '<br>AD-PACK<br>'
+            'Tel. <a href="tel:+524499127615">+52 449 912 7615</a> / <a href="tel:+524499969629">+52 449 996 9629</a><br>'
+            '<a href="https://www.ad-pack.com.mx">www.ad-pack.com.mx</a></p>')
     try:
         with open(QR_ARCHIVO_PRESENTACION, 'rb') as f:
             pdf = f.read()
