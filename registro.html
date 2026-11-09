@@ -98,7 +98,7 @@ document.getElementById('f').addEventListener('submit', function(e){
     .then(function(d){
       if (!d.ok) throw new Error(d.error || 'No se pudo enviar');
       document.getElementById('ok-txt').innerHTML = d.correo_enviado
-        ? 'Te enviamos la presentación a <b>' + v('correo').replace(/[<>&"]/g, '') + '</b>. En breve nuestro gerente de ventas se pondrá en contacto contigo.'
+        ? 'Te enviamos la presentación a <b>' + v('correo').replace(/[<>&"]/g, '') + '</b>. En breve nuestro equipo de asesora se pondrá en contacto contigo.'
         : 'Recibimos tus datos. Puedes descargar la presentación aquí mismo; en breve nos pondremos en contacto contigo.';
       document.getElementById('vista-form').style.display = 'none';
       document.getElementById('vista-ok').style.display = '';
