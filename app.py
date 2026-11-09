@@ -986,9 +986,19 @@ def api_import_reports():
 
 
 @app.route('/')
-@app.route('/qr')  # liga directa al modulo Informacion QR (la abre index.html)
 def index():
     return send_file('index.html', mimetype='text/html', max_age=0, conditional=True, last_modified=os.path.getmtime('index.html'))
+
+@app.route('/qr')  # liga directa al modulo Informacion QR; instalable como su propia PWA
+def index_qr():
+    with open('index.html', encoding='utf-8') as f:
+        html = f.read()
+    html = (html.replace('href="/manifest-adpack.json"', 'href="/manifest-qr.json"', 1)
+                .replace('<title>Sistema ADPACK</title>', '<title>QR AD-PACK</title>', 1)
+                .replace('content="Sistema ADPACK"', 'content="QR AD-PACK"', 1))
+    resp = app.response_class(html, mimetype='text/html')
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
 
 @app.route('/etiquetas')
 @app.route('/etiquetas.html')
@@ -1005,6 +1015,7 @@ _EXTENSIONES_ESTATICAS_PERMITIDAS = ('.png', '.jpg', '.jpeg', '.svg', '.ico', '.
 # .json de datos que viven junto a app.py.
 _ARCHIVOS_PWA_PERMITIDOS = (
     'manifest-adpack.json', 'sw-adpack.js',
+    'manifest-qr.json',
     'manifest-etiquetas.json', 'sw-etiquetas.js',
     'manifest-banos.json', 'sw-banos.js',
     'manifest-inicio.json', 'sw-inicio.js',
