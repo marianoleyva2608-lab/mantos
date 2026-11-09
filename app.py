@@ -5444,6 +5444,84 @@ def qr_guardar_registro():
     return jsonify({'ok': True, 'registro': rows[0] if rows else None, 'correo_enviado': enviado, 'correo_error': error})
 
 
+# ─── Hora por Hora: produccion por maquina, capturada por el operador ───────
+# Tabla produccion_hora (schema_produccion_hora.sql). Una fila por
+# fecha + turno + maquina + hora; volver a guardar la misma hora la actualiza.
+
+def _hxh_usuario(email):
+    """Usuario con acceso al modulo (admin o permiso 'hxh'), o None."""
+    email = (email or '').strip().lower()
+    if not email:
+        return None
+    rows = sb.select('users', select='nombre,email,rol,permisos', email='eq.' + email)
+    if not rows:
+        return None
+    u = rows[0]
+    permisos = [p.strip() for p in (u.get('permisos') or '').split(',')]
+    if u.get('rol') == 'admin' or u.get('permisos') == 'all' or 'hxh' in permisos:
+        return u
+    return None
+
+
+def _hxh_entero(valor):
+    try:
+        return max(0, min(int(float(valor or 0)), 10_000_000))
+    except (TypeError, ValueError):
+        return 0
+
+
+@app.route('/api/hxh', methods=['GET'])
+def hxh_listar():
+    if not _hxh_usuario(request.headers.get('X-Usuario-Email')):
+        return jsonify({'error': 'No tienes acceso a Hora por Hora'}), 403
+    fecha = request.args.get('fecha') or ''
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', fecha):
+        return jsonify({'error': 'Fecha inválida'}), 400
+    filtros = {'fecha': 'eq.' + fecha}
+    if request.args.get('turno'):
+        filtros['turno'] = 'eq.' + _qr_limpio(request.args.get('turno'), 5)
+    if request.args.get('maquina'):
+        filtros['maquina_id'] = 'eq.' + _qr_limpio(request.args.get('maquina'), 20)
+    try:
+        return jsonify(sb.select('produccion_hora', order='maquina_id.asc,hora.asc', **filtros))
+    except requests.HTTPError as e:
+        detalle = e.response.text[:300] if e.response is not None else str(e)
+        return jsonify({'error': 'No se pudieron cargar los datos: ' + detalle}), 500
+
+
+@app.route('/api/hxh', methods=['POST'])
+def hxh_guardar():
+    d = request.json or {}
+    u = _hxh_usuario(d.get('usuario_email'))
+    if not u:
+        return jsonify({'error': 'No tienes acceso a Hora por Hora'}), 403
+    fecha = d.get('fecha') or ''
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', fecha):
+        return jsonify({'error': 'Fecha inválida'}), 400
+    turno = _qr_limpio(d.get('turno'), 5)
+    maquina = _qr_limpio(d.get('maquina_id'), 20)
+    hora = _qr_limpio(d.get('hora'), 20)
+    if not (turno and maquina and hora):
+        return jsonify({'error': 'Falta turno, máquina u hora'}), 400
+    fila = {
+        'fecha': fecha, 'turno': turno, 'maquina_id': maquina, 'hora': hora,
+        'maquina_nombre': _qr_limpio(d.get('maquina_nombre'), 80),
+        'numero_parte': _qr_limpio(d.get('numero_parte'), 60),
+        'meta': _hxh_entero(d.get('meta')), 'real': _hxh_entero(d.get('real')),
+        'scrap': _hxh_entero(d.get('scrap')), 'paro_min': min(_hxh_entero(d.get('paro_min')), 60),
+        'causa': _qr_limpio(d.get('causa'), 60), 'comentario': _qr_limpio(d.get('comentario'), 500),
+        'operador_email': u['email'], 'operador_nombre': u['nombre'],
+        'actualizado': datetime.datetime.utcnow().isoformat() + 'Z',
+    }
+    try:
+        rows = sb.insert('produccion_hora', fila, upsert=True, on_conflict='fecha,turno,maquina_id,hora')
+    except requests.HTTPError as e:
+        detalle = e.response.text[:300] if e.response is not None else str(e)
+        print(f'[hxh] error al guardar: {detalle}')
+        return jsonify({'error': 'No se pudo guardar: ' + detalle}), 500
+    return jsonify({'ok': True, 'registro': rows[0] if rows else None})
+
+
 @app.route('/api/qr/registros/excel', methods=['GET'])
 def qr_registros_excel():
     if not _qr_usuario(request.headers.get('X-Usuario-Email')):
