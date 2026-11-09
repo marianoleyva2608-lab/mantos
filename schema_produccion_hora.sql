@@ -23,4 +23,8 @@ create table if not exists produccion_hora (
 
 create index if not exists ix_produccion_hora_fecha on produccion_hora (fecha desc, maquina_id);
 
+-- Campos del Tablero Hora por Hora (estacion + descripcion + operador de linea)
+alter table produccion_hora add column if not exists operador_linea text default '';
+alter table produccion_hora add column if not exists meta_h numeric default 0;
+
 notify pgrst, 'reload schema';

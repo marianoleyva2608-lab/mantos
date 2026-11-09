@@ -5470,6 +5470,15 @@ def _hxh_entero(valor):
         return 0
 
 
+@app.route('/api/hxh/catalogo', methods=['GET'])
+def hxh_catalogo():
+    """Estaciones, descripciones con Meta/h, operadores por horario de comida y tipos de perdida."""
+    if not _hxh_usuario(request.headers.get('X-Usuario-Email')):
+        return jsonify({'error': 'No tienes acceso a Hora por Hora'}), 403
+    with open('hxh_catalogo.json', encoding='utf-8') as f:
+        return jsonify(json.load(f))
+
+
 @app.route('/api/hxh', methods=['GET'])
 def hxh_listar():
     if not _hxh_usuario(request.headers.get('X-Usuario-Email')):
@@ -5510,6 +5519,8 @@ def hxh_guardar():
         'meta': _hxh_entero(d.get('meta')), 'real': _hxh_entero(d.get('real')),
         'scrap': _hxh_entero(d.get('scrap')), 'paro_min': min(_hxh_entero(d.get('paro_min')), 60),
         'causa': _qr_limpio(d.get('causa'), 60), 'comentario': _qr_limpio(d.get('comentario'), 500),
+        'operador_linea': _qr_limpio(d.get('operador_linea'), 80),
+        'meta_h': round(max(0.0, min(float(d.get('meta_h') or 0), 1e7)), 2) if str(d.get('meta_h') or '0').replace('.', '', 1).isdigit() else 0,
         'operador_email': u['email'], 'operador_nombre': u['nombre'],
         'actualizado': datetime.datetime.utcnow().isoformat() + 'Z',
     }

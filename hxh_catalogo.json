@@ -1,0 +1,332 @@
+{
+ "estaciones": [
+  "IMESA558",
+  "KOMATSU",
+  "GUIDOLINE",
+  "K1",
+  "JAMONERA",
+  "SLITTER REWINDER",
+  "ROBUST",
+  "EMBALAJE",
+  "TERMO 3",
+  "TERMO 7",
+  "TERMO 2",
+  "TERMO 5",
+  "TERMO 6",
+  "PRENSA 2",
+  "PRENSA 1",
+  "MESA 1",
+  "MESA 2",
+  "INSPECCION 1",
+  "INSPECCION 2",
+  "INSPECCION 3"
+ ],
+ "catalogo": [
+  {
+   "estacion": "IMESA558",
+   "descripcion": "L21CDSTAPE1",
+   "meta_h": 1837.05
+  },
+  {
+   "estacion": "IMESA558",
+   "descripcion": "L21CDSTAPE2",
+   "meta_h": 4270.3
+  },
+  {
+   "estacion": "IMESA558",
+   "descripcion": "L21CDSTAPE3",
+   "meta_h": 4270.3
+  },
+  {
+   "estacion": "IMESA558",
+   "descripcion": "L21CDSTAPE4",
+   "meta_h": 4638.16
+  },
+  {
+   "estacion": "IMESA558",
+   "descripcion": "L21CDSTAPE5",
+   "meta_h": 3649.8
+  },
+  {
+   "estacion": "IMESA558",
+   "descripcion": "1694505-00-D-No1-R1",
+   "meta_h": 121.95
+  },
+  {
+   "estacion": "IMESA558",
+   "descripcion": "1694505-00-D-No2-R2",
+   "meta_h": 104.0
+  },
+  {
+   "estacion": "IMESA558",
+   "descripcion": "1694505-00-D-No3-R3",
+   "meta_h": 81.5
+  },
+  {
+   "estacion": "IMESA558",
+   "descripcion": "1694505-00-D-No4-R4",
+   "meta_h": 104.44
+  },
+  {
+   "estacion": "KOMATSU",
+   "descripcion": "L21CDSTAPE1",
+   "meta_h": 1837.05
+  },
+  {
+   "estacion": "KOMATSU",
+   "descripcion": "L21CDSTAPE2",
+   "meta_h": 4270.3
+  },
+  {
+   "estacion": "KOMATSU",
+   "descripcion": "L21CDSTAPE3",
+   "meta_h": 4270.3
+  },
+  {
+   "estacion": "KOMATSU",
+   "descripcion": "L21CDSTAPE4",
+   "meta_h": 4638.16
+  },
+  {
+   "estacion": "KOMATSU",
+   "descripcion": "L21CDSTAPE5",
+   "meta_h": 3649.8
+  },
+  {
+   "estacion": "KOMATSU",
+   "descripcion": "1694505-00-D-No1-R1",
+   "meta_h": 121.95
+  },
+  {
+   "estacion": "KOMATSU",
+   "descripcion": "1694505-00-D-No2-R2",
+   "meta_h": 104.0
+  },
+  {
+   "estacion": "KOMATSU",
+   "descripcion": "1694505-00-D-No3-R3",
+   "meta_h": 81.5
+  },
+  {
+   "estacion": "KOMATSU",
+   "descripcion": "1694505-00-D-No4-R4",
+   "meta_h": 104.44
+  },
+  {
+   "estacion": "IMESA558",
+   "descripcion": "3002295",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "IMESA558",
+   "descripcion": "3002296",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "IMESA558",
+   "descripcion": "3002297",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "KOMATSU",
+   "descripcion": "3002295",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "KOMATSU",
+   "descripcion": "3002296",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "KOMATSU",
+   "descripcion": "3002297",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "CHAROLA ROTOR TRAY 98-DGA",
+   "meta_h": 42.97
+  },
+  {
+   "estacion": "TERMO 7",
+   "descripcion": "TAPA 62X C20",
+   "meta_h": 90.65
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "CHAROLA 19522-6A0",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "CHAROLA 63 CAVIDADES C30",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "CHAROLA 16620-RPY TERMOFORMADA TRANSPARENTE",
+   "meta_h": 24.31
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "CHAROLA 77 CAVIDADES",
+   "meta_h": 30.8
+  },
+  {
+   "estacion": "TERMO 2",
+   "descripcion": "CHAROLA EN PET CAL 30 MODELO 62X",
+   "meta_h": 30.6
+  },
+  {
+   "estacion": "TERMO 7",
+   "descripcion": "CHAROLA END BELL 2PIN TRAY",
+   "meta_h": 57.5
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "CHAROLA PET TRANSPARENTE CAL 35 MODELO MOTTO",
+   "meta_h": 29.0
+  },
+  {
+   "estacion": "TERMO 7",
+   "descripcion": "CHAROLA TERMOFORMADA ATSUMITEC 12 CAV C20",
+   "meta_h": 91.51
+  },
+  {
+   "estacion": "TERMO 7",
+   "descripcion": "TAPA TERMOFORMADA ATSUMITEC C15",
+   "meta_h": 133.02
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "CHAROLA15350 5 CAV CAL. 20",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "TERMO 2",
+   "descripcion": "PET TRAY COLOR TRANSPARENTE ROTOR GRANDE",
+   "meta_h": 54.45
+  },
+  {
+   "estacion": "TERMO 5",
+   "descripcion": "TAPA CHICA - SMALL",
+   "meta_h": 44.71
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "CHAROLA 15350 CAL 20",
+   "meta_h": 28.1
+  },
+  {
+   "estacion": "TERMO 5",
+   "descripcion": "TRAY FOR 84105128 PLATE 5XYV D",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "TERMO 5",
+   "descripcion": "TRAY FOR 84105195 PLATE 5XYV C",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "TRAY FOR A1 84106707",
+   "meta_h": 55.53
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "SEPARADOR CHICO",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "TERMO 6",
+   "descripcion": "CHAROLA ROTOR CHICO",
+   "meta_h": 58.79
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "CHAROLA ROTOR CHICO FC140",
+   "meta_h": 36.25
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "CH 98 DGA HOUSING CAL 35",
+   "meta_h": 32.09
+  },
+  {
+   "estacion": "TERMO 2",
+   "descripcion": "CHAROLA DAMPER CAL 30",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "PRENSA 2",
+   "descripcion": "H60 FOAM",
+   "meta_h": 633.0
+  },
+  {
+   "estacion": "TERMO 2",
+   "descripcion": "TAPA 62X C20",
+   "meta_h": 90.65
+  },
+  {
+   "estacion": "TERMO 5",
+   "descripcion": "CHAROLA 77 CAVIDADES",
+   "meta_h": 30.8
+  },
+  {
+   "estacion": "TERMO 5",
+   "descripcion": "CHAROLA15350 5 CAV CAL. 20",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "TERMO 2",
+   "descripcion": "CHAROLA 15350 CAL 20",
+   "meta_h": 28.1
+  },
+  {
+   "estacion": "TERMO 5",
+   "descripcion": "SEPARADOR CHICO",
+   "meta_h": 0.0
+  },
+  {
+   "estacion": "TERMO 3",
+   "descripcion": "CHAROLA EN PET CAL 30 MODELO 62X",
+   "meta_h": 30.6
+  }
+ ],
+ "operadores": {
+  "11-12": [
+   "Manuel Castro",
+   "Ernesto Moran",
+   "Martin Esquivel",
+   "Carlos Cruz",
+   "Liliana Mares",
+   "Guadalupe Moran"
+  ],
+  "12-1": [
+   "Jesus Rodriguez",
+   "Yahir Duron",
+   "Omar Gutierrez",
+   "Elsa Urrutia",
+   "Milagros Moran"
+  ]
+ },
+ "perdidas": [
+  "Avería",
+  "Cambio/ajuste",
+  "Falta de material",
+  "Microparo",
+  "Velocidad reducida",
+  "Defecto de proceso",
+  "Rechazo de arranque",
+  "Falta de personal",
+  "Otro"
+ ],
+ "minutos_turno": 510,
+ "metas": {
+  "oee": 0.85,
+  "disponibilidad": 0.9,
+  "rendimiento": 0.95,
+  "cumplimiento": 1,
+  "calidad": 0.99
+ }
+}

@@ -5698,20 +5698,31 @@ function invBorrarArt(){
 <!-- ══ INFORMACION QR ══ (usa el lector de camara de Refacciones y los estilos inv-*) -->
 <div id="page-hxh" class="page" style="background:#f5f5f5;padding-bottom:30px">
   <div class="hdr">
-    <button class="back" onclick="showPage('menu')" title="Inicio">&#8249;</button>
-    <div style="flex:1"><h1>&#9201;&#65039; Hora por Hora</h1><div class="sub">Producción por máquina, capturada cada hora</div></div>
+    <button class="back" onclick="hxhSalir()" title="Inicio">&#8249;</button>
+    <div style="flex:1"><h1>&#9201;&#65039; Tablero Hora por Hora</h1><div class="sub">Producción en vivo</div></div>
   </div>
-  <div style="padding:14px">
+  <div style="padding:12px">
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button id="hxh-tab-cap" class="inv-btn" style="flex:1;background:#1a5c2a" onclick="hxhVista('cap')">&#9997;&#65039; Capturar</button>
+      <button id="hxh-tab-tab" class="inv-btn" style="flex:1;background:#90a4ae" onclick="hxhVista('tab')">&#128202; Tablero</button>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div><span class="inv-lbl">Fecha</span><input id="hxh-fecha" type="date" class="inv-in" onchange="hxhCargar()"></div>
-      <div><span class="inv-lbl">Turno</span><select id="hxh-turno" class="inv-in" onchange="hxhCargar()">
-        <option value="1">1° (07:00–15:00)</option><option value="2">2° (15:00–23:00)</option><option value="3">3° (23:00–07:00)</option></select></div>
-      <div style="grid-column:1/-1"><span class="inv-lbl">Máquina</span><select id="hxh-maquina" class="inv-in" onchange="hxhCargar()"></select></div>
-      <div><span class="inv-lbl">Número de parte</span><input id="hxh-parte" type="text" class="inv-in" placeholder="Ej. NIS-1234"></div>
-      <div><span class="inv-lbl">Meta por hora</span><input id="hxh-meta" type="number" min="0" inputmode="numeric" class="inv-in" placeholder="pzas"></div>
+      <div><span class="inv-lbl">Turno</span><select id="hxh-turno" class="inv-in" onchange="hxhCargar()"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
     </div>
-    <div id="hxh-resumen" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:14px 0"></div>
-    <div id="hxh-horas"></div>
+    <div id="hxh-cap">
+      <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px">
+        <div><span class="inv-lbl">Estación</span><select id="hxh-est" class="inv-in" onchange="hxhCambioEstacion()"></select></div>
+        <div><span class="inv-lbl">Descripción</span><select id="hxh-desc" class="inv-in" onchange="hxhRender()"></select></div>
+        <div><span class="inv-lbl">Operador</span><select id="hxh-op" class="inv-in" onchange="hxhRender()"></select></div>
+      </div>
+      <div id="hxh-resumen" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0"></div>
+      <div id="hxh-horas"></div>
+    </div>
+    <div id="hxh-tab" style="display:none;margin-top:10px">
+      <div style="font-size:12px;color:#666;margin-bottom:6px"><span style="background:#c8e6c9;padding:1px 6px;border-radius:4px">VERDE</span> cumple Meta/h ajustada &middot; <span style="background:#ffcdd2;padding:1px 6px;border-radius:4px">ROJO</span> no cumple &middot; se actualiza cada minuto</div>
+      <div style="overflow-x:auto;background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.1)"><table id="hxh-tabla" style="border-collapse:collapse;font-size:12px;min-width:100%;white-space:nowrap"></table></div>
+    </div>
   </div>
 </div>
 
@@ -5767,121 +5778,182 @@ function invBorrarArt(){
 var _qrRegistros = [];
 var _qrActual = null;   // {contenido, datos} del QR recien leido
 
-// ─── Hora por Hora ──────────────────────────────────────────────────────
-var HXH_TURNOS = {'1': 7, '2': 15, '3': 23};
-var HXH_CAUSAS = ['Cambio de modelo', 'Falla mecánica', 'Falla eléctrica', 'Falta de material', 'Falta de personal', 'Calidad / ajuste', 'Comida / descanso', 'Mantenimiento', 'Otro'];
-var _hxhDatos = {};
-function hxhPad(n){ return (n < 10 ? '0' : '') + n; }
-function hxhHoras(turno){
-  var ini = HXH_TURNOS[turno] || 7, horas = [];
-  for (var i = 0; i < 8; i++) { var a = (ini + i) % 24, b = (ini + i + 1) % 24; horas.push(hxhPad(a) + ':00-' + hxhPad(b) + ':00'); }
-  return horas;
+// ─── Hora por Hora (igual al Excel "Tablero Hora por Hora") ─────────────
+// Franjas del turno y minutos productivos de cada una. La franja de comida
+// del operador (11-12 o 12-1) cuenta 30 min.
+var HXH_FRANJAS = [['8-9',50],['9-10',60],['10-11',60],['11-12',60],['12-1',60],['1-2',60],['2-3',60],['3-4',60],['4-5',60],['5-5:30',20]];
+var _hxhCat = null, _hxhDatos = [], _hxhVista = 'cap', _hxhTimer = null;
+function hxhNum(n, d){ return (n == null || n === '' || isNaN(n)) ? '' : Number(n).toLocaleString('es-MX', {maximumFractionDigits: d || 0}); }
+function hxhComidaDe(op){
+  if (!_hxhCat || !op) return '';
+  if ((_hxhCat.operadores['11-12'] || []).indexOf(op) !== -1) return '11-12';
+  if ((_hxhCat.operadores['12-1'] || []).indexOf(op) !== -1) return '12-1';
+  return '';
 }
-function hxhTurnoActual(){
-  var h = new Date().getHours();
-  return h >= 7 && h < 15 ? '1' : (h >= 15 && h < 23 ? '2' : '3');
+function hxhMinutos(franja, op){
+  var f = HXH_FRANJAS.find(function(x){ return x[0] === franja; });
+  var min = f ? f[1] : 60;
+  if (franja === hxhComidaDe(op)) min = 30;
+  return min;
+}
+function hxhMetaH(est, desc){
+  var c = (_hxhCat ? _hxhCat.catalogo : []).find(function(x){ return x.estacion === est && x.descripcion === desc; });
+  return c ? Number(c.meta_h) || 0 : 0;
 }
 function hxhAbrir(){
-  var sel = document.getElementById('hxh-maquina');
-  if (!sel.options.length) {
-    sel.innerHTML = AREAS.map(function(a){
-      return '<optgroup label="' + a.name + '">' + a.machines.map(function(m){
-        return '<option value="' + m.id + '">' + m.num + ' – ' + m.name + '</option>';
-      }).join('') + '</optgroup>';
-    }).join('');
-    try { var ult = localStorage.getItem('hxh_maquina'); if (ult) sel.value = ult; } catch(e){}
-  }
-  var hoy = new Date(), turno = hxhTurnoActual();
-  if (turno === '3' && hoy.getHours() < 7) hoy = new Date(hoy.getTime() - 86400000);
-  document.getElementById('hxh-fecha').value = hoy.toLocaleDateString('en-CA');
-  document.getElementById('hxh-turno').value = turno;
+  document.getElementById('hxh-fecha').value = new Date().toLocaleDateString('en-CA');
   showPage('hxh');
+  var listo = _hxhCat ? Promise.resolve() :
+    fetch('/api/hxh/catalogo', {headers:{'X-Usuario-Email': invEmail()}}).then(invJson).then(function(c){
+      if (c.error) throw new Error(c.error);
+      _hxhCat = c;
+      document.getElementById('hxh-est').innerHTML = c.estaciones.map(function(e){ return '<option>' + escHtml(e) + '</option>'; }).join('');
+      var ops = (c.operadores['11-12'] || []).concat(c.operadores['12-1'] || []).sort();
+      document.getElementById('hxh-op').innerHTML = '<option value="">— Selecciona —</option>' + ops.map(function(o){ return '<option>' + escHtml(o) + '</option>'; }).join('');
+      try {
+        var g = JSON.parse(localStorage.getItem('hxh_sel') || '{}');
+        if (g.est) document.getElementById('hxh-est').value = g.est;
+        hxhLlenarDesc();
+        if (g.desc) document.getElementById('hxh-desc').value = g.desc;
+        if (g.op) document.getElementById('hxh-op').value = g.op;
+      } catch(e){ hxhLlenarDesc(); }
+    });
+  listo.then(function(){ hxhVista(_hxhVista); })
+    .catch(function(e){ document.getElementById('hxh-horas').innerHTML = '<p style="color:#c62828;text-align:center;padding:20px">' + escHtml(e.message || 'Error al cargar el catálogo') + '</p>'; });
+}
+function hxhSalir(){ clearInterval(_hxhTimer); showPage('menu'); }
+function hxhLlenarDesc(){
+  var est = document.getElementById('hxh-est').value;
+  var ds = _hxhCat.catalogo.filter(function(c){ return c.estacion === est; });
+  document.getElementById('hxh-desc').innerHTML = ds.length
+    ? ds.map(function(c){ return '<option>' + escHtml(c.descripcion) + '</option>'; }).join('')
+    : '<option value="">(sin descripciones en catálogo)</option>';
+}
+function hxhCambioEstacion(){ hxhLlenarDesc(); hxhRender(); }
+function hxhVista(v){
+  _hxhVista = v;
+  document.getElementById('hxh-cap').style.display = v === 'cap' ? '' : 'none';
+  document.getElementById('hxh-tab').style.display = v === 'tab' ? '' : 'none';
+  document.getElementById('hxh-tab-cap').style.background = v === 'cap' ? '#1a5c2a' : '#90a4ae';
+  document.getElementById('hxh-tab-tab').style.background = v === 'tab' ? '#1a5c2a' : '#90a4ae';
+  clearInterval(_hxhTimer);
+  if (v === 'tab') _hxhTimer = setInterval(function(){ if (document.getElementById('page-hxh').classList.contains('active')) hxhCargar(); else clearInterval(_hxhTimer); }, 60000);
   hxhCargar();
 }
-function hxhMaquina(){
-  var id = document.getElementById('hxh-maquina').value, nombre = '';
-  AREAS.forEach(function(a){ a.machines.forEach(function(m){ if (m.id === id) nombre = m.name; }); });
-  return {id: id, nombre: nombre};
-}
 function hxhCargar(){
-  var m = hxhMaquina();
-  try { localStorage.setItem('hxh_maquina', m.id); } catch(e){}
-  var cont = document.getElementById('hxh-horas');
-  cont.innerHTML = '<p style="color:#888;text-align:center;padding:20px">Cargando...</p>';
-  var q = 'fecha=' + document.getElementById('hxh-fecha').value + '&turno=' + document.getElementById('hxh-turno').value + '&maquina=' + encodeURIComponent(m.id);
+  var q = 'fecha=' + document.getElementById('hxh-fecha').value + '&turno=' + document.getElementById('hxh-turno').value;
   fetch('/api/hxh?' + q, {headers:{'X-Usuario-Email': invEmail()}})
     .then(invJson)
     .then(function(d){
-      if (!Array.isArray(d)) { cont.innerHTML = '<p style="color:#c62828;text-align:center;padding:20px">' + escHtml(d.error || 'Error') + '</p>'; return; }
-      _hxhDatos = {};
-      d.forEach(function(r){ _hxhDatos[r.hora] = r; });
-      var conDatos = d.filter(function(r){ return r.numero_parte || r.meta; });
-      if (conDatos.length) {
-        var u = conDatos[conDatos.length - 1];
-        if (u.numero_parte) document.getElementById('hxh-parte').value = u.numero_parte;
-        if (u.meta) document.getElementById('hxh-meta').value = u.meta;
-      }
-      hxhRender();
+      if (!Array.isArray(d)) throw new Error(d.error || 'Error');
+      _hxhDatos = d;
+      if (_hxhVista === 'tab') hxhTablero(); else hxhRender();
     })
-    .catch(function(){ cont.innerHTML = '<p style="color:#c62828;text-align:center;padding:20px">Error de conexión</p>'; });
+    .catch(function(e){ document.getElementById(_hxhVista === 'tab' ? 'hxh-tabla' : 'hxh-horas').innerHTML = '<tr><td style="color:#c62828;padding:20px">' + escHtml(e.message || 'Error de conexión') + '</td></tr>'; });
+}
+function hxhSel(){
+  return {est: document.getElementById('hxh-est').value, desc: document.getElementById('hxh-desc').value, op: document.getElementById('hxh-op').value};
 }
 function hxhRender(){
-  var turno = document.getElementById('hxh-turno').value;
-  var opcCausas = '<option value="">Sin paro</option>' + HXH_CAUSAS.map(function(c){ return '<option>' + c + '</option>'; }).join('');
-  document.getElementById('hxh-horas').innerHTML = hxhHoras(turno).map(function(h, i){
-    var r = _hxhDatos[h] || {}, guardado = !!r.id;
-    var ef = r.meta ? Math.round(100 * (r.real || 0) / r.meta) : null;
-    var color = ef === null ? '#9e9e9e' : (ef >= 95 ? '#2e7d32' : (ef >= 80 ? '#ef6c00' : '#c62828'));
-    return '<div class="inv-card" id="hxh-h' + i + '" style="cursor:default;border-left:5px solid ' + (guardado ? color : '#ddd') + '">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
-        '<b style="font-size:15px">' + h + '</b>' +
-        (guardado ? '<span style="font-size:12px;font-weight:700;color:' + color + '">' + (ef === null ? '' : ef + '% ') + '&#10003; ' + escHtml(r.operador_nombre || '') + '</span>' : '<span style="font-size:12px;color:#999">Pendiente</span>') +
-      '</div>' +
-      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">' +
-        hxhCampo(i, 'meta', 'Meta', r.meta) + hxhCampo(i, 'real', 'Real', r.real) +
-        hxhCampo(i, 'scrap', 'Scrap', r.scrap) + hxhCampo(i, 'paro_min', 'Paro min', r.paro_min) +
-      '</div>' +
-      '<div style="display:flex;gap:6px;margin-top:6px">' +
-        '<select id="hxh-causa' + i + '" class="inv-in" style="flex:1">' + opcCausas + '</select>' +
-        '<button class="inv-btn" style="background:#1a5c2a;white-space:nowrap" onclick="hxhGuardar(' + i + ', \'' + h + '\', this)">' + (guardado ? 'Actualizar' : 'Guardar') + '</button>' +
-      '</div>' +
-      '<input id="hxh-coment' + i + '" class="inv-in" style="margin-top:6px" placeholder="Comentario (opcional)" value="' + escHtml(r.comentario || '') + '">' +
-    '</div>';
-  }).join('');
-  hxhHoras(turno).forEach(function(h, i){ var r = _hxhDatos[h]; if (r && r.causa) document.getElementById('hxh-causa' + i).value = r.causa; });
-  hxhResumen();
+  if (!_hxhCat) return;
+  var s = hxhSel();
+  try { localStorage.setItem('hxh_sel', JSON.stringify(s)); } catch(e){}
+  var metaH = hxhMetaH(s.est, s.desc);
+  var mias = {}; _hxhDatos.forEach(function(r){ if (r.maquina_id === s.est) mias[r.hora] = r; });
+  var opcP = '<option value="">Sin pérdida</option>' + _hxhCat.perdidas.map(function(p){ return '<option>' + escHtml(p) + '</option>'; }).join('');
+  var real = 0;
+  document.getElementById('hxh-horas').innerHTML =
+    '<div style="font-size:13px;margin-bottom:8px;color:#555">Meta/h: <b>' + (metaH ? hxhNum(metaH, 2) : '<span style="color:#c62828">sin meta en catálogo</span>') + '</b>' +
+    (s.op ? ' &middot; Comida: <b>' + (hxhComidaDe(s.op) || '—') + '</b>' : '') + '</div>' +
+    HXH_FRANJAS.map(function(f, i){
+      var r = mias[f[0]] || {}, ok = r.id != null;
+      var metaAj = Math.round(metaH * hxhMinutos(f[0], s.op) / 60);
+      if (ok) real += r.real || 0;
+      var cumple = ok && metaAj > 0 ? (r.real >= metaAj) : null;
+      var bg = cumple === null ? (ok ? '#fff' : '#fff') : (cumple ? '#e8f5e9' : '#ffebee');
+      var borde = cumple === null ? '#ddd' : (cumple ? '#2e7d32' : '#c62828');
+      return '<div class="inv-card" style="cursor:default;background:' + bg + ';border-left:5px solid ' + borde + ';padding:10px 12px">' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<b style="width:58px;font-size:15px">' + f[0] + '</b>' +
+          '<div style="font-size:11px;color:#666;width:58px;text-align:center">Meta<br><b style="font-size:14px;color:#333">' + (metaAj || '—') + '</b></div>' +
+          '<input id="hxh-r' + i + '" type="number" min="0" inputmode="numeric" class="inv-in" placeholder="Real" style="flex:1;font-size:16px;font-weight:700" value="' + (ok ? r.real : '') + '">' +
+          '<button class="inv-btn" style="background:#1a5c2a;padding:9px 12px" onclick="hxhGuardar(' + i + ', this)">' + (ok ? '&#10003;' : 'Guardar') + '</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;margin-top:6px">' +
+          '<select id="hxh-p' + i + '" class="inv-in" style="flex:1;font-size:13px">' + opcP + '</select>' +
+          '<input id="hxh-c' + i + '" class="inv-in" style="flex:1;font-size:13px" placeholder="Comentario / acción" value="' + escHtml(r.comentario || '') + '">' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  HXH_FRANJAS.forEach(function(f, i){ var r = mias[f[0]]; if (r && r.causa) document.getElementById('hxh-p' + i).value = r.causa; });
+  var metaT = Math.round(metaH * ((_hxhCat.minutos_turno || 510) / 60));
+  var cumpl = metaT ? Math.round(100 * real / metaT) + '%' : '—';
+  function caja(lbl, v, bg){ return '<div style="background:' + bg + ';color:#fff;border-radius:10px;padding:8px 4px;text-align:center"><div style="font-size:17px;font-weight:800">' + v + '</div><div style="font-size:11px;opacity:.9">' + lbl + '</div></div>'; }
+  document.getElementById('hxh-resumen').innerHTML = caja('Meta total', hxhNum(metaT), '#455A64') + caja('Real', hxhNum(real), '#1565C0') +
+    caja('% Cumpl.', cumpl, '#1a5c2a') + caja('Brecha', metaT ? hxhNum(real - metaT) : '—', real - metaT >= 0 ? '#2e7d32' : '#c62828');
 }
-function hxhCampo(i, k, lbl, v){
-  return '<div><span class="inv-lbl">' + lbl + '</span><input id="hxh-' + k + i + '" type="number" min="0" inputmode="numeric" class="inv-in" value="' + (v == null ? '' : Number(v)) + '"></div>';
-}
-function hxhResumen(){
-  var t = {meta:0, real:0, scrap:0, paro:0};
-  Object.keys(_hxhDatos).forEach(function(h){ var r = _hxhDatos[h]; t.meta += r.meta||0; t.real += r.real||0; t.scrap += r.scrap||0; t.paro += r.paro_min||0; });
-  var ef = t.meta ? Math.round(100 * t.real / t.meta) + '%' : '—';
-  function caja(lbl, v, bg){ return '<div style="background:' + bg + ';color:#fff;border-radius:10px;padding:8px 4px;text-align:center"><div style="font-size:18px;font-weight:800">' + v + '</div><div style="font-size:11px;opacity:.9">' + lbl + '</div></div>'; }
-  document.getElementById('hxh-resumen').innerHTML = caja('Meta', t.meta, '#455A64') + caja('Real', t.real, '#1565C0') + caja('Eficiencia', ef, '#1a5c2a') + caja('Scrap', t.scrap, '#c62828');
-}
-function hxhGuardar(i, hora, btn){
-  var meta = document.getElementById('hxh-meta' + i).value || document.getElementById('hxh-meta').value;
-  var real = document.getElementById('hxh-real' + i).value;
-  if (real === '') { alert('Escribe las piezas reales de la hora ' + hora); return; }
-  var m = hxhMaquina();
+function hxhGuardar(i, btn){
+  var s = hxhSel(), f = HXH_FRANJAS[i];
+  if (!s.op) { alert('Selecciona el operador'); return; }
+  var real = document.getElementById('hxh-r' + i).value;
+  if (real === '') { alert('Escribe la producción real de ' + f[0]); return; }
+  var metaH = hxhMetaH(s.est, s.desc);
   btn.disabled = true;
-  qrCargando('Guardando hora ' + hora + '...');
+  qrCargando('Guardando ' + f[0] + '...');
   fetch('/api/hxh', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
       usuario_email: invEmail(), fecha: document.getElementById('hxh-fecha').value, turno: document.getElementById('hxh-turno').value,
-      maquina_id: m.id, maquina_nombre: m.nombre, hora: hora, numero_parte: document.getElementById('hxh-parte').value.trim(),
-      meta: meta, real: real, scrap: document.getElementById('hxh-scrap' + i).value, paro_min: document.getElementById('hxh-paro_min' + i).value,
-      causa: document.getElementById('hxh-causa' + i).value, comentario: document.getElementById('hxh-coment' + i).value.trim()})})
+      maquina_id: s.est, maquina_nombre: s.est, hora: f[0], numero_parte: s.desc, operador_linea: s.op,
+      meta_h: metaH, meta: Math.round(metaH * hxhMinutos(f[0], s.op) / 60), real: real,
+      causa: document.getElementById('hxh-p' + i).value, comentario: document.getElementById('hxh-c' + i).value.trim()})})
     .then(invJson)
     .then(function(d){
       qrCargando('');
       if (!d.ok) { alert(d.error || 'No se pudo guardar'); btn.disabled = false; return; }
-      _hxhDatos[hora] = d.registro;
-      showToast('Hora ' + hora + ' guardada');
+      _hxhDatos = _hxhDatos.filter(function(r){ return !(r.maquina_id === s.est && r.hora === f[0]); }).concat([d.registro]);
+      showToast(f[0] + ' guardado');
       hxhRender();
     })
     .catch(function(){ qrCargando(''); btn.disabled = false; alert('Error de conexión. Intenta de nuevo.'); });
+}
+function hxhTablero(){
+  var porEst = {};
+  _hxhDatos.forEach(function(r){ (porEst[r.maquina_id] = porEst[r.maquina_id] || {})[r.hora] = r; });
+  var th = 'style="background:#1a5c2a;color:#fff;padding:6px 8px;position:sticky;top:0"';
+  var h = '<tr><th ' + th + '>Estación</th><th ' + th + '>Descripción</th><th ' + th + '>Operador</th><th ' + th + '>Meta/h</th>' +
+    HXH_FRANJAS.map(function(f){ return '<th ' + th + '>' + f[0] + '</th>'; }).join('') +
+    '<th ' + th + '>Meta total</th><th ' + th + '>Real</th><th ' + th + '>% Cumpl.</th><th ' + th + '>Brecha</th><th ' + th + '>Comentarios</th></tr>';
+  var td = 'padding:6px 8px;border-bottom:1px solid #eee;text-align:center';
+  var gMeta = 0, gReal = 0;
+  _hxhCat.estaciones.forEach(function(est){
+    var fr = porEst[est] || {}, filas = Object.keys(fr).map(function(k){ return fr[k]; });
+    var ult = filas.sort(function(a, b){ return String(a.actualizado).localeCompare(String(b.actualizado)); })[filas.length - 1] || {};
+    var metaH = Number(ult.meta_h) || hxhMetaH(est, ult.numero_parte);
+    var real = 0, coment = [];
+    var celdas = HXH_FRANJAS.map(function(f){
+      var r = fr[f[0]];
+      if (!r) return '<td style="' + td + ';color:#bbb">·</td>';
+      real += r.real || 0;
+      if (r.causa || r.comentario) coment.push(f[0] + ': ' + [r.causa, r.comentario].filter(Boolean).join(' – '));
+      var cumple = r.meta > 0 ? r.real >= r.meta : null;
+      var bg = cumple === null ? '#fff8e1' : (cumple ? '#c8e6c9' : '#ffcdd2');
+      return '<td style="' + td + ';background:' + bg + ';font-weight:700" title="Meta ' + r.meta + '">' + hxhNum(r.real) + '</td>';
+    }).join('');
+    var metaT = filas.length ? Math.round(metaH * ((_hxhCat.minutos_turno || 510) / 60)) : 0;
+    gMeta += metaT; gReal += real;
+    var pct = metaT && filas.length ? Math.round(100 * real / metaT) : null;
+    h += '<tr><td style="' + td + ';text-align:left;font-weight:700">' + escHtml(est) + '</td>' +
+      '<td style="' + td + ';text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="' + escHtml(ult.numero_parte || '') + '">' + escHtml(ult.numero_parte || '') + '</td>' +
+      '<td style="' + td + ';text-align:left">' + escHtml(ult.operador_linea || '') + '</td>' +
+      '<td style="' + td + '">' + (filas.length ? hxhNum(metaH, 2) : '') + '</td>' + celdas +
+      '<td style="' + td + '">' + (filas.length ? hxhNum(metaT) : '') + '</td>' +
+      '<td style="' + td + ';font-weight:700">' + (filas.length ? hxhNum(real) : '') + '</td>' +
+      '<td style="' + td + ';font-weight:700;color:' + (pct === null ? '#333' : (pct >= 100 ? '#2e7d32' : '#c62828')) + '">' + (pct === null ? '' : pct + '%') + '</td>' +
+      '<td style="' + td + ';color:' + (real - metaT >= 0 ? '#2e7d32' : '#c62828') + '">' + (filas.length ? hxhNum(real - metaT) : '') + '</td>' +
+      '<td style="' + td + ';text-align:left;white-space:normal;min-width:180px;font-size:11px">' + escHtml(coment.join(' | ')) + '</td></tr>';
+  });
+  var gp = gMeta ? Math.round(100 * gReal / gMeta) + '%' : '';
+  h += '<tr style="background:#eceff1;font-weight:800"><td style="' + td + ';text-align:left" colspan="' + (4 + HXH_FRANJAS.length) + '">TOTAL PLANTA</td><td style="' + td + '">' + hxhNum(gMeta) + '</td><td style="' + td + '">' + hxhNum(gReal) + '</td><td style="' + td + '">' + gp + '</td><td style="' + td + '">' + (gMeta ? hxhNum(gReal - gMeta) : '') + '</td><td></td></tr>';
+  document.getElementById('hxh-tabla').innerHTML = h;
 }
 function qrAbrir(){
   if (!document.getElementById('qr-desde').value) {
