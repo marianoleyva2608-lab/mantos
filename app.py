@@ -5362,7 +5362,7 @@ def _qr_enviar_presentacion(registro, u):
     nombre = next((c['v'] for c in datos if c['k'].lower() == 'nombre'), '')
     saludo = 'Buen día, ' + html_escape(nombre) + ':' if nombre else 'Buen día:'
     html = ('<p>' + saludo + '</p>'
-            '<p>Muchas gracias por visitarnos en nuestro stand en el 6.º B2B de Norteamérica.</p>'
+            '<p>Muchas gracias por visitarnos en nuestro stand en el 6to Encuentro Automotriz B2B de Norteamérica.</p>'
             '<p>Adjunto encontrarás nuestra presentación corporativa.</p>'
             '<p>En breve, nuestro equipo de asesores se pondrá en contacto contigo para revisar a detalle '
             'el tema de tu interés con base a tu visita al stand.</p>'
