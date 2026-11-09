@@ -5560,6 +5560,61 @@ def qr_buscar_duplicado():
                                'presentacion_enviada': enviada}})
 
 
+# ─── Registro libre (sin sesion) desde el QR del stand: /registro ──────────
+# El visitante deja sus datos, se guarda en qr_registros como "Autoregistro"
+# y se le manda la presentacion. Limite por IP para evitar abuso.
+_REGISTRO_INTENTOS = {}
+
+
+@app.route('/registro')
+def registro_publico():
+    return send_file('registro.html', mimetype='text/html', max_age=0)
+
+
+@app.route('/registro/presentacion.pdf')
+def registro_presentacion():
+    return send_file(QR_ARCHIVO_PRESENTACION, mimetype='application/pdf', as_attachment=True,
+                     download_name='Presentacion_AD-PACK.pdf')
+
+
+@app.route('/api/registro', methods=['POST'])
+def registro_guardar():
+    d = request.json or {}
+    if d.get('sitio'):                      # campo trampa: solo lo llenan bots
+        return jsonify({'ok': True, 'correo_enviado': False})
+    ip = (request.headers.get('X-Forwarded-For') or request.remote_addr or '').split(',')[0].strip()
+    ahora = datetime.datetime.utcnow()
+    recientes = [t for t in _REGISTRO_INTENTOS.get(ip, []) if (ahora - t).total_seconds() < 600]
+    if len(recientes) >= 5:
+        return jsonify({'error': 'Demasiados registros desde este dispositivo. Intenta en unos minutos.'}), 429
+    _REGISTRO_INTENTOS[ip] = recientes + [ahora]
+    nombre = _qr_limpio(d.get('nombre'), 120)
+    empresa = _qr_limpio(d.get('empresa'), 120)
+    correo = limpiar_email(d.get('correo'))
+    interes = _qr_limpio(d.get('interes'), 120)
+    if not (nombre and empresa and correo and interes):
+        return jsonify({'error': 'Completa nombre, empresa, correo e interés'}), 400
+    datos = [{'k': 'Nombre', 'v': nombre}, {'k': 'Empresa', 'v': empresa}]
+    for k, campo, maximo in (('Puesto', 'puesto', 120), ('Teléfono', 'telefono', 40)):
+        v = _qr_limpio(d.get(campo), maximo)
+        if v:
+            datos.append({'k': k, 'v': v})
+    datos.append({'k': 'Correo', 'v': correo})
+    comentario = _qr_limpio(d.get('comentario'), 800)
+    motivo = interes + (' — ' + comentario if comentario else '')
+    fila = {'contenido': 'Autoregistro: ' + nombre + ' <' + correo + '>', 'datos': datos, 'motivo': motivo,
+            'usuario_email': '', 'usuario_nombre': 'Autoregistro (QR del stand)'}
+    try:
+        rows = sb.insert('qr_registros', fila)
+    except requests.HTTPError as e:
+        print(f'[registro] error al guardar: {e}')
+        return jsonify({'error': 'No se pudo guardar. Intenta de nuevo.'}), 500
+    enviado = False
+    if rows:
+        enviado, error = _qr_enviar_presentacion(rows[0], {'nombre': 'Equipo AD-PACK', 'email': None})
+    return jsonify({'ok': True, 'correo_enviado': bool(enviado)})
+
+
 @app.route('/api/qr/registros/excel', methods=['GET'])
 def qr_registros_excel():
     if not _qr_usuario(request.headers.get('X-Usuario-Email')):

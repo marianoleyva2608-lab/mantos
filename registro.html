@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AD-PACK — Regístrate</title>
+<meta name="theme-color" content="#1a5c2a">
+<link rel="icon" href="/adpack-icon-web.png">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Inter','Segoe UI',system-ui,sans-serif;background:linear-gradient(160deg,#0f3d1f 0%,#1a5c2a 45%,#123F5D 100%);min-height:100vh;color:#102a43;display:flex;align-items:flex-start;justify-content:center;padding:24px 14px}
+  .card{background:#fff;border-radius:22px;box-shadow:0 20px 50px rgba(0,0,0,.3);max-width:440px;width:100%;overflow:hidden}
+  .top{padding:26px 24px 18px;text-align:center;background:linear-gradient(180deg,#f3f8f4,#fff)}
+  .top img{width:72px;height:72px;border-radius:18px;box-shadow:0 6px 16px rgba(26,92,42,.25)}
+  .top h1{font-size:22px;margin:14px 0 4px;color:#1a5c2a}
+  .top p{margin:0;color:#62748a;font-size:14px;line-height:1.4}
+  .ev{display:inline-block;margin-top:10px;background:#e8f5e9;color:#1a5c2a;font-weight:700;font-size:12px;padding:5px 12px;border-radius:20px}
+  form{padding:6px 24px 26px}
+  label{display:block;font-size:12px;font-weight:700;color:#486581;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px}
+  input,select,textarea{width:100%;font:inherit;font-size:16px;padding:12px 14px;border:1.5px solid #d9e2ec;border-radius:12px;background:#f8fafc;outline:none;transition:.15s}
+  input:focus,select:focus,textarea:focus{border-color:#2f855a;background:#fff;box-shadow:0 0 0 4px rgba(47,133,90,.15)}
+  textarea{resize:vertical;min-height:70px}
+  .hp{position:absolute;left:-9999px}
+  button{width:100%;margin-top:20px;padding:15px;border:none;border-radius:14px;background:linear-gradient(135deg,#1a5c2a,#2f855a);color:#fff;font-size:17px;font-weight:800;cursor:pointer;box-shadow:0 8px 20px rgba(26,92,42,.35)}
+  button:disabled{opacity:.6}
+  .err{color:#c62828;font-size:14px;margin-top:10px;min-height:18px}
+  .ok{padding:30px 24px;text-align:center}
+  .ok .big{font-size:56px}
+  .ok h2{color:#1a5c2a;margin:8px 0}
+  .ok p{color:#486581;line-height:1.5}
+  .dl{display:block;text-decoration:none;text-align:center;margin-top:18px;padding:15px;border-radius:14px;background:#123F5D;color:#fff;font-weight:800}
+  .pie{text-align:center;font-size:12px;color:#829ab1;padding:0 24px 20px}
+  .spin{width:22px;height:22px;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;vertical-align:-5px;animation:g .8s linear infinite;margin-right:8px}
+  @keyframes g{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="vista-form">
+    <div class="top">
+      <img src="/adpack-icon-web.png" alt="AD-PACK">
+      <h1>¡Gracias por visitarnos!</h1>
+      <p>Déjanos tus datos y te enviamos nuestra presentación corporativa a tu correo.</p>
+      <span class="ev">6.º B2B Norteamérica</span>
+    </div>
+    <form id="f" autocomplete="on" novalidate>
+      <label for="nombre">Nombre completo *</label>
+      <input id="nombre" name="name" required maxlength="120" autocomplete="name">
+      <label for="empresa">Empresa *</label>
+      <input id="empresa" name="organization" required maxlength="120" autocomplete="organization">
+      <label for="puesto">Puesto</label>
+      <input id="puesto" name="organization-title" maxlength="120" autocomplete="organization-title">
+      <label for="correo">Correo *</label>
+      <input id="correo" name="email" type="email" required maxlength="150" autocomplete="email" autocapitalize="off" spellcheck="false">
+      <label for="telefono">Teléfono</label>
+      <input id="telefono" name="tel" type="tel" maxlength="40" autocomplete="tel">
+      <label for="interes">¿Qué te interesa? *</label>
+      <select id="interes" required>
+        <option value="">Selecciona…</option>
+        <option>Charolas termoformadas</option>
+        <option>Conversión / corte de materiales</option>
+        <option>Empaque a la medida</option>
+        <option>Cotización</option>
+        <option>Otro</option>
+      </select>
+      <label for="comentario">Comentarios</label>
+      <textarea id="comentario" maxlength="800" placeholder="Cuéntanos tu proyecto (opcional)"></textarea>
+      <input class="hp" id="sitio" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <div class="err" id="err"></div>
+      <button id="btn" type="submit">Enviarme la presentación</button>
+    </form>
+  </div>
+  <div id="vista-ok" class="ok" style="display:none">
+    <div class="big">✅</div>
+    <h2>¡Listo!</h2>
+    <p id="ok-txt"></p>
+    <a class="dl" href="/registro/presentacion.pdf" download="Presentacion_AD-PACK.pdf">📄 Descargar presentación</a>
+  </div>
+  <div class="pie">AD-PACK · <a href="https://www.ad-pack.com.mx" style="color:#486581">www.ad-pack.com.mx</a></div>
+</div>
+<script>
+var CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+document.getElementById('f').addEventListener('submit', function(e){
+  e.preventDefault();
+  var v = function(id){ return document.getElementById(id).value.trim(); };
+  var err = document.getElementById('err'), btn = document.getElementById('btn');
+  if (!v('nombre')) return err.textContent = 'Escribe tu nombre';
+  if (!v('empresa')) return err.textContent = 'Escribe tu empresa';
+  if (!CORREO.test(v('correo'))) return err.textContent = 'Escribe un correo válido';
+  if (!v('interes')) return err.textContent = 'Selecciona qué te interesa';
+  err.textContent = '';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Enviando…';
+  fetch('/api/registro', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+    nombre: v('nombre'), empresa: v('empresa'), puesto: v('puesto'), correo: v('correo'), telefono: v('telefono'),
+    interes: v('interes'), comentario: v('comentario'), sitio: v('sitio')})})
+    .then(function(r){ return r.json().catch(function(){ return {error: 'Error del servidor'}; }); })
+    .then(function(d){
+      if (!d.ok) throw new Error(d.error || 'No se pudo enviar');
+      document.getElementById('ok-txt').innerHTML = d.correo_enviado
+        ? 'Te enviamos la presentación a <b>' + v('correo').replace(/[<>&"]/g, '') + '</b>. En breve nuestro gerente de ventas se pondrá en contacto contigo.'
+        : 'Recibimos tus datos. Puedes descargar la presentación aquí mismo; en breve nos pondremos en contacto contigo.';
+      document.getElementById('vista-form').style.display = 'none';
+      document.getElementById('vista-ok').style.display = '';
+      window.scrollTo(0, 0);
+    })
+    .catch(function(e){ err.textContent = e.message || 'Error de conexión. Intenta de nuevo.'; btn.disabled = false; btn.textContent = 'Enviarme la presentación'; });
+});
+</script>
+</body>
+</html>
