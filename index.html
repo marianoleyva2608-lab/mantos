@@ -5683,13 +5683,14 @@ function invBorrarArt(){
   </div>
   <div style="padding:14px">
     <button class="inv-btn" style="background:#1F5C2E;width:100%;padding:16px;font-size:17px" onclick="abrirEscanerQR()">&#128247; Leer QR</button>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px;align-items:flex-end">
-      <div><span class="inv-lbl">Desde</span><input id="qr-desde" type="date" class="inv-in"></div>
-      <div><span class="inv-lbl">Hasta</span><input id="qr-hasta" type="date" class="inv-in"></div>
-      <button class="inv-btn" style="background:#1F5C2E" onclick="qrCargar()">Buscar</button>
-      <button class="inv-btn" style="background:#1565C0" onclick="qrExcel()">&#128196; Excel</button>
-      <button id="qr-borrar-todos" class="inv-btn" style="background:#C62828;display:none" onclick="qrBorrarTodos()">&#128465; Borrar todos</button>
+    <div style="display:flex;gap:6px;flex-wrap:nowrap;margin:14px 0 10px;align-items:flex-end">
+      <div style="flex:1;min-width:0"><span class="inv-lbl">Desde</span><input id="qr-desde" type="date" class="inv-in" style="padding:7px 4px;font-size:13px"></div>
+      <div style="flex:1;min-width:0"><span class="inv-lbl">Hasta</span><input id="qr-hasta" type="date" class="inv-in" style="padding:7px 4px;font-size:13px"></div>
+      <button class="inv-btn qr-ico" style="background:#1F5C2E" onclick="qrCargar()" title="Buscar" aria-label="Buscar">&#128269;</button>
+      <button class="inv-btn qr-ico" style="background:#1565C0" onclick="qrExcel()" title="Descargar Excel" aria-label="Descargar Excel">&#128196;</button>
+      <button id="qr-borrar-todos" class="inv-btn qr-ico" style="background:#C62828;display:none" onclick="qrBorrarTodos()" title="Borrar todos" aria-label="Borrar todos">&#128465;</button>
     </div>
+    <style>.qr-ico{flex:0 0 38px;width:38px;height:36px;padding:0;font-size:17px;line-height:36px;text-align:center}</style>
     <input id="qr-buscar" type="text" placeholder="Filtrar por nombre, motivo o quien registró..." oninput="qrRender()" class="inv-in" style="margin-bottom:10px">
     <div id="qr-lista"></div>
   </div>
@@ -5768,7 +5769,7 @@ function qrRender(){
       qrCamposHtml(r.datos && r.datos.length ? r.datos : [{k:'Contenido', v:r.contenido}]) +
       '<div style="margin-top:6px;padding-top:6px;border-top:1px solid #eee"><b>Motivo:</b> ' + escHtml(r.motivo) + '</div>' +
       '<div style="font-size:12px;color:#777;margin-top:4px">' + escHtml(r.fecha_mx) + ' &middot; ' + escHtml(r.usuario_nombre || '') + '</div>' +
-      (qrPuedeEnviar(r) ? '<button class="inv-btn" style="background:#1565C0;margin-top:8px;font-size:13px;padding:7px 12px" onclick="qrEnviar(' + Number(r.id) + ', this)">&#9993; Enviar presentación</button>' : '') +
+      (qrPuedeEnviar(r) ? '<button class="inv-btn" style="background:#1565C0;margin-top:8px;font-size:12px;padding:5px 10px" onclick="qrEnviar(' + Number(r.id) + ', this)" title="Enviar presentación">&#9993; Enviar</button>' : '') +
     '</div>';
   }).join('') : '<p style="color:#888;text-align:center;padding:20px">Sin registros en el periodo</p>';
 }
