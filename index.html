@@ -5776,10 +5776,11 @@ function invBorrarArt(){
   <div>
     <button class="inv-x" onclick="invCerrar('qr-motivo-modal')">&times;</button>
     <div style="font-size:16px;font-weight:700;margin-bottom:10px">Información del QR</div>
+    <div id="qr-dup" style="display:none;background:#fff3cd;border:1px solid #ffc107;color:#664d03;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:14px"></div>
     <div id="qr-motivo-info" style="background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:14px;word-break:break-word"></div>
     <div id="qr-correo-box" style="margin-bottom:10px">
       <label class="inv-lbl" for="qr-correo">Correo</label>
-      <input id="qr-correo" type="email" class="inv-in" maxlength="150" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="correo@empresa.com">
+      <input id="qr-correo" type="email" onblur="qrRevisarDuplicado()" class="inv-in" maxlength="150" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="correo@empresa.com">
     </div>
     <div id="qr-nombre-box" style="margin-bottom:10px">
       <label class="inv-lbl" for="qr-nombre">Nombre (opcional)</label>
@@ -6096,8 +6097,29 @@ function qrEscaneado(texto){
   document.getElementById('qr-correo-box').style.display = pideCorreo ? '' : 'none';
   document.getElementById('qr-nombre-box').style.display = pideNombre ? '' : 'none';
   document.getElementById('qr-empresa-box').style.display = qrTraeCampo('empresa') ? 'none' : '';
+  document.getElementById('qr-dup').style.display = 'none';
   invAbrirModal('qr-motivo-modal');
   document.getElementById(pideCorreo ? 'qr-correo' : pideNombre ? 'qr-nombre' : 'qr-motivo').focus();
+  qrRevisarDuplicado();
+}
+// Solo avisa si esta persona ya se habia registrado; no impide guardar
+function qrRevisarDuplicado(){
+  if (!_qrActual) return;
+  var correo = (_qrActual.datos.find(function(c){ return QR_CORREO.test(c.v); }) || {}).v || document.getElementById('qr-correo').value.trim();
+  var contenido = _qrActual.contenido;
+  fetch('/api/qr/registros/duplicado', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({usuario_email: invEmail(), contenido: contenido, correo: correo})})
+    .then(invJson)
+    .then(function(d){
+      if (!_qrActual || _qrActual.contenido !== contenido) return;
+      var box = document.getElementById('qr-dup'), p = d && d.previo;
+      if (!p) { box.style.display = 'none'; return; }
+      box.innerHTML = '&#9888;&#65039; <b>Esta persona ya fue registrada</b> el ' + escHtml(p.fecha_mx) +
+        (p.usuario_nombre ? ' por <b>' + escHtml(p.usuario_nombre) + '</b>' : '') +
+        (p.presentacion_enviada ? '.<br>Ya se le envió la presentación.' : '.');
+      box.style.display = '';
+    })
+    .catch(function(){});
 }
 var QR_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function qrTraeCorreo(){

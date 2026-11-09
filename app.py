@@ -5533,6 +5533,33 @@ def hxh_guardar():
     return jsonify({'ok': True, 'registro': rows[0] if rows else None})
 
 
+@app.route('/api/qr/registros/duplicado', methods=['POST'])
+def qr_buscar_duplicado():
+    """Registro anterior con el mismo QR o el mismo correo (para avisar, no bloquea)."""
+    d = request.json or {}
+    if not _qr_usuario(d.get('usuario_email')):
+        return jsonify({'error': 'No tienes acceso a Información QR'}), 403
+    contenido = _qr_limpio(d.get('contenido'), 4000)
+    correo = limpiar_email(d.get('correo'))
+    previos = []
+    try:
+        if contenido:
+            previos += sb.select('qr_registros', select='id,fecha,usuario_nombre,datos', order='fecha.desc', limit=1,
+                                 contenido='eq.' + contenido)
+        if correo:
+            previos += sb.select('qr_registros', select='id,fecha,usuario_nombre,datos', order='fecha.desc', limit=1,
+                                 datos='cs.' + json.dumps([{'v': correo}]))
+    except requests.HTTPError as e:
+        print(f'[qr] error al buscar duplicado: {e}')
+        return jsonify({'previo': None})
+    if not previos:
+        return jsonify({'previo': None})
+    p = max(previos, key=lambda r: r.get('fecha') or '')
+    enviada = any(c.get('k') == 'Presentación' and str(c.get('v', '')).startswith('Enviada') for c in (p.get('datos') or []))
+    return jsonify({'previo': {'fecha_mx': _inv_fecha_mx(p.get('fecha')), 'usuario_nombre': p.get('usuario_nombre') or '',
+                               'presentacion_enviada': enviada}})
+
+
 @app.route('/api/qr/registros/excel', methods=['GET'])
 def qr_registros_excel():
     if not _qr_usuario(request.headers.get('X-Usuario-Email')):
