@@ -6317,9 +6317,13 @@ def hxh_borrar():
     turno, maquina, hora = _qr_limpio(d.get('turno'), 5), _qr_limpio(d.get('maquina_id'), 40), _qr_limpio(d.get('hora'), 20)
     if not re.match(r'^\d{4}-\d{2}-\d{2}$', fecha) or not (turno and maquina and hora) or hora == 'fila':
         return jsonify({'error': 'Datos inválidos'}), 400
+    # hora 'todo': borra el renglon completo de la estacion en ese turno
+    # (todas las horas, scrap, paros, modelo, operador y comentario)
+    filtros = {'fecha': 'eq.' + fecha, 'turno': 'eq.' + turno, 'maquina_id': 'eq.' + maquina}
+    if hora != 'todo':
+        filtros['hora'] = 'eq.' + hora
     try:
-        sb.delete('produccion_hora', return_rows=False, fecha='eq.' + fecha, turno='eq.' + turno,
-                  maquina_id='eq.' + maquina, hora='eq.' + hora)
+        sb.delete('produccion_hora', return_rows=False, **filtros)
     except requests.HTTPError as e:
         detalle = e.response.text[:300] if e.response is not None else str(e)
         return jsonify({'error': 'No se pudo borrar: ' + detalle}), 500
