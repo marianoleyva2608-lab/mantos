@@ -5824,8 +5824,12 @@ function invBorrarArt(){
       <div><span class="inv-lbl">Área</span><select id="hxh-par-area" class="inv-in" style="margin:0" onchange="hxhParetoCargar()"><option value="">Todas</option><option value="termoformado">Termoformado</option><option value="conversion">Conversión</option></select></div>
       <div><span class="inv-lbl">Scrap por</span><select id="hxh-par-por" class="inv-in" style="margin:0" onchange="hxhParetoScrapPintar()"><option value="piezas">Piezas NG</option><option value="costo">Costo (MXN)</option></select></div>
     </div>
-    <div style="margin-top:10px"><span class="inv-lbl">Máquinas (elige una o varias; sin selección = todas)</span>
-      <div id="hxh-par-maq" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div></div>
+    <div style="margin-top:10px"><span class="inv-lbl">Máquinas (agrega una o varias; sin ninguna = todas)</span>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">
+        <select id="hxh-par-msel" class="inv-in" style="margin:0;width:230px"></select>
+        <button class="inv-btn" style="background:#1565C0;height:38px;padding:0 14px;font-size:18px" onclick="hxhParetoMaqAgregar()" title="Agregar máquina">&#10133;</button>
+        <div id="hxh-par-maq" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
       <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhParetoRango(0)">Hoy</button>
       <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhParetoRango(1)">Ayer</button>
@@ -6242,18 +6246,25 @@ function hxhParetoMaqPintar(){
   var area = document.getElementById('hxh-par-area').value;
   var ests = _hxhCat.estaciones.filter(function(e){ return !area || ((_hxhCat.area_estacion || {})[e] || 'conversion') === area; });
   _hxhParMaq = _hxhParMaq.filter(function(e){ return ests.indexOf(e) !== -1; });
-  var termos = ests.filter(function(e){ return /^TERMO/.test(e); });
-  document.getElementById('hxh-par-maq').innerHTML =
-    '<button class="hxpm' + (_hxhParMaq.length ? '' : ' on') + '" onclick="hxhParetoMaq(\'*\')">Todas</button>' +
-    (termos.length ? '<button class="hxpm grp" onclick="hxhParetoMaq(\'termos\')">Todas las termos</button>' : '') +
-    ests.map(function(e){ return '<button class="hxpm' + (_hxhParMaq.indexOf(e) !== -1 ? ' on' : '') + '" onclick="hxhParetoMaq(\'' + escHtml(e).replace(/'/g, "\\'") + '\')">' + escHtml(e) + '</button>'; }).join('');
+  var libres = ests.filter(function(e){ return _hxhParMaq.indexOf(e) === -1; });
+  var termos = libres.filter(function(e){ return /^TERMO/.test(e); });
+  document.getElementById('hxh-par-msel').innerHTML = '<option value="">Elige una máquina…</option>' +
+    (termos.length > 1 ? '<option value="*termos">Todas las termos</option>' : '') +
+    libres.map(function(e){ return '<option>' + escHtml(e) + '</option>'; }).join('');
+  document.getElementById('hxh-par-maq').innerHTML = _hxhParMaq.length
+    ? _hxhParMaq.map(function(e, k){ return '<span class="hxpm on">' + escHtml(e) + ' <b style="cursor:pointer;margin-left:4px" onclick="hxhParetoMaqQuitar(' + k + ')" title="Quitar">&#10005;</b></span>'; }).join('') +
+      '<button class="hxpm" onclick="hxhParetoMaqQuitar(-1)">Quitar todas</button>'
+    : '<span style="font-size:13px;color:#62748a">Todas las máquinas</span>';
 }
-function hxhParetoMaq(e){
-  if (e === '*') _hxhParMaq = [];
-  else if (e === 'termos') _hxhParMaq = _hxhCat.estaciones.filter(function(x){ return /^TERMO/.test(x); });
-  else if (_hxhParMaq.indexOf(e) !== -1) _hxhParMaq = _hxhParMaq.filter(function(x){ return x !== e; });
-  else _hxhParMaq.push(e);
-  hxhParetoMaqPintar();
+function hxhParetoMaqAgregar(){
+  var v = document.getElementById('hxh-par-msel').value;
+  if (!v) return;
+  if (v === '*termos') _hxhCat.estaciones.forEach(function(e){ if (/^TERMO/.test(e) && _hxhParMaq.indexOf(e) === -1) _hxhParMaq.push(e); });
+  else _hxhParMaq.push(v);
+  hxhParetoCargar();
+}
+function hxhParetoMaqQuitar(k){
+  if (k < 0) _hxhParMaq = []; else _hxhParMaq.splice(k, 1);
   hxhParetoCargar();
 }
 function hxhParetoQuery(){
