@@ -27,4 +27,7 @@ create index if not exists ix_produccion_hora_fecha on produccion_hora (fecha de
 alter table produccion_hora add column if not exists operador_linea text default '';
 alter table produccion_hora add column if not exists meta_h numeric default 0;
 
+-- Scrap por hora desglosado por codigo de defecto: {"X1": 3, "X4": 5}. La columna scrap guarda la suma.
+alter table produccion_hora add column if not exists scrap_detalle jsonb default '{}'::jsonb;
+
 notify pgrst, 'reload schema';
