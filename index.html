@@ -5744,6 +5744,8 @@ function invBorrarArt(){
     .hxsc:hover{background:#ffe3e3}
     .hxsc.v{background:#ffe3e3;border-style:solid}
     .hxsc:disabled{border-color:transparent;color:#bcccdc;background:transparent;cursor:default}
+    .hxcm{flex:0 0 auto;width:28px;height:28px;border:1px solid #bcccdc;border-radius:8px;background:#fff;color:#486581;cursor:pointer;font-size:14px;padding:0}
+    .hxcm:hover{border-color:#2f855a;color:#2f855a}
     .hx td.sd{font-size:11px;color:#b71c1c;text-align:left;white-space:normal}
     .hxcfg{margin-left:auto;background:#fff;border:1px solid #bcccdc;color:#102a43;border-radius:12px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer}
     .hxcfg:hover{border-color:#2f855a;color:#2f855a}
@@ -6076,7 +6078,9 @@ function hxhCargar(){
       if (!Array.isArray(d)) throw new Error(d.error || 'Error');
       var porEst = {}, orden = [];
       d.forEach(function(r){
-        if (!porEst[r.maquina_id]) { porEst[r.maquina_id] = {est: r.maquina_id, desc: '', op: '', coment: '', reales: {}, scrap: {}, t: ''}; orden.push(r.maquina_id); }
+        // Cambio de modelo: el 2o modelo de una maquina se guarda como 'TERMO 7#2'
+        var partes = String(r.maquina_id).split('#'), est = partes[0], slot = parseInt(partes[1], 10) || 1;
+        if (!porEst[r.maquina_id]) { porEst[r.maquina_id] = {est: est, slot: slot, desc: '', op: '', coment: '', reales: {}, scrap: {}, t: ''}; orden.push(r.maquina_id); }
         var f = porEst[r.maquina_id];
         if (String(r.actualizado) >= f.t) { f.t = String(r.actualizado); if (r.numero_parte) f.desc = r.numero_parte; if (r.operador_linea) f.op = r.operador_linea; }
         if (r.hora === 'fila') { f.coment = r.comentario || ''; f.desc = r.numero_parte || f.desc; f.op = r.operador_linea || f.op; }
@@ -6086,13 +6090,56 @@ function hxhCargar(){
         }
       });
       // Primero las estaciones del Excel, despues las demas que ya tengan datos, y renglones vacios hasta 30
+      var base = [];
+      HXH_EST_INICIALES.forEach(function(e){ base.push(porEst[e] || hxhFilaNueva(e, 1)); });
+      orden.forEach(function(id){ var f = porEst[id]; if (f.slot === 1 && HXH_EST_INICIALES.indexOf(f.est) === -1) base.push(f); });
+      orden.forEach(function(id){ var f = porEst[id]; if (f.slot > 1 && !base.some(function(b){ return b.est === f.est; })) base.push(hxhFilaNueva(f.est, 1)); });
       var filas = [];
-      HXH_EST_INICIALES.forEach(function(e){ filas.push(porEst[e] || {est: e, desc: '', op: '', coment: '', reales: {}, scrap: {}}); });
-      orden.forEach(function(e){ if (HXH_EST_INICIALES.indexOf(e) === -1) filas.push(porEst[e]); });
+      base.forEach(function(b){
+        filas.push(b);
+        orden.map(function(id){ return porEst[id]; }).filter(function(f){ return f.est === b.est && f.slot > 1; })
+          .sort(function(a, c){ return a.slot - c.slot; }).forEach(function(f){ filas.push(f); });
+      });
       _hxhFilas = filas;
       hxhPintar();
     })
     .catch(function(e){ document.getElementById('hxh-tabla').innerHTML = '<tr><td style="color:#c62828;padding:20px">' + escHtml(e.message || 'Error de conexión') + '</td></tr>'; });
+}
+function hxhFilaNueva(est, slot){ return {est: est, slot: slot || 1, desc: '', op: '', coment: '', reales: {}, scrap: {}}; }
+function hxhId(f){ return f.est + (f.slot > 1 ? '#' + f.slot : ''); }
+function hxhHermanos(f){ return _hxhFilas.filter(function(x){ return x.est && x.est === f.est; }); }
+// Parte de la meta de una franja que le toca a este renglon. Con cambio de modelo la
+// hora es del modelo que la capturo (a partes iguales si capturaron dos); las horas
+// sin capturar son del ultimo modelo.
+function hxhParte(f, franja){
+  var her = hxhHermanos(f);
+  if (her.length <= 1) return 1;
+  var cap = her.filter(function(x){ var v = x.reales[franja]; return v != null && v !== ''; });
+  if (cap.length) return cap.indexOf(f) === -1 ? 0 : 1 / cap.length;
+  var ultimo = her.reduce(function(a, b){ return b.slot > a.slot ? b : a; });
+  return ultimo === f ? 1 : 0;
+}
+function hxhMetaTotal(f){
+  var metaH = (f.est && f.desc) ? hxhMetaH(f.est, f.desc) : 0;
+  if (!metaH || !hxhComidaDe(f.op)) return '';
+  var base = metaH * ((_hxhCat.minutos_turno || 510) / 60);
+  if (hxhHermanos(f).length <= 1) return Math.round(base);
+  var tot = 0, mio = 0;
+  HXH_FRANJAS.forEach(function(fr){ var m = hxhMinutos(fr[0], f.op); tot += m; mio += m * hxhParte(f, fr[0]); });
+  return Math.round(base * mio / tot);
+}
+function hxhCambioModelo(i){
+  var f = _hxhFilas[i], her = hxhHermanos(f);
+  var slot = her.reduce(function(m, x){ return Math.max(m, x.slot || 1); }, 1) + 1;
+  var pos = _hxhFilas.indexOf(her[her.length - 1]) + 1;
+  var nueva = hxhFilaNueva(f.est, slot); nueva.op = f.op;
+  _hxhFilas.splice(pos, 0, nueva);
+  hxhPintar();
+  var sel = document.querySelector('#hxh-f' + pos + ' select[data-c="desc"]'); if (sel) sel.focus();
+}
+function hxhQuitarModelo(i){
+  _hxhFilas.splice(i, 1);
+  hxhPintar();
 }
 function hxhOpciones(lista, sel, vacio){
   return '<option value="">' + (vacio || '') + '</option>' + lista.map(function(x){ return '<option' + (x === sel ? ' selected' : '') + '>' + escHtml(x) + '</option>'; }).join('');
@@ -6104,13 +6151,18 @@ function hxhPintar(){
     '<th class="tot">Meta total</th><th class="tot">Real</th><th class="tot">% Cumpl.</th><th class="tot">Diferencia</th><th class="tot" style="min-width:260px">Comentarios</th></tr>';
   _hxhFilas.forEach(function(f, i){
     var usadas = _hxhFilas.map(function(x){ return x.est; });
+    var ultimoModelo = hxhHermanos(f).slice(-1)[0] === f;
     var estLibres = _hxhCat.estaciones.filter(function(e){ return e === f.est || usadas.indexOf(e) === -1; });
     var tieneDatos = Object.keys(f.reales).length > 0;
     var descs = _hxhCat.catalogo.filter(function(c){ return c.estacion === f.est; }).map(function(c){ return c.descripcion; });
     if (f.desc && descs.indexOf(f.desc) === -1) descs.unshift(f.desc);
     h += '<tr id="hxh-f' + i + '">' +
-      '<td class="est"><select onchange="hxhCambio(' + i + ',\'est\',this.value)"' + (tieneDatos ? ' disabled title="Ya tiene producción capturada"' : '') + '>' + hxhOpciones(estLibres, f.est) + '</select></td>' +
-      '<td style="text-align:left"><select onchange="hxhCambio(' + i + ',\'desc\',this.value)">' + hxhOpciones(descs, f.desc) + '</select></td>' +
+      (f.slot > 1
+        ? '<td class="est" style="font-size:12px;color:#486581">&#8644; ' + escHtml(f.est) + ' &middot; modelo ' + f.slot +
+          (tieneDatos || Object.keys(f.scrap).length ? '' : ' <button onclick="hxhQuitarModelo(' + i + ')" title="Quitar" style="border:none;background:none;cursor:pointer;color:#c62828">&#10005;</button>') + '</td>'
+        : '<td class="est"><select onchange="hxhCambio(' + i + ',\'est\',this.value)"' + (tieneDatos || hxhHermanos(f).length > 1 ? ' disabled title="Ya tiene producción capturada"' : '') + '>' + hxhOpciones(estLibres, f.est) + '</select></td>') +
+      '<td style="text-align:left"><div style="display:flex;gap:4px;align-items:center"><select data-c="desc" onchange="hxhCambio(' + i + ',\'desc\',this.value)"' + (f.est ? '' : ' disabled') + '>' + hxhOpciones(descs, f.desc) + '</select>' +
+        (f.est && f.desc && ultimoModelo ? '<button class="hxcm" onclick="hxhCambioModelo(' + i + ')" title="Cambio de modelo: agrega otro renglón para el siguiente producto de ' + escHtml(f.est) + '">&#8644;</button>' : '') + '</div></td>' +
       '<td style="text-align:left"><select onchange="hxhCambio(' + i + ',\'op\',this.value)">' + hxhOpciones(ops.indexOf(f.op) === -1 && f.op ? [f.op].concat(ops) : ops, f.op) + '</select></td>' +
       '<td class="mh" id="hxh-mh' + i + '"></td>' +
       HXH_FRANJAS.map(function(fr, k){
@@ -6139,9 +6191,9 @@ function hxhCalcFila(i){
     td.className = '';
     if (v == null || v === '') return;
     real += Number(v); n++;
-    if (metaH && opValido) td.className = Number(v) >= Math.round(metaH * hxhMinutos(fr[0], f.op) / 60) ? 'ok' : 'no';
+    if (metaH && opValido) td.className = Number(v) >= Math.round(metaH * hxhMinutos(fr[0], f.op) / 60 * hxhParte(f, fr[0])) ? 'ok' : 'no';
   });
-  var metaT = (metaH && opValido) ? Math.round(metaH * ((_hxhCat.minutos_turno || 510) / 60)) : '';
+  var metaT = hxhMetaTotal(f);
   document.getElementById('hxh-mt' + i).textContent = hxhNum(metaT);
   document.getElementById('hxh-re' + i).textContent = n ? hxhNum(real) : '';
   var pc = (n && metaT) ? Math.round(100 * real / metaT) : null, col = pc === null ? '#bcccdc' : (pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828'));
@@ -6194,7 +6246,7 @@ var _hxhScrap = null;   // {i, k} de la celda que se esta capturando
 function hxhScrapAbrir(i, k){
   var f = _hxhFilas[i], fr = HXH_FRANJAS[k], s = f.scrap[fr[0]] || {det: {}};
   _hxhScrap = {i: i, k: k};
-  document.getElementById('hxh-scrap-tit').textContent = f.est + ' · ' + fr[0] + ' · Producción: ' + hxhNum(f.reales[fr[0]]);
+  document.getElementById('hxh-scrap-tit').textContent = f.est + ' · ' + (f.desc || '') + ' · ' + fr[0] + ' · Producción: ' + hxhNum(f.reales[fr[0]]);
   document.getElementById('hxh-scrap-err').textContent = '';
   document.getElementById('hxh-scrap-lista').innerHTML = hxhDefectos(f.est).map(function(d){
     var v = s.det[d.codigo];
@@ -6219,7 +6271,7 @@ function hxhScrapGuardar(){
   });
   var tot = hxhScrapSuma();
   btn.disabled = true;
-  hxhPost({maquina_id: f.est, maquina_nombre: f.est, hora: fr[0], numero_parte: f.desc, operador_linea: f.op, scrap_detalle: det})
+  hxhPost({maquina_id: hxhId(f), maquina_nombre: f.est, hora: fr[0], numero_parte: f.desc, operador_linea: f.op, scrap_detalle: det})
     .then(function(){
       if (tot) f.scrap[fr[0]] = {total: tot, det: det}; else delete f.scrap[fr[0]];
       invCerrar('hxh-scrap-modal');
@@ -6229,16 +6281,17 @@ function hxhScrapGuardar(){
     .then(function(){ btn.disabled = false; });
 }
 function hxhKpis(){
-  var meta = 0, real = 0, activas = 0, ok = 0, tot = 0, scrap = 0, costoScrap = 0;
+  var meta = 0, real = 0, activas = {}, ok = 0, tot = 0, scrap = 0, costoScrap = 0;
   _hxhFilas.forEach(function(f){
     var metaH = (f.est && f.desc) ? hxhMetaH(f.est, f.desc) : 0, op = !!hxhComidaDe(f.op);
     var ks = Object.keys(f.reales);
     if (!ks.length) return;
-    activas++;
+    activas[f.est] = 1;
     Object.keys(f.scrap || {}).forEach(function(h){ scrap += f.scrap[h].total || 0; costoScrap += (f.scrap[h].total || 0) * hxhCosto(f.est, f.desc); });
     ks.forEach(function(h){ real += Number(f.reales[h]) || 0; if (metaH && op) { tot++; if (f.reales[h] >= Math.round(metaH * hxhMinutos(h, f.op) / 60)) ok++; } });
-    if (metaH && op) meta += Math.round(metaH * ((_hxhCat.minutos_turno || 510) / 60));
+    var mt = hxhMetaTotal(f); if (mt) meta += mt;
   });
+  activas = Object.keys(activas).length;
   var pc = meta ? Math.round(100 * real / meta) : null;
   function k(l, v, c){ return '<div class="hxkpi" style="--c:' + c + '"><div class="v">' + v + '</div><div class="l">' + l + '</div></div>'; }
   document.getElementById('hxh-kpis').innerHTML =
@@ -6249,7 +6302,7 @@ function hxhKpis(){
     k('Estaciones activas', activas, '#6A1B9A');
 }
 function hxhAgregar(){
-  _hxhFilas.push({est: '', desc: '', op: '', coment: '', reales: {}, scrap: {}});
+  _hxhFilas.push(hxhFilaNueva('', 1));
   hxhPintar();
   var sels = document.querySelectorAll('#hxh-tabla td.est select');
   if (sels.length) { sels[sels.length - 1].focus(); sels[sels.length - 1].scrollIntoView({block: 'nearest'}); }
@@ -6262,7 +6315,7 @@ function hxhPost(datos){
 function hxhGuardarFila(i){
   var f = _hxhFilas[i];
   if (!f.est) return Promise.resolve();
-  return hxhPost({maquina_id: f.est, maquina_nombre: f.est, hora: 'fila', numero_parte: f.desc, operador_linea: f.op,
+  return hxhPost({maquina_id: hxhId(f), maquina_nombre: f.est, hora: 'fila', numero_parte: f.desc, operador_linea: f.op,
                   meta_h: hxhMetaH(f.est, f.desc), comentario: f.coment, real: 0})
     .catch(function(e){ alert(e.message || 'Error de conexión'); });
 }
@@ -6270,8 +6323,13 @@ function hxhCambio(i, campo, valor){
   var f = _hxhFilas[i];
   f[campo] = valor;
   if (campo === 'est') { f.desc = ''; hxhPintar(); }
-  else if (campo === 'desc' || campo === 'op') hxhCalcFila(i);
+  else if (campo === 'desc') { hxhPintar(); }
+  else if (campo === 'op') hxhCalcEstacion(i);
   hxhGuardarFila(i);
+}
+function hxhCalcEstacion(i){
+  var f = _hxhFilas[i];
+  _hxhFilas.forEach(function(x, j){ if (x.est && x.est === f.est) hxhCalcFila(j); });
 }
 function hxhCelda(i, k, inp){
   var f = _hxhFilas[i], fr = HXH_FRANJAS[k];
@@ -6279,10 +6337,10 @@ function hxhCelda(i, k, inp){
   if (inp.value === '') return;
   var real = Number(inp.value), metaH = hxhMetaH(f.est, f.desc);
   f.reales[fr[0]] = real;
-  hxhCalcFila(i);
+  hxhCalcEstacion(i);
   var td = inp.parentNode; td.style.outline = '2px solid #ffb300';
-  hxhPost({maquina_id: f.est, maquina_nombre: f.est, hora: fr[0], numero_parte: f.desc, operador_linea: f.op, meta_h: metaH,
-           meta: Math.round(metaH * hxhMinutos(fr[0], f.op) / 60), real: real})
+  hxhPost({maquina_id: hxhId(f), maquina_nombre: f.est, hora: fr[0], numero_parte: f.desc, operador_linea: f.op, meta_h: metaH,
+           meta: Math.round(metaH * hxhMinutos(fr[0], f.op) / 60 * hxhParte(f, fr[0])), real: real})
     .then(function(){ td.style.outline = ''; })
     .catch(function(e){ td.style.outline = '2px solid #c62828'; alert('No se guardó ' + f.est + ' ' + fr[0] + ': ' + (e.message || 'error de conexión')); });
 }
