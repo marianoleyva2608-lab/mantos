@@ -5780,7 +5780,7 @@ function invBorrarArt(){
       <div style="flex:0 0 150px"><span class="inv-lbl">Estación</span><select id="hxh-cfg-nest" class="inv-in" style="margin:0"></select></div>
       <div style="flex:1;min-width:160px"><span class="inv-lbl">Descripción</span><input id="hxh-cfg-ndesc" class="inv-in" maxlength="120" placeholder="L21CDSTAPE6" style="margin:0"></div>
       <div style="flex:0 0 100px"><span class="inv-lbl">Meta/h</span><input id="hxh-cfg-nmeta" class="inv-in" type="number" min="0" step="0.01" style="margin:0"></div>
-      <div style="flex:0 0 100px"><span class="inv-lbl">Costo/pza</span><input id="hxh-cfg-ncosto" class="inv-in" type="number" min="0" step="0.01" placeholder="$0.00" style="margin:0"></div>
+      <div style="flex:0 0 100px"><span class="inv-lbl">Costo/pza (MXN)</span><input id="hxh-cfg-ncosto" class="inv-in" type="number" min="0" step="0.01" placeholder="$0.00" style="margin:0"></div>
       <button class="inv-btn" style="background:#1565C0;flex:0 0 auto;height:38px" onclick="hxhCfgAgregar()">&#10133; Agregar</button>
     </div>
     <div style="font-size:14px;font-weight:700;margin:16px 0 4px">Operadores por horario de comida</div>
@@ -5941,7 +5941,7 @@ function hxhCfgPintar(){
       '<td style="padding:4px 8px;width:100px"><input class="inv-in" type="number" min="0" step="0.01" placeholder="$0.00" value="' + (clave in _hxhCfgCostos ? _hxhCfgCostos[clave] : (c.costo || '')) + '" style="margin:0;width:95px;text-align:center' + (clave in _hxhCfgCostos ? ';background:#fff8e1' : '') + '" oninput="hxhCfgCosto(' + n + ',this)"></td>' +
       '<td style="padding:4px;text-align:center"><button onclick="hxhCfgQuitar(' + n + ')" title="Eliminar" style="border:none;background:none;cursor:pointer;font-size:16px">&#128465;&#65039;</button></td></tr>';
   }).join('');
-  document.getElementById('hxh-cfg-tabla').innerHTML = '<tr>' + th('Estación') + th('Descripción') + th('Meta/h') + th('Ciclo ideal (s/pza)', 'right') + th('Meta turno', 'right') + th('Costo/pza') + th('') + '</tr>' +
+  document.getElementById('hxh-cfg-tabla').innerHTML = '<tr>' + th('Estación') + th('Descripción') + th('Meta/h') + th('Ciclo ideal (s/pza)', 'right') + th('Meta turno', 'right') + th('Costo/pza (MXN)') + th('') + '</tr>' +
     (filas || '<tr><td colspan="7" style="padding:14px;color:#888;text-align:center">Sin productos en esta estación. Agrégalos abajo.</td></tr>');
 }
 function hxhCfgCambio(n, inp){
@@ -6127,7 +6127,7 @@ function hxhCosto(est, desc){
   var c = ((_hxhCat && _hxhCat.catalogo) || []).find(function(x){ return x.estacion === est && x.descripcion === desc; });
   return c ? Number(c.costo) || 0 : 0;
 }
-function hxhPesos(v){ return '$' + Number(v).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+function hxhPesos(v){ return '$' + Number(v).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' MXN'; }
 function hxhDefectos(est){
   var defs = (_hxhCat && _hxhCat.defectos) || [];
   if (Array.isArray(defs)) return defs;
@@ -6193,7 +6193,7 @@ function hxhKpis(){
     k('Meta planta', hxhNum(meta) || '—', '#486581') + k('Real', hxhNum(real) || '0', '#1565C0') +
     k('% Cumplimiento', pc === null ? '—' : pc + '%', pc === null ? '#bcccdc' : (pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828'))) +
     k('Scrap (piezas NG)', hxhNum(scrap) || '0', '#c62828') + k('% Scrap', scrap ? (100 * scrap / (real + scrap)).toFixed(1) + '%' : '—', '#c62828') +
-    k('Costo scrap', hxhPesos(costoScrap), '#c62828') +
+    k('Costo scrap (MXN)', hxhPesos(costoScrap), '#c62828') +
     k('Estaciones activas', activas, '#6A1B9A');
 }
 function hxhAgregar(){
