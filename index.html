@@ -5744,6 +5744,9 @@ function invBorrarArt(){
     .hxsc.v{background:#ffe3e3;border-style:solid}
     .hxsc:disabled{border-color:transparent;color:#bcccdc;background:transparent;cursor:default}
     .hx td.sd{font-size:11px;color:#b71c1c;text-align:left;white-space:normal}
+    .hxcfg{margin-left:auto;background:#fff;border:1px solid #bcccdc;color:#102a43;border-radius:12px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer}
+    .hxcfg:hover{border-color:#2f855a;color:#2f855a}
+    .hxcfg+.hxclock{margin-left:0}
     .hxleg i{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:4px;vertical-align:-1px}
   </style>
   <div style="padding:14px">
@@ -5751,11 +5754,32 @@ function invBorrarArt(){
       <div class="ctl">&#128197; Fecha <input id="hxh-fecha" type="date" onchange="hxhCargar()"></div>
       <div class="ctl">&#128336; Turno <select id="hxh-turno" onchange="hxhCargar()"><option>1</option><option>2</option><option>3</option></select></div>
       <div class="hxleg"><span><i style="background:#d3f9d8"></i>Cumple meta ajustada</span><span><i style="background:#ffe3e3"></i>No cumple</span></div>
+      <button id="hxh-cfg-btn" class="hxcfg" style="display:none" onclick="hxhCfgAbrir()">&#9881;&#65039; Configurar metas</button>
       <div class="hxclock" id="hxh-reloj"></div>
     </div>
     <div class="hxkpis" id="hxh-kpis"></div>
     <div class="hxwrap"><table class="hx" id="hxh-tabla"></table></div>
     <button class="hxadd" onclick="hxhAgregar()">&#10133; Agregar estación</button>
+  </div>
+</div>
+
+<!-- Modal: configuracion de metas (solo editores autorizados) -->
+<div id="hxh-cfg-modal" class="inv-modal">
+  <div style="max-width:720px">
+    <button class="inv-x" onclick="invCerrar('hxh-cfg-modal')">&times;</button>
+    <div style="font-size:16px;font-weight:700;margin-bottom:12px">&#9881;&#65039; Configurar metas</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+      <div><span class="inv-lbl">Minutos productivos del turno</span><input id="hxh-cfg-min" class="inv-in" type="number" min="60" max="720" style="width:130px;margin:0"></div>
+      <div style="flex:1;min-width:180px"><span class="inv-lbl">Estación</span><select id="hxh-cfg-est" class="inv-in" style="margin:0" onchange="hxhCfgPintar()"></select></div>
+    </div>
+    <div style="max-height:50vh;overflow:auto;border:1px solid #eee;border-radius:10px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px" id="hxh-cfg-tabla"></table>
+    </div>
+    <div id="hxh-cfg-err" style="color:#C62828;font-size:13px;margin-top:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="inv-btn" style="background:#888;flex:1" onclick="invCerrar('hxh-cfg-modal')">Cancelar</button>
+      <button id="hxh-cfg-guardar" class="inv-btn" style="background:#2E7D32;flex:1" onclick="hxhCfgGuardar()">Guardar metas</button>
+    </div>
   </div>
 </div>
 
@@ -5859,6 +5883,7 @@ function hxhAbrir(){
     fetch('/api/hxh/catalogo', {headers:{'X-Usuario-Email': invEmail()}}).then(invJson).then(function(c){
       if (c.error) throw new Error(c.error);
       _hxhCat = c;
+      document.getElementById('hxh-cfg-btn').style.display = c.puede_editar_metas ? '' : 'none';
     });
   listo.then(function(){
     hxhCargar();
@@ -5868,9 +5893,61 @@ function hxhAbrir(){
       var a = document.activeElement;
       if (a && a.closest && a.closest('#hxh-tabla')) return;   // no recargar mientras alguien escribe
       if (document.getElementById('hxh-scrap-modal').style.display === 'flex') return;
+      if (document.getElementById('hxh-cfg-modal').style.display === 'flex') return;
       hxhCargar();
     }, 60000);
   }).catch(function(e){ document.getElementById('hxh-tabla').innerHTML = '<tr><td style="color:#c62828;padding:20px">' + escHtml(e.message || 'Error al cargar el catálogo') + '</td></tr>'; });
+}
+// ─── Configuracion de metas: Meta/h por estacion + descripcion y minutos del turno
+var _hxhCfgCambios = {};
+function hxhCfgAbrir(){
+  _hxhCfgCambios = {};
+  document.getElementById('hxh-cfg-min').value = _hxhCat.minutos_turno || 510;
+  var ests = _hxhCat.estaciones.filter(function(e){ return _hxhCat.catalogo.some(function(c){ return c.estacion === e; }); });
+  document.getElementById('hxh-cfg-est').innerHTML = '<option value="">Todas</option>' + ests.map(function(e){ return '<option>' + escHtml(e) + '</option>'; }).join('');
+  document.getElementById('hxh-cfg-err').textContent = '';
+  hxhCfgPintar();
+  invAbrirModal('hxh-cfg-modal');
+}
+function hxhCfgPintar(){
+  var est = document.getElementById('hxh-cfg-est').value;
+  var th = 'style="position:sticky;top:0;background:#102a43;color:#fff;padding:8px;text-align:left;font-size:11px"';
+  document.getElementById('hxh-cfg-tabla').innerHTML = '<tr><th ' + th + '>Estación</th><th ' + th + '>Descripción</th><th ' + th + '>Meta/h</th></tr>' +
+    _hxhCat.catalogo.map(function(c, n){
+      if (est && c.estacion !== est) return '';
+      var clave = c.estacion + '||' + c.descripcion, v = clave in _hxhCfgCambios ? _hxhCfgCambios[clave] : c.meta_h;
+      return '<tr style="border-bottom:1px solid #eee"><td style="padding:6px 8px;font-weight:700;white-space:nowrap">' + escHtml(c.estacion) + '</td><td style="padding:6px 8px">' + escHtml(c.descripcion) + '</td>' +
+        '<td style="padding:4px 8px;width:110px"><input class="inv-in" type="number" min="0" step="0.01" value="' + (v == null ? '' : Math.round(v * 100) / 100) + '" style="margin:0;width:100px;text-align:center" oninput="hxhCfgCambio(' + n + ',this)"></td></tr>';
+    }).join('');
+}
+function hxhCfgCambio(n, inp){
+  var c = _hxhCat.catalogo[n];
+  _hxhCfgCambios[c.estacion + '||' + c.descripcion] = inp.value;
+  inp.style.background = '#fff8e1';
+}
+function hxhCfgGuardar(){
+  var err = document.getElementById('hxh-cfg-err'), btn = document.getElementById('hxh-cfg-guardar');
+  var min = parseInt(document.getElementById('hxh-cfg-min').value, 10);
+  err.textContent = '';
+  if (!(min >= 60 && min <= 720)) { err.textContent = 'Minutos del turno debe estar entre 60 y 720.'; return; }
+  var malas = Object.keys(_hxhCfgCambios).filter(function(k){ return !(Number(_hxhCfgCambios[k]) > 0); });
+  if (malas.length) { err.textContent = 'Meta/h debe ser mayor a 0: ' + malas[0].replace('||', ' · '); return; }
+  btn.disabled = true;
+  fetch('/api/hxh/metas', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({usuario_email: invEmail(), meta_h: _hxhCfgCambios, minutos_turno: min})})
+    .then(invJson)
+    .then(function(d){
+      if (!d.ok) throw new Error(d.error || 'No se pudieron guardar las metas');
+      return fetch('/api/hxh/catalogo', {headers:{'X-Usuario-Email': invEmail()}}).then(invJson);
+    })
+    .then(function(c){
+      if (c.error) throw new Error(c.error);
+      _hxhCat = c;
+      invCerrar('hxh-cfg-modal');
+      hxhPintar();
+    })
+    .catch(function(e){ err.textContent = e.message || 'Error de conexión'; })
+    .then(function(){ btn.disabled = false; });
 }
 function hxhSalir(){ clearInterval(_hxhTimer); clearInterval(_hxhReloj); showPage('menu'); }
 function hxhCargar(){

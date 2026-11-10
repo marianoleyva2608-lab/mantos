@@ -350,6 +350,8 @@ def set_ajustes():
     d = request.json or {}
     limpios = {}
     for clave, valor in d.items():
+        if clave == 'hxh_metas':
+            return jsonify({'ok': False, 'error': 'Las metas de Hora por Hora se cambian desde su módulo'}), 403
         valor = (valor or '').strip()
         if clave.startswith('email_') and valor:
             v = limpiar_email(valor)
@@ -5470,13 +5472,82 @@ def _hxh_entero(valor):
         return 0
 
 
+# Metas editables: hxh_catalogo.json trae los valores base y en 'ajustes'
+# (clave hxh_metas) se guardan los cambios hechos desde la app:
+# {"meta_h": {"ESTACION||DESCRIPCION": 92}, "minutos_turno": 510}.
+# Solo los correos de "editores_metas" del catalogo pueden cambiarlas.
+def _hxh_catalogo_base():
+    with open('hxh_catalogo.json', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def _hxh_metas_guardadas():
+    try:
+        rows = sb.select('ajustes', select='valor', clave='eq.hxh_metas')
+        return json.loads(rows[0]['valor']) if rows and rows[0].get('valor') else {}
+    except Exception:
+        return {}
+
+
+def _hxh_puede_editar_metas(cat, email):
+    email = (email or '').strip().lower()
+    return bool(email) and email in [e.strip().lower() for e in cat.get('editores_metas') or []]
+
+
 @app.route('/api/hxh/catalogo', methods=['GET'])
 def hxh_catalogo():
     """Estaciones, descripciones con Meta/h, operadores por horario de comida y tipos de perdida."""
-    if not _hxh_usuario(request.headers.get('X-Usuario-Email')):
+    email = request.headers.get('X-Usuario-Email')
+    if not _hxh_usuario(email):
         return jsonify({'error': 'No tienes acceso a Hora por Hora'}), 403
-    with open('hxh_catalogo.json', encoding='utf-8') as f:
-        return jsonify(json.load(f))
+    cat = _hxh_catalogo_base()
+    guardadas = _hxh_metas_guardadas()
+    metas_h = guardadas.get('meta_h') or {}
+    for c in cat.get('catalogo', []):
+        clave = c['estacion'] + '||' + c['descripcion']
+        if clave in metas_h:
+            c['meta_h'] = metas_h[clave]
+    if guardadas.get('minutos_turno'):
+        cat['minutos_turno'] = guardadas['minutos_turno']
+    cat['puede_editar_metas'] = _hxh_puede_editar_metas(cat, email)
+    cat.pop('editores_metas', None)
+    return jsonify(cat)
+
+
+@app.route('/api/hxh/metas', methods=['POST'])
+def hxh_guardar_metas():
+    """Guarda Meta/h por estacion+descripcion y minutos del turno (solo editores autorizados)."""
+    d = request.json or {}
+    cat = _hxh_catalogo_base()
+    if not (_hxh_usuario(d.get('usuario_email')) and _hxh_puede_editar_metas(cat, d.get('usuario_email'))):
+        return jsonify({'error': 'No tienes permiso para cambiar las metas'}), 403
+    validas = {c['estacion'] + '||' + c['descripcion'] for c in cat.get('catalogo', [])}
+    guardadas = _hxh_metas_guardadas()
+    metas_h = guardadas.get('meta_h') or {}
+    for clave, valor in (d.get('meta_h') or {}).items():
+        if clave not in validas:
+            continue
+        try:
+            v = round(float(valor), 2)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Meta/h inválida en ' + clave.replace('||', ' · ')}), 400
+        if not 0 < v <= 1e7:
+            return jsonify({'error': 'Meta/h debe ser mayor a 0 en ' + clave.replace('||', ' · ')}), 400
+        metas_h[clave] = v
+    guardadas['meta_h'] = metas_h
+    if 'minutos_turno' in d:
+        m = _hxh_entero(d.get('minutos_turno'))
+        if not 60 <= m <= 720:
+            return jsonify({'error': 'Minutos del turno debe estar entre 60 y 720'}), 400
+        guardadas['minutos_turno'] = m
+    guardadas['actualizado_por'] = (d.get('usuario_email') or '').strip().lower()
+    guardadas['actualizado'] = datetime.datetime.utcnow().isoformat() + 'Z'
+    try:
+        _ck_guardar_ajuste('hxh_metas', guardadas)
+    except requests.HTTPError as e:
+        detalle = e.response.text[:300] if e.response is not None else str(e)
+        return jsonify({'error': 'No se pudieron guardar las metas: ' + detalle}), 500
+    return jsonify({'ok': True})
 
 
 @app.route('/api/hxh', methods=['GET'])
