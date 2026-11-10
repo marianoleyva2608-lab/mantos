@@ -395,7 +395,7 @@ def normalizar_link(url):
         url = 'https://' + url
     return url
 
-TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'inventario', 'trazabilidad', 'banos', 'asistencia', 'cot', 'qr', 'hxh', 'checador', 'settings')
+TABS_VALIDAS = ('home', 'etiquetas', 'req', 'orden', 'rsp', 'reports', 'refacciones', 'inventario', 'trazabilidad', 'banos', 'asistencia', 'cot', 'qr', 'hxh', 'checador', 'settings', 'hxh_metas')
 CARGOS_VALIDOS = ('Empleado', 'Supervisor', 'Compras', 'Dirección/Presidencia')
 BASE_URL_PUBLICO = 'https://adpacksystem.cloud'
 
@@ -5648,8 +5648,19 @@ def _hxh_metas_guardadas():
 
 
 def _hxh_puede_editar_metas(cat, email):
+    """Correos de 'editores_metas' del catalogo o usuarios con el permiso 'hxh_metas'
+    (se marca en Configuracion > Usuarios). Ser admin no lo da por si solo."""
     email = (email or '').strip().lower()
-    return bool(email) and email in [e.strip().lower() for e in cat.get('editores_metas') or []]
+    if not email:
+        return False
+    if email in [e.strip().lower() for e in cat.get('editores_metas') or []]:
+        return True
+    try:
+        rows = sb.select('users', select='permisos', email='eq.' + email)
+    except Exception:
+        return False
+    permisos = [p.strip() for p in ((rows[0].get('permisos') if rows else '') or '').split(',')]
+    return 'hxh_metas' in permisos
 
 
 def _hxh_aplicar_productos(cat, guardadas):
