@@ -5914,6 +5914,7 @@ def hxh_pareto():
     if turno:
         filtros['turno'] = 'eq.' + turno
     area_f = request.args.get('area') or ''
+    maq_f = {m.strip() for m in (request.args.get('maquinas') or '').split(',') if m.strip()}
     filas, offset = [], 0
     try:
         while True:
@@ -5943,6 +5944,8 @@ def hxh_pareto():
         est = _hxh_mid_nuevo(r['maquina_id'], ren).split('#')[0]
         area = area_est.get(est) or ('termoformado' if re.search(r'^TERMO|TERMOFORMADO$', est) else 'conversion')
         if area_f and area != area_f:
+            continue
+        if maq_f and est not in maq_f:
             continue
         cpz = costo.get((est, r.get('numero_parte') or '')) or (costo_modelo.get(r.get('numero_parte') or '', 0) if est in todos else 0)
         det = r.get('scrap_detalle') or {}
@@ -5977,6 +5980,7 @@ def hxh_pareto_produccion():
         filtros['turno'] = 'eq.' + turno
     por = 'modelo' if request.args.get('por') == 'modelo' else 'estacion'
     area_f = request.args.get('area') or ''
+    maq_f = {m.strip() for m in (request.args.get('maquinas') or '').split(',') if m.strip()}
     filas, offset = [], 0
     try:
         while True:
@@ -5995,6 +5999,8 @@ def hxh_pareto_produccion():
         est = _hxh_mid_nuevo(r['maquina_id'], ren).split('#')[0]
         area = area_est.get(est) or ('termoformado' if re.search(r'^TERMO|TERMOFORMADO$', est) else 'conversion')
         if area_f and area != area_f:
+            continue
+        if maq_f and est not in maq_f:
             continue
         meta, real = int(r.get('meta') or 0), int(r.get('real') or 0)
         if not meta:
