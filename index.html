@@ -1352,10 +1352,14 @@ function getPasswords(){
   const d = JSON.parse(localStorage.getItem('mtto_passwords')||'{}');
   return {tecnico: d.tecnico||'1234', supervisor: d.supervisor||'5678'};
 }
+// Permisos que no son pestañas del menu (acciones dentro de un modulo)
+var PERMISOS_EXTRA = [
+  {id:'hxh_metas', label:'&#9881;&#65039; Hora por Hora: configurar metas'}
+];
 function renderPermisosCheckboxes(containerId, checkedList){
   const el = document.getElementById(containerId);
   if(!el) return;
-  el.innerHTML = TABS_CONTROLADAS.map(t=>`
+  el.innerHTML = TABS_CONTROLADAS.concat(PERMISOS_EXTRA).map(t=>`
     <label style="display:flex;align-items:center;gap:5px;background:#fff;border:1.5px solid #ddd;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
       <input type="checkbox" value="${t.id}" ${checkedList.indexOf(t.id)!==-1?'checked':''} style="margin:0">${t.label}
     </label>`).join('');
