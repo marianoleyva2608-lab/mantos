@@ -5509,6 +5509,8 @@ def hxh_catalogo():
             c['meta_h'] = metas_h[clave]
     if guardadas.get('minutos_turno'):
         cat['minutos_turno'] = guardadas['minutos_turno']
+    if isinstance(guardadas.get('operadores'), dict):
+        cat['operadores'] = guardadas['operadores']
     cat['puede_editar_metas'] = _hxh_puede_editar_metas(cat, email)
     cat.pop('editores_metas', None)
     return jsonify(cat)
@@ -5540,6 +5542,20 @@ def hxh_guardar_metas():
         if not 60 <= m <= 720:
             return jsonify({'error': 'Minutos del turno debe estar entre 60 y 720'}), 400
         guardadas['minutos_turno'] = m
+    if isinstance(d.get('operadores'), dict):
+        ops, vistos = {}, set()
+        for franja in ('11-12', '12-1'):
+            lista = []
+            for nombre in d['operadores'].get(franja) or []:
+                nombre = ' '.join(_qr_limpio(nombre, 80).split())
+                if not nombre:
+                    continue
+                if nombre.lower() in vistos:
+                    return jsonify({'error': nombre + ' está capturado más de una vez. Cada operador va en un solo horario de comida.'}), 400
+                vistos.add(nombre.lower())
+                lista.append(nombre)
+            ops[franja] = lista
+        guardadas['operadores'] = ops
     guardadas['actualizado_por'] = (d.get('usuario_email') or '').strip().lower()
     guardadas['actualizado'] = datetime.datetime.utcnow().isoformat() + 'Z'
     try:

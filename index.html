@@ -5772,8 +5772,14 @@ function invBorrarArt(){
       <div><span class="inv-lbl">Minutos productivos del turno</span><input id="hxh-cfg-min" class="inv-in" type="number" min="60" max="720" style="width:130px;margin:0"></div>
       <div style="flex:1;min-width:180px"><span class="inv-lbl">Estación</span><select id="hxh-cfg-est" class="inv-in" style="margin:0" onchange="hxhCfgPintar()"></select></div>
     </div>
-    <div style="max-height:50vh;overflow:auto;border:1px solid #eee;border-radius:10px">
+    <div style="max-height:45vh;overflow:auto;border:1px solid #eee;border-radius:10px">
       <table style="width:100%;border-collapse:collapse;font-size:13px" id="hxh-cfg-tabla"></table>
+    </div>
+    <div style="font-size:14px;font-weight:700;margin:16px 0 4px">Operadores por horario de comida</div>
+    <div style="font-size:12px;color:#62748a;margin-bottom:8px">Un operador por renglón, cada uno una sola vez. El grupo define en qué franja se descuentan 30 minutos de comida.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px"><span class="inv-lbl">1er comida (11-12)</span><textarea id="hxh-cfg-op1" class="inv-in" rows="7" style="margin:0;resize:vertical;font-family:inherit"></textarea></div>
+      <div style="flex:1;min-width:200px"><span class="inv-lbl">2nda comida (12-1)</span><textarea id="hxh-cfg-op2" class="inv-in" rows="7" style="margin:0;resize:vertical;font-family:inherit"></textarea></div>
     </div>
     <div id="hxh-cfg-err" style="color:#C62828;font-size:13px;margin-top:8px"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
@@ -5903,6 +5909,8 @@ var _hxhCfgCambios = {};
 function hxhCfgAbrir(){
   _hxhCfgCambios = {};
   document.getElementById('hxh-cfg-min').value = _hxhCat.minutos_turno || 510;
+  document.getElementById('hxh-cfg-op1').value = (_hxhCat.operadores['11-12'] || []).join('\n');
+  document.getElementById('hxh-cfg-op2').value = (_hxhCat.operadores['12-1'] || []).join('\n');
   var ests = _hxhCat.estaciones.filter(function(e){ return _hxhCat.catalogo.some(function(c){ return c.estacion === e; }); });
   document.getElementById('hxh-cfg-est').innerHTML = '<option value="">Todas</option>' + ests.map(function(e){ return '<option>' + escHtml(e) + '</option>'; }).join('');
   document.getElementById('hxh-cfg-err').textContent = '';
@@ -5932,9 +5940,13 @@ function hxhCfgGuardar(){
   if (!(min >= 60 && min <= 720)) { err.textContent = 'Minutos del turno debe estar entre 60 y 720.'; return; }
   var malas = Object.keys(_hxhCfgCambios).filter(function(k){ return !(Number(_hxhCfgCambios[k]) > 0); });
   if (malas.length) { err.textContent = 'Meta/h debe ser mayor a 0: ' + malas[0].replace('||', ' · '); return; }
+  var lista = function(id){ return document.getElementById(id).value.split('\n').map(function(x){ return x.trim().replace(/\s+/g, ' '); }).filter(Boolean); };
+  var ops = {'11-12': lista('hxh-cfg-op1'), '12-1': lista('hxh-cfg-op2')}, vistos = {}, dup = '';
+  ops['11-12'].concat(ops['12-1']).forEach(function(n){ var k = n.toLowerCase(); if (vistos[k]) dup = dup || n; vistos[k] = 1; });
+  if (dup) { err.textContent = dup + ' está capturado más de una vez. Cada operador va en un solo horario de comida.'; return; }
   btn.disabled = true;
   fetch('/api/hxh/metas', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({usuario_email: invEmail(), meta_h: _hxhCfgCambios, minutos_turno: min})})
+    body: JSON.stringify({usuario_email: invEmail(), meta_h: _hxhCfgCambios, minutos_turno: min, operadores: ops})})
     .then(invJson)
     .then(function(d){
       if (!d.ok) throw new Error(d.error || 'No se pudieron guardar las metas');
