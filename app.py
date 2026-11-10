@@ -5494,6 +5494,23 @@ def _hxh_puede_editar_metas(cat, email):
     return bool(email) and email in [e.strip().lower() for e in cat.get('editores_metas') or []]
 
 
+def _hxh_aplicar_productos(cat, guardadas):
+    """Catalogo final: base del JSON - eliminados + agregados desde la app, con su Meta/h guardada."""
+    eliminados = set(guardadas.get('eliminados') or [])
+    lista = [c for c in cat.get('catalogo', []) if c['estacion'] + '||' + c['descripcion'] not in eliminados]
+    claves = {c['estacion'] + '||' + c['descripcion'] for c in lista}
+    for c in guardadas.get('agregados') or []:
+        if c['estacion'] + '||' + c['descripcion'] not in claves:
+            lista.append(dict(c)); claves.add(c['estacion'] + '||' + c['descripcion'])
+    metas_h = guardadas.get('meta_h') or {}
+    for c in lista:
+        clave = c['estacion'] + '||' + c['descripcion']
+        if clave in metas_h:
+            c['meta_h'] = metas_h[clave]
+    cat['catalogo'] = lista
+    return claves
+
+
 @app.route('/api/hxh/catalogo', methods=['GET'])
 def hxh_catalogo():
     """Estaciones, descripciones con Meta/h, operadores por horario de comida y tipos de perdida."""
@@ -5502,11 +5519,7 @@ def hxh_catalogo():
         return jsonify({'error': 'No tienes acceso a Hora por Hora'}), 403
     cat = _hxh_catalogo_base()
     guardadas = _hxh_metas_guardadas()
-    metas_h = guardadas.get('meta_h') or {}
-    for c in cat.get('catalogo', []):
-        clave = c['estacion'] + '||' + c['descripcion']
-        if clave in metas_h:
-            c['meta_h'] = metas_h[clave]
+    _hxh_aplicar_productos(cat, guardadas)
     if guardadas.get('minutos_turno'):
         cat['minutos_turno'] = guardadas['minutos_turno']
     if isinstance(guardadas.get('operadores'), dict):
@@ -5523,9 +5536,30 @@ def hxh_guardar_metas():
     cat = _hxh_catalogo_base()
     if not (_hxh_usuario(d.get('usuario_email')) and _hxh_puede_editar_metas(cat, d.get('usuario_email'))):
         return jsonify({'error': 'No tienes permiso para cambiar las metas'}), 403
-    validas = {c['estacion'] + '||' + c['descripcion'] for c in cat.get('catalogo', [])}
     guardadas = _hxh_metas_guardadas()
+    # Combinaciones Estacion + Descripcion dadas de baja o de alta desde la app
+    eliminados = set(guardadas.get('eliminados') or [])
+    agregados = [c for c in guardadas.get('agregados') or []]
+    for clave in d.get('eliminar') or []:
+        clave = _qr_limpio(clave, 200)
+        eliminados.add(clave)
+        agregados = [c for c in agregados if c['estacion'] + '||' + c['descripcion'] != clave]
+    for c in d.get('agregar') or []:
+        est = _qr_limpio(c.get('estacion'), 40)
+        desc = ' '.join(_qr_limpio(c.get('descripcion'), 120).split())
+        if est not in cat.get('estaciones', []) or not desc:
+            return jsonify({'error': 'Producto inválido: falta estación o descripción'}), 400
+        clave = est + '||' + desc
+        eliminados.discard(clave)
+        agregados = [x for x in agregados if x['estacion'] + '||' + x['descripcion'] != clave]
+        agregados.append({'estacion': est, 'descripcion': desc, 'meta_h': 0})
+    guardadas['eliminados'] = sorted(eliminados)
+    guardadas['agregados'] = agregados
+    validas = _hxh_aplicar_productos(_hxh_catalogo_base(), guardadas)
     metas_h = guardadas.get('meta_h') or {}
+    for clave in list(metas_h):
+        if clave not in validas:
+            del metas_h[clave]
     for clave, valor in (d.get('meta_h') or {}).items():
         if clave not in validas:
             continue
@@ -5533,8 +5567,8 @@ def hxh_guardar_metas():
             v = round(float(valor), 2)
         except (TypeError, ValueError):
             return jsonify({'error': 'Meta/h inválida en ' + clave.replace('||', ' · ')}), 400
-        if not 0 < v <= 1e7:
-            return jsonify({'error': 'Meta/h debe ser mayor a 0 en ' + clave.replace('||', ' · ')}), 400
+        if not 0 <= v <= 1e7:
+            return jsonify({'error': 'Meta/h inválida en ' + clave.replace('||', ' · ')}), 400
         metas_h[clave] = v
     guardadas['meta_h'] = metas_h
     if 'minutos_turno' in d:
