@@ -5918,10 +5918,6 @@ def hxh_excel():
             g['desc'] = r.get('numero_parte') or g['desc']
             g['op'] = r.get('operador_linea') or g['op']
             g['meta_h'] = r.get('meta_h') or g['meta_h']
-            try:
-                g['oper'] = json.loads(r.get('causa') or '{}').get('oper', '')
-            except (ValueError, AttributeError):
-                pass
             continue
         g['desc'] = g['desc'] or r.get('numero_parte') or ''
         g['op'] = g['op'] or r.get('operador_linea') or ''
@@ -6093,21 +6089,21 @@ def hxh_excel():
 
     # ---- Hoja Detalle por hora
     ws = wb.create_sheet('Detalle')
-    heads = ['Fecha', 'Turno', 'Estación', 'Modelo', 'Descripción', 'Operación', 'Operador', 'Meta/h'] + franjas + ['Meta', 'Real', '% Cumpl.', 'Scrap', '% Scrap', 'Costo scrap (MXN)', 'Comentarios']
-    hoja(ws, 'Hora por Hora · Detalle por hora', heads, [11, 6, 16, 7, 34, 22, 18, 8] + [7] * len(franjas) + [9, 9, 9, 8, 8, 14, 34])
+    heads = ['Fecha', 'Turno', 'Estación', 'Modelo', 'Descripción', 'Operador', 'Meta/h'] + franjas + ['Meta', 'Real', '% Cumpl.', 'Scrap', '% Scrap', 'Costo scrap (MXN)', 'Comentarios']
+    hoja(ws, 'Hora por Hora · Detalle por hora', heads, [11, 6, 16, 7, 34, 18, 8] + [7] * len(franjas) + [9, 9, 9, 8, 8, 14, 34])
     fila = 5
     ok_fill, no_fill = PatternFill('solid', fgColor='D3F9D8'), PatternFill('solid', fgColor='FFE3E3')
     for fecha, tno, est, modelo, g, real, meta, scrap, cst in detalle:
-        vals = [fecha, tno, est, modelo, g['desc'], g.get('oper', ''), g['op'], round(float(g['meta_h'] or 0), 1)]
+        vals = [fecha, tno, est, modelo, g['desc'], g['op'], round(float(g['meta_h'] or 0), 1)]
         for i, v in enumerate(vals, 1):
             ws.cell(row=fila, column=i, value=v)
         for j, fr in enumerate(franjas):
             if fr in g['horas']:
                 rv, mv = g['horas'][fr]
-                c = ws.cell(row=fila, column=9 + j, value=rv)
+                c = ws.cell(row=fila, column=8 + j, value=rv)
                 if mv:
                     c.fill = ok_fill if rv >= mv else no_fill
-        col = 9 + len(franjas)
+        col = 8 + len(franjas)
         ws.cell(row=fila, column=col, value=meta).number_format = '#,##0'
         ws.cell(row=fila, column=col + 1, value=real).number_format = '#,##0'
         pct(ws, fila, col + 2, (real / meta) if meta else None, 1)

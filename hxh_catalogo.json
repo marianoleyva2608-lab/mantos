@@ -525,14 +525,5 @@
   "MESA 1",
   "MESA 2",
   "MESA 3"
- ],
- "operaciones": [
-  "Termoformado",
-  "Suajado",
-  "Corte",
-  "Cortadora",
-  "Laminado",
-  "Limpieza",
-  "Sopleteo, inspección y empaque"
  ]
 }
