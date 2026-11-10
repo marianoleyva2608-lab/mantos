@@ -6553,6 +6553,28 @@ function hxhAgregarModelo(i, ini){
   hxhPintar();
   var sel = document.querySelector('#hxh-f' + pos + ' select[data-c="desc"]'); if (sel) sel.focus();
 }
+function hxhConCaptura(f){
+  return !!(f.est && (Object.keys(f.reales).length || Object.keys(f.scrap).length || Object.keys(f.paros).length || f.desc || f.op || f.coment));
+}
+function hxhBotonBorrar(i){
+  return ' <button onclick="hxhBorrarFila(' + i + ')" title="Borrar toda la captura de este renglón en el turno" style="border:none;background:none;cursor:pointer;font-size:16px;padding:2px">&#128465;&#65039;</button>';
+}
+// Borra el renglon completo de la estacion (o del modelo) en la fecha y turno elegidos
+function hxhBorrarFila(i){
+  var f = _hxhFilas[i], horas = Object.keys(f.reales).length;
+  var txt = f.est + (f.slot > 1 ? ' · modelo ' + f.slot : '') + (f.desc ? ' (' + f.desc + ')' : '');
+  if (!confirm('¿Borrar toda la captura de ' + txt + ' en este turno?\n\n' + (horas ? horas + ' hora(s) de producción, ' : '') +
+               'scrap, paros, operador, modelo y comentario. No se puede deshacer.')) return;
+  fetch('/api/hxh/borrar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({usuario_email: invEmail(),
+    fecha: document.getElementById('hxh-fecha').value, turno: document.getElementById('hxh-turno').value, maquina_id: hxhId(f), hora: 'todo'})})
+    .then(invJson).then(function(d){
+      if (!d.ok) throw new Error(d.error || 'No se pudo borrar');
+      if (f.slot > 1) _hxhFilas.splice(i, 1);
+      else _hxhFilas[i] = hxhFilaNueva(f.est, 1);
+      hxhPintar();
+    })
+    .catch(function(e){ alert(e.message || 'Error de conexión'); });
+}
 function hxhQuitarModelo(i){
   _hxhFilas.splice(i, 1);
   hxhPintar();
@@ -6575,8 +6597,9 @@ function hxhPintar(){
     h += '<tr id="hxh-f' + i + '">' +
       (f.slot > 1
         ? '<td class="est" style="font-size:12px;color:#486581">&#8644; ' + escHtml(f.est) + ' &middot; modelo ' + f.slot +
-          (tieneDatos || Object.keys(f.scrap).length ? '' : ' <button onclick="hxhQuitarModelo(' + i + ')" title="Quitar" style="border:none;background:none;cursor:pointer;color:#c62828">&#10005;</button>') + '</td>'
-        : '<td class="est"><select onchange="hxhCambio(' + i + ',\'est\',this.value)"' + (tieneDatos || hxhHermanos(f).length > 1 ? ' disabled title="Ya tiene producción capturada"' : '') + '>' + hxhOpciones(estLibres, f.est) + '</select></td>') +
+          (hxhConCaptura(f) ? hxhBotonBorrar(i) : ' <button onclick="hxhQuitarModelo(' + i + ')" title="Quitar" style="border:none;background:none;cursor:pointer;color:#c62828">&#10005;</button>') + '</td>'
+        : '<td class="est"><div style="display:flex;gap:4px;align-items:center"><select onchange="hxhCambio(' + i + ',\'est\',this.value)"' + (tieneDatos || hxhHermanos(f).length > 1 ? ' disabled title="Ya tiene producción capturada"' : '') + '>' + hxhOpciones(estLibres, f.est) + '</select>' +
+          (hxhConCaptura(f) ? hxhBotonBorrar(i) : '') + '</div></td>') +
       '<td style="text-align:left"><div style="display:flex;gap:4px;align-items:center"><select data-c="desc" onchange="hxhCambio(' + i + ',\'desc\',this.value)"' + (f.est ? '' : ' disabled') + '>' + hxhOpciones(descs, f.desc) + '</select>' +
         (f.est && f.desc && ultimoModelo ? '<button class="hxcm" onclick="hxhCambioModelo(' + i + ')" title="Cambio de modelo: agrega otro renglón para el siguiente producto de ' + escHtml(f.est) + '">&#8644;</button>' : '') + '</div>' +
         (hxhHermanos(f).length > 1 ? '<div class="hxhor" onclick="hxhHorarioEditar(' + i + ')" title="Cambiar horario">&#9201; ' + hxhHorarioTxt(f) + '</div>' : '') + '</td>' +
