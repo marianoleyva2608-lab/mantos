@@ -5503,10 +5503,12 @@ def _hxh_aplicar_productos(cat, guardadas):
         if c['estacion'] + '||' + c['descripcion'] not in claves:
             lista.append(dict(c)); claves.add(c['estacion'] + '||' + c['descripcion'])
     metas_h = guardadas.get('meta_h') or {}
+    costos = guardadas.get('costo') or {}
     for c in lista:
         clave = c['estacion'] + '||' + c['descripcion']
         if clave in metas_h:
             c['meta_h'] = metas_h[clave]
+        c['costo'] = costos.get(clave, c.get('costo', 0))
     cat['catalogo'] = lista
     return claves
 
@@ -5560,6 +5562,22 @@ def hxh_guardar_metas():
     for clave in list(metas_h):
         if clave not in validas:
             del metas_h[clave]
+    # Costo por pieza (para valorizar el scrap)
+    costos = guardadas.get('costo') or {}
+    for clave in list(costos):
+        if clave not in validas:
+            del costos[clave]
+    for clave, valor in (d.get('costo') or {}).items():
+        if clave not in validas:
+            continue
+        try:
+            v = round(float(valor), 4)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Costo inválido en ' + clave.replace('||', ' · ')}), 400
+        if not 0 <= v <= 1e7:
+            return jsonify({'error': 'Costo inválido en ' + clave.replace('||', ' · ')}), 400
+        costos[clave] = v
+    guardadas['costo'] = costos
     for clave, valor in (d.get('meta_h') or {}).items():
         if clave not in validas:
             continue

@@ -5765,7 +5765,7 @@ function invBorrarArt(){
 
 <!-- Modal: configuracion de metas (solo editores autorizados) -->
 <div id="hxh-cfg-modal" class="inv-modal">
-  <div style="max-width:720px">
+  <div style="max-width:840px">
     <button class="inv-x" onclick="invCerrar('hxh-cfg-modal')">&times;</button>
     <div style="font-size:16px;font-weight:700;margin-bottom:12px">&#9881;&#65039; Configurar metas</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
@@ -5780,6 +5780,7 @@ function invBorrarArt(){
       <div style="flex:0 0 150px"><span class="inv-lbl">Estación</span><select id="hxh-cfg-nest" class="inv-in" style="margin:0"></select></div>
       <div style="flex:1;min-width:160px"><span class="inv-lbl">Descripción</span><input id="hxh-cfg-ndesc" class="inv-in" maxlength="120" placeholder="L21CDSTAPE6" style="margin:0"></div>
       <div style="flex:0 0 100px"><span class="inv-lbl">Meta/h</span><input id="hxh-cfg-nmeta" class="inv-in" type="number" min="0" step="0.01" style="margin:0"></div>
+      <div style="flex:0 0 100px"><span class="inv-lbl">Costo/pza</span><input id="hxh-cfg-ncosto" class="inv-in" type="number" min="0" step="0.01" placeholder="$0.00" style="margin:0"></div>
       <button class="inv-btn" style="background:#1565C0;flex:0 0 auto;height:38px" onclick="hxhCfgAgregar()">&#10133; Agregar</button>
     </div>
     <div style="font-size:14px;font-weight:700;margin:16px 0 4px">Operadores por horario de comida</div>
@@ -5912,11 +5913,11 @@ function hxhAbrir(){
   }).catch(function(e){ document.getElementById('hxh-tabla').innerHTML = '<tr><td style="color:#c62828;padding:20px">' + escHtml(e.message || 'Error al cargar el catálogo') + '</td></tr>'; });
 }
 // ─── Configuracion de metas: Meta/h por estacion + descripcion y minutos del turno
-var _hxhCfgCambios = {}, _hxhCfgLista = [], _hxhCfgAgregar = [], _hxhCfgEliminar = [];
+var _hxhCfgCostos = {}, _hxhCfgCambios = {}, _hxhCfgLista = [], _hxhCfgAgregar = [], _hxhCfgEliminar = [];
 function hxhCfgClave(c){ return c.estacion + '||' + c.descripcion; }
 function hxhCfgAbrir(){
-  _hxhCfgCambios = {}; _hxhCfgAgregar = []; _hxhCfgEliminar = [];
-  _hxhCfgLista = _hxhCat.catalogo.map(function(c){ return {estacion: c.estacion, descripcion: c.descripcion, meta_h: c.meta_h}; });
+  _hxhCfgCambios = {}; _hxhCfgCostos = {}; _hxhCfgAgregar = []; _hxhCfgEliminar = [];
+  _hxhCfgLista = _hxhCat.catalogo.map(function(c){ return {estacion: c.estacion, descripcion: c.descripcion, meta_h: c.meta_h, costo: c.costo || 0}; });
   document.getElementById('hxh-cfg-min').value = _hxhCat.minutos_turno || 510;
   document.getElementById('hxh-cfg-op1').value = (_hxhCat.operadores['11-12'] || []).join('\n');
   document.getElementById('hxh-cfg-op2').value = (_hxhCat.operadores['12-1'] || []).join('\n');
@@ -5937,10 +5938,11 @@ function hxhCfgPintar(){
       '<td style="padding:4px 8px;width:100px"><input class="inv-in" type="number" min="0" step="0.01" value="' + (v == null ? '' : Math.round(v * 100) / 100) + '" style="margin:0;width:95px;text-align:center' + (clave in _hxhCfgCambios ? ';background:#fff8e1' : '') + '" oninput="hxhCfgCambio(' + n + ',this)"></td>' +
       '<td style="padding:6px 8px;text-align:right;background:#eef4fb" id="hxh-cfg-ci' + n + '">' + (m ? (3600 / m).toFixed(2) : '') + '</td>' +
       '<td style="padding:6px 8px;text-align:right;background:#eef4fb" id="hxh-cfg-mt' + n + '">' + (m ? hxhNum(m * min / 60, 1) : '') + '</td>' +
+      '<td style="padding:4px 8px;width:100px"><input class="inv-in" type="number" min="0" step="0.01" placeholder="$0.00" value="' + (clave in _hxhCfgCostos ? _hxhCfgCostos[clave] : (c.costo || '')) + '" style="margin:0;width:95px;text-align:center' + (clave in _hxhCfgCostos ? ';background:#fff8e1' : '') + '" oninput="hxhCfgCosto(' + n + ',this)"></td>' +
       '<td style="padding:4px;text-align:center"><button onclick="hxhCfgQuitar(' + n + ')" title="Eliminar" style="border:none;background:none;cursor:pointer;font-size:16px">&#128465;&#65039;</button></td></tr>';
   }).join('');
-  document.getElementById('hxh-cfg-tabla').innerHTML = '<tr>' + th('Estación') + th('Descripción') + th('Meta/h') + th('Ciclo ideal (s/pza)', 'right') + th('Meta turno', 'right') + th('') + '</tr>' +
-    (filas || '<tr><td colspan="6" style="padding:14px;color:#888;text-align:center">Sin productos en esta estación. Agrégalos abajo.</td></tr>');
+  document.getElementById('hxh-cfg-tabla').innerHTML = '<tr>' + th('Estación') + th('Descripción') + th('Meta/h') + th('Ciclo ideal (s/pza)', 'right') + th('Meta turno', 'right') + th('Costo/pza') + th('') + '</tr>' +
+    (filas || '<tr><td colspan="7" style="padding:14px;color:#888;text-align:center">Sin productos en esta estación. Agrégalos abajo.</td></tr>');
 }
 function hxhCfgCambio(n, inp){
   var c = _hxhCfgLista[n], m = Number(inp.value) || 0, min = parseInt(document.getElementById('hxh-cfg-min').value, 10) || 0;
@@ -5948,6 +5950,10 @@ function hxhCfgCambio(n, inp){
   inp.style.background = '#fff8e1';
   document.getElementById('hxh-cfg-ci' + n).textContent = m ? (3600 / m).toFixed(2) : '';
   document.getElementById('hxh-cfg-mt' + n).textContent = m ? hxhNum(m * min / 60, 1) : '';
+}
+function hxhCfgCosto(n, inp){
+  _hxhCfgCostos[hxhCfgClave(_hxhCfgLista[n])] = inp.value;
+  inp.style.background = '#fff8e1';
 }
 function hxhCfgAgregar(){
   var err = document.getElementById('hxh-cfg-err');
@@ -5959,6 +5965,9 @@ function hxhCfgAgregar(){
   _hxhCfgLista.push(c); _hxhCfgAgregar.push(c);
   _hxhCfgEliminar = _hxhCfgEliminar.filter(function(k){ return k !== hxhCfgClave(c); });
   if (meta !== '') _hxhCfgCambios[hxhCfgClave(c)] = meta;
+  var costo = document.getElementById('hxh-cfg-ncosto').value;
+  if (costo !== '') { _hxhCfgCostos[hxhCfgClave(c)] = costo; c.costo = Number(costo); }
+  document.getElementById('hxh-cfg-ncosto').value = '';
   document.getElementById('hxh-cfg-ndesc').value = ''; document.getElementById('hxh-cfg-nmeta').value = '';
   document.getElementById('hxh-cfg-est').value = c.estacion;
   hxhCfgPintar();
@@ -5967,7 +5976,7 @@ function hxhCfgQuitar(n){
   var c = _hxhCfgLista[n], clave = hxhCfgClave(c);
   if (!confirm('¿Eliminar ' + c.estacion + ' · ' + c.descripcion + '?')) return;
   _hxhCfgLista.splice(n, 1);
-  delete _hxhCfgCambios[clave];
+  delete _hxhCfgCambios[clave]; delete _hxhCfgCostos[clave];
   var eraNuevo = _hxhCfgAgregar.some(function(x){ return hxhCfgClave(x) === clave; });
   _hxhCfgAgregar = _hxhCfgAgregar.filter(function(x){ return hxhCfgClave(x) !== clave; });
   if (!eraNuevo) _hxhCfgEliminar.push(clave);
@@ -5980,13 +5989,17 @@ function hxhCfgGuardar(){
   if (!(min >= 60 && min <= 720)) { err.textContent = 'Minutos del turno debe estar entre 60 y 720.'; return; }
   var malas = Object.keys(_hxhCfgCambios).filter(function(k){ return _hxhCfgCambios[k] === '' || !(Number(_hxhCfgCambios[k]) >= 0); });
   if (malas.length) { err.textContent = 'Meta/h inválida: ' + malas[0].replace('||', ' · '); return; }
+  var costos = {};
+  Object.keys(_hxhCfgCostos).forEach(function(k){ costos[k] = _hxhCfgCostos[k] === '' ? 0 : _hxhCfgCostos[k]; });
+  var cmal = Object.keys(costos).filter(function(k){ return !(Number(costos[k]) >= 0); });
+  if (cmal.length) { err.textContent = 'Costo inválido: ' + cmal[0].replace('||', ' · '); return; }
   var lista = function(id){ return document.getElementById(id).value.split('\n').map(function(x){ return x.trim().replace(/\s+/g, ' '); }).filter(Boolean); };
   var ops = {'11-12': lista('hxh-cfg-op1'), '12-1': lista('hxh-cfg-op2')}, vistos = {}, dup = '';
   ops['11-12'].concat(ops['12-1']).forEach(function(n){ var k = n.toLowerCase(); if (vistos[k]) dup = dup || n; vistos[k] = 1; });
   if (dup) { err.textContent = dup + ' está capturado más de una vez. Cada operador va en un solo horario de comida.'; return; }
   btn.disabled = true;
   fetch('/api/hxh/metas', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({usuario_email: invEmail(), meta_h: _hxhCfgCambios, minutos_turno: min, operadores: ops,
+    body: JSON.stringify({usuario_email: invEmail(), meta_h: _hxhCfgCambios, minutos_turno: min, operadores: ops, costo: costos,
       agregar: _hxhCfgAgregar.map(function(c){ return {estacion: c.estacion, descripcion: c.descripcion}; }), eliminar: _hxhCfgEliminar})})
     .then(invJson)
     .then(function(d){
@@ -6059,7 +6072,7 @@ function hxhPintar(){
     // Renglon de scrap: piezas NG de cada hora, desglosadas por codigo de defecto
     if (f.est) h += '<tr class="hxs"><td class="est">&#8627; Scrap</td><td colspan="3"></td>' +
       HXH_FRANJAS.map(function(fr, k){ return '<td><button class="hxsc" id="hxh-s' + i + '_' + k + '" onclick="hxhScrapAbrir(' + i + ',' + k + ')"></button></td>'; }).join('') +
-      '<td></td><td class="calc" style="color:#c62828" id="hxh-st' + i + '"></td><td class="calc" style="color:#c62828" id="hxh-sp' + i + '"></td><td></td><td class="sd" id="hxh-sd' + i + '"></td></tr>';
+      '<td></td><td class="calc" style="color:#c62828" id="hxh-st' + i + '"></td><td class="calc" style="color:#c62828" id="hxh-sp' + i + '"></td><td class="calc" style="color:#c62828" id="hxh-sc' + i + '" title="Costo del scrap"></td><td class="sd" id="hxh-sd' + i + '"></td></tr>';
   });
   document.getElementById('hxh-tabla').innerHTML = h;
   _hxhFilas.forEach(function(f, i){ hxhCalcFila(i); });
@@ -6103,11 +6116,18 @@ function hxhCalcScrap(i, real){
   });
   document.getElementById('hxh-st' + i).textContent = tot ? hxhNum(tot) : '';
   document.getElementById('hxh-sp' + i).textContent = tot ? (100 * tot / ((real || 0) + tot)).toFixed(1) + '% NG' : '';
+  var costo = hxhCosto(f.est, f.desc);
+  document.getElementById('hxh-sc' + i).textContent = (tot && costo) ? hxhPesos(tot * costo) : '';
   var cods = Object.keys(porCod).sort(function(a, b){ return porCod[b] - porCod[a]; }), sd = document.getElementById('hxh-sd' + i);
   sd.textContent = cods.map(function(c){ return c + ': ' + porCod[c]; }).join(' · ');
   sd.title = cods.map(function(c){ return c + ' ' + hxhDefNombre(c, f.est) + ': ' + porCod[c]; }).join('\n');
 }
 // Catalogo de codigos NG segun el area de la estacion (Termoformado o Conversion)
+function hxhCosto(est, desc){
+  var c = ((_hxhCat && _hxhCat.catalogo) || []).find(function(x){ return x.estacion === est && x.descripcion === desc; });
+  return c ? Number(c.costo) || 0 : 0;
+}
+function hxhPesos(v){ return '$' + Number(v).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 function hxhDefectos(est){
   var defs = (_hxhCat && _hxhCat.defectos) || [];
   if (Array.isArray(defs)) return defs;
@@ -6157,13 +6177,13 @@ function hxhScrapGuardar(){
     .then(function(){ btn.disabled = false; });
 }
 function hxhKpis(){
-  var meta = 0, real = 0, activas = 0, ok = 0, tot = 0, scrap = 0;
+  var meta = 0, real = 0, activas = 0, ok = 0, tot = 0, scrap = 0, costoScrap = 0;
   _hxhFilas.forEach(function(f){
     var metaH = (f.est && f.desc) ? hxhMetaH(f.est, f.desc) : 0, op = !!hxhComidaDe(f.op);
     var ks = Object.keys(f.reales);
     if (!ks.length) return;
     activas++;
-    Object.keys(f.scrap || {}).forEach(function(h){ scrap += f.scrap[h].total || 0; });
+    Object.keys(f.scrap || {}).forEach(function(h){ scrap += f.scrap[h].total || 0; costoScrap += (f.scrap[h].total || 0) * hxhCosto(f.est, f.desc); });
     ks.forEach(function(h){ real += Number(f.reales[h]) || 0; if (metaH && op) { tot++; if (f.reales[h] >= Math.round(metaH * hxhMinutos(h, f.op) / 60)) ok++; } });
     if (metaH && op) meta += Math.round(metaH * ((_hxhCat.minutos_turno || 510) / 60));
   });
@@ -6174,6 +6194,7 @@ function hxhKpis(){
     k('% Cumplimiento', pc === null ? '—' : pc + '%', pc === null ? '#bcccdc' : (pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828'))) +
     k('Horas en meta', tot ? ok + ' / ' + tot : '—', '#2f855a') +
     k('Scrap (piezas NG)', hxhNum(scrap) || '0', '#c62828') + k('% Scrap', scrap ? (100 * scrap / (real + scrap)).toFixed(1) + '%' : '—', '#c62828') +
+    k('Costo scrap', hxhPesos(costoScrap), '#c62828') +
     k('Estaciones activas', activas, '#6A1B9A');
 }
 function hxhAgregar(){
