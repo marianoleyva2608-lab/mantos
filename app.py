@@ -350,7 +350,7 @@ def set_ajustes():
     d = request.json or {}
     limpios = {}
     for clave, valor in d.items():
-        if clave == 'hxh_metas':
+        if clave in ('hxh_metas', 'checador_movil_plantas'):
             return jsonify({'ok': False, 'error': 'Las metas de Hora por Hora se cambian desde su módulo'}), 403
         valor = (valor or '').strip()
         if clave.startswith('email_') and valor:
@@ -4042,6 +4042,164 @@ def checador_recibir(planta='matriz'):
                 print(f'[checador {planta}] error guardando: {e}')
     # Siempre 200: si respondemos error el aparato reintenta y traba la cola.
     return 'OK', 200
+
+
+# ─── Checador movil: Ingenieria checa desde el celular ───────────────────
+# Solo usuarios con permiso 'checador' (o admin). Cada checada pide ubicacion
+# GPS y una selfie; se guarda en la misma tabla 'checadas' con metodo 'Móvil'
+# para que salga en Asistencia. Las plantas (geocercas) viven en ajustes
+# 'checador_movil_plantas' = [{nombre, lat, lng, radio_m}].
+
+def _cm_usuario(email):
+    email = (email or '').strip().lower()
+    if not email:
+        return None
+    rows = sb.select('users', select='nombre,email,rol,permisos', email='eq.' + email)
+    if not rows:
+        return None
+    u = rows[0]
+    permisos = [p.strip() for p in (u.get('permisos') or '').split(',')]
+    if u.get('rol') == 'admin' or u.get('permisos') == 'all' or 'checador' in permisos:
+        return u
+    return None
+
+
+def _cm_plantas():
+    try:
+        rows = sb.select('ajustes', select='valor', clave='eq.checador_movil_plantas')
+        return json.loads(rows[0]['valor']) if rows and rows[0].get('valor') else []
+    except Exception:
+        return []
+
+
+def _cm_distancia_m(lat1, lng1, lat2, lng2):
+    import math
+    r = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = math.radians(lat2 - lat1), math.radians(lng2 - lng1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _cm_ubicar(lat, lng):
+    """(planta, distancia_m) de la geocerca donde esta; ('Fuera de planta', dist a la mas cercana) si ninguna."""
+    mejor = None
+    for pl in _cm_plantas():
+        d = _cm_distancia_m(lat, lng, float(pl['lat']), float(pl['lng']))
+        if mejor is None or d < mejor[1]:
+            mejor = (pl, d)
+    if mejor and mejor[1] <= float(mejor[0].get('radio_m') or 200):
+        return mejor[0]['nombre'], round(mejor[1])
+    return 'Fuera de planta', (round(mejor[1]) if mejor else None)
+
+
+def _cm_es_admin(u):
+    return bool(u) and (u.get('rol') == 'admin' or u.get('permisos') == 'all')
+
+
+@app.route('/api/checador-movil/estado', methods=['GET'])
+def cm_estado():
+    """Plantas, checadas de hoy del usuario y, si es admin, las de todos."""
+    u = _cm_usuario(request.headers.get('X-Usuario-Email'))
+    if not u:
+        return jsonify({'error': 'No tienes acceso al checador móvil'}), 403
+    hoy = ahora_mx().date()
+    desde = datetime.datetime.combine(hoy, datetime.time()) + datetime.timedelta(hours=6)
+    filtros = {'metodo': 'eq.Móvil', 'fecha_hora': 'gte.' + desde.isoformat() + 'Z'}
+    if not _cm_es_admin(u):
+        filtros['empleado_no'] = 'eq.' + u['email']
+    try:
+        rows = sb.select('checadas', select='id,fecha_hora,empleado_no,nombre,tipo,planta,raw',
+                         order='fecha_hora.desc', **filtros)
+    except requests.HTTPError:
+        rows = []
+    for r in rows:
+        raw = r.pop('raw', None) or {}
+        r['lat'], r['lng'] = raw.get('lat'), raw.get('lng')
+        r['distancia_m'], r['foto'] = raw.get('distancia_m'), raw.get('foto')
+    return jsonify({'plantas': _cm_plantas(), 'checadas': rows, 'es_admin': _cm_es_admin(u),
+                    'usuario': {'nombre': u['nombre'], 'email': u['email']}})
+
+
+@app.route('/api/checador-movil', methods=['POST'])
+def cm_checar():
+    email = request.form.get('usuario_email')
+    u = _cm_usuario(email)
+    if not u:
+        return jsonify({'error': 'No tienes acceso al checador móvil'}), 403
+    tipo = request.form.get('tipo')
+    if tipo not in ('Entrada', 'Salida'):
+        return jsonify({'error': 'Elige Entrada o Salida'}), 400
+    try:
+        lat, lng = float(request.form.get('lat')), float(request.form.get('lng'))
+        precision = round(float(request.form.get('precision') or 0))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'No llegó tu ubicación. Activa el GPS y vuelve a intentar.'}), 400
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        return jsonify({'error': 'Ubicación inválida'}), 400
+    f = request.files.get('foto')
+    if not f:
+        return jsonify({'error': 'Falta la foto'}), 400
+    datos = f.read()
+    if not datos or len(datos) > 5 * 1024 * 1024:
+        return jsonify({'error': 'La foto está vacía o pasa de 5 MB'}), 400
+    ahora = datetime.datetime.utcnow().replace(microsecond=0)
+    ruta = 'checador_movil/' + ahora.strftime('%Y%m') + '/' + re.sub(r'[^a-z0-9]', '_', u['email']) + '_' + ahora.strftime('%d%H%M%S') + '.jpg'
+    try:
+        _asegurar_bucket()
+        r = requests.post(SB_URL + '/storage/v1/object/' + ADJ_BUCKET + '/' + ruta,
+                          headers=_storage_headers('image/jpeg'), data=datos, timeout=60)
+        if r.status_code not in (200, 201):
+            return jsonify({'error': 'No se pudo guardar la foto (' + str(r.status_code) + ')'}), 502
+    except Exception as e:
+        return jsonify({'error': 'No se pudo guardar la foto: ' + str(e)}), 502
+    planta, dist = _cm_ubicar(lat, lng)
+    fila = {
+        'fecha_hora': ahora.isoformat() + 'Z', 'empleado_no': u['email'], 'nombre': u['nombre'],
+        'tipo': tipo, 'metodo': 'Móvil', 'planta': planta,
+        'serial_no': int.from_bytes(os.urandom(6), 'big'),
+        'raw': {'lat': lat, 'lng': lng, 'precision_m': precision, 'distancia_m': dist, 'foto': ruta,
+                'agente': (request.headers.get('User-Agent') or '')[:200]},
+    }
+    try:
+        sb.insert('checadas', fila, return_rows=False)
+    except requests.HTTPError as e:
+        detalle = e.response.text[:300] if e.response is not None else str(e)
+        return jsonify({'error': 'No se pudo guardar la checada: ' + detalle}), 500
+    return jsonify({'ok': True, 'planta': planta, 'distancia_m': dist, 'hora': ahora_mx().strftime('%H:%M')})
+
+
+@app.route('/api/checador-movil/foto/<path:ruta>', methods=['GET'])
+def cm_foto(ruta):
+    u = _cm_usuario(request.args.get('u'))
+    if not u or '..' in ruta or not ruta.startswith('checador_movil/'):
+        return jsonify({'error': 'Sin acceso'}), 403
+    if not _cm_es_admin(u) and re.sub(r'[^a-z0-9]', '_', u['email']) + '_' not in ruta:
+        return jsonify({'error': 'Sin acceso'}), 403
+    r = requests.get(SB_URL + '/storage/v1/object/' + ADJ_BUCKET + '/' + ruta, headers=_storage_headers(), timeout=60)
+    if r.status_code != 200:
+        return jsonify({'error': 'Foto no encontrada'}), 404
+    return send_file(io.BytesIO(r.content), mimetype='image/jpeg')
+
+
+@app.route('/api/checador-movil/plantas', methods=['POST'])
+def cm_guardar_plantas():
+    d = request.json or {}
+    u = _cm_usuario(d.get('usuario_email'))
+    if not _cm_es_admin(u):
+        return jsonify({'error': 'Solo un administrador puede cambiar las plantas'}), 403
+    plantas = []
+    for pl in d.get('plantas') or []:
+        try:
+            nombre = _qr_limpio(pl.get('nombre'), 60)
+            lat, lng, radio = float(pl['lat']), float(pl['lng']), int(float(pl.get('radio_m') or 200))
+        except (TypeError, ValueError, KeyError):
+            return jsonify({'error': 'Planta inválida'}), 400
+        if not nombre or not (-90 <= lat <= 90 and -180 <= lng <= 180) or not 20 <= radio <= 5000:
+            return jsonify({'error': 'Revisa nombre, ubicación y radio (20 a 5000 m) de ' + (nombre or 'la planta')}), 400
+        plantas.append({'nombre': nombre, 'lat': lat, 'lng': lng, 'radio_m': radio})
+    _ck_guardar_ajuste('checador_movil_plantas', plantas)
+    return jsonify({'ok': True, 'plantas': plantas})
 
 
 @app.route('/checador/ultimo')
