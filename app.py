@@ -5639,12 +5639,42 @@ def _hxh_catalogo_base():
         return json.load(f)
 
 
+def _hxh_renombres():
+    try:
+        return _hxh_catalogo_base().get('renombres_estaciones') or {}
+    except Exception:
+        return {}
+
+
+def _hxh_mid_nuevo(mid, ren=None):
+    """maquina_id con el nombre actual de la estacion ('MESA 1#2' -> 'MESA 1 TERMOFORMADO#2')."""
+    ren = _hxh_renombres() if ren is None else ren
+    est, _, slot = (mid or '').partition('#')
+    est = ren.get(est, est)
+    return est + ('#' + slot if slot else '')
+
+
 def _hxh_metas_guardadas():
     try:
         rows = sb.select('ajustes', select='valor', clave='eq.hxh_metas')
-        return json.loads(rows[0]['valor']) if rows and rows[0].get('valor') else {}
+        g = json.loads(rows[0]['valor']) if rows and rows[0].get('valor') else {}
     except Exception:
         return {}
+    # Estaciones renombradas: pasar sus metas, costos y productos al nombre nuevo
+    ren = _hxh_renombres()
+    if ren:
+        def clave(k):
+            est, sep, desc = k.partition('||')
+            return ren.get(est, est) + sep + desc
+        for campo in ('meta_h', 'costo'):
+            if isinstance(g.get(campo), dict):
+                g[campo] = {clave(k): v for k, v in g[campo].items()}
+        if isinstance(g.get('eliminados'), list):
+            g['eliminados'] = [clave(k) for k in g['eliminados']]
+        if isinstance(g.get('agregados'), list):
+            for c in g['agregados']:
+                c['estacion'] = ren.get(c.get('estacion'), c.get('estacion'))
+    return g
 
 
 def _hxh_puede_editar_metas(cat, email):
@@ -5807,9 +5837,13 @@ def hxh_listar():
     if request.args.get('turno'):
         filtros['turno'] = 'eq.' + _qr_limpio(request.args.get('turno'), 5)
     if request.args.get('maquina'):
-        filtros['maquina_id'] = 'eq.' + _qr_limpio(request.args.get('maquina'), 20)
+        filtros['maquina_id'] = 'eq.' + _qr_limpio(request.args.get('maquina'), 40)
     try:
-        return jsonify(sb.select('produccion_hora', order='maquina_id.asc,hora.asc', **filtros))
+        rows = sb.select('produccion_hora', order='maquina_id.asc,hora.asc', **filtros)
+        ren = _hxh_renombres()
+        for r in rows:
+            r['maquina_id'] = _hxh_mid_nuevo(r['maquina_id'], ren)
+        return jsonify(rows)
     except requests.HTTPError as e:
         detalle = e.response.text[:300] if e.response is not None else str(e)
         return jsonify({'error': 'No se pudieron cargar los datos: ' + detalle}), 500
@@ -5825,7 +5859,7 @@ def hxh_guardar():
     if not re.match(r'^\d{4}-\d{2}-\d{2}$', fecha):
         return jsonify({'error': 'Fecha inválida'}), 400
     turno = _qr_limpio(d.get('turno'), 5)
-    maquina = _qr_limpio(d.get('maquina_id'), 20)
+    maquina = _qr_limpio(d.get('maquina_id'), 40)
     hora = _qr_limpio(d.get('hora'), 20)
     if not (turno and maquina and hora):
         return jsonify({'error': 'Falta turno, máquina u hora'}), 400
@@ -5910,8 +5944,9 @@ def hxh_excel():
 
     # Agrupar: renglon = fecha + turno + maquina_id (con modelo)
     grupos = {}
+    ren = _hxh_renombres()
     for r in filas:
-        k = (r['fecha'], r['turno'], r['maquina_id'])
+        k = (r['fecha'], r['turno'], _hxh_mid_nuevo(r['maquina_id'], ren))
         g = grupos.setdefault(k, {'desc': '', 'op': '', 'coment': '', 'meta_h': 0, 'horas': {}, 'scrap': {}, 'det': {}})
         if r['hora'] == 'fila':
             g['coment'] = r.get('comentario') or ''
@@ -5974,7 +6009,7 @@ def hxh_excel():
         for k, dic in ((fecha, tot_dia), (est, tot_est)):
             t = dic.setdefault(k, [0, 0, 0, 0.0])
             t[0] += meta; t[1] += real; t[2] += scrap; t[3] += cst
-        area = area_est.get(est) or ('termoformado' if re.match(r'^(TERMO)', est) else 'conversion')
+        area = area_est.get(est) or ('termoformado' if re.search(r'^TERMO|TERMOFORMADO$', est) else 'conversion')
         for det in g['det'].values():
             for cod, n in det.items():
                 nombre = defectos.get((area, cod), '')
@@ -6128,7 +6163,7 @@ def hxh_borrar():
     if not _hxh_usuario(d.get('usuario_email')):
         return jsonify({'error': 'No tienes acceso a Hora por Hora'}), 403
     fecha = d.get('fecha') or ''
-    turno, maquina, hora = _qr_limpio(d.get('turno'), 5), _qr_limpio(d.get('maquina_id'), 20), _qr_limpio(d.get('hora'), 20)
+    turno, maquina, hora = _qr_limpio(d.get('turno'), 5), _qr_limpio(d.get('maquina_id'), 40), _qr_limpio(d.get('hora'), 20)
     if not re.match(r'^\d{4}-\d{2}-\d{2}$', fecha) or not (turno and maquina and hora) or hora == 'fila':
         return jsonify({'error': 'Datos inválidos'}), 400
     try:

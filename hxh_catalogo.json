@@ -5,8 +5,8 @@
   "TERMO 5",
   "TERMO 6",
   "TERMO 7",
-  "MESA 1",
-  "MESA 2",
+  "MESA 1 TERMOFORMADO",
+  "MESA 2 TERMOFORMADO",
   "IMESA558",
   "KOMATSU",
   "GUIDOLINE",
@@ -18,10 +18,9 @@
   "EMBALAJE",
   "PRENSA 1",
   "PRENSA 2",
-  "MESA 3",
-  "INSPECCION 1",
-  "INSPECCION 2",
-  "INSPECCION 3"
+  "MESA 1 CONVERSIÓN",
+  "MESA 2 CONVERSIÓN",
+  "MESA 3 CONVERSIÓN"
  ],
  "catalogo": [
   {
@@ -495,8 +494,8 @@
   "TERMO 5": "termoformado",
   "TERMO 6": "termoformado",
   "TERMO 7": "termoformado",
-  "MESA 1": "termoformado",
-  "MESA 2": "termoformado",
+  "MESA 1 TERMOFORMADO": "termoformado",
+  "MESA 2 TERMOFORMADO": "termoformado",
   "IMESA558": "conversion",
   "KOMATSU": "conversion",
   "GUIDOLINE": "conversion",
@@ -508,10 +507,9 @@
   "EMBALAJE": "conversion",
   "PRENSA 1": "conversion",
   "PRENSA 2": "conversion",
-  "MESA 3": "conversion",
-  "INSPECCION 1": "conversion",
-  "INSPECCION 2": "conversion",
-  "INSPECCION 3": "conversion"
+  "MESA 1 CONVERSIÓN": "conversion",
+  "MESA 2 CONVERSIÓN": "conversion",
+  "MESA 3 CONVERSIÓN": "conversion"
  },
  "editores_metas": [
   "mantenimiento@ad-pack.com.mx",
@@ -522,8 +520,18 @@
  "estaciones_todos_modelos": [
   "PRENSA 1",
   "PRENSA 2",
-  "MESA 1",
-  "MESA 2",
-  "MESA 3"
- ]
+  "MESA 1 TERMOFORMADO",
+  "MESA 2 TERMOFORMADO",
+  "MESA 1 CONVERSIÓN",
+  "MESA 2 CONVERSIÓN",
+  "MESA 3 CONVERSIÓN"
+ ],
+ "renombres_estaciones": {
+  "MESA 1": "MESA 1 TERMOFORMADO",
+  "MESA 2": "MESA 2 TERMOFORMADO",
+  "MESA 3": "MESA 3 CONVERSIÓN",
+  "INSPECCION 1": "MESA 1 CONVERSIÓN",
+  "INSPECCION 2": "MESA 2 CONVERSIÓN",
+  "INSPECCION 3": "MESA 3 CONVERSIÓN"
+ }
 }
