@@ -6189,6 +6189,12 @@ function hxhCalcFila(i){
   HXH_FRANJAS.forEach(function(fr, k){
     var td = document.getElementById('hxh-c' + i + '_' + k), v = f.reales[fr[0]];
     td.className = '';
+    // Con cambio de modelo cada hora es de un solo modelo
+    var otro = hxhDuenoHora(f, fr[0]), inp = td.querySelector('input');
+    if (inp) {
+      inp.disabled = !f.est || (!!otro && (v == null || v === ''));
+      inp.title = otro && (v == null || v === '') ? 'Esta hora ya la capturó ' + (otro.slot > 1 ? 'el modelo ' + otro.slot : 'el modelo 1') + ' (' + otro.desc + ')' : '';
+    }
     if (v == null || v === '') return;
     real += Number(v); n++;
     if (metaH && opValido) td.className = Number(v) >= Math.round(metaH * hxhMinutos(fr[0], f.op) / 60 * hxhParte(f, fr[0])) ? 'ok' : 'no';
@@ -6327,6 +6333,9 @@ function hxhCambio(i, campo, valor){
   else if (campo === 'op') hxhCalcEstacion(i);
   hxhGuardarFila(i);
 }
+function hxhDuenoHora(f, franja){
+  return hxhHermanos(f).find(function(x){ var v = x.reales[franja]; return x !== f && v != null && v !== ''; }) || null;
+}
 function hxhCalcEstacion(i){
   var f = _hxhFilas[i];
   _hxhFilas.forEach(function(x, j){ if (x.est && x.est === f.est) hxhCalcFila(j); });
@@ -6334,7 +6343,21 @@ function hxhCalcEstacion(i){
 function hxhCelda(i, k, inp){
   var f = _hxhFilas[i], fr = HXH_FRANJAS[k];
   if (!f.desc || !f.op) { alert('Primero selecciona Descripción y Operador de ' + f.est); inp.value = f.reales[fr[0]] == null ? '' : f.reales[fr[0]]; return; }
-  if (inp.value === '') return;
+  var otro = hxhDuenoHora(f, fr[0]);
+  if (otro) { alert('La hora ' + fr[0] + ' ya la capturó ' + otro.desc + '. Cada hora va en un solo modelo.'); inp.value = ''; return; }
+  if (inp.value === '') {
+    if (f.reales[fr[0]] == null) return;
+    if (!confirm('¿Borrar la captura de ' + fr[0] + ' de ' + f.est + ' (' + f.desc + ')?' + (f.scrap[fr[0]] ? ' También se borra su scrap.' : ''))) { inp.value = f.reales[fr[0]]; return; }
+    fetch('/api/hxh/borrar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({usuario_email: invEmail(),
+      fecha: document.getElementById('hxh-fecha').value, turno: document.getElementById('hxh-turno').value, maquina_id: hxhId(f), hora: fr[0]})})
+      .then(invJson).then(function(d){
+        if (!d.ok) throw new Error(d.error || 'No se pudo borrar');
+        delete f.reales[fr[0]]; delete f.scrap[fr[0]];
+        hxhCalcEstacion(i);
+      })
+      .catch(function(e){ inp.value = f.reales[fr[0]]; alert(e.message || 'Error de conexión'); });
+    return;
+  }
   var real = Number(inp.value), metaH = hxhMetaH(f.est, f.desc);
   f.reales[fr[0]] = real;
   hxhCalcEstacion(i);
