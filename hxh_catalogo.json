@@ -329,26 +329,184 @@
   "cumplimiento": 1,
   "calidad": 0.99
  },
- "defectos": [
-  {
-   "codigo": "X1",
-   "nombre": "Ahumado"
-  },
-  {
-   "codigo": "X2",
-   "nombre": "Araña"
-  },
-  {
-   "codigo": "X3",
-   "nombre": "Último tramo de rollo"
-  },
-  {
-   "codigo": "X4",
-   "nombre": "Mal formado"
-  },
-  {
-   "codigo": "X5",
-   "nombre": "Radio"
-  }
- ]
+ "defectos": {
+  "termoformado": [
+   {
+    "codigo": "10",
+    "nombre": "Arranque máquina"
+   },
+   {
+    "codigo": "20",
+    "nombre": "Pruebas producción"
+   },
+   {
+    "codigo": "21",
+    "nombre": "Falla de máquina"
+   },
+   {
+    "codigo": "30",
+    "nombre": "Araña / Arruga"
+   },
+   {
+    "codigo": "40",
+    "nombre": "Radio / Deformación"
+   },
+   {
+    "codigo": "50",
+    "nombre": "Ahumado"
+   },
+   {
+    "codigo": "60",
+    "nombre": "Mal suajado"
+   },
+   {
+    "codigo": "70",
+    "nombre": "Material contaminado"
+   },
+   {
+    "codigo": "80",
+    "nombre": "Perforación"
+   },
+   {
+    "codigo": "90",
+    "nombre": "Retrabajo erróneo"
+   },
+   {
+    "codigo": "100",
+    "nombre": "Calibre incorrecto"
+   },
+   {
+    "codigo": "110",
+    "nombre": "Término de rollo"
+   }
+  ],
+  "conversion": [
+   {
+    "codigo": "10",
+    "nombre": "SCRAP por arranque de máquina"
+   },
+   {
+    "codigo": "20",
+    "nombre": "SCRAP por pruebas"
+   },
+   {
+    "codigo": "21",
+    "nombre": "SCRAP por falla de máquina"
+   },
+   {
+    "codigo": "30",
+    "nombre": "Sin pull tab"
+   },
+   {
+    "codigo": "40",
+    "nombre": "Pull tab incompleto"
+   },
+   {
+    "codigo": "41",
+    "nombre": "Corte en pull tab (linner rojo)"
+   },
+   {
+    "codigo": "50",
+    "nombre": "Extremo dañado"
+   },
+   {
+    "codigo": "60",
+    "nombre": "Extremo incompleto"
+   },
+   {
+    "codigo": "61",
+    "nombre": "Sin extremo"
+   },
+   {
+    "codigo": "62",
+    "nombre": "Sin linner en extremo"
+   },
+   {
+    "codigo": "70",
+    "nombre": "Material contaminado"
+   },
+   {
+    "codigo": "80",
+    "nombre": "Linner rojo dañado"
+   },
+   {
+    "codigo": "90",
+    "nombre": "Linner blanco dañado"
+   },
+   {
+    "codigo": "100",
+    "nombre": "Corte incompleto"
+   },
+   {
+    "codigo": "101",
+    "nombre": "Corte empalmado"
+   },
+   {
+    "codigo": "110",
+    "nombre": "Unión de material (empalme)"
+   },
+   {
+    "codigo": "120",
+    "nombre": "Pieza incompleta"
+   },
+   {
+    "codigo": "130",
+    "nombre": "Material con arrugas"
+   },
+   {
+    "codigo": "140",
+    "nombre": "Material con burbujas"
+   },
+   {
+    "codigo": "150",
+    "nombre": "Marca de herramental"
+   },
+   {
+    "codigo": "160",
+    "nombre": "Retrabajo mal aplicado"
+   },
+   {
+    "codigo": "170",
+    "nombre": "Corte rasgado"
+   },
+   {
+    "codigo": "180",
+    "nombre": "Laminado desplazado"
+   },
+   {
+    "codigo": "190",
+    "nombre": "Adhesivo cortado"
+   },
+   {
+    "codigo": "200",
+    "nombre": "Incorrecto embobinado"
+   },
+   {
+    "codigo": "210",
+    "nombre": "Corte de rollo desfasado"
+   }
+  ]
+ },
+ "area_estacion": {
+  "IMESA558": "conversion",
+  "KOMATSU": "conversion",
+  "GUIDOLINE": "conversion",
+  "K1": "conversion",
+  "JAMONERA": "conversion",
+  "SLITTER REWINDER": "conversion",
+  "ROBUST": "conversion",
+  "EMBALAJE": "conversion",
+  "TERMO 3": "termoformado",
+  "TERMO 7": "termoformado",
+  "TERMO 2": "termoformado",
+  "TERMO 5": "termoformado",
+  "TERMO 6": "termoformado",
+  "PRENSA 2": "termoformado",
+  "PRENSA 1": "termoformado",
+  "MESA 1": "termoformado",
+  "MESA 2": "termoformado",
+  "INSPECCION 1": "termoformado",
+  "INSPECCION 2": "termoformado",
+  "INSPECCION 3": "termoformado"
+ }
 }
