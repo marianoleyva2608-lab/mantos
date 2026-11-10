@@ -6434,7 +6434,7 @@ function hxhPesos(v){ return '$' + Number(v).toLocaleString('es-MX', {minimumFra
 function hxhDefectos(est){
   var defs = (_hxhCat && _hxhCat.defectos) || [];
   if (Array.isArray(defs)) return defs;
-  var area = (_hxhCat.area_estacion || {})[est] || (/^(TERMO|PRENSA|MESA|INSPECCION)/.test(est || '') ? 'termoformado' : 'conversion');
+  var area = (_hxhCat.area_estacion || {})[est] || (/^(TERMO)/.test(est || '') ? 'termoformado' : 'conversion');
   return defs[area] || [];
 }
 function hxhDefNombre(cod, est){
