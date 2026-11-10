@@ -5755,6 +5755,12 @@ function invBorrarArt(){
     .hxpm.grp{border-style:dashed}
     .hxcm{flex:0 0 auto;width:28px;height:28px;border:1px solid #bcccdc;border-radius:8px;background:#fff;color:#486581;cursor:pointer;font-size:14px;padding:0}
     .hxcm:hover{border-color:#2f855a;color:#2f855a}
+    .hx tr.hxp td{background:#fffbf2}
+    .hx tr.hxp td.est{background:#fffbf2}
+    .hxpb{border-color:#f0c78a;color:#9a5b00}
+    .hxpb:hover{background:#fff1d6}
+    .hxpb.v{background:#fff1d6;border-color:#f0c78a}
+    .hxoee{display:inline-block;min-width:44px;padding:2px 6px;border-radius:999px;font-weight:800}
     .hx td.sd{font-size:11px;color:#b71c1c;text-align:left;white-space:normal}
     .hxcfg{margin-left:auto;background:#fff;border:1px solid #bcccdc;color:#102a43;border-radius:12px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer}
     .hxcfg:hover{border-color:#2f855a;color:#2f855a}
@@ -5838,7 +5844,9 @@ function invBorrarArt(){
     <div style="font-size:15px;font-weight:700;margin:16px 0 4px;color:#102a43">1. Producción por máquina</div>
     <div id="hxh-pp-graf" style="overflow-x:auto"></div>
     <div id="hxh-pp-tabla" style="margin-top:8px"></div>
-    <div style="font-size:15px;font-weight:700;margin:22px 0 4px;color:#102a43;border-top:1px solid #eee;padding-top:14px">2. Scrap por código NG</div>
+    <div style="font-size:15px;font-weight:700;margin:22px 0 4px;color:#102a43;border-top:1px solid #eee;padding-top:14px">2. OEE por máquina</div>
+    <div id="hxh-oee-graf" style="overflow-x:auto"></div>
+    <div style="font-size:15px;font-weight:700;margin:22px 0 4px;color:#102a43;border-top:1px solid #eee;padding-top:14px">3. Scrap por código NG</div>
     <div id="hxh-ps-graf" style="overflow-x:auto"></div>
     <div id="hxh-ps-tabla" style="margin-top:8px"></div>
   </div>
@@ -5884,6 +5892,22 @@ function invBorrarArt(){
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="inv-btn" style="background:#888;flex:1" onclick="invCerrar('hxh-cm-modal')">Cancelar</button>
       <button class="inv-btn" style="background:#2E7D32;flex:1" onclick="hxhCambioModeloOk()">Agregar modelo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: paros de una hora por codigo -->
+<div id="hxh-paro-modal" class="inv-modal">
+  <div>
+    <button class="inv-x" onclick="invCerrar('hxh-paro-modal')">&times;</button>
+    <div style="font-size:16px;font-weight:700;margin-bottom:4px">&#9208;&#65039; Paros</div>
+    <div id="hxh-paro-tit" style="font-size:13px;color:#62748a;margin-bottom:12px"></div>
+    <div id="hxh-paro-lista"></div>
+    <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:10px;padding-top:10px;border-top:1px solid #eee"><span>Minutos parados</span><span id="hxh-paro-tot">0 min</span></div>
+    <div id="hxh-paro-err" style="color:#C62828;font-size:13px;margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="inv-btn" style="background:#888;flex:1" onclick="invCerrar('hxh-paro-modal')">Cancelar</button>
+      <button id="hxh-paro-guardar" class="inv-btn" style="background:#2E7D32;flex:1" onclick="hxhParoGuardar()">Guardar</button>
     </div>
   </div>
 </div>
@@ -6061,6 +6085,7 @@ function hxhAbrir(){
       if (document.getElementById('hxh-cfg-modal').style.display === 'flex') return;
       if (document.getElementById('hxh-cm-modal').style.display === 'flex') return;
       if (document.getElementById('hxh-par-modal').style.display === 'flex') return;
+      if (document.getElementById('hxh-paro-modal').style.display === 'flex') return;
       hxhCargar();
     }, 60000);
   }).catch(function(e){ document.getElementById('hxh-tabla').innerHTML = '<tr><td style="color:#c62828;padding:20px">' + escHtml(e.message || 'Error al cargar el catálogo') + '</td></tr>'; });
@@ -6282,6 +6307,7 @@ function hxhParetoProdCargar(){
       if (d.error) throw new Error(d.error);
       var items = (d.items || []).filter(function(x){ return x.real > 0; }).sort(function(a, b){ return b.real - a.real; })
         .map(function(x){ return {etq: x.nombre, val: x.real, titulo: x.nombre, x: x}; });
+      hxhOeeGraf(d.items || []);
       if (!items.length) { g.innerHTML = '<div style="color:#888;padding:24px;text-align:center">Sin producción capturada en este rango.</div>'; return; }
       g.innerHTML = hxhParetoSvg(items, function(v){ return hxhNum(v) + ' pzas'; });
       var th = 'style="text-align:left;padding:6px 8px;background:#102a43;color:#fff;font-size:11px"';
@@ -6295,6 +6321,25 @@ function hxhParetoProdCargar(){
         }).join('') + '</table>';
     })
     .catch(function(e){ g.innerHTML = '<div style="color:#c62828">' + escHtml(e.message || 'Error de conexión') + '</div>'; });
+}
+// OEE por maquina (barras) contra la meta, separado por departamento
+function hxhOeeGraf(lista){
+  var g = document.getElementById('hxh-oee-graf');
+  var items = lista.map(function(x){ var o = hxhOeeCalc({plan: x.min_plan, paro: x.min_paro, ideal: x.ideal_op, real: x.real, scrap: x.scrap}); return o ? {x: x, o: o} : null; })
+    .filter(Boolean).sort(function(a, b){ return (a.x.area === b.x.area ? 0 : (a.x.area === 'termoformado' ? -1 : 1)) || b.o.oee - a.o.oee; });
+  if (!items.length) { g.innerHTML = '<div style="color:#888;padding:24px;text-align:center">Sin datos para OEE en este rango.</div>'; return; }
+  var bw = 46, gap = 14, L = 60, R = 20, T = 16, H = 200, B = 110, W = Math.max(600, L + R + items.length * (bw + gap));
+  var y = function(p){ return T + H - H * p; }, mo = hxhMetaOee('oee');
+  var svg = '<svg width="' + W + '" height="' + (T + H + B) + '" style="font-family:inherit;font-size:11px">';
+  for (var k = 0; k <= 4; k++) { var yy = T + H * k / 4; svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + yy + '" y2="' + yy + '" stroke="#e4e7eb"/><text x="' + (L - 6) + '" y="' + (yy + 4) + '" text-anchor="end" fill="#62748a">' + (100 - k * 25) + '%</text>'; }
+  svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(mo) + '" y2="' + y(mo) + '" stroke="#2e7d32" stroke-dasharray="5 3"/><text x="' + (W - R) + '" y="' + (y(mo) - 4) + '" text-anchor="end" fill="#2e7d32" font-weight="700">Meta ' + hxhPct(mo) + '</text>';
+  items.forEach(function(it, i){
+    var cx = L + gap / 2 + i * (bw + gap), o = it.o, ok = o.oee >= mo;
+    svg += '<rect x="' + cx + '" y="' + y(o.oee) + '" width="' + bw + '" height="' + (T + H - y(o.oee)) + '" rx="3" fill="' + (it.x.area === 'termoformado' ? (ok ? '#2e7d32' : '#1565C0') : (ok ? '#2e7d32' : '#6A1B9A')) + '"><title>' + escHtml(it.x.nombre + ' · D ' + hxhPct(o.d) + ' · R ' + hxhPct(o.r) + ' · C ' + hxhPct(o.c)) + '</title></rect>' +
+      '<text x="' + (cx + bw / 2) + '" y="' + (y(o.oee) - 4) + '" text-anchor="middle" fill="#243b53" font-weight="700">' + hxhPct(o.oee) + '</text>' +
+      '<text transform="translate(' + (cx + bw / 2) + ',' + (T + H + 12) + ') rotate(-40)" text-anchor="end" fill="#243b53">' + escHtml(it.x.nombre.slice(0, 22)) + '</text>';
+  });
+  g.innerHTML = svg + '</svg><div style="font-size:12px;color:#62748a">Azul: Termoformado · Morado: Conversión · Verde: en meta. Pasa el mouse sobre una barra para ver Disponibilidad, Rendimiento y Calidad.</div>';
 }
 // 2) Scrap por codigo NG
 var _hxhParScrap = {};
@@ -6368,7 +6413,7 @@ function hxhCargar(){
       d.forEach(function(r){
         // Cambio de modelo: el 2o modelo de una maquina se guarda como 'TERMO 7#2'
         var partes = String(r.maquina_id).split('#'), est = partes[0], slot = parseInt(partes[1], 10) || 1;
-        if (!porEst[r.maquina_id]) { porEst[r.maquina_id] = {est: est, slot: slot, desc: '', op: '', coment: '', reales: {}, scrap: {}, t: ''}; orden.push(r.maquina_id); }
+        if (!porEst[r.maquina_id]) { porEst[r.maquina_id] = {est: est, slot: slot, desc: '', op: '', coment: '', reales: {}, scrap: {}, paros: {}, t: ''}; orden.push(r.maquina_id); }
         var f = porEst[r.maquina_id];
         if (String(r.actualizado) >= f.t) { f.t = String(r.actualizado); if (r.numero_parte) f.desc = r.numero_parte; if (r.operador_linea) f.op = r.operador_linea; }
         if (r.hora === 'fila') {
@@ -6378,6 +6423,7 @@ function hxhCargar(){
         else {
           f.reales[r.hora] = r.real;
           if (r.scrap) f.scrap[r.hora] = {total: r.scrap, det: r.scrap_detalle || {}};
+          if (r.paro_min) { var pd = {}; try { pd = JSON.parse(r.causa || '{}') || {}; } catch (e) {} f.paros[r.hora] = {total: r.paro_min, det: pd}; }
         }
       });
       // Primero las estaciones del Excel, despues las demas que ya tengan datos, y renglones vacios hasta 30
@@ -6416,7 +6462,7 @@ function hxhDescripciones(est){
   }
   return lista;
 }
-function hxhFilaNueva(est, slot){ return {est: est, slot: slot || 1, desc: '', op: '', coment: '', reales: {}, scrap: {}, ini: '', fin: ''}; }
+function hxhFilaNueva(est, slot){ return {est: est, slot: slot || 1, desc: '', op: '', coment: '', reales: {}, scrap: {}, paros: {}, ini: '', fin: ''}; }
 // Horario de cada franja en minutos del dia ('8-9' -> 480..540, '1-2' -> 780..840)
 function hxhReloj(fr){
   var m = String(fr).match(/^(\d+)(?::(\d+))?-(\d+)(?::(\d+))?$/);
@@ -6518,7 +6564,7 @@ function hxhPintar(){
   var ops = (_hxhCat.operadores['11-12'] || []).concat(_hxhCat.operadores['12-1'] || []).sort();
   var h = '<tr><th>Estación</th><th style="min-width:280px">Descripción</th><th style="min-width:150px">Operador</th><th>Meta/h</th>' +
     HXH_FRANJAS.map(function(f){ return '<th class="fr">' + f[0] + '</th>'; }).join('') +
-    '<th class="tot">Meta total</th><th class="tot">Real</th><th class="tot">% Cumpl.</th><th class="tot">Diferencia</th><th class="tot" style="min-width:260px">Comentarios</th></tr>';
+    '<th class="tot">Meta total</th><th class="tot">Real</th><th class="tot">% Cumpl.</th><th class="tot">Diferencia</th><th class="tot" title="Disponibilidad × Rendimiento × Calidad">OEE</th><th class="tot" style="min-width:260px">Comentarios</th></tr>';
   _hxhFilas.forEach(function(f, i){
     var usadas = _hxhFilas.map(function(x){ return x.est; });
     var ultimoModelo = hxhHermanos(f).slice(-1)[0] === f;
@@ -6541,13 +6587,17 @@ function hxhPintar(){
         return '<td id="hxh-c' + i + '_' + k + '"><input class="n" type="number" min="0" inputmode="numeric" value="' + (v == null ? '' : v) + '"' + (f.est ? '' : ' disabled') +
           ' onchange="hxhCelda(' + i + ',' + k + ',this)"></td>';
       }).join('') +
-      '<td class="calc" id="hxh-mt' + i + '"></td><td class="calc" id="hxh-re' + i + '"></td><td class="calc" id="hxh-pc' + i + '"></td><td class="calc" style="font-weight:700" id="hxh-di' + i + '"></td>' +
+      '<td class="calc" id="hxh-mt' + i + '"></td><td class="calc" id="hxh-re' + i + '"></td><td class="calc" id="hxh-pc' + i + '"></td><td class="calc" style="font-weight:700" id="hxh-di' + i + '"></td><td class="calc" id="hxh-oee' + i + '"></td>' +
       '<td><input placeholder="Causa / acción" value="' + escHtml(f.coment) + '"' + (f.est ? '' : ' disabled') + ' onchange="hxhCambio(' + i + ',\'coment\',this.value)"></td>' +
     '</tr>';
     // Renglon de scrap: piezas NG de cada hora, desglosadas por codigo de defecto
     if (f.est) h += '<tr class="hxs"><td class="est">&#8627; Scrap</td><td colspan="3"></td>' +
       HXH_FRANJAS.map(function(fr, k){ return '<td><button class="hxsc" id="hxh-s' + i + '_' + k + '" onclick="hxhScrapAbrir(' + i + ',' + k + ')"></button></td>'; }).join('') +
-      '<td></td><td class="calc" style="color:#c62828" id="hxh-st' + i + '"></td><td class="calc" style="color:#c62828" id="hxh-sp' + i + '"></td><td class="calc" style="color:#c62828" id="hxh-sc' + i + '" title="Costo del scrap"></td><td class="sd" id="hxh-sd' + i + '"></td></tr>';
+      '<td></td><td class="calc" style="color:#c62828" id="hxh-st' + i + '"></td><td class="calc" style="color:#c62828" id="hxh-sp' + i + '"></td><td class="calc" style="color:#c62828" id="hxh-sc' + i + '" title="Costo del scrap"></td><td></td><td class="sd" id="hxh-sd' + i + '"></td></tr>' +
+      // Renglon de paros: minutos parados por hora con su codigo (para el OEE)
+      '<tr class="hxs hxp"><td class="est" style="color:#9a5b00">&#8627; Paros</td><td colspan="3"></td>' +
+      HXH_FRANJAS.map(function(fr, k){ return '<td><button class="hxsc hxpb" id="hxh-p' + i + '_' + k + '" onclick="hxhParoAbrir(' + i + ',' + k + ')"></button></td>'; }).join('') +
+      '<td></td><td class="calc" style="color:#9a5b00" id="hxh-pt' + i + '"></td><td class="calc" style="color:#9a5b00" id="hxh-pdisp' + i + '"></td><td></td><td></td><td class="sd" style="color:#9a5b00" id="hxh-pd' + i + '"></td></tr>';
   });
   document.getElementById('hxh-tabla').innerHTML = h;
   _hxhFilas.forEach(function(f, i){ hxhCalcFila(i); });
@@ -6579,6 +6629,7 @@ function hxhCalcFila(i){
   di.textContent = dif === '' ? '' : (dif < 0 ? '(' + hxhNum(-dif) + ')' : hxhNum(dif));
   di.className = 'calc' + (dif === '' ? '' : (dif < 0 ? ' neg' : ' pos'));
   hxhCalcScrap(i, real);
+  hxhCalcParos(i);
   hxhKpis();
 }
 function hxhCalcScrap(i, real){
@@ -6605,6 +6656,93 @@ function hxhCalcScrap(i, real){
   var cods = Object.keys(porCod).sort(function(a, b){ return porCod[b] - porCod[a]; }), sd = document.getElementById('hxh-sd' + i);
   sd.textContent = cods.map(function(c){ return c + ': ' + porCod[c]; }).join(' · ');
   sd.title = cods.map(function(c){ return c + ' ' + hxhDefNombre(c, f.est) + ': ' + porCod[c]; }).join('\n');
+}
+// ─── Paros y OEE
+function hxhArea(est){ return (_hxhCat.area_estacion || {})[est] || (/^TERMO|TERMOFORMADO$/.test(est || '') ? 'termoformado' : 'conversion'); }
+function hxhMetaOee(k){ var m = (_hxhCat && _hxhCat.metas) || {}; return m[k] == null ? {oee: .85, disponibilidad: .9, rendimiento: .95, calidad: .99}[k] : Number(m[k]); }
+// Totales de OEE de un renglon: minutos planeados, minutos de paro, piezas ideales en tiempo operando, real y scrap
+function hxhOeeDatos(f){
+  var metaH = (f.est && f.desc) ? hxhMetaH(f.est, f.desc) : 0, t = {plan: 0, paro: 0, ideal: 0, real: 0, scrap: 0};
+  if (!metaH || !hxhComidaDe(f.op)) return t;
+  HXH_FRANJAS.forEach(function(fr){
+    var v = f.reales[fr[0]];
+    if (v == null || v === '') return;
+    var mins = hxhMinutos(fr[0], f.op) * hxhParte(f, fr[0]), paro = Math.min((f.paros[fr[0]] || {}).total || 0, mins);
+    t.plan += mins; t.paro += paro; t.ideal += metaH * (mins - paro) / 60;
+    t.real += Number(v) || 0; t.scrap += (f.scrap[fr[0]] || {}).total || 0;
+  });
+  return t;
+}
+function hxhOeeCalc(t){
+  if (!t.plan) return null;
+  var d = (t.plan - t.paro) / t.plan, r = t.ideal ? Math.min(1, (t.real + t.scrap) / t.ideal) : 0, c = (t.real + t.scrap) ? t.real / (t.real + t.scrap) : 1;
+  return {d: d, r: r, c: c, oee: d * r * c};
+}
+function hxhPct(x){ return x == null ? '—' : Math.round(x * 100) + '%'; }
+function hxhCalcParos(i){
+  var f = _hxhFilas[i];
+  if (!f.est || !document.getElementById('hxh-pt' + i)) return;
+  var tot = 0, porCod = {};
+  HXH_FRANJAS.forEach(function(fr, k){
+    var b = document.getElementById('hxh-p' + i + '_' + k), p = f.paros[fr[0]], hay = f.reales[fr[0]] != null && f.reales[fr[0]] !== '';
+    b.disabled = !hay;
+    b.title = hay ? 'Capturar paros ' + fr[0] : 'Primero captura la producción de ' + fr[0];
+    b.textContent = p && p.total ? p.total + "'" : (hay ? '+' : '');
+    b.className = 'hxsc hxpb' + (p && p.total ? ' v' : '');
+    if (!p) return;
+    tot += p.total;
+    Object.keys(p.det || {}).forEach(function(c){ porCod[c] = (porCod[c] || 0) + Number(p.det[c]); });
+  });
+  var o = hxhOeeCalc(hxhOeeDatos(f));
+  document.getElementById('hxh-pt' + i).textContent = tot ? tot + ' min' : '';
+  document.getElementById('hxh-pdisp' + i).textContent = o ? 'Disp. ' + hxhPct(o.d) : '';
+  var nombres = {}; (_hxhCat.paros || []).forEach(function(x){ nombres[x.codigo] = x.nombre; });
+  var pd = document.getElementById('hxh-pd' + i);
+  pd.textContent = Object.keys(porCod).sort(function(a, b){ return porCod[b] - porCod[a]; }).map(function(c){ return (nombres[c] || c) + ': ' + porCod[c] + "'"; }).join(' · ');
+  var el = document.getElementById('hxh-oee' + i);
+  if (!o) { el.innerHTML = ''; return; }
+  var ok = o.oee >= hxhMetaOee('oee');
+  el.innerHTML = '<span class="hxoee" style="background:' + (ok ? '#d3f9d8;color:#1b5e20' : '#ffe3e3;color:#b71c1c') + '">' + hxhPct(o.oee) + '</span>';
+  el.title = 'Disponibilidad ' + hxhPct(o.d) + ' · Rendimiento ' + hxhPct(o.r) + ' · Calidad ' + hxhPct(o.c);
+}
+var _hxhParo = null;
+function hxhParoAbrir(i, k){
+  var f = _hxhFilas[i], fr = HXH_FRANJAS[k], p = f.paros[fr[0]] || {det: {}};
+  var max = Math.round(hxhMinutos(fr[0], f.op) * hxhParte(f, fr[0]));
+  _hxhParo = {i: i, k: k, max: max};
+  document.getElementById('hxh-paro-tit').textContent = f.est + ' · ' + (f.desc || '') + ' · ' + fr[0] + ' · máx. ' + max + ' min';
+  document.getElementById('hxh-paro-err').textContent = '';
+  document.getElementById('hxh-paro-lista').innerHTML = (_hxhCat.paros || []).map(function(d){
+    var v = p.det[d.codigo];
+    return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="flex:1;font-size:14px"><b>' + escHtml(d.codigo) + '</b> - ' + escHtml(d.nombre) + '</span>' +
+      '<input class="inv-in hxh-pmin" data-cod="' + escHtml(d.codigo) + '" type="number" min="0" max="60" inputmode="numeric" placeholder="min" value="' + (v ? v : '') + '" oninput="hxhParoSuma()" style="width:80px;text-align:center;margin:0"></div>';
+  }).join('');
+  hxhParoSuma();
+  invAbrirModal('hxh-paro-modal');
+}
+function hxhParoSuma(){
+  var t = 0;
+  document.querySelectorAll('#hxh-paro-lista .hxh-pmin').forEach(function(inp){ t += Math.max(0, parseInt(inp.value, 10) || 0); });
+  document.getElementById('hxh-paro-tot').textContent = t + ' min';
+  return t;
+}
+function hxhParoGuardar(){
+  var c = _hxhParo, f = _hxhFilas[c.i], fr = HXH_FRANJAS[c.k], det = {}, btn = document.getElementById('hxh-paro-guardar');
+  document.querySelectorAll('#hxh-paro-lista .hxh-pmin').forEach(function(inp){
+    var n = Math.max(0, parseInt(inp.value, 10) || 0);
+    if (n) det[inp.getAttribute('data-cod')] = n;
+  });
+  var tot = hxhParoSuma();
+  if (tot > c.max) { document.getElementById('hxh-paro-err').textContent = 'En esta hora caben máximo ' + c.max + ' minutos.'; return; }
+  btn.disabled = true;
+  hxhPost({maquina_id: hxhId(f), maquina_nombre: f.est, hora: fr[0], numero_parte: f.desc, operador_linea: f.op, paro_detalle: det})
+    .then(function(){
+      if (tot) f.paros[fr[0]] = {total: tot, det: det}; else delete f.paros[fr[0]];
+      invCerrar('hxh-paro-modal');
+      hxhCalcFila(c.i);
+    })
+    .catch(function(e){ document.getElementById('hxh-paro-err').textContent = e.message || 'Error de conexión'; })
+    .then(function(){ btn.disabled = false; });
 }
 // Catalogo de codigos NG segun el area de la estacion (Termoformado o Conversion)
 function hxhCosto(est, desc){
@@ -6677,6 +6815,12 @@ function hxhKpis(){
     var mt = hxhMetaTotal(f); if (mt) meta += mt;
   });
   activas = Object.keys(activas).length;
+  var dep = {termoformado: {plan: 0, paro: 0, ideal: 0, real: 0, scrap: 0}, conversion: {plan: 0, paro: 0, ideal: 0, real: 0, scrap: 0}};
+  _hxhFilas.forEach(function(f){
+    if (!f.est) return;
+    var t = hxhOeeDatos(f), a = dep[hxhArea(f.est)];
+    Object.keys(t).forEach(function(k){ a[k] += t[k]; });
+  });
   var pc = meta ? Math.round(100 * real / meta) : null;
   function k(l, v, c){ return '<div class="hxkpi" style="--c:' + c + '"><div class="v">' + v + '</div><div class="l">' + l + '</div></div>'; }
   document.getElementById('hxh-kpis').innerHTML =
@@ -6684,7 +6828,15 @@ function hxhKpis(){
     k('% Cumplimiento', pc === null ? '—' : pc + '%', pc === null ? '#bcccdc' : (pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828'))) +
     k('Scrap (piezas NG)', hxhNum(scrap) || '0', '#c62828') + k('% Scrap (meta ' + hxhMetaScrap() + '%)', scrap ? (100 * scrap / (real + scrap)).toFixed(1) + '%' : '—', !scrap ? '#bcccdc' : (100 * scrap / (real + scrap) <= hxhMetaScrap() ? '#2e7d32' : '#c62828')) +
     k('Costo scrap (MXN)', hxhPesos(costoScrap), '#c62828') +
-    k('Estaciones activas', activas, '#6A1B9A');
+    k('Estaciones activas', activas, '#6A1B9A') +
+    ['termoformado', 'conversion'].map(function(a){
+      var o = hxhOeeCalc(dep[a]), mo = hxhMetaOee('oee');
+      var sub = function(l, v, m){ return '<span style="color:' + (v == null ? '#829ab1' : (v >= m ? '#2e7d32' : '#c62828')) + '">' + l + ' ' + hxhPct(v) + '</span>'; };
+      return '<div class="hxkpi" style="--c:' + (!o ? '#bcccdc' : (o.oee >= mo ? '#2e7d32' : '#c62828')) + '"><div class="v">' + (o ? hxhPct(o.oee) : '—') + '</div>' +
+        '<div class="l">OEE ' + (a === 'termoformado' ? 'Termoformado' : 'Conversión') + ' (meta ' + hxhPct(mo) + ')</div>' +
+        '<div style="font-size:11px;font-weight:700;margin-top:3px;display:flex;gap:8px;flex-wrap:wrap">' +
+          sub('D', o && o.d, hxhMetaOee('disponibilidad')) + sub('R', o && o.r, hxhMetaOee('rendimiento')) + sub('C', o && o.c, hxhMetaOee('calidad')) + '</div></div>';
+    }).join('');
 }
 function hxhAgregar(){
   _hxhFilas.push(hxhFilaNueva('', 1));
@@ -6734,7 +6886,7 @@ function hxhCelda(i, k, inp){
       fecha: document.getElementById('hxh-fecha').value, turno: document.getElementById('hxh-turno').value, maquina_id: hxhId(f), hora: fr[0]})})
       .then(invJson).then(function(d){
         if (!d.ok) throw new Error(d.error || 'No se pudo borrar');
-        delete f.reales[fr[0]]; delete f.scrap[fr[0]];
+        delete f.reales[fr[0]]; delete f.scrap[fr[0]]; delete f.paros[fr[0]];
         hxhCalcEstacion(i);
       })
       .catch(function(e){ inp.value = f.reales[fr[0]]; alert(e.message || 'Error de conexión'); });
