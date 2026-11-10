@@ -5975,10 +5975,17 @@ function hxhCalcScrap(i, real){
   document.getElementById('hxh-sp' + i).textContent = tot ? (100 * tot / ((real || 0) + tot)).toFixed(1) + '% NG' : '';
   var cods = Object.keys(porCod).sort(function(a, b){ return porCod[b] - porCod[a]; }), sd = document.getElementById('hxh-sd' + i);
   sd.textContent = cods.map(function(c){ return c + ': ' + porCod[c]; }).join(' · ');
-  sd.title = cods.map(function(c){ return c + ' ' + hxhDefNombre(c) + ': ' + porCod[c]; }).join('\n');
+  sd.title = cods.map(function(c){ return c + ' ' + hxhDefNombre(c, f.est) + ': ' + porCod[c]; }).join('\n');
 }
-function hxhDefNombre(cod){
-  var d = ((_hxhCat && _hxhCat.defectos) || []).find(function(x){ return x.codigo === cod; });
+// Catalogo de codigos NG segun el area de la estacion (Termoformado o Conversion)
+function hxhDefectos(est){
+  var defs = (_hxhCat && _hxhCat.defectos) || [];
+  if (Array.isArray(defs)) return defs;
+  var area = (_hxhCat.area_estacion || {})[est] || (/^(TERMO|PRENSA|MESA|INSPECCION)/.test(est || '') ? 'termoformado' : 'conversion');
+  return defs[area] || [];
+}
+function hxhDefNombre(cod, est){
+  var d = hxhDefectos(est).find(function(x){ return x.codigo === cod; });
   return d ? d.nombre : '';
 }
 var _hxhScrap = null;   // {i, k} de la celda que se esta capturando
@@ -5987,7 +5994,7 @@ function hxhScrapAbrir(i, k){
   _hxhScrap = {i: i, k: k};
   document.getElementById('hxh-scrap-tit').textContent = f.est + ' · ' + fr[0] + ' · Producción: ' + hxhNum(f.reales[fr[0]]);
   document.getElementById('hxh-scrap-err').textContent = '';
-  document.getElementById('hxh-scrap-lista').innerHTML = ((_hxhCat && _hxhCat.defectos) || []).map(function(d){
+  document.getElementById('hxh-scrap-lista').innerHTML = hxhDefectos(f.est).map(function(d){
     var v = s.det[d.codigo];
     return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="flex:1;font-size:14px"><b>' + escHtml(d.codigo) + '</b> - ' + escHtml(d.nombre) + '</span>' +
       '<input class="inv-in hxh-def" data-cod="' + escHtml(d.codigo) + '" type="number" min="0" inputmode="numeric" value="' + (v ? v : '') + '" oninput="hxhScrapSuma()" style="width:80px;text-align:center;margin:0"></div>';
