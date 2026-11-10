@@ -5844,6 +5844,25 @@ def hxh_guardar():
     return jsonify({'ok': True, 'registro': rows[0] if rows else None})
 
 
+@app.route('/api/hxh/borrar', methods=['POST'])
+def hxh_borrar():
+    """Borra la captura de una hora (produccion y scrap) para corregirla o pasarla a otro modelo."""
+    d = request.json or {}
+    if not _hxh_usuario(d.get('usuario_email')):
+        return jsonify({'error': 'No tienes acceso a Hora por Hora'}), 403
+    fecha = d.get('fecha') or ''
+    turno, maquina, hora = _qr_limpio(d.get('turno'), 5), _qr_limpio(d.get('maquina_id'), 20), _qr_limpio(d.get('hora'), 20)
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', fecha) or not (turno and maquina and hora) or hora == 'fila':
+        return jsonify({'error': 'Datos inválidos'}), 400
+    try:
+        sb.delete('produccion_hora', return_rows=False, fecha='eq.' + fecha, turno='eq.' + turno,
+                  maquina_id='eq.' + maquina, hora='eq.' + hora)
+    except requests.HTTPError as e:
+        detalle = e.response.text[:300] if e.response is not None else str(e)
+        return jsonify({'error': 'No se pudo borrar: ' + detalle}), 500
+    return jsonify({'ok': True})
+
+
 @app.route('/api/qr/registros/duplicado', methods=['POST'])
 def qr_buscar_duplicado():
     """Registro anterior con el mismo QR o el mismo correo (para avisar, no bloquea)."""
