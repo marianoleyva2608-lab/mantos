@@ -524,6 +524,9 @@
  "operaciones": [
   "Termoformado",
   "Suajado",
+  "Corte",
+  "Cortadora",
+  "Laminado",
   "Limpieza",
   "Sopleteo, inspección y empaque"
  ]
