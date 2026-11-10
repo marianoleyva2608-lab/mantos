@@ -5974,7 +5974,7 @@ def hxh_excel():
         for k, dic in ((fecha, tot_dia), (est, tot_est)):
             t = dic.setdefault(k, [0, 0, 0, 0.0])
             t[0] += meta; t[1] += real; t[2] += scrap; t[3] += cst
-        area = area_est.get(est) or ('termoformado' if re.match(r'^(TERMO|PRENSA|MESA|INSPECCION)', est) else 'conversion')
+        area = area_est.get(est) or ('termoformado' if re.match(r'^(TERMO)', est) else 'conversion')
         for det in g['det'].values():
             for cod, n in det.items():
                 nombre = defectos.get((area, cod), '')
