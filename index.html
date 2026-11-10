@@ -6214,7 +6214,11 @@ function hxhCargar(){
       // Primero Termoformado (termos y sus mesas), luego Conversion, en el orden del catalogo
       var pos = function(e){ var k = _hxhCat.estaciones.indexOf(e); return k === -1 ? 999 : k; };
       var areaN = function(e){ return ((_hxhCat.area_estacion || {})[e] || (/^TERMO/.test(e) ? 'termoformado' : 'conversion')) === 'termoformado' ? 0 : 1; };
-      base.sort(function(a, b){ return areaN(a.est) - areaN(b.est) || pos(a.est) - pos(b.est); });
+      // Las estaciones que ya tienen produccion capturada (en cualquier modelo) van hasta arriba
+      var conDatos = {};
+      orden.forEach(function(id){ var f = porEst[id]; if (Object.keys(f.reales).length) conDatos[f.est] = 1; });
+      var vacia = function(e){ return conDatos[e] ? 0 : 1; };
+      base.sort(function(a, b){ return vacia(a.est) - vacia(b.est) || areaN(a.est) - areaN(b.est) || pos(a.est) - pos(b.est); });
       var filas = [];
       base.forEach(function(b){
         filas.push(b);
