@@ -5898,6 +5898,68 @@ def hxh_guardar():
     return jsonify({'ok': True, 'registro': rows[0] if rows else None})
 
 
+@app.route('/api/hxh/pareto', methods=['GET'])
+def hxh_pareto():
+    """Scrap por codigo NG en un rango de fechas (para la grafica de Pareto)."""
+    if not _hxh_usuario(request.headers.get('X-Usuario-Email')):
+        return jsonify({'error': 'No tienes acceso a Hora por Hora'}), 403
+    desde, hasta = request.args.get('desde') or '', request.args.get('hasta') or ''
+    if not (re.match(r'^\d{4}-\d{2}-\d{2}$', desde) and re.match(r'^\d{4}-\d{2}-\d{2}$', hasta)) or desde > hasta:
+        return jsonify({'error': 'Rango de fechas inválido'}), 400
+    if (datetime.date.fromisoformat(hasta) - datetime.date.fromisoformat(desde)).days > 366:
+        return jsonify({'error': 'El rango máximo es de un año'}), 400
+    filtros = {'and': '(fecha.gte.' + desde + ',fecha.lte.' + hasta + ',scrap.gt.0)',
+               'select': 'maquina_id,numero_parte,scrap,scrap_detalle', 'order': 'fecha.asc'}
+    turno = _qr_limpio(request.args.get('turno'), 5)
+    if turno:
+        filtros['turno'] = 'eq.' + turno
+    area_f = request.args.get('area') or ''
+    filas, offset = [], 0
+    try:
+        while True:
+            lote = sb.select('produccion_hora', limit=1000, offset=offset, **filtros)
+            filas += lote
+            if len(lote) < 1000:
+                break
+            offset += 1000
+    except requests.HTTPError as e:
+        detalle = e.response.text[:300] if e.response is not None else str(e)
+        return jsonify({'error': 'No se pudieron leer los datos: ' + detalle}), 500
+    cat = _hxh_catalogo_base()
+    _hxh_aplicar_productos(cat, _hxh_metas_guardadas())
+    costo = {(c['estacion'], c['descripcion']): float(c.get('costo') or 0) for c in cat['catalogo']}
+    costo_modelo = {}
+    for c in cat['catalogo']:
+        if float(c.get('costo') or 0) and c['descripcion'] not in costo_modelo:
+            costo_modelo[c['descripcion']] = float(c['costo'])
+    todos = set(cat.get('estaciones_todos_modelos') or [])
+    nombres = {}
+    for area, lista in (cat.get('defectos') or {}).items() if isinstance(cat.get('defectos'), dict) else []:
+        for d in lista:
+            nombres[(area, d['codigo'])] = d['nombre']
+    area_est, ren = cat.get('area_estacion') or {}, _hxh_renombres()
+    res, sin_codigo = {}, 0
+    for r in filas:
+        est = _hxh_mid_nuevo(r['maquina_id'], ren).split('#')[0]
+        area = area_est.get(est) or ('termoformado' if re.search(r'^TERMO|TERMOFORMADO$', est) else 'conversion')
+        if area_f and area != area_f:
+            continue
+        cpz = costo.get((est, r.get('numero_parte') or '')) or (costo_modelo.get(r.get('numero_parte') or '', 0) if est in todos else 0)
+        det = r.get('scrap_detalle') or {}
+        suma = 0
+        for cod, n in det.items():
+            n = int(n or 0)
+            suma += n
+            t = res.setdefault((area, cod), {'area': area, 'codigo': cod, 'nombre': nombres.get((area, cod), ''), 'piezas': 0, 'costo': 0.0})
+            t['piezas'] += n
+            t['costo'] += n * cpz
+        sin_codigo += max(0, int(r.get('scrap') or 0) - suma)
+    lista = sorted(res.values(), key=lambda x: -x['piezas'])
+    for x in lista:
+        x['costo'] = round(x['costo'], 2)
+    return jsonify({'codigos': lista, 'sin_codigo': sin_codigo})
+
+
 @app.route('/api/hxh/excel', methods=['GET'])
 def hxh_excel():
     """Reporte de Hora por Hora en Excel con graficas: resumen por dia, por estacion,

@@ -5763,7 +5763,8 @@ function invBorrarArt(){
       <div class="ctl">&#128197; Fecha <input id="hxh-fecha" type="date" onchange="hxhCargar()"></div>
       <div class="ctl">&#128336; Turno <select id="hxh-turno" onchange="hxhCargar()"><option>1</option><option>2</option><option>3</option></select></div>
       <div class="hxleg"><span><i style="background:#d3f9d8"></i>Cumple meta ajustada</span><span><i style="background:#ffe3e3"></i>No cumple</span></div>
-      <button class="hxcfg" onclick="hxhExcelAbrir()">&#128202; Reporte Excel</button>
+      <button class="hxcfg" onclick="hxhParetoAbrir()">&#128201; Pareto</button>
+      <button class="hxcfg" style="margin-left:0" onclick="hxhExcelAbrir()">&#128202; Reporte Excel</button>
       <button id="hxh-cfg-btn" class="hxcfg" style="display:none;margin-left:0" onclick="hxhCfgAbrir()">&#9881;&#65039; Configurar metas</button>
       <div class="hxclock" id="hxh-reloj"></div>
     </div>
@@ -5805,6 +5806,29 @@ function invBorrarArt(){
       <button class="inv-btn" style="background:#888;flex:1" onclick="invCerrar('hxh-cfg-modal')">Cancelar</button>
       <button id="hxh-cfg-guardar" class="inv-btn" style="background:#2E7D32;flex:1" onclick="hxhCfgGuardar()">Guardar metas</button>
     </div>
+  </div>
+</div>
+
+<!-- Modal: Pareto de scrap -->
+<div id="hxh-par-modal" class="inv-modal">
+  <div style="max-width:900px">
+    <button class="inv-x" onclick="invCerrar('hxh-par-modal')">&times;</button>
+    <div style="font-size:16px;font-weight:700;margin-bottom:10px">&#128201; Pareto de scrap</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div><span class="inv-lbl">Desde</span><input id="hxh-par-desde" class="inv-in" type="date" style="margin:0" onchange="hxhParetoCargar()"></div>
+      <div><span class="inv-lbl">Hasta</span><input id="hxh-par-hasta" class="inv-in" type="date" style="margin:0" onchange="hxhParetoCargar()"></div>
+      <div><span class="inv-lbl">Turno</span><select id="hxh-par-turno" class="inv-in" style="margin:0" onchange="hxhParetoCargar()"><option value="">Todos</option><option>1</option><option>2</option><option>3</option></select></div>
+      <div><span class="inv-lbl">Área</span><select id="hxh-par-area" class="inv-in" style="margin:0" onchange="hxhParetoCargar()"><option value="">Todas</option><option value="termoformado">Termoformado</option><option value="conversion">Conversión</option></select></div>
+      <div><span class="inv-lbl">Por</span><select id="hxh-par-por" class="inv-in" style="margin:0" onchange="hxhParetoPintar()"><option value="piezas">Piezas NG</option><option value="costo">Costo (MXN)</option></select></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+      <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhParetoRango(0)">Hoy</button>
+      <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhParetoRango(1)">Ayer</button>
+      <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhParetoRango(7)">Últimos 7 días</button>
+      <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhParetoRango('mes')">Este mes</button>
+    </div>
+    <div id="hxh-par-graf" style="margin-top:12px;overflow-x:auto"></div>
+    <div id="hxh-par-tabla" style="margin-top:8px"></div>
   </div>
 </div>
 
@@ -6024,6 +6048,7 @@ function hxhAbrir(){
       if (document.getElementById('hxh-scrap-modal').style.display === 'flex') return;
       if (document.getElementById('hxh-cfg-modal').style.display === 'flex') return;
       if (document.getElementById('hxh-cm-modal').style.display === 'flex') return;
+      if (document.getElementById('hxh-par-modal').style.display === 'flex') return;
       hxhCargar();
     }, 60000);
   }).catch(function(e){ document.getElementById('hxh-tabla').innerHTML = '<tr><td style="color:#c62828;padding:20px">' + escHtml(e.message || 'Error al cargar el catálogo') + '</td></tr>'; });
@@ -6155,6 +6180,69 @@ function hxhCfgGuardar(){
     })
     .catch(function(e){ err.textContent = e.message || 'Error de conexión'; })
     .then(function(){ btn.disabled = false; });
+}
+// ─── Pareto de scrap por codigo NG
+var _hxhPar = [];
+function hxhParetoRango(r){
+  var hoy = new Date(), f = function(d){ return d.toLocaleDateString('en-CA'); }, d = new Date(hoy);
+  if (r === 'mes') d = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  else d.setDate(hoy.getDate() - (r === 7 ? 6 : r));
+  document.getElementById('hxh-par-desde').value = f(d);
+  document.getElementById('hxh-par-hasta').value = r === 1 ? f(d) : f(hoy);
+  hxhParetoCargar();
+}
+function hxhParetoAbrir(){
+  var dia = document.getElementById('hxh-fecha').value;
+  document.getElementById('hxh-par-desde').value = dia;
+  document.getElementById('hxh-par-hasta').value = dia;
+  document.getElementById('hxh-par-turno').value = document.getElementById('hxh-turno').value;
+  invAbrirModal('hxh-par-modal');
+  hxhParetoCargar();
+}
+function hxhParetoCargar(){
+  var de = document.getElementById('hxh-par-desde').value, ha = document.getElementById('hxh-par-hasta').value, g = document.getElementById('hxh-par-graf');
+  if (!de || !ha || de > ha) { g.innerHTML = '<div style="color:#c62828">Revisa las fechas.</div>'; return; }
+  g.innerHTML = '<div style="color:#888;padding:20px;text-align:center">Cargando…</div>';
+  var q = 'desde=' + de + '&hasta=' + ha + '&turno=' + document.getElementById('hxh-par-turno').value + '&area=' + document.getElementById('hxh-par-area').value;
+  fetch('/api/hxh/pareto?' + q, {headers: {'X-Usuario-Email': invEmail()}}).then(invJson)
+    .then(function(d){ if (d.error) throw new Error(d.error); _hxhPar = d; hxhParetoPintar(); })
+    .catch(function(e){ g.innerHTML = '<div style="color:#c62828">' + escHtml(e.message || 'Error de conexión') + '</div>'; document.getElementById('hxh-par-tabla').innerHTML = ''; });
+}
+function hxhParetoPintar(){
+  var por = document.getElementById('hxh-par-por').value, g = document.getElementById('hxh-par-graf'), tb = document.getElementById('hxh-par-tabla');
+  var datos = (_hxhPar.codigos || []).slice().sort(function(a, b){ return b[por] - a[por]; }).filter(function(x){ return x[por] > 0; });
+  if (!datos.length) { g.innerHTML = '<div style="color:#888;padding:24px;text-align:center">Sin scrap capturado en este rango.</div>'; tb.innerHTML = ''; return; }
+  var total = datos.reduce(function(s, x){ return s + x[por]; }, 0), acum = 0;
+  datos.forEach(function(x){ acum += x[por]; x.pct = x[por] / total; x.acum = acum / total; });
+  var fmt = function(v){ return por === 'costo' ? hxhPesos(v) : hxhNum(v); };
+  var bw = 46, gap = 14, L = 110, R = 46, T = 16, H = 220, B = 96, W = Math.max(600, L + R + datos.length * (bw + gap));
+  var max = datos[0][por], y = function(v){ return T + H - H * v / max; }, yp = function(p){ return T + H - H * p; };
+  var svg = '<svg width="' + W + '" height="' + (T + H + B) + '" style="font-family:inherit;font-size:11px">';
+  for (var k = 0; k <= 4; k++) {
+    var yy = T + H * k / 4;
+    svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + yy + '" y2="' + yy + '" stroke="#e4e7eb"/>' +
+      '<text x="' + (L - 6) + '" y="' + (yy + 4) + '" text-anchor="end" fill="#62748a">' + (por === 'costo' ? '$' : '') + hxhNum(max * (4 - k) / 4) + '</text>' +
+      '<text x="' + (W - R + 6) + '" y="' + (yy + 4) + '" fill="#62748a">' + (100 - k * 25) + '%</text>';
+  }
+  svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + yp(0.8) + '" y2="' + yp(0.8) + '" stroke="#ef6c00" stroke-dasharray="4 3"/>';
+  var pts = [];
+  datos.forEach(function(x, i){
+    var cx = L + gap / 2 + i * (bw + gap), v = x[por];
+    svg += '<rect x="' + cx + '" y="' + y(v) + '" width="' + bw + '" height="' + (T + H - y(v)) + '" rx="3" fill="' + (x.acum <= 0.8 || i === 0 ? '#c62828' : '#f5a3a3') + '"><title>' + escHtml(x.codigo + ' ' + x.nombre + ': ' + fmt(v)) + '</title></rect>' +
+      '<text x="' + (cx + bw / 2) + '" y="' + (y(v) - 4) + '" text-anchor="middle" fill="#243b53" font-weight="700">' + (por === 'costo' ? '$' + hxhNum(v) : hxhNum(v)) + '</text>' +
+      '<text transform="translate(' + (cx + bw / 2) + ',' + (T + H + 12) + ') rotate(-40)" text-anchor="end" fill="#243b53">' + escHtml((x.codigo + ' ' + x.nombre).slice(0, 24)) + '</text>';
+    pts.push((cx + bw / 2) + ',' + yp(x.acum));
+  });
+  svg += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="#102a43" stroke-width="2"/>' +
+    pts.map(function(p){ var c = p.split(','); return '<circle cx="' + c[0] + '" cy="' + c[1] + '" r="3" fill="#102a43"/>'; }).join('') + '</svg>';
+  g.innerHTML = svg;
+  var th = 'style="text-align:left;padding:6px 8px;background:#102a43;color:#fff;font-size:11px"';
+  tb.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th ' + th + '>Área</th><th ' + th + '>Código</th><th ' + th + '>Defecto</th><th ' + th + '>Piezas NG</th><th ' + th + '>Costo (MXN)</th><th ' + th + '>%</th><th ' + th + '>% acum.</th></tr>' +
+    datos.map(function(x){
+      return '<tr style="border-bottom:1px solid #eee' + (x.acum <= 0.8 ? ';background:#fff5f5' : '') + '"><td style="padding:5px 8px">' + (x.area === 'termoformado' ? 'Termoformado' : 'Conversión') + '</td><td style="padding:5px 8px;font-weight:700">' + escHtml(x.codigo) + '</td><td style="padding:5px 8px">' + escHtml(x.nombre) + '</td>' +
+        '<td style="padding:5px 8px;text-align:right">' + hxhNum(x.piezas) + '</td><td style="padding:5px 8px;text-align:right">' + hxhPesos(x.costo) + '</td><td style="padding:5px 8px;text-align:right">' + (x.pct * 100).toFixed(1) + '%</td><td style="padding:5px 8px;text-align:right">' + (x.acum * 100).toFixed(1) + '%</td></tr>';
+    }).join('') + '</table>' +
+    '<div style="font-size:12px;color:#62748a;margin-top:6px">En rojo fuerte, los códigos que juntan el 80% del scrap.' + (_hxhPar.sin_codigo ? ' Hay ' + hxhNum(_hxhPar.sin_codigo) + ' piezas NG sin código.' : '') + '</div>';
 }
 // ─── Reporte Excel con graficas
 function hxhExcelRango(r){
