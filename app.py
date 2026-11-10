@@ -5960,6 +5960,55 @@ def hxh_pareto():
     return jsonify({'codigos': lista, 'sin_codigo': sin_codigo})
 
 
+@app.route('/api/hxh/pareto-produccion', methods=['GET'])
+def hxh_pareto_produccion():
+    """Piezas perdidas contra la meta (suma por hora de meta - real cuando no se llega), por estacion o modelo."""
+    if not _hxh_usuario(request.headers.get('X-Usuario-Email')):
+        return jsonify({'error': 'No tienes acceso a Hora por Hora'}), 403
+    desde, hasta = request.args.get('desde') or '', request.args.get('hasta') or ''
+    if not (re.match(r'^\d{4}-\d{2}-\d{2}$', desde) and re.match(r'^\d{4}-\d{2}-\d{2}$', hasta)) or desde > hasta:
+        return jsonify({'error': 'Rango de fechas inválido'}), 400
+    if (datetime.date.fromisoformat(hasta) - datetime.date.fromisoformat(desde)).days > 366:
+        return jsonify({'error': 'El rango máximo es de un año'}), 400
+    filtros = {'and': '(fecha.gte.' + desde + ',fecha.lte.' + hasta + ')', 'hora': 'neq.fila',
+               'select': 'maquina_id,numero_parte,meta,real', 'order': 'fecha.asc'}
+    turno = _qr_limpio(request.args.get('turno'), 5)
+    if turno:
+        filtros['turno'] = 'eq.' + turno
+    por = 'modelo' if request.args.get('por') == 'modelo' else 'estacion'
+    area_f = request.args.get('area') or ''
+    filas, offset = [], 0
+    try:
+        while True:
+            lote = sb.select('produccion_hora', limit=1000, offset=offset, **filtros)
+            filas += lote
+            if len(lote) < 1000:
+                break
+            offset += 1000
+    except requests.HTTPError as e:
+        detalle = e.response.text[:300] if e.response is not None else str(e)
+        return jsonify({'error': 'No se pudieron leer los datos: ' + detalle}), 500
+    cat = _hxh_catalogo_base()
+    area_est, ren = cat.get('area_estacion') or {}, _hxh_renombres()
+    res = {}
+    for r in filas:
+        est = _hxh_mid_nuevo(r['maquina_id'], ren).split('#')[0]
+        area = area_est.get(est) or ('termoformado' if re.search(r'^TERMO|TERMOFORMADO$', est) else 'conversion')
+        if area_f and area != area_f:
+            continue
+        meta, real = int(r.get('meta') or 0), int(r.get('real') or 0)
+        if not meta:
+            continue
+        k = est if por == 'estacion' else (r.get('numero_parte') or '(sin modelo)')
+        t = res.setdefault(k, {'nombre': k, 'area': area, 'meta': 0, 'real': 0, 'perdidas': 0, 'horas': 0, 'horas_meta': 0})
+        t['meta'] += meta
+        t['real'] += real
+        t['perdidas'] += max(0, meta - real)
+        t['horas'] += 1
+        t['horas_meta'] += 1 if real >= meta else 0
+    return jsonify({'items': sorted(res.values(), key=lambda x: -x['perdidas'])})
+
+
 @app.route('/api/hxh/excel', methods=['GET'])
 def hxh_excel():
     """Reporte de Hora por Hora en Excel con graficas: resumen por dia, por estacion,
