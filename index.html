@@ -5989,8 +5989,17 @@ function hxhMinutos(franja, op){
   var f = HXH_FRANJAS.find(function(x){ return x[0] === franja; });
   return franja === hxhComidaDe(op) ? 30 : (f ? f[1] : 60);
 }
+// Producto de una estacion; en las que ven todos los modelos (prensas y mesas), si no esta
+// configurado ahi, se usa el mismo modelo de su maquina de origen.
+function hxhProducto(est, desc){
+  var cat = _hxhCat ? _hxhCat.catalogo : [];
+  var c = cat.find(function(x){ return x.estacion === est && x.descripcion === desc; });
+  if (c && Number(c.meta_h)) return c;
+  if ((_hxhCat && _hxhCat.estaciones_todos_modelos || []).indexOf(est) === -1) return c || null;
+  return cat.find(function(x){ return x.descripcion === desc && Number(x.meta_h); }) || c || null;
+}
 function hxhMetaH(est, desc){
-  var c = (_hxhCat ? _hxhCat.catalogo : []).find(function(x){ return x.estacion === est && x.descripcion === desc; });
+  var c = hxhProducto(est, desc);
   return c ? Number(c.meta_h) || 0 : 0;
 }
 function hxhAbrir(){
@@ -6434,8 +6443,12 @@ function hxhCalcScrap(i, real){
 }
 // Catalogo de codigos NG segun el area de la estacion (Termoformado o Conversion)
 function hxhCosto(est, desc){
-  var c = ((_hxhCat && _hxhCat.catalogo) || []).find(function(x){ return x.estacion === est && x.descripcion === desc; });
-  return c ? Number(c.costo) || 0 : 0;
+  var cat = (_hxhCat && _hxhCat.catalogo) || [];
+  var c = cat.find(function(x){ return x.estacion === est && x.descripcion === desc; });
+  if (c && Number(c.costo)) return Number(c.costo);
+  if ((_hxhCat.estaciones_todos_modelos || []).indexOf(est) === -1) return 0;
+  var o = cat.find(function(x){ return x.descripcion === desc && Number(x.costo); });
+  return o ? Number(o.costo) : 0;
 }
 function hxhMetaScrap(){ var v = _hxhCat && _hxhCat.meta_scrap_pct; return v == null ? 3 : Number(v); }
 function hxhPesos(v){ return '$' + Number(v).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' MXN'; }
