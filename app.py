@@ -5516,14 +5516,28 @@ def hxh_guardar():
         'fecha': fecha, 'turno': turno, 'maquina_id': maquina, 'hora': hora,
         'maquina_nombre': _qr_limpio(d.get('maquina_nombre'), 80),
         'numero_parte': _qr_limpio(d.get('numero_parte'), 60),
-        'meta': _hxh_entero(d.get('meta')), 'real': _hxh_entero(d.get('real')),
-        'scrap': _hxh_entero(d.get('scrap')), 'paro_min': min(_hxh_entero(d.get('paro_min')), 60),
+        'paro_min': min(_hxh_entero(d.get('paro_min')), 60),
         'causa': _qr_limpio(d.get('causa'), 60), 'comentario': _qr_limpio(d.get('comentario'), 500),
         'operador_linea': _qr_limpio(d.get('operador_linea'), 80),
         'meta_h': round(max(0.0, min(float(d.get('meta_h') or 0), 1e7)), 2) if str(d.get('meta_h') or '0').replace('.', '', 1).isdigit() else 0,
         'operador_email': u['email'], 'operador_nombre': u['nombre'],
         'actualizado': datetime.datetime.utcnow().isoformat() + 'Z',
     }
+    # Produccion y scrap se capturan por separado: solo se escribe lo que viene,
+    # para que guardar uno no borre el otro (el upsert actualiza solo estas columnas).
+    if 'real' in d or 'meta' in d:
+        fila['meta'] = _hxh_entero(d.get('meta'))
+        fila['real'] = _hxh_entero(d.get('real'))
+    if isinstance(d.get('scrap_detalle'), dict):
+        detalle = {}
+        for cod, cant in d['scrap_detalle'].items():
+            cod, cant = _qr_limpio(cod, 10), _hxh_entero(cant)
+            if cod and cant:
+                detalle[cod] = cant
+        fila['scrap_detalle'] = detalle
+        fila['scrap'] = sum(detalle.values())
+    elif 'scrap' in d:
+        fila['scrap'] = _hxh_entero(d.get('scrap'))
     try:
         rows = sb.insert('produccion_hora', fila, upsert=True, on_conflict='fecha,turno,maquina_id,hora')
     except requests.HTTPError as e:

@@ -328,5 +328,27 @@
   "rendimiento": 0.95,
   "cumplimiento": 1,
   "calidad": 0.99
- }
+ },
+ "defectos": [
+  {
+   "codigo": "X1",
+   "nombre": "Ahumado"
+  },
+  {
+   "codigo": "X2",
+   "nombre": "Araña"
+  },
+  {
+   "codigo": "X3",
+   "nombre": "Último tramo de rollo"
+  },
+  {
+   "codigo": "X4",
+   "nombre": "Mal formado"
+  },
+  {
+   "codigo": "X5",
+   "nombre": "Radio"
+  }
+ ]
 }

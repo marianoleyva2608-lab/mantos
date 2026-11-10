@@ -5737,6 +5737,13 @@ function invBorrarArt(){
     .hxadd{margin-top:10px;background:#fff;border:2px dashed #bcccdc;color:#486581;border-radius:12px;padding:10px 16px;font-weight:700;cursor:pointer;width:100%}
     .hxadd:hover{border-color:#2f855a;color:#2f855a}
     .hxleg{font-size:12px;color:#62748a;display:flex;gap:12px;align-items:center}
+    .hx tr.hxs td{height:28px;padding:1px 4px 5px;border-bottom:1px solid #d9e2ec;background:#fffafa}
+    .hx tr.hxs td.est{background:#fffafa;font-weight:600;font-size:11px;color:#b71c1c;text-align:left;padding-left:14px}
+    .hxsc{width:50px;height:24px;border:1px dashed #f5a3a3;border-radius:7px;background:#fff;color:#c62828;font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:0}
+    .hxsc:hover{background:#ffe3e3}
+    .hxsc.v{background:#ffe3e3;border-style:solid}
+    .hxsc:disabled{border-color:transparent;color:#bcccdc;background:transparent;cursor:default}
+    .hx td.sd{font-size:11px;color:#b71c1c;text-align:left;white-space:normal}
     .hxleg i{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:4px;vertical-align:-1px}
   </style>
   <div style="padding:14px">
@@ -5749,6 +5756,22 @@ function invBorrarArt(){
     <div class="hxkpis" id="hxh-kpis"></div>
     <div class="hxwrap"><table class="hx" id="hxh-tabla"></table></div>
     <button class="hxadd" onclick="hxhAgregar()">&#10133; Agregar estación</button>
+  </div>
+</div>
+
+<!-- Modal: scrap de una hora por codigo de defecto -->
+<div id="hxh-scrap-modal" class="inv-modal">
+  <div>
+    <button class="inv-x" onclick="invCerrar('hxh-scrap-modal')">&times;</button>
+    <div style="font-size:16px;font-weight:700;margin-bottom:4px">Scrap</div>
+    <div id="hxh-scrap-tit" style="font-size:13px;color:#62748a;margin-bottom:12px"></div>
+    <div id="hxh-scrap-lista"></div>
+    <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:10px;padding-top:10px;border-top:1px solid #eee"><span>Piezas NG</span><span id="hxh-scrap-tot">0</span></div>
+    <div id="hxh-scrap-err" style="color:#C62828;font-size:13px;margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="inv-btn" style="background:#888;flex:1" onclick="invCerrar('hxh-scrap-modal')">Cancelar</button>
+      <button id="hxh-scrap-guardar" class="inv-btn" style="background:#2E7D32;flex:1" onclick="hxhScrapGuardar()">Guardar</button>
+    </div>
   </div>
 </div>
 
@@ -5844,6 +5867,7 @@ function hxhAbrir(){
       if (!document.getElementById('page-hxh').classList.contains('active')) return;
       var a = document.activeElement;
       if (a && a.closest && a.closest('#hxh-tabla')) return;   // no recargar mientras alguien escribe
+      if (document.getElementById('hxh-scrap-modal').style.display === 'flex') return;
       hxhCargar();
     }, 60000);
   }).catch(function(e){ document.getElementById('hxh-tabla').innerHTML = '<tr><td style="color:#c62828;padding:20px">' + escHtml(e.message || 'Error al cargar el catálogo') + '</td></tr>'; });
@@ -5857,15 +5881,18 @@ function hxhCargar(){
       if (!Array.isArray(d)) throw new Error(d.error || 'Error');
       var porEst = {}, orden = [];
       d.forEach(function(r){
-        if (!porEst[r.maquina_id]) { porEst[r.maquina_id] = {est: r.maquina_id, desc: '', op: '', coment: '', reales: {}, t: ''}; orden.push(r.maquina_id); }
+        if (!porEst[r.maquina_id]) { porEst[r.maquina_id] = {est: r.maquina_id, desc: '', op: '', coment: '', reales: {}, scrap: {}, t: ''}; orden.push(r.maquina_id); }
         var f = porEst[r.maquina_id];
         if (String(r.actualizado) >= f.t) { f.t = String(r.actualizado); if (r.numero_parte) f.desc = r.numero_parte; if (r.operador_linea) f.op = r.operador_linea; }
         if (r.hora === 'fila') { f.coment = r.comentario || ''; f.desc = r.numero_parte || f.desc; f.op = r.operador_linea || f.op; }
-        else f.reales[r.hora] = r.real;
+        else {
+          f.reales[r.hora] = r.real;
+          if (r.scrap) f.scrap[r.hora] = {total: r.scrap, det: r.scrap_detalle || {}};
+        }
       });
       // Primero las estaciones del Excel, despues las demas que ya tengan datos, y renglones vacios hasta 30
       var filas = [];
-      HXH_EST_INICIALES.forEach(function(e){ filas.push(porEst[e] || {est: e, desc: '', op: '', coment: '', reales: {}}); });
+      HXH_EST_INICIALES.forEach(function(e){ filas.push(porEst[e] || {est: e, desc: '', op: '', coment: '', reales: {}, scrap: {}}); });
       orden.forEach(function(e){ if (HXH_EST_INICIALES.indexOf(e) === -1) filas.push(porEst[e]); });
       _hxhFilas = filas;
       hxhPintar();
@@ -5899,6 +5926,10 @@ function hxhPintar(){
       '<td class="calc" id="hxh-mt' + i + '"></td><td class="calc" id="hxh-re' + i + '"></td><td class="calc" id="hxh-pc' + i + '"></td><td class="calc" style="font-weight:700" id="hxh-di' + i + '"></td>' +
       '<td><input placeholder="Causa / acción" value="' + escHtml(f.coment) + '"' + (f.est ? '' : ' disabled') + ' onchange="hxhCambio(' + i + ',\'coment\',this.value)"></td>' +
     '</tr>';
+    // Renglon de scrap: piezas NG de cada hora, desglosadas por codigo de defecto
+    if (f.est) h += '<tr class="hxs"><td class="est">&#8627; Scrap</td><td colspan="3"></td>' +
+      HXH_FRANJAS.map(function(fr, k){ return '<td><button class="hxsc" id="hxh-s' + i + '_' + k + '" onclick="hxhScrapAbrir(' + i + ',' + k + ')"></button></td>'; }).join('') +
+      '<td></td><td class="calc" style="color:#c62828" id="hxh-st' + i + '"></td><td class="calc" style="color:#c62828" id="hxh-sp' + i + '"></td><td></td><td class="sd" id="hxh-sd' + i + '"></td></tr>';
   });
   document.getElementById('hxh-tabla').innerHTML = h;
   _hxhFilas.forEach(function(f, i){ hxhCalcFila(i); });
@@ -5923,15 +5954,79 @@ function hxhCalcFila(i){
   var di = document.getElementById('hxh-di' + i), dif = (n && metaT !== '') ? real - metaT : '';
   di.textContent = dif === '' ? '' : (dif < 0 ? '(' + hxhNum(-dif) + ')' : hxhNum(dif));
   di.className = 'calc' + (dif === '' ? '' : (dif < 0 ? ' neg' : ' pos'));
+  hxhCalcScrap(i, real);
   hxhKpis();
 }
+function hxhCalcScrap(i, real){
+  var f = _hxhFilas[i];
+  if (!f.est || !document.getElementById('hxh-st' + i)) return;
+  var tot = 0, porCod = {};
+  HXH_FRANJAS.forEach(function(fr, k){
+    var b = document.getElementById('hxh-s' + i + '_' + k), s = f.scrap[fr[0]], hay = f.reales[fr[0]] != null && f.reales[fr[0]] !== '';
+    b.disabled = !hay;
+    b.title = hay ? 'Capturar scrap ' + fr[0] : 'Primero captura la producción de ' + fr[0];
+    b.textContent = s && s.total ? s.total : (hay ? '+' : '');
+    b.className = 'hxsc' + (s && s.total ? ' v' : '');
+    if (!s) return;
+    tot += s.total;
+    Object.keys(s.det).forEach(function(c){ porCod[c] = (porCod[c] || 0) + Number(s.det[c]); });
+  });
+  document.getElementById('hxh-st' + i).textContent = tot ? hxhNum(tot) : '';
+  document.getElementById('hxh-sp' + i).textContent = tot ? (100 * tot / ((real || 0) + tot)).toFixed(1) + '% NG' : '';
+  var cods = Object.keys(porCod).sort(function(a, b){ return porCod[b] - porCod[a]; }), sd = document.getElementById('hxh-sd' + i);
+  sd.textContent = cods.map(function(c){ return c + ': ' + porCod[c]; }).join(' · ');
+  sd.title = cods.map(function(c){ return c + ' ' + hxhDefNombre(c) + ': ' + porCod[c]; }).join('\n');
+}
+function hxhDefNombre(cod){
+  var d = ((_hxhCat && _hxhCat.defectos) || []).find(function(x){ return x.codigo === cod; });
+  return d ? d.nombre : '';
+}
+var _hxhScrap = null;   // {i, k} de la celda que se esta capturando
+function hxhScrapAbrir(i, k){
+  var f = _hxhFilas[i], fr = HXH_FRANJAS[k], s = f.scrap[fr[0]] || {det: {}};
+  _hxhScrap = {i: i, k: k};
+  document.getElementById('hxh-scrap-tit').textContent = f.est + ' · ' + fr[0] + ' · Producción: ' + hxhNum(f.reales[fr[0]]);
+  document.getElementById('hxh-scrap-err').textContent = '';
+  document.getElementById('hxh-scrap-lista').innerHTML = ((_hxhCat && _hxhCat.defectos) || []).map(function(d){
+    var v = s.det[d.codigo];
+    return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="flex:1;font-size:14px"><b>' + escHtml(d.codigo) + '</b> - ' + escHtml(d.nombre) + '</span>' +
+      '<input class="inv-in hxh-def" data-cod="' + escHtml(d.codigo) + '" type="number" min="0" inputmode="numeric" value="' + (v ? v : '') + '" oninput="hxhScrapSuma()" style="width:80px;text-align:center;margin:0"></div>';
+  }).join('');
+  hxhScrapSuma();
+  invAbrirModal('hxh-scrap-modal');
+  var primero = document.querySelector('#hxh-scrap-lista input'); if (primero) primero.focus();
+}
+function hxhScrapSuma(){
+  var t = 0;
+  document.querySelectorAll('#hxh-scrap-lista .hxh-def').forEach(function(inp){ t += Math.max(0, parseInt(inp.value, 10) || 0); });
+  document.getElementById('hxh-scrap-tot').textContent = hxhNum(t) || '0';
+  return t;
+}
+function hxhScrapGuardar(){
+  var c = _hxhScrap, f = _hxhFilas[c.i], fr = HXH_FRANJAS[c.k], det = {}, btn = document.getElementById('hxh-scrap-guardar');
+  document.querySelectorAll('#hxh-scrap-lista .hxh-def').forEach(function(inp){
+    var n = Math.max(0, parseInt(inp.value, 10) || 0);
+    if (n) det[inp.getAttribute('data-cod')] = n;
+  });
+  var tot = hxhScrapSuma();
+  btn.disabled = true;
+  hxhPost({maquina_id: f.est, maquina_nombre: f.est, hora: fr[0], numero_parte: f.desc, operador_linea: f.op, scrap_detalle: det})
+    .then(function(){
+      if (tot) f.scrap[fr[0]] = {total: tot, det: det}; else delete f.scrap[fr[0]];
+      invCerrar('hxh-scrap-modal');
+      hxhCalcFila(c.i);
+    })
+    .catch(function(e){ document.getElementById('hxh-scrap-err').textContent = e.message || 'Error de conexión'; })
+    .then(function(){ btn.disabled = false; });
+}
 function hxhKpis(){
-  var meta = 0, real = 0, activas = 0, ok = 0, tot = 0;
+  var meta = 0, real = 0, activas = 0, ok = 0, tot = 0, scrap = 0;
   _hxhFilas.forEach(function(f){
     var metaH = (f.est && f.desc) ? hxhMetaH(f.est, f.desc) : 0, op = !!hxhComidaDe(f.op);
     var ks = Object.keys(f.reales);
     if (!ks.length) return;
     activas++;
+    Object.keys(f.scrap || {}).forEach(function(h){ scrap += f.scrap[h].total || 0; });
     ks.forEach(function(h){ real += Number(f.reales[h]) || 0; if (metaH && op) { tot++; if (f.reales[h] >= Math.round(metaH * hxhMinutos(h, f.op) / 60)) ok++; } });
     if (metaH && op) meta += Math.round(metaH * ((_hxhCat.minutos_turno || 510) / 60));
   });
@@ -5940,10 +6035,12 @@ function hxhKpis(){
   document.getElementById('hxh-kpis').innerHTML =
     k('Meta planta', hxhNum(meta) || '—', '#486581') + k('Real', hxhNum(real) || '0', '#1565C0') +
     k('% Cumplimiento', pc === null ? '—' : pc + '%', pc === null ? '#bcccdc' : (pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828'))) +
-    k('Horas en meta', tot ? ok + ' / ' + tot : '—', '#2f855a') + k('Estaciones activas', activas, '#6A1B9A');
+    k('Horas en meta', tot ? ok + ' / ' + tot : '—', '#2f855a') +
+    k('Scrap (piezas NG)', hxhNum(scrap) || '0', '#c62828') + k('% Scrap', scrap ? (100 * scrap / (real + scrap)).toFixed(1) + '%' : '—', '#c62828') +
+    k('Estaciones activas', activas, '#6A1B9A');
 }
 function hxhAgregar(){
-  _hxhFilas.push({est: '', desc: '', op: '', coment: '', reales: {}});
+  _hxhFilas.push({est: '', desc: '', op: '', coment: '', reales: {}, scrap: {}});
   hxhPintar();
   var sels = document.querySelectorAll('#hxh-tabla td.est select');
   if (sels.length) { sels[sels.length - 1].focus(); sels[sels.length - 1].scrollIntoView({block: 'nearest'}); }
