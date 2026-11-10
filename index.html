@@ -5976,7 +5976,7 @@ var _qrActual = null;   // {contenido, datos} del QR recien leido
 // Franjas del turno y minutos productivos de cada una; la franja de comida
 // del operador (11-12 o 12-1) cuenta 30 min. Cada celda se guarda al salir de ella.
 var HXH_FRANJAS = [['8-9',50],['9-10',60],['10-11',60],['11-12',60],['12-1',60],['1-2',60],['2-3',60],['3-4',60],['4-5',60],['5-5:30',20]];
-var HXH_FILAS = 30, HXH_EST_INICIALES = ['TERMO 7','TERMO 2','TERMO 3','TERMO 5','TERMO 6','MESA 1','MESA 2','MESA 3'];
+var HXH_FILAS = 30, HXH_EST_INICIALES = ['TERMO 2','TERMO 3','TERMO 5','TERMO 6','TERMO 7','MESA 1','MESA 2','MESA 3'];
 var _hxhCat = null, _hxhFilas = [], _hxhTimer = null, _hxhReloj = null;
 function hxhNum(n, d){ return (n == null || n === '' || isNaN(n)) ? '' : Number(n).toLocaleString('es-MX', {maximumFractionDigits: d || 0}); }
 function hxhComidaDe(op){
@@ -6211,6 +6211,10 @@ function hxhCargar(){
       HXH_EST_INICIALES.forEach(function(e){ base.push(porEst[e] || hxhFilaNueva(e, 1)); });
       orden.forEach(function(id){ var f = porEst[id]; if (f.slot === 1 && HXH_EST_INICIALES.indexOf(f.est) === -1) base.push(f); });
       orden.forEach(function(id){ var f = porEst[id]; if (f.slot > 1 && !base.some(function(b){ return b.est === f.est; })) base.push(hxhFilaNueva(f.est, 1)); });
+      // Primero Termoformado (termos y sus mesas), luego Conversion, en el orden del catalogo
+      var pos = function(e){ var k = _hxhCat.estaciones.indexOf(e); return k === -1 ? 999 : k; };
+      var areaN = function(e){ return ((_hxhCat.area_estacion || {})[e] || (/^TERMO/.test(e) ? 'termoformado' : 'conversion')) === 'termoformado' ? 0 : 1; };
+      base.sort(function(a, b){ return areaN(a.est) - areaN(b.est) || pos(a.est) - pos(b.est); });
       var filas = [];
       base.forEach(function(b){
         filas.push(b);
