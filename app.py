@@ -5934,6 +5934,15 @@ def hxh_excel():
     guardadas = _hxh_metas_guardadas()
     _hxh_aplicar_productos(cat, guardadas)
     costo = {(c['estacion'], c['descripcion']): float(c.get('costo') or 0) for c in cat['catalogo']}
+    # Prensas y mesas: si el modelo no tiene costo ahi, el de su maquina de origen
+    costo_modelo = {}
+    for c in cat['catalogo']:
+        if float(c.get('costo') or 0) and c['descripcion'] not in costo_modelo:
+            costo_modelo[c['descripcion']] = float(c['costo'])
+    for est in cat.get('estaciones_todos_modelos') or []:
+        for desc, v in costo_modelo.items():
+            if not costo.get((est, desc)):
+                costo[(est, desc)] = v
     meta_scrap = float(guardadas.get('meta_scrap_pct', cat.get('meta_scrap_pct', 3)))
     defectos = {}
     for area, lista in (cat.get('defectos') or {}).items() if isinstance(cat.get('defectos'), dict) else []:
