@@ -5789,7 +5789,7 @@ function invBorrarArt(){
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;margin-top:8px;background:#f5f7fa;border-radius:10px;padding:8px">
       <div style="flex:0 0 150px"><span class="inv-lbl">Estación</span><select id="hxh-cfg-nest" class="inv-in" style="margin:0"></select></div>
-      <div style="flex:1;min-width:160px"><span class="inv-lbl">Descripción</span><input id="hxh-cfg-ndesc" class="inv-in" maxlength="120" placeholder="L21CDSTAPE6" style="margin:0"></div>
+      <div style="flex:1;min-width:160px"><span class="inv-lbl">Descripción</span><input id="hxh-cfg-ndesc" class="inv-in" maxlength="120" list="hxh-cfg-dlist" autocomplete="off" placeholder="Elige un modelo o escribe uno nuevo" style="margin:0" oninput="hxhCfgSugerir()"><datalist id="hxh-cfg-dlist"></datalist></div>
       <div style="flex:0 0 100px"><span class="inv-lbl">Meta/h</span><input id="hxh-cfg-nmeta" class="inv-in" type="number" min="0" step="0.01" style="margin:0"></div>
       <div style="flex:0 0 100px"><span class="inv-lbl">Costo/pza (MXN)</span><input id="hxh-cfg-ncosto" class="inv-in" type="number" min="0" step="0.01" placeholder="$0.00" style="margin:0"></div>
       <button class="inv-btn" style="background:#1565C0;flex:0 0 auto;height:38px" onclick="hxhCfgAgregar()">&#10133; Agregar</button>
@@ -6032,6 +6032,7 @@ function hxhCfgAbrir(){
   document.getElementById('hxh-cfg-est').innerHTML = '<option value="">Todas</option>' + _hxhCat.estaciones.map(function(e){ return '<option>' + escHtml(e) + '</option>'; }).join('');
   document.getElementById('hxh-cfg-nest').innerHTML = _hxhCat.estaciones.map(function(e){ return '<option>' + escHtml(e) + '</option>'; }).join('');
   document.getElementById('hxh-cfg-err').textContent = '';
+  hxhCfgModelos();
   hxhCfgPintar();
   invAbrirModal('hxh-cfg-modal');
 }
@@ -6059,6 +6060,26 @@ function hxhCfgCambio(n, inp){
   document.getElementById('hxh-cfg-ci' + n).textContent = m ? (3600 / m).toFixed(2) : '';
   document.getElementById('hxh-cfg-mt' + n).textContent = m ? hxhNum(m * min / 60, 1) : '';
 }
+// Lista de modelos existentes (de todas las estaciones) para el campo Descripcion
+function hxhCfgModelos(){
+  var vistos = {}, ops = [];
+  _hxhCfgLista.forEach(function(c){
+    if (vistos[c.descripcion]) { vistos[c.descripcion].push(c.estacion); return; }
+    vistos[c.descripcion] = [c.estacion];
+  });
+  Object.keys(vistos).sort().forEach(function(d){ ops.push('<option value="' + escHtml(d) + '">' + escHtml(vistos[d].join(', ')) + '</option>'); });
+  document.getElementById('hxh-cfg-dlist').innerHTML = ops.join('');
+}
+// Si el modelo ya existe en otra estacion, propone su Meta/h y su costo
+function hxhCfgSugerir(){
+  var d = document.getElementById('hxh-cfg-ndesc').value.trim();
+  var c = _hxhCfgLista.find(function(x){ return x.descripcion === d; });
+  if (!c) return;
+  var clave = hxhCfgClave(c), mi = document.getElementById('hxh-cfg-nmeta'), ci = document.getElementById('hxh-cfg-ncosto');
+  var m = clave in _hxhCfgCambios ? _hxhCfgCambios[clave] : c.meta_h, k = clave in _hxhCfgCostos ? _hxhCfgCostos[clave] : c.costo;
+  if (mi.value === '' && Number(m)) mi.value = Math.round(m * 100) / 100;
+  if (ci.value === '' && Number(k)) ci.value = k;
+}
 function hxhCfgCosto(n, inp){
   _hxhCfgCostos[hxhCfgClave(_hxhCfgLista[n])] = inp.value;
   inp.style.background = '#fff8e1';
@@ -6078,6 +6099,7 @@ function hxhCfgAgregar(){
   document.getElementById('hxh-cfg-ncosto').value = '';
   document.getElementById('hxh-cfg-ndesc').value = ''; document.getElementById('hxh-cfg-nmeta').value = '';
   document.getElementById('hxh-cfg-est').value = c.estacion;
+  hxhCfgModelos();
   hxhCfgPintar();
 }
 function hxhCfgQuitar(n){
