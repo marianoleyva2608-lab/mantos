@@ -533,5 +533,47 @@
   "INSPECCION 1": "MESA 1 CONVERSIÓN",
   "INSPECCION 2": "MESA 2 CONVERSIÓN",
   "INSPECCION 3": "MESA 3 CONVERSIÓN"
- }
+ },
+ "paros": [
+  {
+   "codigo": "1",
+   "nombre": "Baño"
+  },
+  {
+   "codigo": "2",
+   "nombre": "Comedor"
+  },
+  {
+   "codigo": "3",
+   "nombre": "Falla de máquina"
+  },
+  {
+   "codigo": "4",
+   "nombre": "Sin luz"
+  },
+  {
+   "codigo": "5",
+   "nombre": "Falla de molde"
+  },
+  {
+   "codigo": "6",
+   "nombre": "Falla de suaje"
+  },
+  {
+   "codigo": "7",
+   "nombre": "Falla herramental"
+  },
+  {
+   "codigo": "8",
+   "nombre": "Cambio de molde"
+  },
+  {
+   "codigo": "9",
+   "nombre": "Cambio de mica"
+  },
+  {
+   "codigo": "10",
+   "nombre": "Limpieza de mica"
+  }
+ ]
 }

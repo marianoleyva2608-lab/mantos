@@ -5867,10 +5867,8 @@ def hxh_guardar():
         'fecha': fecha, 'turno': turno, 'maquina_id': maquina, 'hora': hora,
         'maquina_nombre': _qr_limpio(d.get('maquina_nombre'), 80),
         'numero_parte': _qr_limpio(d.get('numero_parte'), 60),
-        'paro_min': min(_hxh_entero(d.get('paro_min')), 60),
-        'causa': _qr_limpio(d.get('causa'), 200), 'comentario': _qr_limpio(d.get('comentario'), 500),
+        'comentario': _qr_limpio(d.get('comentario'), 500),
         'operador_linea': _qr_limpio(d.get('operador_linea'), 80),
-        'meta_h': round(max(0.0, min(float(d.get('meta_h') or 0), 1e7)), 2) if str(d.get('meta_h') or '0').replace('.', '', 1).isdigit() else 0,
         'operador_email': u['email'], 'operador_nombre': u['nombre'],
         'actualizado': datetime.datetime.utcnow().isoformat() + 'Z',
     }
@@ -5889,6 +5887,24 @@ def hxh_guardar():
         fila['scrap'] = sum(detalle.values())
     elif 'scrap' in d:
         fila['scrap'] = _hxh_entero(d.get('scrap'))
+    # Paros por hora: {codigo: minutos}; se guardan en causa (JSON) y la suma en paro_min
+    if isinstance(d.get('paro_detalle'), dict):
+        detalle = {}
+        for cod, mins in d['paro_detalle'].items():
+            cod, mins = _qr_limpio(cod, 10), min(_hxh_entero(mins), 60)
+            if cod and mins:
+                detalle[cod] = mins
+        fila['paro_min'] = min(sum(detalle.values()), 60)
+        fila['causa'] = json.dumps(detalle) if detalle else ''
+    else:
+        if 'paro_min' in d:
+            fila['paro_min'] = min(_hxh_entero(d.get('paro_min')), 60)
+        if 'causa' in d:
+            fila['causa'] = _qr_limpio(d.get('causa'), 200)
+    if 'comentario' not in d:
+        fila.pop('comentario')
+    if 'meta_h' in d:
+        fila['meta_h'] = round(max(0.0, min(float(d.get('meta_h') or 0), 1e7)), 2) if str(d.get('meta_h') or '0').replace('.', '', 1).isdigit() else 0
     try:
         rows = sb.insert('produccion_hora', fila, upsert=True, on_conflict='fecha,turno,maquina_id,hora')
     except requests.HTTPError as e:
@@ -5974,7 +5990,7 @@ def hxh_pareto_produccion():
     if (datetime.date.fromisoformat(hasta) - datetime.date.fromisoformat(desde)).days > 366:
         return jsonify({'error': 'El rango máximo es de un año'}), 400
     filtros = {'and': '(fecha.gte.' + desde + ',fecha.lte.' + hasta + ')', 'hora': 'neq.fila',
-               'select': 'maquina_id,numero_parte,meta,real', 'order': 'fecha.asc'}
+               'select': 'maquina_id,numero_parte,meta,real,scrap,paro_min,meta_h', 'order': 'fecha.asc'}
     turno = _qr_limpio(request.args.get('turno'), 5)
     if turno:
         filtros['turno'] = 'eq.' + turno
@@ -6006,9 +6022,18 @@ def hxh_pareto_produccion():
         if not meta:
             continue
         k = est if por == 'estacion' else (r.get('numero_parte') or '(sin modelo)')
-        t = res.setdefault(k, {'nombre': k, 'area': area, 'meta': 0, 'real': 0, 'perdidas': 0, 'horas': 0, 'horas_meta': 0})
+        t = res.setdefault(k, {'nombre': k, 'area': area, 'meta': 0, 'real': 0, 'perdidas': 0, 'horas': 0, 'horas_meta': 0,
+                               'scrap': 0, 'min_plan': 0.0, 'min_paro': 0.0, 'ideal_op': 0.0})
         t['meta'] += meta
         t['real'] += real
+        # OEE: minutos planeados de la hora = meta / (Meta/h) x 60
+        mh = float(r.get('meta_h') or 0)
+        mins = meta / mh * 60 if mh else 0
+        paro = min(float(r.get('paro_min') or 0), mins)
+        t['scrap'] += int(r.get('scrap') or 0)
+        t['min_plan'] += mins
+        t['min_paro'] += paro
+        t['ideal_op'] += mh * (mins - paro) / 60
         t['perdidas'] += max(0, meta - real)
         t['horas'] += 1
         t['horas_meta'] += 1 if real >= meta else 0
