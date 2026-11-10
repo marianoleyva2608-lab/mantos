@@ -6222,6 +6222,18 @@ function hxhCargar(){
     })
     .catch(function(e){ document.getElementById('hxh-tabla').innerHTML = '<tr><td style="color:#c62828;padding:20px">' + escHtml(e.message || 'Error de conexión') + '</td></tr>'; });
 }
+// Modelos de una estacion. Las de 'estaciones_todos_modelos' (prensas) ven todos los del catalogo.
+function hxhDescripciones(est){
+  var todos = (_hxhCat.estaciones_todos_modelos || []).indexOf(est) !== -1, vistos = {}, lista = [];
+  _hxhCat.catalogo.forEach(function(c){
+    if ((todos || c.estacion === est) && !vistos[c.descripcion]) { vistos[c.descripcion] = 1; lista.push(c.descripcion); }
+  });
+  if (todos) {
+    var propios = _hxhCat.catalogo.filter(function(c){ return c.estacion === est; }).map(function(c){ return c.descripcion; });
+    lista.sort(function(a, b){ return (propios.indexOf(b) !== -1) - (propios.indexOf(a) !== -1) || a.localeCompare(b); });
+  }
+  return lista;
+}
 function hxhFilaNueva(est, slot){ return {est: est, slot: slot || 1, desc: '', op: '', coment: '', reales: {}, scrap: {}, ini: '', fin: ''}; }
 // Horario de cada franja en minutos del dia ('8-9' -> 480..540, '1-2' -> 780..840)
 function hxhReloj(fr){
@@ -6330,7 +6342,7 @@ function hxhPintar(){
     var ultimoModelo = hxhHermanos(f).slice(-1)[0] === f;
     var estLibres = _hxhCat.estaciones.filter(function(e){ return e === f.est || usadas.indexOf(e) === -1; });
     var tieneDatos = Object.keys(f.reales).length > 0;
-    var descs = _hxhCat.catalogo.filter(function(c){ return c.estacion === f.est; }).map(function(c){ return c.descripcion; });
+    var descs = hxhDescripciones(f.est);
     if (f.desc && descs.indexOf(f.desc) === -1) descs.unshift(f.desc);
     h += '<tr id="hxh-f' + i + '">' +
       (f.slot > 1
