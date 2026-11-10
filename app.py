@@ -5853,6 +5853,263 @@ def hxh_guardar():
     return jsonify({'ok': True, 'registro': rows[0] if rows else None})
 
 
+@app.route('/api/hxh/excel', methods=['GET'])
+def hxh_excel():
+    """Reporte de Hora por Hora en Excel con graficas: resumen por dia, por estacion,
+    detalle por hora y scrap por codigo (Pareto)."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.chart import BarChart, LineChart, Reference
+    from openpyxl.utils import get_column_letter
+    email = request.headers.get('X-Usuario-Email')
+    if not _hxh_usuario(email):
+        return jsonify({'error': 'No tienes acceso a Hora por Hora'}), 403
+    desde, hasta = request.args.get('desde') or '', request.args.get('hasta') or ''
+    if not (re.match(r'^\d{4}-\d{2}-\d{2}$', desde) and re.match(r'^\d{4}-\d{2}-\d{2}$', hasta)) or desde > hasta:
+        return jsonify({'error': 'Rango de fechas inválido'}), 400
+    if (datetime.date.fromisoformat(hasta) - datetime.date.fromisoformat(desde)).days > 92:
+        return jsonify({'error': 'El rango máximo es de 3 meses'}), 400
+    turno = _qr_limpio(request.args.get('turno'), 5)
+    filtros = {'and': '(fecha.gte.' + desde + ',fecha.lte.' + hasta + ')', 'order': 'fecha.asc,turno.asc,maquina_id.asc,hora.asc'}
+    if turno:
+        filtros['turno'] = 'eq.' + turno
+    filas, offset = [], 0
+    try:
+        while True:
+            lote = sb.select('produccion_hora', limit=1000, offset=offset, **filtros)
+            filas += lote
+            if len(lote) < 1000:
+                break
+            offset += 1000
+    except requests.HTTPError as e:
+        detalle = e.response.text[:300] if e.response is not None else str(e)
+        return jsonify({'error': 'No se pudieron leer los datos: ' + detalle}), 500
+
+    cat = _hxh_catalogo_base()
+    guardadas = _hxh_metas_guardadas()
+    _hxh_aplicar_productos(cat, guardadas)
+    costo = {(c['estacion'], c['descripcion']): float(c.get('costo') or 0) for c in cat['catalogo']}
+    meta_scrap = float(guardadas.get('meta_scrap_pct', cat.get('meta_scrap_pct', 3)))
+    defectos = {}
+    for area, lista in (cat.get('defectos') or {}).items() if isinstance(cat.get('defectos'), dict) else []:
+        for d in lista:
+            defectos[(area, d['codigo'])] = d['nombre']
+    area_est = cat.get('area_estacion') or {}
+    franjas = ['8-9', '9-10', '10-11', '11-12', '12-1', '1-2', '2-3', '3-4', '4-5', '5-5:30']
+
+    # Agrupar: renglon = fecha + turno + maquina_id (con modelo)
+    grupos = {}
+    for r in filas:
+        k = (r['fecha'], r['turno'], r['maquina_id'])
+        g = grupos.setdefault(k, {'desc': '', 'op': '', 'coment': '', 'meta_h': 0, 'horas': {}, 'scrap': {}, 'det': {}})
+        if r['hora'] == 'fila':
+            g['coment'] = r.get('comentario') or ''
+            g['desc'] = r.get('numero_parte') or g['desc']
+            g['op'] = r.get('operador_linea') or g['op']
+            g['meta_h'] = r.get('meta_h') or g['meta_h']
+            continue
+        g['desc'] = g['desc'] or r.get('numero_parte') or ''
+        g['op'] = g['op'] or r.get('operador_linea') or ''
+        g['meta_h'] = g['meta_h'] or r.get('meta_h') or 0
+        g['horas'][r['hora']] = (int(r.get('real') or 0), int(r.get('meta') or 0))
+        if r.get('scrap'):
+            g['scrap'][r['hora']] = int(r['scrap'])
+            g['det'][r['hora']] = r.get('scrap_detalle') or {}
+
+    VERDE, AZUL = '1F5C2E', '102A43'
+    blanco = Font(bold=True, color='FFFFFF')
+    borde = Border(bottom=Side(style='thin', color='D9E2EC'))
+    wb = openpyxl.Workbook()
+
+    def hoja(ws, titulo, heads, anchos):
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(heads))
+        c = ws.cell(row=1, column=1, value=titulo)
+        c.font = Font(bold=True, size=14, color='FFFFFF')
+        c.fill = PatternFill('solid', fgColor=VERDE)
+        c.alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[1].height = 24
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(heads))
+        ws.cell(row=2, column=1, value='Del ' + desde + ' al ' + hasta + ('' if not turno else ' · Turno ' + turno)).font = Font(italic=True, color='5B6560')
+        for i, h in enumerate(heads, 1):
+            c = ws.cell(row=4, column=i, value=h)
+            c.font = blanco
+            c.fill = PatternFill('solid', fgColor=AZUL)
+            c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        for i, w in enumerate(anchos, 1):
+            ws.column_dimensions[get_column_letter(i)].width = w
+        ws.freeze_panes = 'A5'
+
+    def pct(ws, row, col, valor, meta=None, menor_mejor=False):
+        c = ws.cell(row=row, column=col, value=valor)
+        c.number_format = '0.0%'
+        if valor is not None and meta is not None:
+            bien = valor <= meta if menor_mejor else valor >= meta
+            c.font = Font(bold=True, color='2E7D32' if bien else 'C62828')
+        return c
+
+    # ---- Totales por renglon
+    tot_dia, tot_est, tot_cod = {}, {}, {}
+    detalle = []
+    for (fecha, tno, mid), g in sorted(grupos.items()):
+        est = mid.split('#')[0]
+        modelo = int(mid.split('#')[1]) if '#' in mid else 1
+        real = sum(v[0] for v in g['horas'].values())
+        meta = sum(v[1] for v in g['horas'].values())
+        scrap = sum(g['scrap'].values())
+        cst = scrap * costo.get((est, g['desc']), 0)
+        if not g['horas'] and not scrap:
+            continue
+        detalle.append((fecha, tno, est, modelo, g, real, meta, scrap, cst))
+        for k, dic in ((fecha, tot_dia), (est, tot_est)):
+            t = dic.setdefault(k, [0, 0, 0, 0.0])
+            t[0] += meta; t[1] += real; t[2] += scrap; t[3] += cst
+        area = area_est.get(est) or ('termoformado' if re.match(r'^(TERMO|PRENSA|MESA|INSPECCION)', est) else 'conversion')
+        for det in g['det'].values():
+            for cod, n in det.items():
+                nombre = defectos.get((area, cod), '')
+                t = tot_cod.setdefault((area, cod), [nombre, 0, 0.0])
+                t[1] += int(n); t[2] += int(n) * costo.get((est, g['desc']), 0)
+
+    # ---- Hoja Resumen por dia
+    ws = wb.active
+    ws.title = 'Resumen'
+    hoja(ws, 'Hora por Hora · Resumen por día', ['Fecha', 'Meta', 'Real', '% Cumpl.', 'Scrap (pzas NG)', '% Scrap', 'Meta scrap', 'Costo scrap (MXN)'],
+         [12, 12, 12, 11, 14, 10, 11, 18])
+    fila = 5
+    for fecha in sorted(tot_dia):
+        m, r, sc, cs = tot_dia[fecha]
+        ws.cell(row=fila, column=1, value=fecha)
+        ws.cell(row=fila, column=2, value=m).number_format = '#,##0'
+        ws.cell(row=fila, column=3, value=r).number_format = '#,##0'
+        pct(ws, fila, 4, (r / m) if m else None, 1)
+        ws.cell(row=fila, column=5, value=sc).number_format = '#,##0'
+        pct(ws, fila, 6, (sc / (r + sc)) if (r + sc) else 0, meta_scrap / 100, True)
+        pct(ws, fila, 7, meta_scrap / 100)
+        ws.cell(row=fila, column=8, value=round(cs, 2)).number_format = '"$"#,##0.00'
+        for c in range(1, 9):
+            ws.cell(row=fila, column=c).border = borde
+        fila += 1
+    ultima = fila - 1
+    if ultima >= 5:
+        T = [sum(tot_dia[f][i] for f in tot_dia) for i in range(4)]
+        ws.cell(row=fila, column=1, value='TOTAL').font = Font(bold=True)
+        ws.cell(row=fila, column=2, value=T[0]).number_format = '#,##0'
+        ws.cell(row=fila, column=3, value=T[1]).number_format = '#,##0'
+        pct(ws, fila, 4, (T[1] / T[0]) if T[0] else None, 1)
+        ws.cell(row=fila, column=5, value=T[2]).number_format = '#,##0'
+        pct(ws, fila, 6, (T[2] / (T[1] + T[2])) if (T[1] + T[2]) else 0, meta_scrap / 100, True)
+        pct(ws, fila, 7, meta_scrap / 100)
+        ws.cell(row=fila, column=8, value=round(T[3], 2)).number_format = '"$"#,##0.00'
+        for c in range(1, 9):
+            ws.cell(row=fila, column=c).font = Font(bold=True)
+        ch = BarChart(); ch.type = 'col'; ch.title = 'Meta vs Real por día'; ch.y_axis.title = 'Piezas'
+        ch.add_data(Reference(ws, min_col=2, max_col=3, min_row=4, max_row=ultima), titles_from_data=True)
+        ch.set_categories(Reference(ws, min_col=1, min_row=5, max_row=ultima))
+        ch.height, ch.width = 8, 18
+        ws.add_chart(ch, 'J4')
+        lc = LineChart(); lc.title = '% Scrap vs meta'; lc.y_axis.number_format = '0%'
+        lc.add_data(Reference(ws, min_col=6, max_col=7, min_row=4, max_row=ultima), titles_from_data=True)
+        lc.set_categories(Reference(ws, min_col=1, min_row=5, max_row=ultima))
+        for serie in lc.series:
+            serie.smooth = False
+        lc.height, lc.width = 8, 18
+        ws.add_chart(lc, 'J21')
+    else:
+        ws.cell(row=5, column=1, value='Sin datos en este rango')
+
+    # ---- Hoja por estacion
+    ws = wb.create_sheet('Por estación')
+    hoja(ws, 'Hora por Hora · Por estación', ['Estación', 'Meta', 'Real', '% Cumpl.', 'Scrap (pzas NG)', '% Scrap', 'Costo scrap (MXN)'],
+         [20, 12, 12, 11, 14, 10, 18])
+    fila = 5
+    for est in sorted(tot_est, key=lambda e: -tot_est[e][1]):
+        m, r, sc, cs = tot_est[est]
+        ws.cell(row=fila, column=1, value=est)
+        ws.cell(row=fila, column=2, value=m).number_format = '#,##0'
+        ws.cell(row=fila, column=3, value=r).number_format = '#,##0'
+        pct(ws, fila, 4, (r / m) if m else None, 1)
+        ws.cell(row=fila, column=5, value=sc).number_format = '#,##0'
+        pct(ws, fila, 6, (sc / (r + sc)) if (r + sc) else 0, meta_scrap / 100, True)
+        ws.cell(row=fila, column=7, value=round(cs, 2)).number_format = '"$"#,##0.00'
+        fila += 1
+    ultima = fila - 1
+    if ultima >= 5:
+        ch = BarChart(); ch.type = 'bar'; ch.title = '% Cumplimiento por estación'; ch.x_axis.number_format = '0%'
+        ch.add_data(Reference(ws, min_col=4, min_row=4, max_row=ultima), titles_from_data=True)
+        ch.set_categories(Reference(ws, min_col=1, min_row=5, max_row=ultima))
+        ch.legend = None; ch.height, ch.width = 9, 16
+        ws.add_chart(ch, 'I4')
+        ch = BarChart(); ch.type = 'bar'; ch.title = 'Costo de scrap por estación (MXN)'
+        ch.add_data(Reference(ws, min_col=7, min_row=4, max_row=ultima), titles_from_data=True)
+        ch.set_categories(Reference(ws, min_col=1, min_row=5, max_row=ultima))
+        ch.legend = None; ch.height, ch.width = 9, 16
+        ws.add_chart(ch, 'I23')
+
+    # ---- Hoja Pareto de scrap por codigo
+    ws = wb.create_sheet('Scrap por código')
+    hoja(ws, 'Hora por Hora · Scrap por código (Pareto)', ['Área', 'Código', 'Defecto', 'Piezas NG', '% del total', '% acumulado', 'Costo (MXN)'],
+         [14, 9, 32, 11, 11, 12, 16])
+    total_ng = sum(v[1] for v in tot_cod.values()) or 1
+    fila, acum = 5, 0
+    for (area, cod), (nombre, n, cs) in sorted(tot_cod.items(), key=lambda x: -x[1][1]):
+        acum += n
+        ws.cell(row=fila, column=1, value='Termoformado' if area == 'termoformado' else 'Conversión')
+        ws.cell(row=fila, column=2, value=cod)
+        ws.cell(row=fila, column=3, value=nombre)
+        ws.cell(row=fila, column=4, value=n).number_format = '#,##0'
+        ws.cell(row=fila, column=5, value=n / total_ng).number_format = '0.0%'
+        ws.cell(row=fila, column=6, value=acum / total_ng).number_format = '0.0%'
+        ws.cell(row=fila, column=7, value=round(cs, 2)).number_format = '"$"#,##0.00'
+        fila += 1
+    ultima = fila - 1
+    if ultima >= 5:
+        ch = BarChart(); ch.type = 'col'; ch.title = 'Pareto de scrap'; ch.y_axis.title = 'Piezas NG'
+        ch.add_data(Reference(ws, min_col=4, min_row=4, max_row=ultima), titles_from_data=True)
+        ch.set_categories(Reference(ws, min_col=3, min_row=5, max_row=ultima))
+        lc = LineChart()
+        lc.add_data(Reference(ws, min_col=6, min_row=4, max_row=ultima), titles_from_data=True)
+        lc.y_axis.axId = 200; lc.y_axis.number_format = '0%'; lc.y_axis.title = '% acumulado'; lc.y_axis.crosses = 'max'
+        lc.y_axis.scaling.min, lc.y_axis.scaling.max = 0, 1
+        for serie in lc.series:
+            serie.smooth = False
+        ch += lc
+        ch.height, ch.width = 10, 22
+        ws.add_chart(ch, 'I4')
+
+    # ---- Hoja Detalle por hora
+    ws = wb.create_sheet('Detalle')
+    heads = ['Fecha', 'Turno', 'Estación', 'Modelo', 'Descripción', 'Operador', 'Meta/h'] + franjas + ['Meta', 'Real', '% Cumpl.', 'Scrap', '% Scrap', 'Costo scrap (MXN)', 'Comentarios']
+    hoja(ws, 'Hora por Hora · Detalle por hora', heads, [11, 6, 16, 7, 34, 18, 8] + [7] * len(franjas) + [9, 9, 9, 8, 8, 14, 34])
+    fila = 5
+    ok_fill, no_fill = PatternFill('solid', fgColor='D3F9D8'), PatternFill('solid', fgColor='FFE3E3')
+    for fecha, tno, est, modelo, g, real, meta, scrap, cst in detalle:
+        vals = [fecha, tno, est, modelo, g['desc'], g['op'], round(float(g['meta_h'] or 0), 1)]
+        for i, v in enumerate(vals, 1):
+            ws.cell(row=fila, column=i, value=v)
+        for j, fr in enumerate(franjas):
+            if fr in g['horas']:
+                rv, mv = g['horas'][fr]
+                c = ws.cell(row=fila, column=8 + j, value=rv)
+                if mv:
+                    c.fill = ok_fill if rv >= mv else no_fill
+        col = 8 + len(franjas)
+        ws.cell(row=fila, column=col, value=meta).number_format = '#,##0'
+        ws.cell(row=fila, column=col + 1, value=real).number_format = '#,##0'
+        pct(ws, fila, col + 2, (real / meta) if meta else None, 1)
+        ws.cell(row=fila, column=col + 3, value=scrap)
+        pct(ws, fila, col + 4, (scrap / (real + scrap)) if (real + scrap) else 0, meta_scrap / 100, True)
+        ws.cell(row=fila, column=col + 5, value=round(cst, 2)).number_format = '"$"#,##0.00'
+        ws.cell(row=fila, column=col + 6, value=g['coment'])
+        fila += 1
+    ws.auto_filter.ref = 'A4:' + get_column_letter(len(heads)) + str(max(fila - 1, 4))
+
+    bio = io.BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return send_file(bio, as_attachment=True, download_name='hora_por_hora_' + desde + '_a_' + hasta + '.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
 @app.route('/api/hxh/borrar', methods=['POST'])
 def hxh_borrar():
     """Borra la captura de una hora (produccion y scrap) para corregirla o pasarla a otro modelo."""
