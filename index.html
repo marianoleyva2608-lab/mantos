@@ -5750,6 +5750,9 @@ function invBorrarArt(){
     .hxsc:disabled{border-color:transparent;color:#bcccdc;background:transparent;cursor:default}
     .hxhor{font-size:11px;color:#486581;cursor:pointer;padding:1px 6px;margin-top:1px}
     .hxhor:hover{color:#2f855a;text-decoration:underline}
+    .hxpm{border:1px solid #bcccdc;background:#fff;color:#243b53;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
+    .hxpm.on{background:#102a43;border-color:#102a43;color:#fff}
+    .hxpm.grp{border-style:dashed}
     .hxcm{flex:0 0 auto;width:28px;height:28px;border:1px solid #bcccdc;border-radius:8px;background:#fff;color:#486581;cursor:pointer;font-size:14px;padding:0}
     .hxcm:hover{border-color:#2f855a;color:#2f855a}
     .hx td.sd{font-size:11px;color:#b71c1c;text-align:left;white-space:normal}
@@ -5813,26 +5816,28 @@ function invBorrarArt(){
 <div id="hxh-par-modal" class="inv-modal">
   <div style="max-width:900px">
     <button class="inv-x" onclick="invCerrar('hxh-par-modal')">&times;</button>
-    <div style="font-size:16px;font-weight:700;margin-bottom:10px">&#128201; Paretos de producción perdida</div>
+    <div style="font-size:16px;font-weight:700;margin-bottom:10px">&#128201; Paretos de producción y scrap</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
       <div><span class="inv-lbl">Desde</span><input id="hxh-par-desde" class="inv-in" type="date" style="margin:0" onchange="hxhParetoCargar()"></div>
       <div><span class="inv-lbl">Hasta</span><input id="hxh-par-hasta" class="inv-in" type="date" style="margin:0" onchange="hxhParetoCargar()"></div>
       <div><span class="inv-lbl">Turno</span><select id="hxh-par-turno" class="inv-in" style="margin:0" onchange="hxhParetoCargar()"><option value="">Todos</option><option>1</option><option>2</option><option>3</option></select></div>
       <div><span class="inv-lbl">Área</span><select id="hxh-par-area" class="inv-in" style="margin:0" onchange="hxhParetoCargar()"><option value="">Todas</option><option value="termoformado">Termoformado</option><option value="conversion">Conversión</option></select></div>
+      <div><span class="inv-lbl">Scrap por</span><select id="hxh-par-por" class="inv-in" style="margin:0" onchange="hxhParetoScrapPintar()"><option value="piezas">Piezas NG</option><option value="costo">Costo (MXN)</option></select></div>
     </div>
+    <div style="margin-top:10px"><span class="inv-lbl">Máquinas (elige una o varias; sin selección = todas)</span>
+      <div id="hxh-par-maq" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
       <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhParetoRango(0)">Hoy</button>
       <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhParetoRango(1)">Ayer</button>
       <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhParetoRango(7)">Últimos 7 días</button>
       <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhParetoRango('mes')">Este mes</button>
     </div>
-    <div style="font-size:15px;font-weight:700;margin:16px 0 4px;color:#102a43">1. Por estación</div>
-    <div id="hxh-pp-graf-estacion" style="overflow-x:auto"></div>
-    <div id="hxh-pp-tabla-estacion" style="margin-top:8px"></div>
-    <div style="font-size:15px;font-weight:700;margin:22px 0 4px;color:#102a43;border-top:1px solid #eee;padding-top:14px">2. Por modelo</div>
-    <div id="hxh-pp-graf-modelo" style="overflow-x:auto"></div>
-    <div id="hxh-pp-tabla-modelo" style="margin-top:8px"></div>
-    <div style="font-size:12px;color:#62748a;margin-top:10px">Piezas perdidas = suma, hora por hora, de lo que faltó para la meta de esa hora. En rojo fuerte, lo que junta el 80%.</div>
+    <div style="font-size:15px;font-weight:700;margin:16px 0 4px;color:#102a43">1. Producción por máquina</div>
+    <div id="hxh-pp-graf" style="overflow-x:auto"></div>
+    <div id="hxh-pp-tabla" style="margin-top:8px"></div>
+    <div style="font-size:15px;font-weight:700;margin:22px 0 4px;color:#102a43;border-top:1px solid #eee;padding-top:14px">2. Scrap por código NG</div>
+    <div id="hxh-ps-graf" style="overflow-x:auto"></div>
+    <div id="hxh-ps-tabla" style="margin-top:8px"></div>
   </div>
 </div>
 
@@ -6203,8 +6208,9 @@ function hxhParetoAbrir(){
   hxhParetoCargar();
 }
 function hxhParetoCargar(){
-  hxhParetoProdCargar('estacion');
-  hxhParetoProdCargar('modelo');
+  hxhParetoMaqPintar();
+  hxhParetoProdCargar();
+  hxhParetoScrapCargar();
 }
 // Grafica de Pareto generica: items [{etq, val, titulo}] ya ordenados de mayor a menor
 function hxhParetoSvg(items, fmt, prefijo){
@@ -6231,28 +6237,79 @@ function hxhParetoSvg(items, fmt, prefijo){
   return svg + '<polyline points="' + pts.join(' ') + '" fill="none" stroke="#102a43" stroke-width="2"/>' +
     pts.map(function(p){ var c = p.split(','); return '<circle cx="' + c[0] + '" cy="' + c[1] + '" r="3" fill="#102a43"/>'; }).join('') + '</svg>';
 }
-function hxhParetoProdCargar(agr){
-  var de = document.getElementById('hxh-par-desde').value, ha = document.getElementById('hxh-par-hasta').value, g = document.getElementById('hxh-pp-graf-' + agr), tb = document.getElementById('hxh-pp-tabla-' + agr);
-  if (!de || !ha || de > ha) { g.innerHTML = '<div style="color:#c62828">Revisa las fechas.</div>'; return; }
+var _hxhParMaq = [];
+function hxhParetoMaqPintar(){
+  var area = document.getElementById('hxh-par-area').value;
+  var ests = _hxhCat.estaciones.filter(function(e){ return !area || ((_hxhCat.area_estacion || {})[e] || 'conversion') === area; });
+  _hxhParMaq = _hxhParMaq.filter(function(e){ return ests.indexOf(e) !== -1; });
+  var termos = ests.filter(function(e){ return /^TERMO/.test(e); });
+  document.getElementById('hxh-par-maq').innerHTML =
+    '<button class="hxpm' + (_hxhParMaq.length ? '' : ' on') + '" onclick="hxhParetoMaq(\'*\')">Todas</button>' +
+    (termos.length ? '<button class="hxpm grp" onclick="hxhParetoMaq(\'termos\')">Todas las termos</button>' : '') +
+    ests.map(function(e){ return '<button class="hxpm' + (_hxhParMaq.indexOf(e) !== -1 ? ' on' : '') + '" onclick="hxhParetoMaq(\'' + escHtml(e).replace(/'/g, "\\'") + '\')">' + escHtml(e) + '</button>'; }).join('');
+}
+function hxhParetoMaq(e){
+  if (e === '*') _hxhParMaq = [];
+  else if (e === 'termos') _hxhParMaq = _hxhCat.estaciones.filter(function(x){ return /^TERMO/.test(x); });
+  else if (_hxhParMaq.indexOf(e) !== -1) _hxhParMaq = _hxhParMaq.filter(function(x){ return x !== e; });
+  else _hxhParMaq.push(e);
+  hxhParetoMaqPintar();
+  hxhParetoCargar();
+}
+function hxhParetoQuery(){
+  var de = document.getElementById('hxh-par-desde').value, ha = document.getElementById('hxh-par-hasta').value;
+  if (!de || !ha || de > ha) return null;
+  return 'desde=' + de + '&hasta=' + ha + '&turno=' + document.getElementById('hxh-par-turno').value + '&area=' + document.getElementById('hxh-par-area').value +
+    '&maquinas=' + encodeURIComponent(_hxhParMaq.join(','));
+}
+// 1) Produccion real de todas las maquinas que produjeron
+function hxhParetoProdCargar(){
+  var g = document.getElementById('hxh-pp-graf'), tb = document.getElementById('hxh-pp-tabla'), q = hxhParetoQuery();
+  if (!q) { g.innerHTML = '<div style="color:#c62828">Revisa las fechas.</div>'; tb.innerHTML = ''; return; }
   g.innerHTML = '<div style="color:#888;padding:20px;text-align:center">Cargando…</div>'; tb.innerHTML = '';
-  var q = 'desde=' + de + '&hasta=' + ha + '&turno=' + document.getElementById('hxh-par-turno').value + '&area=' + document.getElementById('hxh-par-area').value + '&por=' + agr;
-  fetch('/api/hxh/pareto-produccion?' + q, {headers: {'X-Usuario-Email': invEmail()}}).then(invJson)
+  fetch('/api/hxh/pareto-produccion?' + q + '&por=estacion', {headers: {'X-Usuario-Email': invEmail()}}).then(invJson)
     .then(function(d){
       if (d.error) throw new Error(d.error);
-      var todos = d.items || [], items = todos.filter(function(x){ return x.perdidas > 0; }).map(function(x){ return {etq: x.nombre, val: x.perdidas, titulo: x.nombre, x: x}; });
-      if (!items.length) { g.innerHTML = '<div style="color:#888;padding:24px;text-align:center">' + (todos.length ? 'Todas las horas capturadas llegaron a su meta.' : 'Sin producción capturada en este rango.') + '</div>'; return; }
+      var items = (d.items || []).filter(function(x){ return x.real > 0; }).sort(function(a, b){ return b.real - a.real; })
+        .map(function(x){ return {etq: x.nombre, val: x.real, titulo: x.nombre, x: x}; });
+      if (!items.length) { g.innerHTML = '<div style="color:#888;padding:24px;text-align:center">Sin producción capturada en este rango.</div>'; return; }
       g.innerHTML = hxhParetoSvg(items, function(v){ return hxhNum(v) + ' pzas'; });
       var th = 'style="text-align:left;padding:6px 8px;background:#102a43;color:#fff;font-size:11px"';
-      tb.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th ' + th + '>' + (agr === 'modelo' ? 'Modelo' : 'Estación') + '</th><th ' + th + '>Meta</th><th ' + th + '>Real</th><th ' + th + '>% Cumpl.</th><th ' + th + '>Horas en meta</th><th ' + th + '>Piezas perdidas</th><th ' + th + '>%</th><th ' + th + '>% acum.</th></tr>' +
+      tb.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th ' + th + '>Máquina</th><th ' + th + '>Real</th><th ' + th + '>Meta</th><th ' + th + '>% Cumpl.</th><th ' + th + '>Horas en meta</th><th ' + th + '>Piezas perdidas</th><th ' + th + '>% de la producción</th><th ' + th + '>% acum.</th></tr>' +
         items.map(function(it){
           var x = it.x, pc = x.meta ? Math.round(100 * x.real / x.meta) : 0, col = pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828');
-          return '<tr style="border-bottom:1px solid #eee' + (it.acum <= 0.8 ? ';background:#fff5f5' : '') + '"><td style="padding:5px 8px;font-weight:700">' + escHtml(x.nombre) + '</td>' +
-            '<td style="padding:5px 8px;text-align:right">' + hxhNum(x.meta) + '</td><td style="padding:5px 8px;text-align:right">' + hxhNum(x.real) + '</td>' +
+          return '<tr style="border-bottom:1px solid #eee"><td style="padding:5px 8px;font-weight:700">' + escHtml(x.nombre) + '</td>' +
+            '<td style="padding:5px 8px;text-align:right;font-weight:700">' + hxhNum(x.real) + '</td><td style="padding:5px 8px;text-align:right">' + hxhNum(x.meta) + '</td>' +
             '<td style="padding:5px 8px;text-align:right;color:' + col + ';font-weight:700">' + pc + '%</td><td style="padding:5px 8px;text-align:right">' + x.horas_meta + ' / ' + x.horas + '</td>' +
-            '<td style="padding:5px 8px;text-align:right;font-weight:700">' + hxhNum(x.perdidas) + '</td><td style="padding:5px 8px;text-align:right">' + (it.pct * 100).toFixed(1) + '%</td><td style="padding:5px 8px;text-align:right">' + (it.acum * 100).toFixed(1) + '%</td></tr>';
+            '<td style="padding:5px 8px;text-align:right">' + hxhNum(x.perdidas) + '</td><td style="padding:5px 8px;text-align:right">' + (it.pct * 100).toFixed(1) + '%</td><td style="padding:5px 8px;text-align:right">' + (it.acum * 100).toFixed(1) + '%</td></tr>';
         }).join('') + '</table>';
     })
     .catch(function(e){ g.innerHTML = '<div style="color:#c62828">' + escHtml(e.message || 'Error de conexión') + '</div>'; });
+}
+// 2) Scrap por codigo NG
+var _hxhParScrap = {};
+function hxhParetoScrapCargar(){
+  var g = document.getElementById('hxh-ps-graf'), q = hxhParetoQuery();
+  if (!q) { g.innerHTML = ''; document.getElementById('hxh-ps-tabla').innerHTML = ''; return; }
+  g.innerHTML = '<div style="color:#888;padding:20px;text-align:center">Cargando…</div>';
+  fetch('/api/hxh/pareto?' + q, {headers: {'X-Usuario-Email': invEmail()}}).then(invJson)
+    .then(function(d){ if (d.error) throw new Error(d.error); _hxhParScrap = d; hxhParetoScrapPintar(); })
+    .catch(function(e){ g.innerHTML = '<div style="color:#c62828">' + escHtml(e.message || 'Error de conexión') + '</div>'; });
+}
+function hxhParetoScrapPintar(){
+  var por = document.getElementById('hxh-par-por').value, g = document.getElementById('hxh-ps-graf'), tb = document.getElementById('hxh-ps-tabla');
+  var items = (_hxhParScrap.codigos || []).filter(function(x){ return x[por] > 0; }).sort(function(a, b){ return b[por] - a[por]; })
+    .map(function(x){ return {etq: x.codigo + ' ' + x.nombre, val: x[por], titulo: x.codigo + ' ' + x.nombre, x: x}; });
+  if (!items.length) { g.innerHTML = '<div style="color:#888;padding:24px;text-align:center">Sin scrap capturado en este rango.</div>'; tb.innerHTML = ''; return; }
+  g.innerHTML = hxhParetoSvg(items, function(v){ return por === 'costo' ? hxhPesos(v) : hxhNum(v) + ' pzas'; }, por === 'costo' ? '$' : '');
+  var th = 'style="text-align:left;padding:6px 8px;background:#102a43;color:#fff;font-size:11px"';
+  tb.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th ' + th + '>Área</th><th ' + th + '>Código</th><th ' + th + '>Defecto</th><th ' + th + '>Piezas NG</th><th ' + th + '>Costo (MXN)</th><th ' + th + '>%</th><th ' + th + '>% acum.</th></tr>' +
+    items.map(function(it){
+      var x = it.x;
+      return '<tr style="border-bottom:1px solid #eee' + (it.acum <= 0.8 ? ';background:#fff5f5' : '') + '"><td style="padding:5px 8px">' + (x.area === 'termoformado' ? 'Termoformado' : 'Conversión') + '</td><td style="padding:5px 8px;font-weight:700">' + escHtml(x.codigo) + '</td><td style="padding:5px 8px">' + escHtml(x.nombre) + '</td>' +
+        '<td style="padding:5px 8px;text-align:right">' + hxhNum(x.piezas) + '</td><td style="padding:5px 8px;text-align:right">' + hxhPesos(x.costo) + '</td><td style="padding:5px 8px;text-align:right">' + (it.pct * 100).toFixed(1) + '%</td><td style="padding:5px 8px;text-align:right">' + (it.acum * 100).toFixed(1) + '%</td></tr>';
+    }).join('') + '</table>' +
+    '<div style="font-size:12px;color:#62748a;margin-top:6px">En rojo fuerte, los códigos que juntan el 80% del scrap.' + (_hxhParScrap.sin_codigo ? ' Hay ' + hxhNum(_hxhParScrap.sin_codigo) + ' piezas NG sin código.' : '') + '</div>';
 }
 // ─── Reporte Excel con graficas
 function hxhExcelRango(r){
