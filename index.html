@@ -5759,7 +5759,8 @@ function invBorrarArt(){
       <div class="ctl">&#128197; Fecha <input id="hxh-fecha" type="date" onchange="hxhCargar()"></div>
       <div class="ctl">&#128336; Turno <select id="hxh-turno" onchange="hxhCargar()"><option>1</option><option>2</option><option>3</option></select></div>
       <div class="hxleg"><span><i style="background:#d3f9d8"></i>Cumple meta ajustada</span><span><i style="background:#ffe3e3"></i>No cumple</span></div>
-      <button id="hxh-cfg-btn" class="hxcfg" style="display:none" onclick="hxhCfgAbrir()">&#9881;&#65039; Configurar metas</button>
+      <button class="hxcfg" onclick="hxhExcelAbrir()">&#128202; Reporte Excel</button>
+      <button id="hxh-cfg-btn" class="hxcfg" style="display:none;margin-left:0" onclick="hxhCfgAbrir()">&#9881;&#65039; Configurar metas</button>
       <div class="hxclock" id="hxh-reloj"></div>
     </div>
     <div class="hxkpis" id="hxh-kpis"></div>
@@ -5799,6 +5800,31 @@ function invBorrarArt(){
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="inv-btn" style="background:#888;flex:1" onclick="invCerrar('hxh-cfg-modal')">Cancelar</button>
       <button id="hxh-cfg-guardar" class="inv-btn" style="background:#2E7D32;flex:1" onclick="hxhCfgGuardar()">Guardar metas</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: reporte en Excel -->
+<div id="hxh-xls-modal" class="inv-modal">
+  <div>
+    <button class="inv-x" onclick="invCerrar('hxh-xls-modal')">&times;</button>
+    <div style="font-size:16px;font-weight:700;margin-bottom:4px">&#128202; Reporte Excel</div>
+    <div style="font-size:13px;color:#62748a;margin-bottom:12px">Resumen por día, por estación, Pareto de scrap y detalle por hora, con gráficas.</div>
+    <div style="display:flex;gap:8px">
+      <div style="flex:1"><span class="inv-lbl">Desde</span><input id="hxh-xls-desde" class="inv-in" type="date" style="margin:0"></div>
+      <div style="flex:1"><span class="inv-lbl">Hasta</span><input id="hxh-xls-hasta" class="inv-in" type="date" style="margin:0"></div>
+      <div style="flex:0 0 90px"><span class="inv-lbl">Turno</span><select id="hxh-xls-turno" class="inv-in" style="margin:0"><option value="">Todos</option><option>1</option><option>2</option><option>3</option></select></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+      <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhExcelRango(0)">Hoy</button>
+      <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhExcelRango(1)">Ayer</button>
+      <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhExcelRango(7)">Últimos 7 días</button>
+      <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhExcelRango('mes')">Este mes</button>
+    </div>
+    <div id="hxh-xls-err" style="color:#C62828;font-size:13px;margin-top:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="inv-btn" style="background:#888;flex:1" onclick="invCerrar('hxh-xls-modal')">Cancelar</button>
+      <button id="hxh-xls-btn" class="inv-btn" style="background:#1565C0;flex:1" onclick="hxhExcelDescargar()">Descargar</button>
     </div>
   </div>
 </div>
@@ -6094,6 +6120,42 @@ function hxhCfgGuardar(){
     })
     .catch(function(e){ err.textContent = e.message || 'Error de conexión'; })
     .then(function(){ btn.disabled = false; });
+}
+// ─── Reporte Excel con graficas
+function hxhExcelRango(r){
+  var hoy = new Date(), f = function(d){ return d.toLocaleDateString('en-CA'); }, d = new Date(hoy);
+  if (r === 'mes') d = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  else d.setDate(hoy.getDate() - (r === 7 ? 6 : r));
+  document.getElementById('hxh-xls-desde').value = f(d);
+  document.getElementById('hxh-xls-hasta').value = r === 1 ? f(d) : f(hoy);
+}
+function hxhExcelAbrir(){
+  if (!document.getElementById('hxh-xls-desde').value) hxhExcelRango(7);
+  document.getElementById('hxh-xls-turno').value = '';
+  document.getElementById('hxh-xls-err').textContent = '';
+  invAbrirModal('hxh-xls-modal');
+}
+function hxhExcelDescargar(){
+  var de = document.getElementById('hxh-xls-desde').value, ha = document.getElementById('hxh-xls-hasta').value;
+  var err = document.getElementById('hxh-xls-err'), btn = document.getElementById('hxh-xls-btn');
+  if (!de || !ha) { err.textContent = 'Elige las dos fechas.'; return; }
+  if (de > ha) { err.textContent = 'La fecha Desde no puede ser después de Hasta.'; return; }
+  err.textContent = ''; btn.disabled = true; btn.textContent = 'Generando…';
+  var q = 'desde=' + de + '&hasta=' + ha + '&turno=' + document.getElementById('hxh-xls-turno').value;
+  fetch('/api/hxh/excel?' + q, {headers: {'X-Usuario-Email': invEmail()}})
+    .then(function(r){
+      if (!r.ok) return r.json().then(function(d){ throw new Error(d.error || 'No se pudo generar'); }, function(){ throw new Error('Error ' + r.status); });
+      return r.blob();
+    })
+    .then(function(b){
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(b); a.download = 'hora_por_hora_' + de + '_a_' + ha + '.xlsx';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+      invCerrar('hxh-xls-modal');
+    })
+    .catch(function(e){ err.textContent = e.message || 'Error de conexión'; })
+    .then(function(){ btn.disabled = false; btn.textContent = 'Descargar'; });
 }
 function hxhSalir(){ clearInterval(_hxhTimer); clearInterval(_hxhReloj); showPage('menu'); }
 function hxhCargar(){
