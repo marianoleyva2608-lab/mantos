@@ -6199,7 +6199,7 @@ function hxhCargar(){
         if (String(r.actualizado) >= f.t) { f.t = String(r.actualizado); if (r.numero_parte) f.desc = r.numero_parte; if (r.operador_linea) f.op = r.operador_linea; }
         if (r.hora === 'fila') {
           f.coment = r.comentario || ''; f.desc = r.numero_parte || f.desc; f.op = r.operador_linea || f.op;
-          try { var hz = JSON.parse(r.causa || '{}'); f.ini = hz.ini || ''; f.fin = hz.fin || ''; f.oper = hz.oper || ''; } catch (e) {}
+          try { var hz = JSON.parse(r.causa || '{}'); f.ini = hz.ini || ''; f.fin = hz.fin || ''; } catch (e) {}
         }
         else {
           f.reales[r.hora] = r.real;
@@ -6233,13 +6233,6 @@ function hxhDescripciones(est){
     lista.sort(function(a, b){ return (propios.indexOf(b) !== -1) - (propios.indexOf(a) !== -1) || a.localeCompare(b); });
   }
   return lista;
-}
-// Operacion del renglon; si no se ha elegido, la tipica de la estacion
-function hxhOper(f){
-  if (f.oper) return f.oper;
-  if (/^TERMO/.test(f.est || '')) return 'Termoformado';
-  if (/^PRENSA/.test(f.est || '')) return 'Suajado';
-  return '';
 }
 function hxhFilaNueva(est, slot){ return {est: est, slot: slot || 1, desc: '', op: '', coment: '', reales: {}, scrap: {}, ini: '', fin: ''}; }
 // Horario de cada franja en minutos del dia ('8-9' -> 480..540, '1-2' -> 780..840)
@@ -6327,7 +6320,7 @@ function hxhAgregarModelo(i, ini){
   var f = _hxhFilas[i], her = hxhHermanos(f);
   var slot = her.reduce(function(m, x){ return Math.max(m, x.slot || 1); }, 1) + 1;
   var pos = _hxhFilas.indexOf(her[her.length - 1]) + 1;
-  var nueva = hxhFilaNueva(f.est, slot); nueva.op = f.op; nueva.oper = f.oper || ''; nueva.ini = ini || '';
+  var nueva = hxhFilaNueva(f.est, slot); nueva.op = f.op; nueva.ini = ini || '';
   _hxhFilas.splice(pos, 0, nueva);
   hxhPintar();
   var sel = document.querySelector('#hxh-f' + pos + ' select[data-c="desc"]'); if (sel) sel.focus();
@@ -6341,7 +6334,7 @@ function hxhOpciones(lista, sel, vacio){
 }
 function hxhPintar(){
   var ops = (_hxhCat.operadores['11-12'] || []).concat(_hxhCat.operadores['12-1'] || []).sort();
-  var h = '<tr><th>Estación</th><th style="min-width:280px">Descripción</th><th style="min-width:170px">Operación</th><th style="min-width:150px">Operador</th><th>Meta/h</th>' +
+  var h = '<tr><th>Estación</th><th style="min-width:280px">Descripción</th><th style="min-width:150px">Operador</th><th>Meta/h</th>' +
     HXH_FRANJAS.map(function(f){ return '<th class="fr">' + f[0] + '</th>'; }).join('') +
     '<th class="tot">Meta total</th><th class="tot">Real</th><th class="tot">% Cumpl.</th><th class="tot">Diferencia</th><th class="tot" style="min-width:260px">Comentarios</th></tr>';
   _hxhFilas.forEach(function(f, i){
@@ -6359,7 +6352,6 @@ function hxhPintar(){
       '<td style="text-align:left"><div style="display:flex;gap:4px;align-items:center"><select data-c="desc" onchange="hxhCambio(' + i + ',\'desc\',this.value)"' + (f.est ? '' : ' disabled') + '>' + hxhOpciones(descs, f.desc) + '</select>' +
         (f.est && f.desc && ultimoModelo ? '<button class="hxcm" onclick="hxhCambioModelo(' + i + ')" title="Cambio de modelo: agrega otro renglón para el siguiente producto de ' + escHtml(f.est) + '">&#8644;</button>' : '') + '</div>' +
         (hxhHermanos(f).length > 1 ? '<div class="hxhor" onclick="hxhHorarioEditar(' + i + ')" title="Cambiar horario">&#9201; ' + hxhHorarioTxt(f) + '</div>' : '') + '</td>' +
-      '<td style="text-align:left"><select onchange="hxhCambio(' + i + ',\'oper\',this.value)"' + (f.est ? '' : ' disabled') + '>' + hxhOpciones((_hxhCat.operaciones || []).concat(hxhOper(f) && (_hxhCat.operaciones || []).indexOf(hxhOper(f)) === -1 ? [hxhOper(f)] : []), hxhOper(f)) + '</select></td>' +
       '<td style="text-align:left"><select onchange="hxhCambio(' + i + ',\'op\',this.value)">' + hxhOpciones(ops.indexOf(f.op) === -1 && f.op ? [f.op].concat(ops) : ops, f.op) + '</select></td>' +
       '<td class="mh" id="hxh-mh' + i + '"></td>' +
       HXH_FRANJAS.map(function(fr, k){
@@ -6371,7 +6363,7 @@ function hxhPintar(){
       '<td><input placeholder="Causa / acción" value="' + escHtml(f.coment) + '"' + (f.est ? '' : ' disabled') + ' onchange="hxhCambio(' + i + ',\'coment\',this.value)"></td>' +
     '</tr>';
     // Renglon de scrap: piezas NG de cada hora, desglosadas por codigo de defecto
-    if (f.est) h += '<tr class="hxs"><td class="est">&#8627; Scrap</td><td colspan="4"></td>' +
+    if (f.est) h += '<tr class="hxs"><td class="est">&#8627; Scrap</td><td colspan="3"></td>' +
       HXH_FRANJAS.map(function(fr, k){ return '<td><button class="hxsc" id="hxh-s' + i + '_' + k + '" onclick="hxhScrapAbrir(' + i + ',' + k + ')"></button></td>'; }).join('') +
       '<td></td><td class="calc" style="color:#c62828" id="hxh-st' + i + '"></td><td class="calc" style="color:#c62828" id="hxh-sp' + i + '"></td><td class="calc" style="color:#c62828" id="hxh-sc' + i + '" title="Costo del scrap"></td><td class="sd" id="hxh-sd' + i + '"></td></tr>';
   });
@@ -6524,7 +6516,7 @@ function hxhGuardarFila(i){
   if (!f.est) return Promise.resolve();
   return hxhPost({maquina_id: hxhId(f), maquina_nombre: f.est, hora: 'fila', numero_parte: f.desc, operador_linea: f.op,
                   meta_h: hxhMetaH(f.est, f.desc), comentario: f.coment, real: 0,
-                  causa: (f.ini || f.fin || hxhOper(f)) ? JSON.stringify({ini: f.ini || '', fin: f.fin || '', oper: hxhOper(f)}) : ''})
+                  causa: (f.ini || f.fin) ? JSON.stringify({ini: f.ini || '', fin: f.fin || ''}) : ''})
     .catch(function(e){ alert(e.message || 'Error de conexión'); });
 }
 function hxhCambio(i, campo, valor){
