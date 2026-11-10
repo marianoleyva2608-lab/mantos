@@ -6192,7 +6192,6 @@ function hxhKpis(){
   document.getElementById('hxh-kpis').innerHTML =
     k('Meta planta', hxhNum(meta) || '—', '#486581') + k('Real', hxhNum(real) || '0', '#1565C0') +
     k('% Cumplimiento', pc === null ? '—' : pc + '%', pc === null ? '#bcccdc' : (pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828'))) +
-    k('Horas en meta', tot ? ok + ' / ' + tot : '—', '#2f855a') +
     k('Scrap (piezas NG)', hxhNum(scrap) || '0', '#c62828') + k('% Scrap', scrap ? (100 * scrap / (real + scrap)).toFixed(1) + '%' : '—', '#c62828') +
     k('Costo scrap', hxhPesos(costoScrap), '#c62828') +
     k('Estaciones activas', activas, '#6A1B9A');
