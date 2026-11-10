@@ -5682,6 +5682,7 @@ def hxh_catalogo():
     _hxh_aplicar_productos(cat, guardadas)
     if guardadas.get('minutos_turno'):
         cat['minutos_turno'] = guardadas['minutos_turno']
+    cat['meta_scrap_pct'] = guardadas.get('meta_scrap_pct', cat.get('meta_scrap_pct', 3))
     if isinstance(guardadas.get('operadores'), dict):
         cat['operadores'] = guardadas['operadores']
     cat['puede_editar_metas'] = _hxh_puede_editar_metas(cat, email)
@@ -5752,6 +5753,14 @@ def hxh_guardar_metas():
         if not 60 <= m <= 720:
             return jsonify({'error': 'Minutos del turno debe estar entre 60 y 720'}), 400
         guardadas['minutos_turno'] = m
+    if 'meta_scrap_pct' in d:
+        try:
+            ms = round(float(d.get('meta_scrap_pct')), 2)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Meta de scrap inválida'}), 400
+        if not 0 <= ms <= 100:
+            return jsonify({'error': 'La meta de scrap debe estar entre 0 y 100%'}), 400
+        guardadas['meta_scrap_pct'] = ms
     if isinstance(d.get('operadores'), dict):
         ops, vistos = {}, set()
         for franja in ('11-12', '12-1'):
