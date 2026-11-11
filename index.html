@@ -5994,6 +5994,7 @@ function invBorrarArt(){
     </div>
     <style>.qr-ico{flex:0 0 38px;width:38px;height:36px;padding:0;font-size:17px;line-height:36px;text-align:center}</style>
     <input id="qr-buscar" type="text" placeholder="Filtrar por nombre, motivo o quien registró..." oninput="qrRender()" class="inv-in" style="margin-bottom:10px">
+    <div id="qr-contador" style="display:flex;gap:6px;margin-bottom:10px"></div>
     <div id="qr-lista"></div>
   </div>
 </div>
@@ -7092,6 +7093,7 @@ function qrRender(){
     var valores = (r.datos || []).map(function(c){ return c.v; }).join(' ');
     return !q || (r.contenido + ' ' + valores + ' ' + r.motivo + ' ' + (r.usuario_nombre || '')).toLowerCase().indexOf(q) !== -1;
   });
+  qrContador(regs, q);
   document.getElementById('qr-lista').innerHTML = regs.length ? regs.map(function(r){
     return '<div class="inv-card" style="cursor:default;font-size:14px;word-break:break-word">' +
       qrCamposHtml(r.datos && r.datos.length ? r.datos : [{k:'Contenido', v:r.contenido}]) +
@@ -7100,6 +7102,27 @@ function qrRender(){
       (qrPuedeEnviar(r) ? '<button class="inv-btn" style="background:#1565C0;margin-top:8px;font-size:12px;padding:5px 10px" onclick="qrEnviar(' + Number(r.id) + ', this)" title="Enviar presentación">&#9993; Enviar</button>' : '') +
     '</div>';
   }).join('') : '<p style="color:#888;text-align:center;padding:20px">Sin registros en el periodo</p>';
+}
+// Contador de contactos: total del periodo, de hoy y unicos (por correo, o por contenido si no trae correo)
+function qrContador(regs, q){
+  var hoy = new Date().toLocaleDateString('en-CA');
+  var unicos = {}, deHoy = 0;
+  _qrRegistros.forEach(function(r){
+    var correo = (r.datos || []).map(function(c){ return c.v; }).filter(function(v){ return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v).trim()); })[0];
+    unicos[(correo || r.contenido || '').trim().toLowerCase()] = 1;
+    if (r.fecha && new Date(r.fecha).toLocaleDateString('en-CA') === hoy) deHoy++;
+  });
+  var total = _qrRegistros.length >= 500 ? '500+' : _qrRegistros.length;
+  var tarjeta = function(n, txt, color){
+    return '<div style="flex:1;background:#fff;border-radius:10px;padding:8px 4px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.08)">' +
+      '<div style="font-size:22px;font-weight:bold;color:' + color + '">' + n + '</div>' +
+      '<div style="font-size:11px;color:#777">' + txt + '</div></div>';
+  };
+  document.getElementById('qr-contador').innerHTML =
+    tarjeta(total, 'Contactos', '#1F5C2E') +
+    tarjeta(Object.keys(unicos).length, 'Únicos', '#1565C0') +
+    tarjeta(deHoy, 'Hoy', '#E65100') +
+    (q ? tarjeta(regs.length, 'Filtrados', '#555') : '');
 }
 // El boton aparece si hay correo y la presentacion aun no se ha enviado
 function qrPuedeEnviar(r){
