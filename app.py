@@ -45,7 +45,7 @@ def ahora_mx():
 # Envio de avisos por correo (requisiciones, etc.). Credenciales SMTP se
 # configuran como variables de entorno en EasyPanel, nunca en el codigo:
 # SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM.
-def _graph_oauth_token():
+def _graph_oauth_token(scope='https://outlook.office365.com/.default'):
     tenant = os.environ.get('GRAPH_TENANT_ID', '')
     client_id = os.environ.get('GRAPH_CLIENT_ID', '')
     client_secret = os.environ.get('GRAPH_CLIENT_SECRET', '')
@@ -58,7 +58,7 @@ def _graph_oauth_token():
                 'grant_type': 'client_credentials',
                 'client_id': client_id,
                 'client_secret': client_secret,
-                'scope': 'https://outlook.office365.com/.default',
+                'scope': scope,
             }, timeout=15,
         )
         j = r.json()
@@ -118,12 +118,72 @@ def _justificacion_html(o):
             + html_escape(a.get('nombre') or a['ruta']) + '</a>' for a in adjuntos) + '</p>'
     return html
 
+def _graph_enviar(remitente, destinatario, asunto, cuerpo_html, nombre_remitente, responder_a, adjunto_pdf):
+    """Envia por la API de Microsoft Graph (HTTPS, puerto 443). Requiere el permiso de aplicacion
+    Mail.Send con consentimiento de administrador. Los adjuntos grandes (>3 MB) se suben por partes."""
+    token, err = _graph_oauth_token('https://graph.microsoft.com/.default')
+    if not token:
+        return False, err
+    base = 'https://graph.microsoft.com/v1.0/users/' + quote(remitente, safe='@')
+    h = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'}
+
+    def fallo(r, paso):
+        return False, 'Graph (' + paso + ') ' + str(r.status_code) + ': ' + r.text[:300]
+
+    msg = {'subject': asunto, 'body': {'contentType': 'HTML', 'content': cuerpo_html},
+           'toRecipients': [{'emailAddress': {'address': destinatario}}]}
+    if nombre_remitente:
+        msg['from'] = {'emailAddress': {'address': remitente, 'name': nombre_remitente + ' (via Sistema ADPACK)'}}
+    if responder_a:
+        msg['replyTo'] = [{'emailAddress': {'address': responder_a}}]
+    try:
+        if not adjunto_pdf or len(adjunto_pdf[1]) < 3 * 1024 * 1024:
+            if adjunto_pdf:
+                msg['attachments'] = [{'@odata.type': '#microsoft.graph.fileAttachment', 'name': adjunto_pdf[0],
+                                       'contentType': 'application/pdf',
+                                       'contentBytes': base64.b64encode(adjunto_pdf[1]).decode('ascii')}]
+            r = requests.post(base + '/sendMail', headers=h, json={'message': msg, 'saveToSentItems': True}, timeout=60)
+            return (True, None) if r.status_code == 202 else fallo(r, 'sendMail')
+        # Adjunto grande: borrador + sesion de carga por partes + enviar
+        r = requests.post(base + '/messages', headers=h, json=msg, timeout=30)
+        if r.status_code != 201:
+            return fallo(r, 'borrador')
+        msg_id = quote(r.json()['id'], safe='')
+        datos = adjunto_pdf[1]
+        r = requests.post(base + '/messages/' + msg_id + '/attachments/createUploadSession', headers=h, timeout=30,
+                          json={'AttachmentItem': {'attachmentType': 'file', 'name': adjunto_pdf[0],
+                                                   'size': len(datos), 'contentType': 'application/pdf'}})
+        if r.status_code != 201:
+            return fallo(r, 'carga')
+        url = r.json()['uploadUrl']
+        parte = 320 * 1024 * 10  # multiplo de 320 KB, menor a 4 MB
+        for i in range(0, len(datos), parte):
+            trozo = datos[i:i + parte]
+            r = requests.put(url, data=trozo, timeout=60, headers={
+                'Content-Length': str(len(trozo)),
+                'Content-Range': 'bytes %d-%d/%d' % (i, i + len(trozo) - 1, len(datos))})
+            if r.status_code not in (200, 201):
+                return fallo(r, 'subir adjunto')
+        r = requests.post(base + '/messages/' + msg_id + '/send', headers=h, timeout=30)
+        return (True, None) if r.status_code == 202 else fallo(r, 'enviar')
+    except Exception as e:
+        return False, 'Graph: ' + str(e)
+
+
 def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, responder_a=None, adjunto_pdf=None):
     """adjunto_pdf: (nombre_archivo, bytes), opcional."""
     if not destinatario:
         return False, 'Falta destinatario'
     remitente = os.environ.get('GRAPH_SENDER_EMAIL', '')
     usa_graph = bool(remitente and os.environ.get('GRAPH_CLIENT_ID'))
+    error_graph = None
+    if usa_graph:
+        # Primero por HTTPS (Graph); si falla, se intenta por SMTP (puerto 587)
+        ok, error_graph = _graph_enviar(remitente, destinatario, asunto, cuerpo_html, nombre_remitente,
+                                        responder_a, adjunto_pdf)
+        if ok:
+            return True, None
+        print('[correo] Graph fallo, se intenta SMTP: ' + str(error_graph))
     msg = MIMEText(cuerpo_html, 'html', 'utf-8')
     if adjunto_pdf:
         cuerpo = msg
@@ -157,7 +217,7 @@ def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, resp
                 server.sendmail(remitente, [destinatario], msg.as_string())
             return True, None
         except Exception as e:
-            return False, str(e)
+            return False, 'SMTP: ' + str(e) + ' | ' + str(error_graph)
     # Alternativa: SMTP clasico con usuario/contraseña (SMTP_HOST/USER/PASS/FROM)
     host = os.environ.get('SMTP_HOST', '')
     user = os.environ.get('SMTP_USER', '')
