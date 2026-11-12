@@ -8,6 +8,34 @@ import requests
 from flask import Flask, request, send_file, jsonify, send_from_directory
 from qr_catalog import CATEGORIA_FIJA as QR_CATEGORIA_FIJA, GRUPOS as QR_GRUPOS, PLANTA as QR_PLANTA, PROVEEDORES as QR_PROVEEDORES
 
+import socket as _socket
+
+
+class _SMTPIPv4(smtplib.SMTP):
+    """SMTP que prefiere IPv4. El contenedor no tiene salida IPv6 y
+    smtp.office365.com resuelve primero a IPv6 -> [Errno 101] Network is unreachable."""
+
+    def _get_socket(self, host, port, timeout):
+        ultimo_error = None
+        infos = _socket.getaddrinfo(host, port, 0, _socket.SOCK_STREAM)
+        infos.sort(key=lambda i: 0 if i[0] == _socket.AF_INET else 1)
+        for familia, tipo, proto, _, direccion in infos:
+            sock = None
+            try:
+                sock = _socket.socket(familia, tipo, proto)
+                if timeout is not None:
+                    sock.settimeout(timeout)
+                if self.source_address:
+                    sock.bind(self.source_address)
+                sock.connect(direccion)
+                return sock
+            except OSError as e:
+                ultimo_error = e
+                if sock is not None:
+                    sock.close()
+        raise ultimo_error or OSError('No se pudo resolver ' + str(host))
+
+
 app = Flask(__name__)
 
 def ahora_mx():
@@ -120,7 +148,7 @@ def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, resp
             xoauth2 = base64.b64encode(
                 ('user=' + remitente + '\x01auth=Bearer ' + token + '\x01\x01').encode('utf-8')
             ).decode('ascii')
-            with smtplib.SMTP('smtp.office365.com', 587, timeout=15) as server:
+            with _SMTPIPv4('smtp.office365.com', 587, timeout=15) as server:
                 server.starttls()
                 server.ehlo()
                 code, resp = server.docmd('AUTH', 'XOAUTH2 ' + xoauth2)
@@ -140,7 +168,7 @@ def enviar_correo(destinatario, asunto, cuerpo_html, nombre_remitente=None, resp
     remitente = os.environ.get('SMTP_FROM', user)
     msg.replace_header('From', ('"' + nombre_remitente + ' (via Sistema ADPACK)" <' + remitente + '>') if nombre_remitente else remitente)
     try:
-        with smtplib.SMTP(host, port, timeout=15) as server:
+        with _SMTPIPv4(host, port, timeout=15) as server:
             server.starttls()
             server.login(user, password)
             server.sendmail(remitente, [destinatario], msg.as_string())
