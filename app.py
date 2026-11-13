@@ -6529,5 +6529,124 @@ def qr_registros_excel():
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
+# =======================================================================
+# Cola de impresion Zebra (cualquier dispositivo -> servidor -> Pi -> Zebra)
+# El navegador manda el ZPL aqui (mismo dominio, HTTPS, sin IP) y el agente
+# de la Pi (scripts/zebra_agente.py) consulta la cola cada ~2 s y lo imprime.
+# La cola vive en memoria: si el servidor se reinicia se pierden los
+# trabajos pendientes (no los ya impresos).
+# =======================================================================
+import threading as _zb_threading
+import time as _zb_time
+
+_zb_lock = _zb_threading.Lock()
+_zb_trabajos = {}          # id -> dict
+_zb_siguiente_id = [1]
+_zb_ultimo_poll = [0.0]    # epoch del ultimo contacto de la Pi
+ZEBRA_TOKEN = os.environ.get('ZEBRA_TOKEN', '')
+
+
+def _zb_token_ok():
+    if not ZEBRA_TOKEN:
+        return True
+    return request.headers.get('X-Zebra-Token', '') == ZEBRA_TOKEN
+
+
+def _zb_limpiar_viejos():
+    limite = _zb_time.time() - 3600
+    for tid in [t for t, v in _zb_trabajos.items() if v['creado'] < limite]:
+        _zb_trabajos.pop(tid, None)
+
+
+@app.route('/api/zebra/estado', methods=['GET'])
+def zebra_estado():
+    seg = _zb_time.time() - _zb_ultimo_poll[0]
+    with _zb_lock:
+        pendientes = sum(1 for v in _zb_trabajos.values() if v['estado'] == 'pendiente')
+    return jsonify({'ok': True, 'pi_en_linea': seg < 15, 'segundos_desde_pi': int(seg), 'pendientes': pendientes})
+
+
+_ZB_RUTA_RE = re.compile(r'^/imprimir(-[a-z0-9]+)*$')
+
+
+@app.route('/api/zebra/trabajos', methods=['POST'])
+def zebra_crear_trabajo():
+    """Dos tipos de trabajo:
+    - {zpl}: ZPL ya armado, la Pi lo manda directo a la impresora.
+    - {ruta, cuerpo}: la Pi reenvia el JSON a su propio servidor local
+      (ej. /imprimir-h60), que es quien arma el ZPL de esas pestañas."""
+    d = request.get_json(silent=True) or {}
+    zpl = d.get('zpl') or ''
+    ruta = d.get('ruta') or ''
+    cuerpo = d.get('cuerpo')
+    if ruta:
+        if not _ZB_RUTA_RE.match(ruta) or not isinstance(cuerpo, dict):
+            return jsonify({'ok': False, 'error': 'Ruta de impresión inválida'}), 400
+        if len(json.dumps(cuerpo)) > 500000:
+            return jsonify({'ok': False, 'error': 'Trabajo demasiado grande'}), 400
+        zpl = ''
+    elif '^XA' not in zpl or len(zpl) > 500000:
+        return jsonify({'ok': False, 'error': 'ZPL vacío o inválido'}), 400
+    with _zb_lock:
+        _zb_limpiar_viejos()
+        tid = _zb_siguiente_id[0]
+        _zb_siguiente_id[0] += 1
+        _zb_trabajos[tid] = {
+            'id': tid, 'zpl': zpl, 'ruta': ruta, 'cuerpo': cuerpo if ruta else None,
+            'etiquetas': int(d.get('etiquetas') or 0),
+            'origen': str(d.get('origen') or ruta)[:60],
+            'estado': 'pendiente', 'error': '', 'respuesta': None, 'creado': _zb_time.time(),
+        }
+    return jsonify({'ok': True, 'id': tid})
+
+
+@app.route('/api/zebra/trabajos/<int:tid>', methods=['GET'])
+def zebra_ver_trabajo(tid):
+    with _zb_lock:
+        t = _zb_trabajos.get(tid)
+        if not t:
+            return jsonify({'ok': False, 'error': 'Trabajo no encontrado'}), 404
+        return jsonify({'ok': True, 'id': tid, 'estado': t['estado'], 'error': t['error'],
+                        'respuesta': t.get('respuesta')})
+
+
+@app.route('/api/zebra/siguiente', methods=['GET'])
+def zebra_siguiente():
+    if not _zb_token_ok():
+        return jsonify({'ok': False, 'error': 'token'}), 403
+    _zb_ultimo_poll[0] = _zb_time.time()
+    with _zb_lock:
+        # un trabajo "enviado" que no se confirmo en 60 s se vuelve a ofrecer
+        for v in _zb_trabajos.values():
+            if v['estado'] == 'enviado' and _zb_time.time() - v.get('enviado_en', 0) > 60:
+                v['estado'] = 'pendiente'
+        pend = sorted((v for v in _zb_trabajos.values() if v['estado'] == 'pendiente'), key=lambda v: v['id'])
+        if not pend:
+            return ('', 204)
+        t = pend[0]
+        t['estado'] = 'enviado'
+        t['enviado_en'] = _zb_time.time()
+        if t.get('ruta'):
+            return jsonify({'id': t['id'], 'ruta': t['ruta'], 'cuerpo': t['cuerpo']})
+        return jsonify({'id': t['id'], 'zpl': t['zpl']})
+
+
+@app.route('/api/zebra/trabajos/<int:tid>/resultado', methods=['POST'])
+def zebra_resultado(tid):
+    if not _zb_token_ok():
+        return jsonify({'ok': False, 'error': 'token'}), 403
+    d = request.get_json(silent=True) or {}
+    with _zb_lock:
+        t = _zb_trabajos.get(tid)
+        if not t:
+            return jsonify({'ok': False}), 404
+        t['estado'] = 'impreso' if d.get('ok') else 'error'
+        t['error'] = str(d.get('error') or '')[:300]
+        t['respuesta'] = d.get('respuesta') if isinstance(d.get('respuesta'), dict) else None
+        t['zpl'] = ''  # ya no hace falta guardarlo
+        t['cuerpo'] = None
+    return jsonify({'ok': True})
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)), debug=False, threaded=True)
