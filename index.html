@@ -5885,13 +5885,14 @@ function invBorrarArt(){
     <div id="hxh-cm-tit" style="font-size:13px;color:#62748a;margin-bottom:12px"></div>
     <div style="display:flex;gap:10px">
       <div style="flex:1"><span class="inv-lbl">Terminó el modelo actual</span><input id="hxh-cm-fin" class="inv-in" type="time" style="margin:0"></div>
-      <div style="flex:1"><span class="inv-lbl">Arrancó el nuevo modelo</span><input id="hxh-cm-ini" class="inv-in" type="time" style="margin:0"></div>
+      <div style="flex:1"><span class="inv-lbl">Arrancó el siguiente modelo</span><input id="hxh-cm-ini" class="inv-in" type="time" style="margin:0"></div>
     </div>
+    <div id="hxh-cm-sig-box" style="margin-top:10px"><span class="inv-lbl">Siguiente modelo</span><select id="hxh-cm-sig" class="inv-in" style="margin:0"></select></div>
     <div style="font-size:12px;color:#62748a;margin-top:8px">El tiempo entre las dos horas es el cambio y no cuenta en la meta de ninguno.</div>
     <div id="hxh-cm-err" style="color:#C62828;font-size:13px;margin-top:6px"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="inv-btn" style="background:#888;flex:1" onclick="invCerrar('hxh-cm-modal')">Cancelar</button>
-      <button class="inv-btn" style="background:#2E7D32;flex:1" onclick="hxhCambioModeloOk()">Agregar modelo</button>
+      <button class="inv-btn" style="background:#2E7D32;flex:1" onclick="hxhCambioModeloOk()">Aceptar</button>
     </div>
   </div>
 </div>
@@ -6419,7 +6420,7 @@ function hxhCargar(){
         if (String(r.actualizado) >= f.t) { f.t = String(r.actualizado); if (r.numero_parte) f.desc = r.numero_parte; if (r.operador_linea) f.op = r.operador_linea; }
         if (r.hora === 'fila') {
           f.coment = r.comentario || ''; f.desc = r.numero_parte || f.desc; f.op = r.operador_linea || f.op;
-          try { var hz = JSON.parse(r.causa || '{}'); f.ini = hz.ini || ''; f.fin = hz.fin || ''; } catch (e) {}
+          try { var hz = JSON.parse(r.causa || '{}') || {}; f.tramos = Array.isArray(hz.t) ? hz.t.map(function(t){ return {ini: t[0] || '', fin: t[1] || ''}; }) : ((hz.ini || hz.fin) ? [{ini: hz.ini || '', fin: hz.fin || ''}] : []); } catch (e) {}
         }
         else {
           f.reales[r.hora] = r.real;
@@ -6463,7 +6464,7 @@ function hxhDescripciones(est){
   }
   return lista;
 }
-function hxhFilaNueva(est, slot){ return {est: est, slot: slot || 1, desc: '', op: '', coment: '', reales: {}, scrap: {}, paros: {}, ini: '', fin: ''}; }
+function hxhFilaNueva(est, slot){ return {est: est, slot: slot || 1, desc: '', op: '', coment: '', reales: {}, scrap: {}, paros: {}, tramos: []}; }
 // Horario de cada franja en minutos del dia ('8-9' -> 480..540, '1-2' -> 780..840)
 function hxhReloj(fr){
   var m = String(fr).match(/^(\d+)(?::(\d+))?-(\d+)(?::(\d+))?$/);
@@ -6472,15 +6473,40 @@ function hxhReloj(fr){
   return [h(m[1]) * 60 + Number(m[2] || 0), h(m[3]) * 60 + Number(m[4] || 0)];
 }
 function hxhMin(t){ var m = String(t || '').match(/^(\d{1,2}):(\d{2})$/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; }
-// Ventana de trabajo de un modelo: desde su arranque hasta su fin (o el arranque del siguiente)
+// Tramos de un renglon: un modelo puede trabajar varias veces en el turno (A -> B -> regresa a A)
+function hxhTramos(f){
+  if (!f.tramos) f.tramos = [];
+  if (!f.tramos.length && f.slot === 1) f.tramos.push({ini: '', fin: ''});
+  return f.tramos;
+}
+// Linea de tiempo de la estacion: todos los tramos de todos sus modelos, ordenados por arranque
+function hxhLinea(f){
+  var her = hxhHermanos(f), segs = [];
+  if (her.length <= 1) return null;
+  for (var h = 0; h < her.length; h++) {
+    var x = her[h], tr = hxhTramos(x);
+    if (!tr.length) return null;
+    for (var t = 0; t < tr.length; t++) {
+      var ini = (x.slot === 1 && t === 0) ? 0 : hxhMin(tr[t].ini);
+      if (ini == null) return null;
+      segs.push({f: x, t: t, ini: ini, fin: hxhMin(tr[t].fin)});
+    }
+  }
+  segs.sort(function(a, b){ return a.ini - b.ini; });
+  segs.forEach(function(sg, k){ if (sg.fin == null) sg.fin = segs[k + 1] ? segs[k + 1].ini : 24 * 60; });
+  return segs;
+}
+// Ventanas de trabajo de un modelo: [[ini, fin], ...] en minutos del dia
 function hxhVentana(f){
-  var her = hxhHermanos(f);
-  if (her.length <= 1 || her.some(function(x){ return x.slot > 1 && hxhMin(x.ini) == null; })) return null;
-  var k = her.indexOf(f), sig = her[k + 1];
-  var ini = f.slot > 1 ? hxhMin(f.ini) : 0;
-  var fin = hxhMin(f.fin);
-  if (fin == null) fin = sig ? hxhMin(sig.ini) : 24 * 60;
-  return [ini, fin];
+  var segs = hxhLinea(f);
+  if (!segs) return null;
+  return segs.filter(function(sg){ return sg.f === f; }).map(function(sg){ return [sg.ini, sg.fin]; });
+}
+// Modelo que esta corriendo ahora en la estacion (el del ultimo tramo)
+function hxhActivo(f){
+  var segs = hxhLinea(f);
+  if (segs) return segs[segs.length - 1].f;
+  return hxhHermanos(f).slice(-1)[0];
 }
 function hxhId(f){ return f.est + (f.slot > 1 ? '#' + f.slot : ''); }
 function hxhHermanos(f){ return _hxhFilas.filter(function(x){ return x.est && x.est === f.est; }); }
@@ -6491,7 +6517,7 @@ function hxhParte(f, franja){
   var her = hxhHermanos(f);
   if (her.length <= 1) return 1;
   var v = hxhVentana(f), r = hxhReloj(franja);
-  if (v && r) return Math.max(0, Math.min(v[1], r[1]) - Math.max(v[0], r[0])) / (r[1] - r[0]);
+  if (v && r) return v.reduce(function(s, w){ return s + Math.max(0, Math.min(w[1], r[1]) - Math.max(w[0], r[0])); }, 0) / (r[1] - r[0]);
   var cap = her.filter(function(x){ var v = x.reales[franja]; return v != null && v !== ''; });
   if (cap.length) return cap.indexOf(f) === -1 ? 0 : 1 / cap.length;
   var ultimo = her.reduce(function(a, b){ return b.slot > a.slot ? b : a; });
@@ -6509,39 +6535,61 @@ function hxhMetaTotal(f){
 function hxhHorarioTxt(f){
   var v = hxhVentana(f), t = function(m){ return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
   if (!v) return 'sin horario';
-  return (f.slot > 1 ? t(v[0]) : 'inicio') + ' – ' + (v[1] >= 24 * 60 ? 'fin' : t(v[1]));
+  return v.map(function(w){ return (w[0] === 0 ? 'inicio' : t(w[0])) + ' – ' + (w[1] >= 24 * 60 ? 'fin' : t(w[1])); }).join(', ');
 }
 var _hxhCm = null;
 function hxhCambioModelo(i){
   var f = _hxhFilas[i], ahora = new Date(), hh = String(ahora.getHours()).padStart(2, '0') + ':' + String(ahora.getMinutes()).padStart(2, '0');
+  var tr = hxhTramos(f), ult = tr[tr.length - 1] || {};
   _hxhCm = {i: i};
   document.getElementById('hxh-cm-tit').textContent = f.est + ' · termina ' + f.desc;
-  document.getElementById('hxh-cm-fin').value = f.fin || hh;
+  document.getElementById('hxh-cm-fin').value = ult.fin || hh;
   document.getElementById('hxh-cm-ini').value = hh;
+  // Siguiente modelo: uno nuevo o regresar a uno que ya trabajo en el turno (mismo renglon)
+  var otros = hxhHermanos(f).filter(function(x){ return x !== f && x.desc; });
+  document.getElementById('hxh-cm-sig').innerHTML = '<option value="">&#10133; Modelo nuevo (otro renglón)</option>' +
+    otros.map(function(x){ return '<option value="' + _hxhFilas.indexOf(x) + '"' + '>&#8617; Regresar a ' + escHtml(x.desc) + '</option>'; }).join('');
+  document.getElementById('hxh-cm-sig-box').style.display = otros.length ? '' : 'none';
   document.getElementById('hxh-cm-err').textContent = '';
   invAbrirModal('hxh-cm-modal');
 }
 function hxhCambioModeloOk(){
   var f = _hxhFilas[_hxhCm.i], fin = document.getElementById('hxh-cm-fin').value, ini = document.getElementById('hxh-cm-ini').value;
-  var err = document.getElementById('hxh-cm-err');
+  var sig = document.getElementById('hxh-cm-sig').value, err = document.getElementById('hxh-cm-err');
+  var tr = hxhTramos(f), ult = tr[tr.length - 1];
   if (hxhMin(fin) == null || hxhMin(ini) == null) { err.textContent = 'Captura las dos horas.'; return; }
-  if (hxhMin(ini) < hxhMin(fin)) { err.textContent = 'El arranque del nuevo modelo no puede ser antes del fin del anterior.'; return; }
-  if (f.slot > 1 && hxhMin(fin) <= hxhMin(f.ini)) { err.textContent = 'El fin debe ser después del arranque de ' + f.desc + ' (' + f.ini + ').'; return; }
+  if (hxhMin(ini) < hxhMin(fin)) { err.textContent = 'El arranque del siguiente modelo no puede ser antes del fin del anterior.'; return; }
+  if (ult && hxhMin(ult.ini) != null && hxhMin(fin) <= hxhMin(ult.ini)) { err.textContent = 'El fin debe ser después del arranque de ' + f.desc + ' (' + ult.ini + ').'; return; }
   invCerrar('hxh-cm-modal');
-  f.fin = fin;
+  if (ult) ult.fin = fin; else f.tramos.push({ini: '', fin: fin});
   hxhGuardarFila(_hxhCm.i);
+  if (sig !== '') {
+    // Regresa al renglon que ya existia: se le agrega un tramo nuevo
+    var j = Number(sig), g = _hxhFilas[j];
+    hxhTramos(g).push({ini: ini, fin: ''});
+    hxhGuardarFila(j);
+    hxhPintar();
+    return;
+  }
   hxhAgregarModelo(_hxhCm.i, ini);
 }
 function hxhHorarioEditar(i){
-  var f = _hxhFilas[i], her = hxhHermanos(f), k = her.indexOf(f);
-  var ini = f.slot > 1 ? prompt('¿A qué hora arrancó ' + f.desc + '? (HH:MM)', f.ini) : null;
-  if (f.slot > 1 && ini === null) return;
-  if (f.slot > 1 && hxhMin(ini) == null) { alert('Hora inválida. Usa HH:MM, por ejemplo 10:40'); return; }
-  var fin = k < her.length - 1 ? prompt('¿A qué hora terminó ' + f.desc + '? (HH:MM)', f.fin) : null;
-  if (k < her.length - 1 && fin === null) return;
-  if (k < her.length - 1 && hxhMin(fin) == null) { alert('Hora inválida. Usa HH:MM, por ejemplo 10:30'); return; }
-  if (f.slot > 1) f.ini = ini;
-  if (k < her.length - 1) f.fin = fin;
+  var f = _hxhFilas[i], tr = hxhTramos(f), t = function(x, d){ return x || d; };
+  var txt = tr.map(function(x, k){ return t(x.ini, (f.slot === 1 && k === 0) ? 'inicio' : '') + '-' + t(x.fin, 'fin'); }).join(', ');
+  var r = prompt('Horario de ' + f.desc + ' (HH:MM). Si regresó a este modelo, separa los tramos con coma.\nEj.: inicio-10:00, 11:30-fin', txt);
+  if (r === null) return;
+  var nuevos = [], malo = '';
+  r.split(',').forEach(function(p, k){
+    p = p.trim(); if (!p) return;
+    var m = p.split('-').map(function(x){ return x.trim().toLowerCase(); });
+    var ini = (m[0] === 'inicio' || m[0] === '') ? '' : m[0], fin = (m[1] == null || m[1] === 'fin' || m[1] === '') ? '' : m[1];
+    if (m.length !== 2 || (ini && hxhMin(ini) == null) || (fin && hxhMin(fin) == null)) malo = p;
+    else if (!ini && !(f.slot === 1 && nuevos.length === 0)) malo = p + ' (falta la hora de arranque)';
+    else if (ini && fin && hxhMin(fin) <= hxhMin(ini)) malo = p + ' (el fin debe ser después del arranque)';
+    nuevos.push({ini: ini, fin: fin});
+  });
+  if (malo || !nuevos.length) { alert('Horario inválido: ' + (malo || 'vacío') + '\nUsa por ejemplo: inicio-10:00, 11:30-fin'); return; }
+  f.tramos = nuevos;
   hxhGuardarFila(i);
   hxhPintar();
 }
@@ -6549,7 +6597,7 @@ function hxhAgregarModelo(i, ini){
   var f = _hxhFilas[i], her = hxhHermanos(f);
   var slot = her.reduce(function(m, x){ return Math.max(m, x.slot || 1); }, 1) + 1;
   var pos = _hxhFilas.indexOf(her[her.length - 1]) + 1;
-  var nueva = hxhFilaNueva(f.est, slot); nueva.op = f.op; nueva.ini = ini || '';
+  var nueva = hxhFilaNueva(f.est, slot); nueva.op = f.op; nueva.tramos = [{ini: ini || '', fin: ''}];
   _hxhFilas.splice(pos, 0, nueva);
   hxhPintar();
   var sel = document.querySelector('#hxh-f' + pos + ' select[data-c="desc"]'); if (sel) sel.focus();
@@ -6590,7 +6638,7 @@ function hxhPintar(){
     '<th class="tot">Meta total</th><th class="tot">Real</th><th class="tot">% Cumpl.</th><th class="tot">Diferencia</th><th class="tot" title="Disponibilidad × Rendimiento × Calidad">OEE</th><th class="tot" style="min-width:260px">Comentarios</th></tr>';
   _hxhFilas.forEach(function(f, i){
     var usadas = _hxhFilas.map(function(x){ return x.est; });
-    var ultimoModelo = hxhHermanos(f).slice(-1)[0] === f;
+    var ultimoModelo = hxhActivo(f) === f;
     var estLibres = _hxhCat.estaciones.filter(function(e){ return e === f.est || usadas.indexOf(e) === -1; });
     var tieneDatos = Object.keys(f.reales).length > 0;
     var descs = hxhDescripciones(f.est);
@@ -6878,7 +6926,7 @@ function hxhGuardarFila(i){
   if (!f.est) return Promise.resolve();
   return hxhPost({maquina_id: hxhId(f), maquina_nombre: f.est, hora: 'fila', numero_parte: f.desc, operador_linea: f.op,
                   meta_h: hxhMetaH(f.est, f.desc), comentario: f.coment, real: 0,
-                  causa: (f.ini || f.fin) ? JSON.stringify({ini: f.ini || '', fin: f.fin || ''}) : ''})
+                  causa: (f.tramos || []).some(function(t){ return t.ini || t.fin; }) ? JSON.stringify({t: f.tramos.map(function(t){ return [t.ini || '', t.fin || '']; })}) : ''})
     .catch(function(e){ alert(e.message || 'Error de conexión'); });
 }
 function hxhCambio(i, campo, valor){
