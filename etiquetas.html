@@ -253,10 +253,10 @@
   #hojaH60.size-4x6 .etiqueta { height: auto; }
   #hojaH60 .etiqueta-h60 { height: auto; }
 
-  /* Producto terminado (ej. TESLA) - rollo Zebra 75x50mm */
+  /* Producto terminado (ej. TESLA) - rollo Zebra 3x2 pulgadas */
   .size-pt { display: block; padding: 0; border: none; }
   .size-pt .etiqueta {
-    width: 75mm; height: 50mm; display: block; padding: 2mm;
+    width: 3in; height: 2in; display: block; padding: 2mm;
     margin: 0 auto 6mm; overflow: hidden; page-break-after: always; break-after: page;
   }
   .size-pt .etiqueta:last-child { margin-bottom: 0; }
@@ -650,7 +650,7 @@
 <div id="vistaPT" style="display:none;">
 
 <h1>Etiqueta Producto Terminado</h1>
-<p class="subtitulo">Etiqueta de lote de producto terminado (ej. TESLA / EX4015). Rollo Zebra 75x50mm.</p>
+<p class="subtitulo">Etiqueta de lote de producto terminado (ej. TESLA / EX4015). Rollo Zebra 3x2 pulgadas.</p>
 
 <div class="panel no-imprimir">
   <h2>1. Captura tus filas</h2>
@@ -691,7 +691,7 @@
     <button id="btnGenerarPT">Generar etiquetas</button>
     <button class="secundario" id="btnImprimirPT">Imprimir</button>
   </div>
-  <p class="ayuda">Rollo 75x50mm. Al imprimir desde el navegador, confirma que el tamaño de papel sea "75 x 50 mm" (no A4/Letter).</p>
+  <p class="ayuda">Rollo 3x2 pulgadas. Al imprimir desde el navegador, confirma que el tamaño de papel sea "3 x 2 in" (no A4/Letter).</p>
 
   <div class="fila-controles no-imprimir">
     <h2 style="font-size:15px;margin:14px 0 8px;">Enviar directo a la Zebra (red)</h2>
@@ -2263,7 +2263,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   // =======================================================================
-  // Producto Terminado (ej. TESLA / EX4015) - rollo Zebra 75x50mm.
+  // Producto Terminado (ej. TESLA / EX4015) - rollo Zebra 3x2 pulgadas.
   // El ZPL se arma aqui en el navegador y se manda a la Pi (/imprimir-zpl).
   // =======================================================================
   var filasPT = cargarFilas('adpack_filas_pt');
@@ -2384,17 +2384,17 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
 
   document.getElementById('btnImprimirPT').addEventListener('click', function () {
-    document.getElementById('estiloPagina').textContent = '@page { size: 75mm 50mm; margin: 0; }';
+    document.getElementById('estiloPagina').textContent = '@page { size: 3in 2in; margin: 0; }';
     window.print();
   });
 
-  // ---- ZPL 203 dpi: 75x50mm = 600x400 dots ----
+  // ---- ZPL 203 dpi: 3x2in = 609x406 dots ----
   function limpiarZpl(t) { return String(t || '').replace(/[\^~]/g, ' ').toUpperCase(); }
 
   function zplPT(fila) {
-    var X0 = 12, Y0 = 14, ANCHO = 576, FILA = 62, COL = 220;
+    var X0 = 12, Y0 = 14, ANCHO = 585, FILA = 63, COL = 224;
     var ALTO = FILA * 6;
-    var z = '^XA^CI28^PW600^LL400^LH0,0\n';
+    var z = '^XA^CI28^PW609^LL406^LH0,0\n';
     z += '^FO' + X0 + ',' + Y0 + '^GB' + ANCHO + ',' + ALTO + ',3^FS\n';
     for (var i = 1; i < 6; i++) z += '^FO' + X0 + ',' + (Y0 + FILA * i) + '^GB' + ANCHO + ',3,3^FS\n';
     z += '^FO' + (X0 + COL) + ',' + Y0 + '^GB3,' + ALTO + ',3^FS\n';
