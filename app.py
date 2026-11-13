@@ -6566,20 +6566,36 @@ def zebra_estado():
     return jsonify({'ok': True, 'pi_en_linea': seg < 15, 'segundos_desde_pi': int(seg), 'pendientes': pendientes})
 
 
+_ZB_RUTA_RE = re.compile(r'^/imprimir(-[a-z0-9]+)*$')
+
+
 @app.route('/api/zebra/trabajos', methods=['POST'])
 def zebra_crear_trabajo():
+    """Dos tipos de trabajo:
+    - {zpl}: ZPL ya armado, la Pi lo manda directo a la impresora.
+    - {ruta, cuerpo}: la Pi reenvia el JSON a su propio servidor local
+      (ej. /imprimir-h60), que es quien arma el ZPL de esas pestañas."""
     d = request.get_json(silent=True) or {}
     zpl = d.get('zpl') or ''
-    if '^XA' not in zpl or len(zpl) > 500000:
+    ruta = d.get('ruta') or ''
+    cuerpo = d.get('cuerpo')
+    if ruta:
+        if not _ZB_RUTA_RE.match(ruta) or not isinstance(cuerpo, dict):
+            return jsonify({'ok': False, 'error': 'Ruta de impresión inválida'}), 400
+        if len(json.dumps(cuerpo)) > 500000:
+            return jsonify({'ok': False, 'error': 'Trabajo demasiado grande'}), 400
+        zpl = ''
+    elif '^XA' not in zpl or len(zpl) > 500000:
         return jsonify({'ok': False, 'error': 'ZPL vacío o inválido'}), 400
     with _zb_lock:
         _zb_limpiar_viejos()
         tid = _zb_siguiente_id[0]
         _zb_siguiente_id[0] += 1
         _zb_trabajos[tid] = {
-            'id': tid, 'zpl': zpl, 'etiquetas': int(d.get('etiquetas') or 0),
-            'origen': str(d.get('origen') or '')[:60],
-            'estado': 'pendiente', 'error': '', 'creado': _zb_time.time(),
+            'id': tid, 'zpl': zpl, 'ruta': ruta, 'cuerpo': cuerpo if ruta else None,
+            'etiquetas': int(d.get('etiquetas') or 0),
+            'origen': str(d.get('origen') or ruta)[:60],
+            'estado': 'pendiente', 'error': '', 'respuesta': None, 'creado': _zb_time.time(),
         }
     return jsonify({'ok': True, 'id': tid})
 
@@ -6590,7 +6606,8 @@ def zebra_ver_trabajo(tid):
         t = _zb_trabajos.get(tid)
         if not t:
             return jsonify({'ok': False, 'error': 'Trabajo no encontrado'}), 404
-        return jsonify({'ok': True, 'id': tid, 'estado': t['estado'], 'error': t['error']})
+        return jsonify({'ok': True, 'id': tid, 'estado': t['estado'], 'error': t['error'],
+                        'respuesta': t.get('respuesta')})
 
 
 @app.route('/api/zebra/siguiente', methods=['GET'])
@@ -6609,6 +6626,8 @@ def zebra_siguiente():
         t = pend[0]
         t['estado'] = 'enviado'
         t['enviado_en'] = _zb_time.time()
+        if t.get('ruta'):
+            return jsonify({'id': t['id'], 'ruta': t['ruta'], 'cuerpo': t['cuerpo']})
         return jsonify({'id': t['id'], 'zpl': t['zpl']})
 
 
@@ -6623,7 +6642,9 @@ def zebra_resultado(tid):
             return jsonify({'ok': False}), 404
         t['estado'] = 'impreso' if d.get('ok') else 'error'
         t['error'] = str(d.get('error') or '')[:300]
+        t['respuesta'] = d.get('respuesta') if isinstance(d.get('respuesta'), dict) else None
         t['zpl'] = ''  # ya no hace falta guardarlo
+        t['cuerpo'] = None
     return jsonify({'ok': True})
 
 
