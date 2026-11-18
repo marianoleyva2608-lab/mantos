@@ -30,6 +30,8 @@
   .t-rep { background:#eceff2; color:#7a847f; }
   .meta { color:#5b6560; font-size:13px; margin:2px 0 12px; }
   .foto { width:34px; height:34px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:8px; background:#e2e6e3; }
+  .ubic { font-size:12px; margin-top:2px; }
+  .ubic a { color:#1565C0; }
   .vacio { text-align:center; padding:44px; color:#7a847f; background:#fff; border:1px solid var(--borde); border-radius:12px; }
 </style>
 </head>
@@ -101,6 +103,11 @@ async function importar(input){
   input.value='';
 }
 let FOTOS=null;
+// Checador movil: la selfie y la ubicacion GPS vienen en x.raw
+const USR=(()=>{ try{ return (JSON.parse(localStorage.getItem('mantos_user')||'null')||{}).email||''; }catch(e){ return ''; } })();
+function rawDe(x){ let v=x.raw; if(typeof v==='string'){ try{ v=JSON.parse(v); }catch(e){ v=null; } } return v||{}; }
+function fotoMovil(x){ const f=rawDe(x).foto; if(!f) return ''; const u='/api/checador-movil/foto/'+f+'?u='+encodeURIComponent(USR); return '<a href="'+u+'" target="_blank" title="Ver foto"><img class="foto" loading="lazy" src="'+u+'" alt="" onerror="this.parentNode.remove()"></a>'; }
+function ubicMovil(x){ const r=rawDe(x); if(r.lat==null||r.lng==null) return ''; const d=r.distancia_m; return '<div class="ubic"><a href="https://maps.google.com/?q='+r.lat+','+r.lng+'" target="_blank">&#128205; ver mapa</a>'+(d!=null&&x.planta==='Fuera de planta'?' · a '+(d>=1000?(d/1000).toFixed(1)+' km':Math.round(d)+' m')+' de planta':'')+'</div>'; }
 function foto(no){ const v=FOTOS&&FOTOS[no]; return v?'<img class="foto" loading="lazy" src="/api/empleados/'+encodeURIComponent(no)+'/foto?v='+v+'" alt="">':''; }
 async function cargar(silencioso){
   if(FOTOS===null){ try{ FOTOS=await (await fetch('/api/empleados/fotos')).json(); }catch(e){ FOTOS={}; } }
@@ -115,7 +122,8 @@ async function cargar(silencioso){
     for(const x of filas){
       const tipo=x.tipo||'';
       const cls = x.repetida?'t-rep':x.retardo?'t-tarde':(tipo.includes('ntrada')?'t-ent':(tipo.includes('alida')?'t-sal':''));
-      t+='<tr><td>'+fmt(x.fecha_hora)+'</td><td>'+(x.planta||'Matriz')+'</td><td>'+(x.empleado_no||'')+'</td><td>'+foto(x.empleado_no)+(x.nombre||'')+'</td><td><span class="tipo '+cls+'">'+tipo+'</span></td><td>'+(x.metodo||'')+'</td></tr>';
+      const mov=x.metodo==='Móvil';
+      t+='<tr><td>'+fmt(x.fecha_hora)+'</td><td>'+(x.planta||'Matriz')+(mov?ubicMovil(x):'')+'</td><td>'+(x.empleado_no||'')+'</td><td>'+(mov?fotoMovil(x):foto(x.empleado_no))+(x.nombre||'')+'</td><td><span class="tipo '+cls+'">'+tipo+'</span></td><td>'+(x.metodo||'')+'</td></tr>';
     }
     t+='</tbody></table>'; cont.innerHTML=t;
   }catch(e){ meta.textContent='Error al leer las checadas: '+e; }
