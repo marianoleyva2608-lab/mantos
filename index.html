@@ -5712,7 +5712,11 @@ function invBorrarArt(){
     .hxbar .ctl{background:#fff;border-radius:12px;padding:6px 12px;box-shadow:0 1px 3px rgba(16,42,67,.08);display:flex;align-items:center;gap:8px;font-size:12px;color:#62748a;font-weight:600}
     .hxbar .ctl input,.hxbar .ctl select{border:none;font:inherit;font-size:14px;color:#102a43;font-weight:700;background:transparent;outline:none}
     .hxclock{margin-left:auto;background:linear-gradient(135deg,#123F5D,#1a5c2a);color:#fff;border-radius:12px;padding:8px 16px;font-weight:800;font-size:18px;letter-spacing:1px;font-variant-numeric:tabular-nums;box-shadow:0 4px 12px rgba(18,63,93,.3)}
-    .hxkgrps{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:12px;margin-bottom:12px}
+    .hxkgrps{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:12px;margin-bottom:12px}
+    .hxkgrp .hxkpi{background:var(--g,#1565C0);padding:10px 12px}
+    .hxkgrp .hxkpi::before{width:6px}
+    .hxkgrp .hxkpi .v{color:#fff;font-size:20px}
+    .hxkgrp .hxkpi .l{color:rgba(255,255,255,.82)}
     .hxkgrp{background:#f8fafc;border:1px solid #d9e2ec;border-top:4px solid var(--g,#1565C0);border-radius:14px;padding:8px 10px 10px}
     .hxkt{font-size:13px;font-weight:800;color:var(--g,#1565C0);text-transform:uppercase;letter-spacing:.8px;margin:0 0 6px 2px}
     .hxkpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:8px}
@@ -6901,17 +6905,17 @@ function hxhScrapGuardar(){
     .then(function(){ btn.disabled = false; });
 }
 function hxhKpis(){
-  var dep = {termoformado: {plan: 0, paro: 0, ideal: 0, real: 0, scrap: 0}, conversion: {plan: 0, paro: 0, ideal: 0, real: 0, scrap: 0}};
+  var dep = {todo: {plan: 0, paro: 0, ideal: 0, real: 0, scrap: 0}, termoformado: {plan: 0, paro: 0, ideal: 0, real: 0, scrap: 0}, conversion: {plan: 0, paro: 0, ideal: 0, real: 0, scrap: 0}};
   _hxhFilas.forEach(function(f){
     if (!f.est) return;
     var t = hxhOeeDatos(f), a = dep[hxhArea(f.est)];
-    Object.keys(t).forEach(function(k){ a[k] += t[k]; });
+    Object.keys(t).forEach(function(k){ a[k] += t[k]; dep.todo[k] += t[k]; });
   });
   function k(l, v, c){ return '<div class="hxkpi" style="--c:' + c + '"><div class="v">' + v + '</div><div class="l">' + l + '</div></div>'; }
   function grupo(a, nombre, color){
     var meta = 0, real = 0, activas = {}, scrap = 0, costoScrap = 0;
     _hxhFilas.forEach(function(f){
-      if (!f.est || hxhArea(f.est) !== a) return;
+      if (!f.est || (a && hxhArea(f.est) !== a)) return;
       var ks = Object.keys(f.reales);
       if (!ks.length) return;
       activas[f.est] = 1;
@@ -6921,8 +6925,8 @@ function hxhKpis(){
     });
     activas = Object.keys(activas).length;
     var pc = meta ? Math.round(100 * real / meta) : null, ps = scrap ? 100 * scrap / (real + scrap) : null;
-    var o = hxhOeeCalc(dep[a]), mo = hxhMetaOee('oee');
-    var sub = function(l, v, m){ return '<span style="color:' + (v == null ? '#829ab1' : (v >= m ? '#2e7d32' : '#c62828')) + '">' + l + ' ' + hxhPct(v) + '</span>'; };
+    var o = hxhOeeCalc(a ? dep[a] : dep.todo), mo = hxhMetaOee('oee');
+    var sub = function(l, v, m){ return '<span style="color:' + (v == null ? 'rgba(255,255,255,.6)' : (v >= m ? '#b9f6ca' : '#ffcdd2')) + '">' + l + ' ' + hxhPct(v) + '</span>'; };
     return '<div class="hxkgrp" style="--g:' + color + '"><div class="hxkt">' + nombre + '</div><div class="hxkpis">' +
       k('Meta', hxhNum(meta) || '—', '#486581') + k('Real', hxhNum(real) || '0', '#1565C0') +
       k('% Cumplimiento', pc === null ? '—' : pc + '%', pc === null ? '#bcccdc' : (pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828'))) +
@@ -6936,7 +6940,7 @@ function hxhKpis(){
       k('Estaciones activas', activas, '#6A1B9A') +
     '</div></div>';
   }
-  document.getElementById('hxh-kpis').innerHTML = grupo('termoformado', 'Termoformado', '#1565C0') + grupo('conversion', 'Conversión', '#2f855a');
+  document.getElementById('hxh-kpis').innerHTML = grupo('', 'Resumen general', '#123F5D') + grupo('termoformado', 'Termoformado', '#1565C0') + grupo('conversion', 'Conversión', '#2f855a');
 }
 function hxhAgregar(){
   var nf = hxhFilaNueva('', 1);
