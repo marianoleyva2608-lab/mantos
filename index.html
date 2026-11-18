@@ -5765,10 +5765,17 @@ function invBorrarArt(){
     .hxcfg{margin-left:auto;background:#fff;border:1px solid #bcccdc;color:#102a43;border-radius:12px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer}
     .hxcfg:hover{border-color:#2f855a;color:#2f855a}
     .hxcfg+.hxclock{margin-left:0}
+    .hxarea{display:flex;background:#fff;border:1px solid #bcccdc;border-radius:12px;padding:3px;gap:3px}
+    .hxarea button{border:none;background:none;border-radius:9px;padding:7px 14px;font-weight:700;font-size:13px;color:#486581;cursor:pointer}
+    .hxarea button.on{background:#1565C0;color:#fff}
     .hxleg i{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:4px;vertical-align:-1px}
   </style>
   <div style="padding:14px">
     <div class="hxbar">
+      <div class="hxarea" id="hxh-areas">
+        <button data-a="termoformado" onclick="hxhAreaSel('termoformado')">Termoformado</button>
+        <button data-a="conversion" onclick="hxhAreaSel('conversion')">Conversión</button>
+      </div>
       <div class="ctl">&#128197; Fecha <input id="hxh-fecha" type="date" onchange="hxhCargar()"></div>
       <div class="ctl">&#128336; Turno <select id="hxh-turno" onchange="hxhCargar()"><option>1</option><option>2</option><option>3</option></select></div>
       <div class="hxleg"><span><i style="background:#d3f9d8"></i>Cumple meta ajustada</span><span><i style="background:#ffe3e3"></i>No cumple</span></div>
@@ -5862,6 +5869,7 @@ function invBorrarArt(){
       <div style="flex:1"><span class="inv-lbl">Desde</span><input id="hxh-xls-desde" class="inv-in" type="date" style="margin:0"></div>
       <div style="flex:1"><span class="inv-lbl">Hasta</span><input id="hxh-xls-hasta" class="inv-in" type="date" style="margin:0"></div>
       <div style="flex:0 0 90px"><span class="inv-lbl">Turno</span><select id="hxh-xls-turno" class="inv-in" style="margin:0"><option value="">Todos</option><option>1</option><option>2</option><option>3</option></select></div>
+      <div style="flex:0 0 140px"><span class="inv-lbl">Área</span><select id="hxh-xls-area" class="inv-in" style="margin:0"><option value="">Ambas</option><option value="termoformado">Termoformado</option><option value="conversion">Conversión</option></select></div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
       <button class="inv-btn" style="background:#eef2f5;color:#243b53;padding:6px 10px;font-size:13px" onclick="hxhExcelRango(0)">Hoy</button>
@@ -6066,6 +6074,7 @@ function hxhMetaH(est, desc){
 }
 function hxhAbrir(){
   document.getElementById('hxh-fecha').value = new Date().toLocaleDateString('en-CA');
+  hxhAreaBotones();
   showPage('hxh');
   clearInterval(_hxhReloj);
   var reloj = function(){ document.getElementById('hxh-reloj').textContent = new Date().toLocaleTimeString('es-MX'); };
@@ -6234,6 +6243,7 @@ function hxhParetoAbrir(){
   document.getElementById('hxh-par-desde').value = dia;
   document.getElementById('hxh-par-hasta').value = dia;
   document.getElementById('hxh-par-turno').value = document.getElementById('hxh-turno').value;
+  document.getElementById('hxh-par-area').value = _hxhAreaAct;
   invAbrirModal('hxh-par-modal');
   hxhParetoCargar();
 }
@@ -6379,6 +6389,7 @@ function hxhExcelRango(r){
 function hxhExcelAbrir(){
   if (!document.getElementById('hxh-xls-desde').value) hxhExcelRango(7);
   document.getElementById('hxh-xls-turno').value = '';
+  document.getElementById('hxh-xls-area').value = _hxhAreaAct;
   document.getElementById('hxh-xls-err').textContent = '';
   invAbrirModal('hxh-xls-modal');
 }
@@ -6388,7 +6399,7 @@ function hxhExcelDescargar(){
   if (!de || !ha) { err.textContent = 'Elige las dos fechas.'; return; }
   if (de > ha) { err.textContent = 'La fecha Desde no puede ser después de Hasta.'; return; }
   err.textContent = ''; btn.disabled = true; btn.textContent = 'Generando…';
-  var q = 'desde=' + de + '&hasta=' + ha + '&turno=' + document.getElementById('hxh-xls-turno').value;
+  var q = 'desde=' + de + '&hasta=' + ha + '&turno=' + document.getElementById('hxh-xls-turno').value + '&area=' + document.getElementById('hxh-xls-area').value;
   fetch('/api/hxh/excel?' + q, {headers: {'X-Usuario-Email': invEmail()}})
     .then(function(r){
       if (!r.ok) return r.json().then(function(d){ throw new Error(d.error || 'No se pudo generar'); }, function(){ throw new Error('Error ' + r.status); });
@@ -6396,7 +6407,7 @@ function hxhExcelDescargar(){
     })
     .then(function(b){
       var a = document.createElement('a');
-      a.href = URL.createObjectURL(b); a.download = 'hora_por_hora_' + de + '_a_' + ha + '.xlsx';
+      a.href = URL.createObjectURL(b); a.download = 'hora_por_hora_' + (document.getElementById('hxh-xls-area').value ? document.getElementById('hxh-xls-area').value + '_' : '') + de + '_a_' + ha + '.xlsx';
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
       invCerrar('hxh-xls-modal');
@@ -6404,6 +6415,19 @@ function hxhExcelDescargar(){
     .catch(function(e){ err.textContent = e.message || 'Error de conexión'; })
     .then(function(){ btn.disabled = false; btn.textContent = 'Descargar'; });
 }
+// Area del tablero: Termoformado y Conversion se capturan y se ven por separado
+var _hxhAreaAct = (function(){ try { return localStorage.getItem('hxh_area') || 'termoformado'; } catch (e) { return 'termoformado'; } })();
+function hxhAreaSel(a){
+  _hxhAreaAct = a;
+  try { localStorage.setItem('hxh_area', a); } catch (e) {}
+  hxhAreaBotones();
+  if (_hxhCat) hxhPintar();
+}
+function hxhAreaBotones(){
+  document.querySelectorAll('#hxh-areas button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-a') === _hxhAreaAct); });
+}
+function hxhFilaArea(f){ return f.est ? hxhArea(f.est) : (f.area || 'termoformado'); }
+function hxhVisible(f){ return hxhFilaArea(f) === _hxhAreaAct; }
 function hxhSalir(){ clearInterval(_hxhTimer); clearInterval(_hxhReloj); showPage('menu'); }
 function hxhCargar(){
   var q = 'fecha=' + document.getElementById('hxh-fecha').value + '&turno=' + document.getElementById('hxh-turno').value;
@@ -6637,9 +6661,10 @@ function hxhPintar(){
     HXH_FRANJAS.map(function(f){ return '<th class="fr">' + f[0] + '</th>'; }).join('') +
     '<th class="tot">Meta total</th><th class="tot">Real</th><th class="tot">% Cumpl.</th><th class="tot">Diferencia</th><th class="tot" title="Disponibilidad × Rendimiento × Calidad">OEE</th><th class="tot" style="min-width:260px">Comentarios</th></tr>';
   _hxhFilas.forEach(function(f, i){
+    if (!hxhVisible(f)) return;
     var usadas = _hxhFilas.map(function(x){ return x.est; });
     var ultimoModelo = hxhActivo(f) === f;
-    var estLibres = _hxhCat.estaciones.filter(function(e){ return e === f.est || usadas.indexOf(e) === -1; });
+    var estLibres = _hxhCat.estaciones.filter(function(e){ return (e === f.est || usadas.indexOf(e) === -1) && hxhArea(e) === _hxhAreaAct; });
     var tieneDatos = Object.keys(f.reales).length > 0;
     var descs = hxhDescripciones(f.est);
     if (f.desc && descs.indexOf(f.desc) === -1) descs.unshift(f.desc);
@@ -6672,7 +6697,8 @@ function hxhPintar(){
       '<td></td><td class="calc" style="color:#9a5b00" id="hxh-pt' + i + '"></td><td class="calc" style="color:#9a5b00" id="hxh-pdisp' + i + '"></td><td></td><td></td><td class="sd" style="color:#9a5b00" id="hxh-pd' + i + '"></td></tr>';
   });
   document.getElementById('hxh-tabla').innerHTML = h;
-  _hxhFilas.forEach(function(f, i){ hxhCalcFila(i); });
+  _hxhFilas.forEach(function(f, i){ if (hxhVisible(f)) hxhCalcFila(i); });
+  hxhKpis();
 }
 // Recalcula Meta/h, semaforo de cada franja y totales del renglon (mismas formulas del Excel)
 function hxhCalcFila(i){
@@ -6878,6 +6904,7 @@ function hxhScrapGuardar(){
 function hxhKpis(){
   var meta = 0, real = 0, activas = {}, ok = 0, tot = 0, scrap = 0, costoScrap = 0;
   _hxhFilas.forEach(function(f){
+    if (!hxhVisible(f)) return;
     var metaH = (f.est && f.desc) ? hxhMetaH(f.est, f.desc) : 0, op = !!hxhComidaDe(f.op);
     var ks = Object.keys(f.reales);
     if (!ks.length) return;
@@ -6896,12 +6923,12 @@ function hxhKpis(){
   var pc = meta ? Math.round(100 * real / meta) : null;
   function k(l, v, c){ return '<div class="hxkpi" style="--c:' + c + '"><div class="v">' + v + '</div><div class="l">' + l + '</div></div>'; }
   document.getElementById('hxh-kpis').innerHTML =
-    k('Meta planta', hxhNum(meta) || '—', '#486581') + k('Real', hxhNum(real) || '0', '#1565C0') +
+    k('Meta ' + (_hxhAreaAct === 'termoformado' ? 'Termoformado' : 'Conversión'), hxhNum(meta) || '—', '#486581') + k('Real', hxhNum(real) || '0', '#1565C0') +
     k('% Cumplimiento', pc === null ? '—' : pc + '%', pc === null ? '#bcccdc' : (pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828'))) +
     k('Scrap (piezas NG)', hxhNum(scrap) || '0', '#c62828') + k('% Scrap (meta ' + hxhMetaScrap() + '%)', scrap ? (100 * scrap / (real + scrap)).toFixed(1) + '%' : '—', !scrap ? '#bcccdc' : (100 * scrap / (real + scrap) <= hxhMetaScrap() ? '#2e7d32' : '#c62828')) +
     k('Costo scrap (MXN)', hxhPesos(costoScrap), '#c62828') +
     k('Estaciones activas', activas, '#6A1B9A') +
-    ['termoformado', 'conversion'].map(function(a){
+    [_hxhAreaAct].map(function(a){
       var o = hxhOeeCalc(dep[a]), mo = hxhMetaOee('oee');
       var sub = function(l, v, m){ return '<span style="color:' + (v == null ? '#829ab1' : (v >= m ? '#2e7d32' : '#c62828')) + '">' + l + ' ' + hxhPct(v) + '</span>'; };
       return '<div class="hxkpi" style="--c:' + (!o ? '#bcccdc' : (o.oee >= mo ? '#2e7d32' : '#c62828')) + '"><div class="v">' + (o ? hxhPct(o.oee) : '—') + '</div>' +
@@ -6911,7 +6938,8 @@ function hxhKpis(){
     }).join('');
 }
 function hxhAgregar(){
-  _hxhFilas.push(hxhFilaNueva('', 1));
+  var nf = hxhFilaNueva('', 1); nf.area = _hxhAreaAct;
+  _hxhFilas.push(nf);
   hxhPintar();
   var sels = document.querySelectorAll('#hxh-tabla td.est select');
   if (sels.length) { sels[sels.length - 1].focus(); sels[sels.length - 1].scrollIntoView({block: 'nearest'}); }
@@ -6944,7 +6972,7 @@ function hxhDuenoHora(f, franja){
 }
 function hxhCalcEstacion(i){
   var f = _hxhFilas[i];
-  _hxhFilas.forEach(function(x, j){ if (x.est && x.est === f.est) hxhCalcFila(j); });
+  _hxhFilas.forEach(function(x, j){ if (x.est && x.est === f.est && hxhVisible(x)) hxhCalcFila(j); });
 }
 function hxhCelda(i, k, inp){
   var f = _hxhFilas[i], fr = HXH_FRANJAS[k];

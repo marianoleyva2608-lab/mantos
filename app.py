@@ -6184,8 +6184,13 @@ def hxh_excel():
     # Agrupar: renglon = fecha + turno + maquina_id (con modelo)
     grupos = {}
     ren = _hxh_renombres()
+    area_f = request.args.get('area') or ''
     for r in filas:
         k = (r['fecha'], r['turno'], _hxh_mid_nuevo(r['maquina_id'], ren))
+        if area_f:
+            est_r = k[2].split('#')[0]
+            if (area_est.get(est_r) or ('termoformado' if re.search(r'^TERMO|TERMOFORMADO$', est_r) else 'conversion')) != area_f:
+                continue
         g = grupos.setdefault(k, {'desc': '', 'op': '', 'coment': '', 'meta_h': 0, 'horas': {}, 'scrap': {}, 'det': {}})
         if r['hora'] == 'fila':
             g['coment'] = r.get('comentario') or ''
