@@ -5712,19 +5712,19 @@ function invBorrarArt(){
     .hxbar .ctl{background:#fff;border-radius:12px;padding:6px 12px;box-shadow:0 1px 3px rgba(16,42,67,.08);display:flex;align-items:center;gap:8px;font-size:12px;color:#62748a;font-weight:600}
     .hxbar .ctl input,.hxbar .ctl select{border:none;font:inherit;font-size:14px;color:#102a43;font-weight:700;background:transparent;outline:none}
     .hxclock{margin-left:auto;background:linear-gradient(135deg,#123F5D,#1a5c2a);color:#fff;border-radius:12px;padding:8px 16px;font-weight:800;font-size:18px;letter-spacing:1px;font-variant-numeric:tabular-nums;box-shadow:0 4px 12px rgba(18,63,93,.3)}
-    .hxkgrps{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:12px;margin-bottom:12px}
-    .hxkgrp .hxkpi{background:var(--g,#1565C0);padding:10px 12px}
-    .hxkgrp .hxkpi::before{width:6px}
-    .hxkgrp .hxkpi .v{color:#fff;font-size:20px}
-    .hxkgrp .hxkpi .l{color:rgba(255,255,255,.82)}
-    .hxkgrp{background:#f8fafc;border:1px solid #d9e2ec;border-top:4px solid var(--g,#1565C0);border-radius:14px;padding:8px 10px 10px}
-    .hxkt{font-size:13px;font-weight:800;color:var(--g,#1565C0);text-transform:uppercase;letter-spacing:.8px;margin:0 0 6px 2px}
-    .hxkpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:8px}
+    .hxkgrps{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:8px;margin-bottom:8px}
+    .hxkgrp .hxkpi{background:var(--g,#1565C0);padding:5px 8px 5px 11px;border-radius:9px;box-shadow:none}
+    .hxkgrp .hxkpi::before{width:4px}
+    .hxkgrp .hxkpi .v{color:#fff;font-size:16px;line-height:1.15;white-space:nowrap}
+    .hxkgrp .hxkpi .l{color:rgba(255,255,255,.82);font-size:9px;letter-spacing:.3px;margin-top:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hxkgrp{background:#f8fafc;border:1px solid #d9e2ec;border-top:3px solid var(--g,#1565C0);border-radius:10px;padding:4px 6px 6px}
+    .hxkt{font-size:11px;font-weight:800;color:var(--g,#1565C0);text-transform:uppercase;letter-spacing:.8px;margin:0 0 4px 2px}
+    .hxkpis{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
     .hxkpi{background:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 1px 3px rgba(16,42,67,.08);position:relative;overflow:hidden}
     .hxkpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c,#1a5c2a)}
     .hxkpi .v{font-size:22px;font-weight:800;color:#102a43;font-variant-numeric:tabular-nums;line-height:1.1}
     .hxkpi .l{font-size:11px;font-weight:700;color:#829ab1;text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
-    .hxwrap{background:#fff;border-radius:16px;box-shadow:0 2px 10px rgba(16,42,67,.08);overflow:auto;max-height:calc(100vh - 380px);min-height:300px}
+    .hxwrap{background:#fff;border-radius:16px;box-shadow:0 2px 10px rgba(16,42,67,.08);overflow:auto;max-height:calc(100vh - 300px);min-height:300px}
     .hx{border-collapse:separate;border-spacing:0;font-size:13px;color:#243b53;white-space:nowrap;width:100%}
     .hx th{position:sticky;top:0;z-index:2;background:#102a43;color:#d9e2ec;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:10px 6px;text-align:center}
     .hx th:first-child{left:0;z-index:3}
@@ -6929,15 +6929,15 @@ function hxhKpis(){
     var sub = function(l, v, m){ return '<span style="color:' + (v == null ? 'rgba(255,255,255,.6)' : (v >= m ? '#b9f6ca' : '#ffcdd2')) + '">' + l + ' ' + hxhPct(v) + '</span>'; };
     return '<div class="hxkgrp" style="--g:' + color + '"><div class="hxkt">' + nombre + '</div><div class="hxkpis">' +
       k('Meta', hxhNum(meta) || '—', '#486581') + k('Real', hxhNum(real) || '0', '#1565C0') +
-      k('% Cumplimiento', pc === null ? '—' : pc + '%', pc === null ? '#bcccdc' : (pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828'))) +
+      k('% Cumpl.', pc === null ? '—' : pc + '%', pc === null ? '#bcccdc' : (pc >= 100 ? '#2e7d32' : (pc >= 80 ? '#ef6c00' : '#c62828'))) +
       '<div class="hxkpi" style="--c:' + (!o ? '#bcccdc' : (o.oee >= mo ? '#2e7d32' : '#c62828')) + '"><div class="v">' + (o ? hxhPct(o.oee) : '—') + '</div>' +
         '<div class="l">OEE (meta ' + hxhPct(mo) + ')</div>' +
-        '<div style="font-size:11px;font-weight:700;margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">' +
+        '<div style="font-size:9px;font-weight:700;display:flex;gap:4px;white-space:nowrap">' +
           sub('D', o && o.d, hxhMetaOee('disponibilidad')) + sub('R', o && o.r, hxhMetaOee('rendimiento')) + sub('C', o && o.c, hxhMetaOee('calidad')) + '</div></div>' +
-      k('Scrap (piezas NG)', hxhNum(scrap) || '0', '#c62828') +
+      k('Scrap NG', hxhNum(scrap) || '0', '#c62828') +
       k('% Scrap (meta ' + hxhMetaScrap() + '%)', ps === null ? '—' : ps.toFixed(1) + '%', ps === null ? '#bcccdc' : (ps <= hxhMetaScrap() ? '#2e7d32' : '#c62828')) +
-      k('Costo scrap', hxhPesos(costoScrap), '#c62828') +
-      k('Estaciones activas', activas, '#6A1B9A') +
+      k('Costo scrap', '$' + (hxhNum(costoScrap, 2) || '0'), '#c62828') +
+      k('Est. activas', activas, '#6A1B9A') +
     '</div></div>';
   }
   document.getElementById('hxh-kpis').innerHTML = grupo('', 'Resumen general', '#123F5D') + grupo('termoformado', 'Termoformado', '#1565C0') + grupo('conversion', 'Conversión', '#2f855a');
