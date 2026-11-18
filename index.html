@@ -8617,13 +8617,18 @@ function deleteRef(id){
     btn.style.display = 'block';
   });
   window.addEventListener('appinstalled', function () { btn.style.display = 'none'; });
-  if (esIOS) btn.style.display = 'block';
+  // Mostrar siempre el boton (Android/PC incluidos); si el navegador aun no da el aviso, se muestran instrucciones
+  btn.style.display = 'block';
 })();
 function qrInstalarApp() {
   var p = window._qrPromptInstalar;
   if (p) {
     p.prompt();
     p.userChoice.then(function () { window._qrPromptInstalar = null; });
+    return;
+  }
+  if (!/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+    alert('Para instalar la app:\n\n1. Toca el menú ⋮ (arriba a la derecha de Chrome)\n2. Elige "Instalar app" o "Agregar a pantalla principal"\n3. Toca "Instalar"');
     return;
   }
   var chrome = /CriOS/i.test(navigator.userAgent);
