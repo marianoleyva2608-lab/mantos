@@ -44,7 +44,7 @@
 
 <div class="wrap">
   <form class="filtros" onsubmit="cargar();return false;">
-    <div class="campo"><label>Planta</label><select id="planta" onchange="cargar()" style="padding:9px 10px;border:1px solid var(--borde);border-radius:8px;font-size:14px;"><option value="">Todas</option><option>Matriz</option><option>Conversión</option></select></div>
+    <div class="campo"><label>Planta</label><select id="planta" onchange="cargar()" style="padding:9px 10px;border:1px solid var(--borde);border-radius:8px;font-size:14px;"><option value="">Todas</option><option>Matriz</option><option>Conversión</option><option value="Móvil">Checador móvil</option></select></div>
     <div class="campo"><label>Desde</label><input type="date" id="desde"></div>
     <div class="campo"><label>Hasta</label><input type="date" id="hasta"></div>
     <div class="campo" style="flex:1;min-width:160px;">
@@ -85,7 +85,7 @@ async function importar(input){
   msg.style.display='block'; msg.style.background='#eef3ef'; msg.style.color='#5b6560';
   msg.textContent='Importando '+file.name+'…';
   const pl=document.getElementById('planta').value;
-  if(!pl){ msg.style.background='#fdeaea'; msg.style.color='#b23'; msg.textContent='Elige primero la planta (Matriz o Conversión) a la que pertenece el archivo.'; input.value=''; return; }
+  if(!pl||pl==='Móvil'){ msg.style.background='#fdeaea'; msg.style.color='#b23'; msg.textContent='Elige primero la planta (Matriz o Conversión) a la que pertenece el archivo.'; input.value=''; return; }
   const fd=new FormData(); fd.append('archivo',file); fd.append('planta',pl);
   try{
     const r=await fetch('/api/checadas/import',{method:'POST',body:fd});

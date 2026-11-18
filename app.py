@@ -4181,6 +4181,22 @@ def _cm_ubicar(lat, lng):
     return 'Fuera de planta', (round(mejor[1]) if mejor else None)
 
 
+def _cm_habilitados():
+    """Usuarios con permiso 'checador' explicito (los que tienen checador movil).
+    En asistencia su numero de empleado es su correo."""
+    try:
+        rows = sb.select('users', select='nombre,email,permisos', permisos='ilike.*checador*')
+    except Exception:
+        return []
+    out = []
+    for u in rows:
+        permisos = [p.strip() for p in (u.get('permisos') or '').split(',')]
+        correo = (u.get('email') or '').strip().lower()
+        if correo and 'checador' in permisos:
+            out.append({'empleado_no': correo, 'nombre': u.get('nombre') or correo})
+    return out
+
+
 def _cm_es_admin(u):
     return bool(u) and (u.get('rol') == 'admin' or u.get('permisos') == 'all')
 
@@ -4318,6 +4334,9 @@ def _ck_filtros(params):
     if planta == 'Matriz':
         # Las checadas de antes de separar plantas no tienen planta: son de Matriz
         ors.append('planta.eq.Matriz,planta.is.null')
+    elif planta == 'Móvil':
+        # Checador movil: sus checadas llevan la geocerca como planta
+        params.append(('metodo', 'eq.Móvil'))
     elif planta:
         params.append(('planta', f'eq.{planta}'))
     if len(ors) == 1:
@@ -4604,6 +4623,10 @@ def empleados_list():
         if no not in emp:
             emp[no] = {'empleado_no': no, 'nombre': x.get('nombre') or '',
                        'planta': x.get('planta') or 'Matriz'}
+    # Personas con checador movil: aparecen aunque todavia no hayan checado
+    for m in _cm_habilitados():
+        e = emp.setdefault(m['empleado_no'], {'empleado_no': m['empleado_no'], 'nombre': m['nombre']})
+        e['planta'], e['movil'] = 'Móvil', True
     try:
         for h in sb.select('horarios', select='*'):
             no = str(h.get('empleado_no') or '')
@@ -4977,6 +5000,16 @@ def checadas_export_semanal():
         i = info.setdefault(emp, {'nombre': x.get('nombre') or '', 'plantas': Counter()})
         i['plantas'][x.get('planta') or 'Matriz'] += 1
 
+    # Personas con checador movil: salen siempre (si no checaron, con faltas)
+    nombre_f = _ck_norm(request.args.get('nombre') or '')
+    if planta in ('', 'Móvil'):
+        for m in _cm_habilitados():
+            if nombre_f and nombre_f not in _ck_norm(m['nombre']) and nombre_f not in m['empleado_no']:
+                continue
+            por_emp[m['empleado_no']]  # crea la entrada aunque no tenga checadas
+            i = info.setdefault(m['empleado_no'], {'nombre': m['nombre'], 'plantas': Counter()})
+            i['movil'] = True
+
     # Dias del reporte: lunes a viernes, mas sabado/domingo si alguien checo
     con_datos = {d for e in por_emp.values() for d in e}
     dias, d = [], desde
@@ -5064,7 +5097,7 @@ def checadas_export_semanal():
                 c.alignment = centro
                 c.border = borde
         valores = [(1, emp), (2, info[emp]['nombre']),
-                   (3, info[emp]['plantas'].most_common(1)[0][0]),
+                   (3, 'Móvil' if info[emp].get('movil') else info[emp]['plantas'].most_common(1)[0][0]),
                    (ncol - 1, tarde), (ncol, faltas)]
         for col, v in valores:
             ws.merge_cells(start_row=fila, start_column=col, end_row=fila + 1, end_column=col)
