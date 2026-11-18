@@ -8603,10 +8603,11 @@ function deleteRef(id){
 </div>
 <button id="qr-instalar" onclick="qrInstalarApp()" style="display:none;position:fixed;right:16px;bottom:16px;z-index:9999;background:#1a5c2a;color:#fff;border:none;border-radius:24px;padding:12px 18px;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,.25);cursor:pointer">&#128242; Descargar app</button>
 <script>
-// Boton para instalar la PWA "QR AD-PACK" (solo en /qr y si aun no esta instalada)
+// Boton para instalar la PWA: "Sistema ADPACK" en / y "QR AD-PACK" en /qr (si aun no esta instalada)
 (function () {
   var instalada = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-  if (location.pathname !== '/qr' || instalada) return;
+  var ruta = location.pathname;
+  if ((ruta !== '/' && ruta !== '/index.html' && ruta !== '/qr') || instalada) return;
   var btn = document.getElementById('qr-instalar');
   var esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   window._qrPromptInstalar = null;

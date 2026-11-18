@@ -2,7 +2,7 @@
 // Preventivo + accesos a Requisiciones, Refacciones, Ordenes, Reportes,
 // Etiquetas, Trazabilidad y Control de Baños). Solo lo necesario para que
 // el navegador ofrezca "Instalar app". Nunca cachea /api/ (datos en vivo).
-const CACHE_NAME = 'adpack-v1';
+const CACHE_NAME = 'adpack-v2';
 const ARCHIVOS_SHELL = [
   '/',
   '/index.html',
