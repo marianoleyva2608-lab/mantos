@@ -5803,7 +5803,7 @@ function invBorrarArt(){
       <div><span class="inv-lbl">Meta de scrap (%)</span><input id="hxh-cfg-scrap" class="inv-in" type="number" min="0" max="100" step="0.1" style="width:110px;margin:0"></div>
       <div style="flex:1;min-width:180px"><span class="inv-lbl">Estación</span><select id="hxh-cfg-est" class="inv-in" style="margin:0" onchange="hxhCfgPintar()"></select></div>
     </div>
-    <div style="font-size:12px;color:#62748a;margin-bottom:6px">Una fila por cada combinación Estación + Descripción. Ciclo ideal y Meta turno se calculan solos.</div>
+    <div style="font-size:12px;color:#62748a;margin-bottom:6px">Una fila por cada combinación Estación + Descripción. Puedes cambiar la estación, la descripción, la Meta/h y el costo de las filas existentes. Ciclo ideal y Meta turno se calculan solos.</div>
     <div style="max-height:45vh;overflow:auto;border:1px solid #eee;border-radius:10px">
       <table style="width:100%;border-collapse:collapse;font-size:13px" id="hxh-cfg-tabla"></table>
     </div>
@@ -6128,7 +6128,8 @@ function hxhCfgPintar(){
     if (est && c.estacion !== est) return '';
     var clave = hxhCfgClave(c), v = clave in _hxhCfgCambios ? _hxhCfgCambios[clave] : c.meta_h, m = Number(v) || 0;
     var nuevo = _hxhCfgAgregar.some(function(x){ return hxhCfgClave(x) === clave; });
-    return '<tr style="border-bottom:1px solid #eee' + (nuevo ? ';background:#e8f5e9' : '') + '"><td style="padding:6px 8px;font-weight:700;white-space:nowrap">' + escHtml(c.estacion) + '</td><td style="padding:6px 8px">' + escHtml(c.descripcion) + '</td>' +
+    return '<tr style="border-bottom:1px solid #eee' + (nuevo ? ';background:#e8f5e9' : '') + '"><td style="padding:4px 8px;width:170px"><select class="inv-in" style="margin:0;width:165px;font-weight:700" title="Cambiar estación" onchange="hxhCfgRenombrar(' + n + ',\'estacion\',this)">' + _hxhCat.estaciones.map(function(e){ return '<option' + (e === c.estacion ? ' selected' : '') + '>' + escHtml(e) + '</option>'; }).join('') + '</select></td>' +
+      '<td style="padding:4px 8px"><input class="inv-in" maxlength="120" value="' + escHtml(c.descripcion) + '" title="Cambiar descripción" style="margin:0;min-width:160px" onchange="hxhCfgRenombrar(' + n + ',\'descripcion\',this)"></td>' +
       '<td style="padding:4px 8px;width:100px"><input class="inv-in" type="number" min="0" step="0.01" value="' + (v == null ? '' : Math.round(v * 100) / 100) + '" style="margin:0;width:95px;text-align:center' + (clave in _hxhCfgCambios ? ';background:#fff8e1' : '') + '" oninput="hxhCfgCambio(' + n + ',this)"></td>' +
       '<td style="padding:6px 8px;text-align:right;background:#eef4fb" id="hxh-cfg-ci' + n + '">' + (m ? (3600 / m).toFixed(2) : '') + '</td>' +
       '<td style="padding:6px 8px;text-align:right;background:#eef4fb" id="hxh-cfg-mt' + n + '">' + (m ? hxhNum(m * min / 60, 1) : '') + '</td>' +
@@ -6184,6 +6185,33 @@ function hxhCfgAgregar(){
   document.getElementById('hxh-cfg-ncosto').value = '';
   document.getElementById('hxh-cfg-ndesc').value = ''; document.getElementById('hxh-cfg-nmeta').value = '';
   document.getElementById('hxh-cfg-est').value = c.estacion;
+  hxhCfgModelos();
+  hxhCfgPintar();
+}
+// Cambia Estacion o Descripcion de una fila ya dada de alta, conservando su Meta/h y costo
+function hxhCfgRenombrar(n, campo, inp){
+  var err = document.getElementById('hxh-cfg-err'), c = _hxhCfgLista[n], vieja = hxhCfgClave(c);
+  var valor = String(inp.value || '').trim().replace(/\s+/g, ' ');
+  if (!valor) { err.textContent = 'La descripción no puede quedar vacía.'; inp.value = c[campo]; return; }
+  if (valor === c[campo]) { inp.value = valor; return; }
+  var prop = {estacion: c.estacion, descripcion: c.descripcion}; prop[campo] = valor;
+  var nueva = hxhCfgClave(prop);
+  if (_hxhCfgLista.some(function(x, i){ return i !== n && hxhCfgClave(x) === nueva; })) {
+    err.textContent = 'Ya existe ' + prop.estacion + ' · ' + prop.descripcion + '.'; inp.value = c[campo]; return;
+  }
+  err.textContent = '';
+  var meta = vieja in _hxhCfgCambios ? _hxhCfgCambios[vieja] : c.meta_h;
+  var costo = vieja in _hxhCfgCostos ? _hxhCfgCostos[vieja] : c.costo;
+  delete _hxhCfgCambios[vieja]; delete _hxhCfgCostos[vieja];
+  var eraNuevo = _hxhCfgAgregar.some(function(x){ return hxhCfgClave(x) === vieja; });
+  _hxhCfgAgregar = _hxhCfgAgregar.filter(function(x){ return hxhCfgClave(x) !== vieja; });
+  if (!eraNuevo && _hxhCfgEliminar.indexOf(vieja) < 0) _hxhCfgEliminar.push(vieja);
+  c[campo] = valor;
+  if (_hxhCfgEliminar.indexOf(nueva) >= 0) _hxhCfgEliminar = _hxhCfgEliminar.filter(function(k){ return k !== nueva; });
+  else _hxhCfgAgregar.push(c);
+  if (meta != null && meta !== '') _hxhCfgCambios[nueva] = meta;
+  if (costo != null && costo !== '' && Number(costo)) _hxhCfgCostos[nueva] = costo;
+  if (campo === 'estacion' && document.getElementById('hxh-cfg-est').value) document.getElementById('hxh-cfg-est').value = valor;
   hxhCfgModelos();
   hxhCfgPintar();
 }
