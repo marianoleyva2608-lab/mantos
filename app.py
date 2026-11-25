@@ -2297,7 +2297,7 @@ def registrar_cotizacion_requisicion(rid):
     if not isinstance(o.get('cotizaciones'), list):
         o['cotizaciones'] = []
     o['cotizaciones'].append({'numero': cot_numero, 'proveedor': cot_proveedor, 'link': cot_link, 'archivos': cot_archivos,
-                              'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M'), 'visible': bool(d.get('visible'))})
+                              'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M')})
     # Solicitud de cotizacion: Compras no firma; al registrar la primera cotizacion queda atendida
     atendida_ahora = False
     if o.get('tipo_doc') == 'cotizacion':
@@ -2326,12 +2326,12 @@ def registrar_cotizacion_requisicion(rid):
     return jsonify({'ok': True})
 
 def _cotizacion_marcar_aviso(o):
-    """True si hay que avisar al solicitante: solicitud de cotizacion con alguna cotizacion visible y sin aviso previo."""
-    if o.get('tipo_doc') != 'cotizacion' or o.get('aviso_cot_enviado'):
+    """True si hay que avisar al solicitante: Compras ya la hizo visible, tiene cotizaciones y no se ha avisado."""
+    if o.get('tipo_doc') != 'cotizacion' or o.get('aviso_cot_enviado') or not o.get('cot_visible'):
         return False
     if not (o.get('solicitante_email') or '').strip():
         return False
-    if not any(c.get('visible', True) for c in (o.get('cotizaciones') or [])):
+    if not (o.get('cotizaciones') or []):
         return False
     o['aviso_cot_enviado'] = True
     return True
@@ -2349,9 +2349,9 @@ def _cotizacion_avisar_solicitante(o, rid):
     except Exception:
         pass
 
-@app.route('/api/requisicion/<rid>/cotizacion/<int:idx>/visible', methods=['POST'])
-def cotizacion_visible(rid, idx):
-    """Compras decide con un checkbox si una cotizacion registrada la ven los demas."""
+@app.route('/api/requisicion/<rid>/cotizaciones-visible', methods=['POST'])
+def cotizaciones_visible(rid):
+    """Compras decide con un checkbox en la solicitud si el usuario ve las cotizaciones."""
     d = request.json or {}
     firmante_email = (d.get('firmante_email') or '').strip().lower()
     rows = sb.select('requisiciones', select='data', id='eq.' + rid)
@@ -2361,10 +2361,7 @@ def cotizacion_visible(rid, idx):
     asignado = email_compras_de(o)
     if asignado and firmante_email != asignado:
         return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede cambiar la visibilidad'}), 403
-    cots = o.get('cotizaciones') or []
-    if idx < 0 or idx >= len(cots):
-        return jsonify({'ok': False, 'error': 'Cotización no encontrada'}), 404
-    cots[idx]['visible'] = bool(d.get('visible'))
+    o['cot_visible'] = bool(d.get('visible'))
     avisar = _cotizacion_marcar_aviso(o)
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     if avisar:
