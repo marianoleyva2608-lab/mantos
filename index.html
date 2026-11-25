@@ -1407,7 +1407,7 @@ async function submitAddUser(){
     document.getElementById('nu-nombre').value='';
     document.getElementById('nu-email').value='';
     document.getElementById('nu-pin').value='';
-    if(d.enlace_pin){ mostrarEnlacePin(d.nombre, d.enlace_pin, d.correo_enviado); loadUsersList(); return; }
+    if(d.pin_pendiente) err.textContent='✅ Usuario registrado. La primera vez entra con su correo y crea su PIN.';
     setTimeout(()=>{
       document.getElementById('add-user-form').style.display='none';
       loadUsersList();
@@ -1556,13 +1556,14 @@ function mostrarEnlacePin(nombre, enlace, correoOk){
   };
   document.getElementById('enlace-pin-cerrar').onclick=function(){ m.remove(); var f=document.getElementById('add-user-form'); if(f) f.style.display='none'; };
 }
-async function enviarEnlacePin(userId, nombre){
-  if(!confirm('¿Generar un enlace nuevo para que '+nombre+' cree su PIN? Su PIN actual dejará de funcionar.')) return;
+// El admin resetea el PIN: el usuario entra con su correo y crea uno nuevo (lo escribe dos veces)
+async function resetearPinUsuario(userId, nombre){
+  if(!confirm('¿Resetear el PIN de '+nombre+'? Su PIN actual dejará de funcionar y la próxima vez que entre con su correo creará uno nuevo.')) return;
   try{
     var r=await fetch('/api/users/'+userId+'/enlace-pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({admin_email:(currentUser&&currentUser.email)||''})});
     var d=await r.json();
     if(!d.ok){ alert(d.error||'Error'); return; }
-    mostrarEnlacePin(nombre, d.enlace_pin, d.correo_enviado);
+    if(typeof showToast==='function') showToast('✅ PIN reseteado: '+nombre+' crea uno nuevo al entrar');
     loadUsersList();
   }catch(e){ alert('Error de conexión'); }
 }
@@ -1600,9 +1601,8 @@ async function loadUsersList(){
         <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           ${rolBadge}
           ${u.pin_pendiente ? '<div style="font-size:9px;background:#fce4ec;color:#c62828;padding:3px 8px;border-radius:20px;font-weight:700">&#9203; PIN pendiente</div>' : ''}
-          ${isAdmin ? `<button onclick="enviarEnlacePin(${u.id}, '${(u.nombre||'').replace(/'/g,"\\'")}')" style="font-size:10px;background:#fff;color:#6a1b9a;border:1px solid #6a1b9a;border-radius:14px;padding:2px 10px;cursor:pointer">&#128231; Enlace para crear PIN</button>` : ''}
+          ${isAdmin ? `<button onclick="resetearPinUsuario(${u.id}, '${(u.nombre||'').replace(/'/g,"\\'")}')" style="font-size:10px;background:#fff;color:#6a1b9a;border:1px solid #6a1b9a;border-radius:14px;padding:2px 10px;cursor:pointer">&#128260; Resetear PIN</button>` : ''}
           <button onclick="showChangePinForm('${u.email.replace(/'/g,"\\'")}')" style="font-size:10px;background:#fff;color:#1565C0;border:1px solid #1565C0;border-radius:14px;padding:2px 10px;cursor:pointer">&#128273; Cambiar PIN</button>
-          ${isAdmin ? `<button onclick="showResetPinForm(${u.id}, '${u.email.replace(/'/g,"\\'")}')" style="font-size:10px;background:#fff;color:#e65100;border:1px solid #e65100;border-radius:14px;padding:2px 10px;cursor:pointer">&#128273; Restablecer PIN</button>` : ''}
           ${editBtn}
         </div>
       </div>`;
@@ -2416,28 +2416,31 @@ function authInit() {
 }
 
 // Enlace ?crear_pin=TOKEN: el usuario nuevo crea su PIN por primera vez y queda con sesion iniciada
-function abrirCrearPin() {
-  var token = new URLSearchParams(location.search).get('crear_pin');
-  if (!token || document.getElementById('crear-pin-modal')) return;
+function abrirCrearPin(emailPrimerPin) {
+  var token = emailPrimerPin ? '' : new URLSearchParams(location.search).get('crear_pin');
+  if ((!token && !emailPrimerPin) || document.getElementById('crear-pin-modal')) return;
   var m = document.createElement('div');
   m.id = 'crear-pin-modal';
   m.style.cssText = 'position:fixed;inset:0;background:#f5f5f5;z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
   var inp = 'width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:15px;letter-spacing:3px;box-sizing:border-box;margin-bottom:10px';
   m.innerHTML = '<div style="background:#fff;border-radius:12px;padding:22px;max-width:380px;width:100%;box-shadow:0 4px 18px rgba(0,0,0,.15)">'
     + '<div style="font-size:18px;font-weight:700;color:#1a5c2a;margin-bottom:6px">&#128273; Crea tu PIN</div>'
+    + (emailPrimerPin ? '<div style="font-size:13px;color:#1a5c2a;font-weight:700;margin-bottom:6px">' + escHtml(emailPrimerPin) + '</div>' : '')
     + '<div style="font-size:13px;color:#555;margin-bottom:14px">Es tu contraseña para entrar y tu firma electrónica. Mínimo 4 caracteres; no lo compartas.</div>'
     + '<input id="cp-pin" type="password" placeholder="PIN nuevo" maxlength="20" style="' + inp + '">'
     + '<input id="cp-pin2" type="password" placeholder="Repite el PIN" maxlength="20" style="' + inp + '">'
     + '<div id="cp-err" style="font-size:13px;color:#c62828;min-height:18px;margin-bottom:8px"></div>'
-    + '<button id="cp-btn" style="width:100%;padding:11px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">Guardar PIN y entrar</button></div>';
+    + '<button id="cp-btn" style="width:100%;padding:11px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">Guardar PIN y entrar</button>'
+    + '<button id="cp-cancel" style="width:100%;margin-top:8px;padding:9px;background:#fff;color:#555;border:1.5px solid #ccc;border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button></div>';
   document.body.appendChild(m);
+  document.getElementById('cp-cancel').onclick = function () { m.remove(); };
   document.getElementById('cp-btn').onclick = function () {
     var p = document.getElementById('cp-pin').value.trim(), p2 = document.getElementById('cp-pin2').value.trim();
     var err = document.getElementById('cp-err'), btn = this;
     if (p.length < 4) { err.textContent = 'El PIN debe tener mínimo 4 caracteres'; return; }
     if (p !== p2) { err.textContent = 'Los PIN no coinciden'; return; }
     btn.disabled = true; btn.textContent = 'Guardando...';
-    fetch('/api/users/crear-pin', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({token: token, pin: p})})
+    fetch('/api/users/crear-pin', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({token: token, email: emailPrimerPin || '', pin: p})})
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.ok) throw new Error(d.error || 'No se pudo guardar');
@@ -2493,10 +2496,13 @@ function showRegister() {
 function doLogin() {
   const email = document.getElementById('au-email').value.trim();
   const pin   = document.getElementById('au-pin').value.trim();
-  if (!email || !pin) { document.getElementById('auth-err').textContent='Completa todos los campos'; return; }
+  if (!email) { document.getElementById('auth-err').textContent='Escribe tu correo'; return; }
   fetch('/api/users/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,pin})})
     .then(r => r.json())
     .then(d => {
+      // Primera vez (o PIN reseteado por el admin): crear PIN escribiéndolo dos veces
+      if (d.primer_pin) { document.getElementById('auth-err').textContent=''; abrirCrearPin(d.email); return; }
+      if (!pin) { document.getElementById('auth-err').textContent='Escribe tu PIN'; return; }
       if (d.error) { document.getElementById('auth-err').textContent = d.error; return; }
       currentUser = {id: d.id, nombre: d.nombre, email: d.email, rol: d.rol||'usuario', permisos: d.permisos||'', supervisor_email: d.supervisor_email||'', cargo: d.cargo||'Empleado'};
       localStorage.setItem('mantos_user', JSON.stringify(currentUser));
