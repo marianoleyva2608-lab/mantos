@@ -5291,8 +5291,8 @@ async function verReq(id){
         h+='<div style="background:#e8f5e9;border:1.5px solid #2e7d32;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
           +'<div style="font-size:13px;font-weight:700;color:#2e7d32">&#9989; Autorizada por Compras'+(_aut.nombre?(' — '+escHtml(_aut.nombre)):'')+(_aut.fecha?(' &bull; '+escHtml(_aut.fecha)):'')+'</div>'
           +(_aut.comentario?('<div style="font-size:12px;color:#333;margin-top:4px"><b>Comentario:</b> '+escHtml(_aut.comentario)+'</div>'):'')
-          +'<div style="font-size:12px;color:#333;margin-top:4px">Presiona Pasar a requisición: se copian los artículos'+(hayVisibles?' y el proveedor cotizado':'')+'.</div>'
-          +(_esSol?('<button onclick="reqConvertirACompra(\''+id+'\')" style="margin-top:8px;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#128722; Pasar a requisición</button>'):'')
+          +'<div style="font-size:12px;color:#333;margin-top:4px">Presiona Generar requisición: se copian los artículos'+(hayVisibles?' y el proveedor cotizado':'')+'.</div>'
+          +(_esSol?('<button onclick="reqConvertirACompra(\''+id+'\')" style="margin-top:8px;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#128722; Generar requisición</button>'):'')
           +'</div>';
       } else if(_autEstado==='no_autorizada'){
         h+='<div style="background:#fce4ec;border:1.5px solid #c62828;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
