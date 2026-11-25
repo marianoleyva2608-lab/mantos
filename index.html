@@ -4841,7 +4841,8 @@ async function verReqRegistrarCotizacion(btn){
   try{
     var archivos=await reqSubirArchivosDe('ver-cot-archivo-'+reqId);
     var r=await fetch('/api/requisicion/'+reqId+'/cotizacion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      cotizacion_numero:numero.trim(), proveedor:proveedor.trim(), cotizacion_link:link.trim(), archivos:archivos, firmante_email:currentUser.email
+      cotizacion_numero:numero.trim(), proveedor:proveedor.trim(), cotizacion_link:link.trim(), archivos:archivos, firmante_email:currentUser.email,
+      visible:!!(document.getElementById('ver-cot-visible-'+reqId)||{}).checked
     })});
     var saved=await r.json();
     if(!saved.ok) throw new Error(saved.error||'Error al guardar');
@@ -4851,6 +4852,22 @@ async function verReqRegistrarCotizacion(btn){
     if(typeof showToast==='function')showToast('❌ '+e.message);
     btn.disabled=false;btn.textContent='💾 Registrar cotización';
   }
+}
+
+// Compras marca/desmarca si una cotizacion registrada la ven los demas
+function verReqCotVisible(chk){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  var reqId=chk.getAttribute('data-reqid'), idx=chk.getAttribute('data-idx'), vis=chk.checked;
+  chk.disabled=true;
+  fetch('/api/requisicion/'+reqId+'/cotizacion/'+idx+'/visible',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({visible:vis, firmante_email:currentUser.email})})
+    .then(function(r){return r.json();}).then(function(j){
+      if(!j.ok) throw new Error(j.error||'Error');
+      if(typeof showToast==='function')showToast(vis?'👁️ Cotización visible':'🙈 Cotización oculta');
+      verReq(reqId);
+    }).catch(function(e){
+      chk.checked=!vis; chk.disabled=false;
+      if(typeof showToast==='function')showToast('❌ '+e.message);
+    });
 }
 
 function verReqRegistrarFactura(btn){
@@ -5122,13 +5139,18 @@ async function verReq(id){
     var emailCompras=(o.email_aprobador||((firmas.aprobo||{}).email)||"").toLowerCase();
     var puedeCotizar=!!(currentUser && currentUser.email && emailCompras && currentUser.email.toLowerCase()===emailCompras);
     // Cotizaciones y Cierre de Compra: solo los ve Compras
-    if(puedeCotizar || (o.tipo_doc==='cotizacion' && listaCot.length)){
+    // Las cotizaciones que Compras no marco como visibles solo las ve Compras
+    var hayVisibles=listaCot.some(function(c){return c.visible!==false;});
+    if(puedeCotizar || (o.tipo_doc==='cotizacion' && hayVisibles)){
       h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
         +'<div style="background:#1565c0;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Cotizaciones</div>'
         +'<div style="padding:10px">';
       if(puedeCotizar) h+=reqRfqHtml(o,id);
-      listaCot.forEach(function(c){
-        h+='<div style="border:1.5px solid #1e88e5;border-radius:8px;padding:10px;margin-bottom:8px">'
+      listaCot.forEach(function(c,ci){
+        var vis=c.visible!==false;
+        if(!vis && !puedeCotizar) return;
+        h+='<div style="border:1.5px solid '+(vis?'#1e88e5':'#bdbdbd')+';border-radius:8px;padding:10px;margin-bottom:8px'+(vis?'':';background:#fafafa')+'">'
+          +(puedeCotizar?('<label style="float:right;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:'+(vis?'#2e7d32':'#888')+';cursor:pointer"><input type="checkbox"'+(vis?' checked':'')+' data-reqid="'+id+'" data-idx="'+ci+'" onchange="verReqCotVisible(this)" style="width:16px;height:16px">'+(vis?'Visible':'Oculta')+'</label>'):'')
           +'<div style="font-size:10px;color:#1565c0;font-weight:700;text-transform:uppercase">Cotización'+(c.fecha?(' &bull; '+c.fecha):'')+'</div>'
           +'<div style="font-size:14px;font-weight:700">'+escHtml(c.numero||'(sin número)')+'</div>'
           +(c.proveedor?('<div style="font-size:12px;color:#555">Proveedor: <b>'+escHtml(c.proveedor)+'</b></div>'):'')
@@ -5146,6 +5168,7 @@ async function verReq(id){
           +'<input id="ver-cot-proveedor-'+id+'" type="text" placeholder="Proveedor (opcional)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +'<input id="ver-cot-link-'+id+'" type="text" placeholder="Link del archivo (ej. drive.google.com/...)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +reqArchivoInputHtml('ver-cot-archivo-'+id)
+          +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#333;margin:6px 0 8px;cursor:pointer"><input id="ver-cot-visible-'+id+'" type="checkbox" style="width:16px;height:16px"> Visible para el solicitante y demás usuarios</label>'
           +'<button data-reqid="'+id+'" onclick="verReqRegistrarCotizacion(this)" style="width:100%;padding:8px 14px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar cotización</button>'
           +'</div>';
       }
@@ -5229,7 +5252,7 @@ async function verReq(id){
       }
       h+='</div></div>';
     }
-    if(o.tipo_doc==='cotizacion' && firmas.aprobo && firmas.aprobo.estado==='aprobado'){
+    if(o.tipo_doc==='cotizacion' && firmas.aprobo && firmas.aprobo.estado==='aprobado' && (hayVisibles || puedeCotizar)){
       var _esSol=currentUser&&currentUser.email&&o.solicitante_email&&currentUser.email.toLowerCase()===o.solicitante_email.toLowerCase();
       h+='<div style="background:#e3f2fd;border:1.5px solid #1565c0;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
         +'<div style="font-size:13px;font-weight:700;color:#1565c0">&#9989; Solicitud de cotización atendida por Compras</div>'
