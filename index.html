@@ -2349,8 +2349,8 @@ function renderTabsPanel() {
   }
   var perms = userTabPermisos();
   var visibles = TABS_CONTROLADAS.filter(function(t){
-    // Solicitudes de cotizacion: tambien la ve quien ya tiene acceso a Requisiciones
-    return perms === 'all' || perms.indexOf(t.id) !== -1 || (t.id === 'cot' && perms.indexOf('req') !== -1);
+    // Solicitudes de cotizacion: solo quien tenga ese permiso marcado en Configuración (o admin)
+    return perms === 'all' || perms.indexOf(t.id) !== -1;
   });
   panel.innerHTML = '<div class="area-lbl">&#128203; Accesos</div><div class="mgrid mod">' +
     visibles.map(function(t){
@@ -2817,7 +2817,7 @@ authInit();
       </div>
     </div>
     <div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden">
-      <div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Art&#237;culos a Requisicionar</div>
+      <div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px"><span id="req-items-titulo">Art&#237;culos a Requisicionar</span></div>
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;min-width:700px">
           <thead>
@@ -2850,7 +2850,7 @@ authInit();
       <textarea id="req-justificacion" rows="3" placeholder="Describe por qu&#233; se necesita este material..." style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
     </div>
     <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
-      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">Alcance de la requisici&#243;n <span style="color:#c62828">*</span></label>
+      <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px"><span id="req-alcance-titulo">Alcance de la requisici&#243;n</span> <span style="color:#c62828">*</span></label>
       <textarea id="req-alcance" rows="3" placeholder="Qu&#233; incluye: especificaciones, trabajos, entregables, condiciones, lugar de entrega..." style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
       <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin:10px 0 6px">Archivos (PDF o Excel)</label>
       <div id="req-adjuntos-lista"></div>
@@ -2864,7 +2864,7 @@ authInit();
       </select>
     </div>
     <div id="req-sigs-container" style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)"></div>
-    <div style="font-size:12px;color:#999;text-align:center;padding:4px 0 12px">La requisición se guarda automáticamente en cuanto firmas "Realizó". Si no la firmas, no se guarda.</div>
+    <div style="font-size:12px;color:#999;text-align:center;padding:4px 0 12px"><span id="req-guarda-doc">La requisición</span> se guarda automáticamente en cuanto firmas "Realizó". Si no la firmas, no se guarda.</div>
   </div>
 </div>
 
@@ -3972,7 +3972,11 @@ function reqAplicarTipoDoc(){
   var cot=reqTipoDocSel()==='cotizacion';
   var tt=document.getElementById('req-nueva-titulo'); if(tt) tt.innerHTML=cot?'&#128269; Nueva Solicitud de cotización':'&#128722; Nueva Requisición de compra';
   var ay=document.getElementById('req-tipo-doc-ayuda');
-  if(ay) ay.textContent=cot?'No necesita autorización: con tu firma va directo a Compras, que cotiza y te responde con las cotizaciones. No genera orden de compra; después la puedes convertir en requisición de compra.'
+  var _tx=function(i,a,b){var e=document.getElementById(i); if(e) e.textContent=cot?a:b;};
+  _tx('req-items-titulo','Artículos a cotizar','Artículos a Requisicionar');
+  _tx('req-alcance-titulo','Alcance de la solicitud','Alcance de la requisición');
+  _tx('req-guarda-doc','La solicitud','La requisición');
+  if(ay) ay.textContent=cot?'No necesita autorización: con tu firma va directo a Compras, que cotiza y te responde con las cotizaciones. No genera orden de compra; si se va a comprar, después la pasas a compra.'
                             :'Compras compra el material y genera la orden de compra.';
   // La solicitud de cotizacion no la revisa el supervisor
   var sb=document.getElementById('req-supervisor-box'); if(sb) sb.style.display=cot?'none':'';
@@ -4546,7 +4550,7 @@ function descargarReporteReq(){
 }
 
 function reqEliminar(id){
-  if(!confirm('¿Borrar esta requisición? No se puede deshacer.')) return;
+  if(!confirm(_reqVista==='cotizacion'?'¿Borrar esta solicitud de cotización? No se puede deshacer.':'¿Borrar esta requisición? No se puede deshacer.')) return;
   fetch('/api/requisicion/'+id, {method:'DELETE'}).then(function(){ loadReqList(); });
 }
 
@@ -4837,7 +4841,8 @@ async function verReqRegistrarCotizacion(btn){
   try{
     var archivos=await reqSubirArchivosDe('ver-cot-archivo-'+reqId);
     var r=await fetch('/api/requisicion/'+reqId+'/cotizacion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      cotizacion_numero:numero.trim(), proveedor:proveedor.trim(), cotizacion_link:link.trim(), archivos:archivos, firmante_email:currentUser.email
+      cotizacion_numero:numero.trim(), proveedor:proveedor.trim(), cotizacion_link:link.trim(), archivos:archivos, firmante_email:currentUser.email,
+      visible:!!(document.getElementById('ver-cot-visible-'+reqId)||{}).checked
     })});
     var saved=await r.json();
     if(!saved.ok) throw new Error(saved.error||'Error al guardar');
@@ -4847,6 +4852,22 @@ async function verReqRegistrarCotizacion(btn){
     if(typeof showToast==='function')showToast('❌ '+e.message);
     btn.disabled=false;btn.textContent='💾 Registrar cotización';
   }
+}
+
+// Compras marca/desmarca si una cotizacion registrada la ven los demas
+function verReqCotVisible(chk){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  var reqId=chk.getAttribute('data-reqid'), idx=chk.getAttribute('data-idx'), vis=chk.checked;
+  chk.disabled=true;
+  fetch('/api/requisicion/'+reqId+'/cotizacion/'+idx+'/visible',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({visible:vis, firmante_email:currentUser.email})})
+    .then(function(r){return r.json();}).then(function(j){
+      if(!j.ok) throw new Error(j.error||'Error');
+      if(typeof showToast==='function')showToast(vis?'👁️ Cotización visible':'🙈 Cotización oculta');
+      verReq(reqId);
+    }).catch(function(e){
+      chk.checked=!vis; chk.disabled=false;
+      if(typeof showToast==='function')showToast('❌ '+e.message);
+    });
 }
 
 function verReqRegistrarFactura(btn){
@@ -5118,13 +5139,18 @@ async function verReq(id){
     var emailCompras=(o.email_aprobador||((firmas.aprobo||{}).email)||"").toLowerCase();
     var puedeCotizar=!!(currentUser && currentUser.email && emailCompras && currentUser.email.toLowerCase()===emailCompras);
     // Cotizaciones y Cierre de Compra: solo los ve Compras
-    if(puedeCotizar || (o.tipo_doc==='cotizacion' && listaCot.length)){
+    // Las cotizaciones que Compras no marco como visibles solo las ve Compras
+    var hayVisibles=listaCot.some(function(c){return c.visible!==false;});
+    if(puedeCotizar || (o.tipo_doc==='cotizacion' && hayVisibles)){
       h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
         +'<div style="background:#1565c0;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Cotizaciones</div>'
         +'<div style="padding:10px">';
       if(puedeCotizar) h+=reqRfqHtml(o,id);
-      listaCot.forEach(function(c){
-        h+='<div style="border:1.5px solid #1e88e5;border-radius:8px;padding:10px;margin-bottom:8px">'
+      listaCot.forEach(function(c,ci){
+        var vis=c.visible!==false;
+        if(!vis && !puedeCotizar) return;
+        h+='<div style="border:1.5px solid '+(vis?'#1e88e5':'#bdbdbd')+';border-radius:8px;padding:10px;margin-bottom:8px'+(vis?'':';background:#fafafa')+'">'
+          +(puedeCotizar?('<label style="float:right;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:'+(vis?'#2e7d32':'#888')+';cursor:pointer"><input type="checkbox"'+(vis?' checked':'')+' data-reqid="'+id+'" data-idx="'+ci+'" onchange="verReqCotVisible(this)" style="width:16px;height:16px">'+(vis?'Visible':'Oculta')+'</label>'):'')
           +'<div style="font-size:10px;color:#1565c0;font-weight:700;text-transform:uppercase">Cotización'+(c.fecha?(' &bull; '+c.fecha):'')+'</div>'
           +'<div style="font-size:14px;font-weight:700">'+escHtml(c.numero||'(sin número)')+'</div>'
           +(c.proveedor?('<div style="font-size:12px;color:#555">Proveedor: <b>'+escHtml(c.proveedor)+'</b></div>'):'')
@@ -5142,6 +5168,7 @@ async function verReq(id){
           +'<input id="ver-cot-proveedor-'+id+'" type="text" placeholder="Proveedor (opcional)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +'<input id="ver-cot-link-'+id+'" type="text" placeholder="Link del archivo (ej. drive.google.com/...)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
           +reqArchivoInputHtml('ver-cot-archivo-'+id)
+          +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#333;margin:6px 0 8px;cursor:pointer"><input id="ver-cot-visible-'+id+'" type="checkbox" style="width:16px;height:16px"> Visible para el solicitante y demás usuarios</label>'
           +'<button data-reqid="'+id+'" onclick="verReqRegistrarCotizacion(this)" style="width:100%;padding:8px 14px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128190; Registrar cotización</button>'
           +'</div>';
       }
@@ -5225,12 +5252,12 @@ async function verReq(id){
       }
       h+='</div></div>';
     }
-    if(o.tipo_doc==='cotizacion' && firmas.aprobo && firmas.aprobo.estado==='aprobado'){
+    if(o.tipo_doc==='cotizacion' && firmas.aprobo && firmas.aprobo.estado==='aprobado' && (hayVisibles || puedeCotizar)){
       var _esSol=currentUser&&currentUser.email&&o.solicitante_email&&currentUser.email.toLowerCase()===o.solicitante_email.toLowerCase();
       h+='<div style="background:#e3f2fd;border:1.5px solid #1565c0;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
         +'<div style="font-size:13px;font-weight:700;color:#1565c0">&#9989; Solicitud de cotización atendida por Compras</div>'
-        +'<div style="font-size:12px;color:#333;margin-top:4px">Revisa las cotizaciones. Si se va a comprar, conviértela en requisición de compra: se copian los artículos y el proveedor cotizado.</div>'
-        +(_esSol?('<button onclick="reqConvertirACompra(\''+id+'\')" style="margin-top:8px;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#128722; Convertir en requisición de compra</button>'):'')
+        +'<div style="font-size:12px;color:#333;margin-top:4px">Revisa las cotizaciones. Si se va a comprar, presiona Pasar a compra: se copian los artículos y el proveedor cotizado.</div>'
+        +(_esSol?('<button onclick="reqConvertirACompra(\''+id+'\')" style="margin-top:8px;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#128722; Pasar a compra</button>'):'')
         +'</div>';
     }
     var body=document.getElementById('req-ver-body');

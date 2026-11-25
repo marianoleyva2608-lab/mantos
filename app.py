@@ -2297,7 +2297,7 @@ def registrar_cotizacion_requisicion(rid):
     if not isinstance(o.get('cotizaciones'), list):
         o['cotizaciones'] = []
     o['cotizaciones'].append({'numero': cot_numero, 'proveedor': cot_proveedor, 'link': cot_link, 'archivos': cot_archivos,
-                              'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M')})
+                              'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M'), 'visible': bool(d.get('visible'))})
     # Solicitud de cotizacion: Compras no firma; al registrar la primera cotizacion queda atendida
     atendida_ahora = False
     if o.get('tipo_doc') == 'cotizacion':
@@ -2319,19 +2319,56 @@ def registrar_cotizacion_requisicion(rid):
                                          'no_requerida': True, 'fecha': fecha, 'serie': 'N/A',
                                          'comentario': 'Solicitud de cotización atendida por Compras'}
             atendida_ahora = True
+    avisar = _cotizacion_marcar_aviso(o)
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
-    if atendida_ahora and (o.get('solicitante_email') or '').strip():
-        folio_txt = folio_prefijo(o) + str(o.get('folio') or 0).zfill(4)
-        link = BASE_URL_PUBLICO + '/?req=' + rid
-        cuerpo = ('<p>Hola ' + html_escape(o.get('solicitante') or '') + ',</p>'
-                  '<p>Compras ya registró cotización para tu solicitud <b>' + folio_txt + '</b>.</p>'
-                  + _tabla_items_html(o) +
-                  '<p>Revísala en el sistema; si procede, conviértela en requisición de compra: '
-                  '<a href="' + link + '">' + link + '</a></p>')
-        try:
-            enviar_correo(o['solicitante_email'].strip(), 'Cotización lista ' + folio_txt, cuerpo)
-        except Exception:
-            pass
+    if avisar:
+        _cotizacion_avisar_solicitante(o, rid)
+    return jsonify({'ok': True})
+
+def _cotizacion_marcar_aviso(o):
+    """True si hay que avisar al solicitante: solicitud de cotizacion con alguna cotizacion visible y sin aviso previo."""
+    if o.get('tipo_doc') != 'cotizacion' or o.get('aviso_cot_enviado'):
+        return False
+    if not (o.get('solicitante_email') or '').strip():
+        return False
+    if not any(c.get('visible', True) for c in (o.get('cotizaciones') or [])):
+        return False
+    o['aviso_cot_enviado'] = True
+    return True
+
+def _cotizacion_avisar_solicitante(o, rid):
+    folio_txt = folio_prefijo(o) + str(o.get('folio') or 0).zfill(4)
+    link = BASE_URL_PUBLICO + '/?req=' + rid
+    cuerpo = ('<p>Hola ' + html_escape(o.get('solicitante') or '') + ',</p>'
+              '<p>Compras ya registró cotización para tu solicitud <b>' + folio_txt + '</b>.</p>'
+              + _tabla_items_html(o) +
+              '<p>Revísala en el sistema; si se va a comprar, presiona Pasar a compra: '
+              '<a href="' + link + '">' + link + '</a></p>')
+    try:
+        enviar_correo(o['solicitante_email'].strip(), 'Cotización lista ' + folio_txt, cuerpo)
+    except Exception:
+        pass
+
+@app.route('/api/requisicion/<rid>/cotizacion/<int:idx>/visible', methods=['POST'])
+def cotizacion_visible(rid, idx):
+    """Compras decide con un checkbox si una cotizacion registrada la ven los demas."""
+    d = request.json or {}
+    firmante_email = (d.get('firmante_email') or '').strip().lower()
+    rows = sb.select('requisiciones', select='data', id='eq.' + rid)
+    if not rows:
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    o = json.loads(rows[0]['data'])
+    asignado = email_compras_de(o)
+    if asignado and firmante_email != asignado:
+        return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede cambiar la visibilidad'}), 403
+    cots = o.get('cotizaciones') or []
+    if idx < 0 or idx >= len(cots):
+        return jsonify({'ok': False, 'error': 'Cotización no encontrada'}), 404
+    cots[idx]['visible'] = bool(d.get('visible'))
+    avisar = _cotizacion_marcar_aviso(o)
+    sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    if avisar:
+        _cotizacion_avisar_solicitante(o, rid)
     return jsonify({'ok': True})
 
 # Tope de la caja chica: compras menores a esto se pagan sin PO ni cotizacion
