@@ -1577,7 +1577,7 @@ def save_requisicion():
         destinatario = (destinatario or '').strip()
         if not destinatario:
             return False, None
-        folio_txt = 'REQ-' + str(folio).zfill(4)
+        folio_txt = folio_prefijo(o) + str(folio).zfill(4)
         base_url = BASE_URL_PUBLICO
         link = base_url + '/?req=' + str(o.get('id') or '')
         cuerpo = (
@@ -1624,7 +1624,7 @@ def save_requisicion():
 
     # Confirmacion al solicitante de que su requisicion se registro, con el estado actual.
     if d.get('solicitante_email'):
-        folio_txt = 'REQ-' + str(folio).zfill(4)
+        folio_txt = folio_prefijo(d) + str(folio).zfill(4)
         base_url = BASE_URL_PUBLICO
         link = base_url + '/?req=' + str(d['id'])
         cuerpo_confirmacion = (
@@ -1644,7 +1644,7 @@ def avisar_compra_al_solicitante(o, rid, numero, caja_chica=False):
     destinatario = (o.get('solicitante_email') or '').strip()
     if not destinatario:
         return
-    folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
+    folio_txt = folio_prefijo(o) + str(o.get('folio') or 0).zfill(4)
     link = BASE_URL_PUBLICO + '/?req=' + str(rid)
     como = 'se compró por caja chica' if caja_chica else 'ya tiene orden de compra <b>' + html_escape(numero) + '</b>'
     cuerpo = (
@@ -1665,7 +1665,7 @@ def avisar_recepcion_a_compras(o, rid):
     destinatario = email_compras_de(o)
     if not destinatario:
         return
-    folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
+    folio_txt = folio_prefijo(o) + str(o.get('folio') or 0).zfill(4)
     link = BASE_URL_PUBLICO + '/?req=' + str(rid)
     filas = ''.join(
         '<tr><td style="border:1px solid #ddd;padding:5px">' + html_escape(str(it.get('cantidad') or '')) + ' '
@@ -1700,6 +1700,10 @@ def falta_entrega(o):
         return False
     recibidos, total = estado_entrega(o)
     return total > 0 and recibidos < total
+
+def folio_prefijo(o):
+    """Prefijo del folio: COT- para solicitud de cotizacion, REQ- para requisicion."""
+    return 'COT-' if (o or {}).get('tipo_doc') == 'cotizacion' else 'REQ-'
 
 def doc_nombre(o):
     return 'Solicitud de cotización' if (o or {}).get('tipo_doc') == 'cotizacion' else 'Requisición'
@@ -2013,7 +2017,7 @@ def solicitud_a_proveedor_pdf(rid, idx):
     compras = email_compras_de(o)
     t('Favor de enviar su cotización indicando precio unitario, tiempo de entrega y vigencia'
       + (' a ' + compras if compras else '') + '.', lx, 2.2*cm, 8, True)
-    t('Referencia interna: REQ-' + str(o.get('folio') or 0).zfill(4), lx, 1.7*cm, 7, False, GRIS)
+    t('Referencia interna: ' + folio_prefijo(o) + str(o.get('folio') or 0).zfill(4), lx, 1.7*cm, 7, False, GRIS)
     t('Este documento no es una orden de compra', W/2, m + 0.45*cm, 7.5, True, NEGRO, 'center')
 
     c.save(); buf.seek(0)
@@ -2396,7 +2400,7 @@ def fecha_compromiso_requisicion(rid):
     o['fecha_compromiso'] = fecha
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
     if fecha != anterior and o.get('solicitante_email'):
-        folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
+        folio_txt = folio_prefijo(o) + str(o.get('folio') or 0).zfill(4)
         link = BASE_URL_PUBLICO + '/?req=' + str(rid)
         legible = '/'.join(reversed(fecha.split('-')))
         cuerpo = ('<p>Hola ' + html_escape(o.get('solicitante') or '') + ',</p>'
@@ -2530,7 +2534,7 @@ def reporte_requisiciones_excel():
             estado_txt = 'Pendiente Compras'
         else:
             estado_txt = 'Pendiente Revisión'
-        ws.cell(row=r_idx, column=1, value='REQ-' + str(o.get('folio') or 0).zfill(4))
+        ws.cell(row=r_idx, column=1, value=folio_prefijo(o) + str(o.get('folio') or 0).zfill(4))
         ws.cell(row=r_idx, column=2, value=o.get('fecha') or '')
         ws.cell(row=r_idx, column=3, value=o.get('solicitante') or '')
         ws.cell(row=r_idx, column=4, value=o.get('planta') or '')
@@ -2626,7 +2630,7 @@ def firmar_requisicion(rid):
                            'Aprobada al firmar Compras'),
         }
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
-    folio_txt = 'REQ-' + str(o.get('folio') or 0).zfill(4)
+    folio_txt = folio_prefijo(o) + str(o.get('folio') or 0).zfill(4)
     base_url = BASE_URL_PUBLICO
     link = base_url + '/?req=' + rid
     etapa_labels = {'reviso': 'tu supervisor', 'aprobo': 'Compras', 'presidenta': 'Dirección'}
@@ -2727,7 +2731,7 @@ def requisicion_pdf(rid):
     c.line(bx+2.2*cm, y-1.2*cm, bx+2.2*cm, y)
     txt('No. de Documento', bx+4, y-0.15*cm, 6, True)
     txt('Revisión', bx+2.2*cm+4, y-0.15*cm, 6, True)
-    txt('REQ-' + folio, bx+4, y-0.75*cm, 9, True, GREEN)
+    txt(folio_prefijo(o) + folio, bx+4, y-0.75*cm, 9, True, GREEN)
     txt(o.get('fecha', ''), bx+2.2*cm+4, y-0.75*cm, 7)
 
     y -= 1.4*cm
@@ -2863,7 +2867,7 @@ def requisicion_pdf(rid):
 
     c.save(); buf.seek(0)
     return send_file(buf, mimetype='application/pdf',
-                     download_name=f'REQ-{folio}.pdf',
+                     download_name=folio_prefijo(o) + folio + '.pdf',
                      as_attachment=False)
 
 
