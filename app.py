@@ -1542,7 +1542,7 @@ def save_requisicion():
     if not folio:
         if not (d.get('alcance') or '').strip():
             return jsonify({'ok': False, 'error': 'Falta la descripción del alcance'}), 400
-        if not (d.get('email_revisor') or '').strip():
+        if d.get('tipo_doc') != 'cotizacion' and not (d.get('email_revisor') or '').strip():
             u = sb.select('users', select='cargo', email='eq.' + (d.get('solicitante_email') or '').strip().lower())
             cargo = (u[0].get('cargo') or '') if u else ''
             if cargo == 'Compras':
@@ -1556,6 +1556,18 @@ def save_requisicion():
         folio = max_folio + 1
         d['id'] = d.get('id') or (str(folio).zfill(4))
     d['folio'] = folio
+    # Solicitud de cotizacion: no la autoriza el supervisor, con la firma del solicitante va directo a Compras
+    if d.get('tipo_doc') == 'cotizacion':
+        if not isinstance(d.get('firmas'), dict):
+            d['firmas'] = {}
+        rev = d['firmas'].get('reviso')
+        if not (isinstance(rev, dict) and rev.get('estado') == 'aprobado'):
+            rea = d['firmas'].get('realizo')
+            d['firmas']['reviso'] = {
+                'nombre': 'No requerida', 'email': '', 'estado': 'aprobado', 'no_requerida': True,
+                'fecha': (rea.get('fecha') or '') if isinstance(rea, dict) else '',
+                'serie': 'N/A', 'comentario': 'Solicitud de cotización: va directo a Compras',
+            }
     sb.insert('requisiciones', {
         'id': d['id'], 'folio': folio, 'fecha': d.get('fecha',''), 'solicitante': d.get('solicitante',''),
         'planta': d.get('planta',''), 'departamento': d.get('departamento',''), 'tipo': d.get('tipo','Normal'),
