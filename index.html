@@ -3496,7 +3496,7 @@ function reqPendientesDeCompra(list){
     if(!(fr.presidenta&&fr.presidenta.estado==='aprobado')) return;
     if((Array.isArray(r.pos)&&r.pos.length)||r.po_numero) return;
     var n=(r.items||[]).filter(function(i){return (i.cantidad||i.descripcion)&&i.accion!=='Cotizar';}).length;
-    if(n){ res.items+=n; res.reqs.push({id:r.id, folio:'REQ-'+String(r.folio||0).padStart(4,'0'), n:n, sla:reqSla(r)}); }
+    if(n){ res.items+=n; res.reqs.push({id:r.id, folio:reqPre(r)+String(r.folio||0).padStart(4,'0'), n:n, sla:reqSla(r)}); }
   });
   return res;
 }
@@ -3541,7 +3541,7 @@ function reqPorRecibirHtml(list){
     +'<div style="font-size:14px;font-weight:700;color:#e65100">&#128230; Tienes '+nItems+' artículo'+(nItems>1?'s':'')+' por recibir</div>'
     +'<div style="font-size:12px;color:#555;margin-top:4px">Ya tienen orden de compra. Cuando te llegue el material, presiona <b>Recibido</b>:</div>'
     +pend.map(function(r){
-      var folio='REQ-'+String(r.folio||0).padStart(4,'0');
+      var folio=reqPre(r)+String(r.folio||0).padStart(4,'0');
       var filas=(r.items||[]).map(function(it,idx){
         if(!(it.cantidad||it.descripcion) || it.recibido) return '';
         return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #ffe0b2">'
@@ -3574,7 +3574,7 @@ function reqArmarCatalogo(list){
     var p=provs[k]||(provs[k]={nombre:String(prov).trim(),arts:{}});
     var ka=a.toUpperCase();
     var prev=p.arts[ka];
-    var nuevo={articulo:a, origen:origen, folio:'REQ-'+String(r.folio||0).padStart(4,'0'), id:r.id, precio:precio, fecha:fecha||r.fecha||''};
+    var nuevo={articulo:a, origen:origen, folio:reqPre(r)+String(r.folio||0).padStart(4,'0'), id:r.id, precio:precio, fecha:fecha||r.fecha||''};
     // se queda el dato mas util: primero lo comprado (con precio), luego lo mas reciente
     if(!prev || (precio!=null && prev.precio==null) || ((precio!=null)===(prev.precio!=null) && (r.folio||0)>=parseInt(prev.folio.slice(4),10))) p.arts[ka]=nuevo;
   };
@@ -3963,6 +3963,7 @@ async function _getAjustes(){
   return _ajustesCache;
 }
 // Requisicion de compra o Solicitud de cotizacion (ambas con proveedor sugerido y alterno)
+function reqPre(r){ return r&&r.tipo_doc==='cotizacion'?'COT-':'REQ-'; }
 function reqTipoDocSel(){
   var r=document.querySelector('input[name="req-tipo-doc"]:checked');
   return r?r.value:'requisicion';
@@ -3990,7 +3991,7 @@ function reqConvertirACompra(id){
     var o=list.find(function(x){return x.id===id;});
     if(!o) return;
     var provCot=((o.cotizaciones||[]).find(function(c){return c.proveedor;})||{}).proveedor||'';
-    _reqPrefill={origen:'REQ-'+String(o.folio||0).padStart(4,'0'), planta:o.planta, departamento:o.departamento,
+    _reqPrefill={origen:reqPre(o)+String(o.folio||0).padStart(4,'0'), planta:o.planta, departamento:o.departamento,
       justificacion:o.justificacion||'', alcance:o.alcance||'',
       items:(o.items||[]).filter(function(i){return i.cantidad||i.descripcion;}).map(function(i){
         return {cantidad:i.cantidad, unidad:i.unidad, descripcion:i.descripcion, aplicacion:i.aplicacion, proveedor:provCot||i.proveedor||''};
@@ -4279,7 +4280,7 @@ async function guardarReq(){
     var res=await fetch('/api/requisiciones',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     var j=await res.json();
     if(j.ok){
-      var msgOk='✅ REQ-'+String(j.folio).padStart(4,'0')+' guardada'+((data.email_revisor||data.tipo_doc==='cotizacion')?(j.aviso_enviado?' · aviso enviado':' · no se pudo enviar el aviso'):'');
+      var msgOk='✅ '+reqPre(data)+String(j.folio).padStart(4,'0')+' guardada'+((data.email_revisor||data.tipo_doc==='cotizacion')?(j.aviso_enviado?' · aviso enviado':' · no se pudo enviar el aviso'):'');
       if(typeof showToast==='function') showToast(msgOk);
       setTimeout(function(){
         _reqVista=data.tipo_doc==='cotizacion'?'cotizacion':'requisicion';
@@ -4364,7 +4365,7 @@ async function loadReqList(){
       return;
     }
     el.innerHTML=list.map(function(r){
-      var folio='REQ-'+String(r.folio||0).padStart(4,'0');
+      var folio=reqPre(r)+String(r.folio||0).padStart(4,'0');
       var urgente=r.tipo==='Urgente';
       var cnt=(r.items||[]).filter(function(i){return i.cantidad||i.descripcion;}).length;
       var firmas=r.firmas||{};
@@ -4437,7 +4438,7 @@ async function loadReqDashboard(){
       tPOs+=pos.length; tFacturas+=facs.length;
       var mes=(r.fecha||'').slice(0,7);
       if(mes){ porMes[mes]=porMes[mes]||{total:0,cerradas:0}; porMes[mes].total++; }
-      var folio='REQ-'+String(r.folio||0).padStart(4,'0');
+      var folio=reqPre(r)+String(r.folio||0).padStart(4,'0');
       if(rk){ tRechazadas++; }
       else if((pos.length>0 && facs.length>=pos.length && !reqFaltaEntrega(r)) || (r.tipo_doc==='cotizacion' && fr.aprobo && fr.aprobo.estado==='aprobado')){
         tCerradas++;
@@ -4734,7 +4735,7 @@ function reqPoFormHtml(id,o){
   var provSug=(items.find(function(i){return i.proveedor;})||{}).proveedor||'';
   var hoy=new Date(); var hoyTxt=String(hoy.getDate()).padStart(2,'0')+'/'+String(hoy.getMonth()+1).padStart(2,'0')+'/'+hoy.getFullYear();
   var lbl=function(t){return '<div style="font-size:10px;font-weight:700;color:#555;text-transform:uppercase;margin:6px 0 3px">'+t+'</div>';};
-  var folio='REQ-'+String(o.folio||0).padStart(4,'0');
+  var folio=reqPre(o)+String(o.folio||0).padStart(4,'0');
   return '<div id="ver-pogen-form-'+id+'" style="display:none;border:1.5px solid #1a5c2a;border-radius:8px;padding:10px;margin-bottom:8px;background:#fafdfa">'
     +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 10px">'
     +'<div>'+lbl('Folio de la PO')+'<input id="pogen-numero-'+id+'" type="text" placeholder="Cargando..." style="'+PO_INPUT+';width:100%"></div>'
@@ -4926,7 +4927,7 @@ async function verReq(id){
       if(!email) return '';
       return nombrePorEmail[email.toLowerCase()] || '';
     }
-    var folio='REQ-'+String(o.folio||0).padStart(4,'0');
+    var folio=reqPre(o)+String(o.folio||0).padStart(4,'0');
     var titulo=document.getElementById('req-ver-titulo');
     if(titulo) titulo.textContent=folio;
     var btnPdf=document.getElementById('btn-req-pdf');
@@ -5003,6 +5004,8 @@ async function verReq(id){
         {k:'cierre',l:'Cierre (PO/Factura)'},
         {k:'entrega',l:'Entrega'}
       ];
+      // Solicitud de cotizacion: solo firma el usuario y Compras cotiza
+      if(o.tipo_doc==='cotizacion') pasos=[{k:'realizo',l:'Realizó'},{k:'aprobo',l:'Compras cotiza'}];
       var listaPosD=Array.isArray(o.pos)?o.pos:(o.po_numero?[{numero:o.po_numero}]:[]);
       var listaFacD=Array.isArray(o.facturas)?o.facturas:(o.factura_numero?[{numero:o.factura_numero}]:[]);
       var rechazoKeyD=['reviso','aprobo','presidenta'].find(function(k){return firmas[k]&&firmas[k].estado==='rechazado';});
@@ -5051,12 +5054,13 @@ async function verReq(id){
     h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
       +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Firmas Digitales</div>'
       +'<div style="padding:10px">';
-    ['realizo','reviso','aprobo','presidenta'].forEach(function(key){
+    // Solicitud de cotizacion: solo la firma del usuario (Compras la atiende registrando la cotizacion)
+    (o.tipo_doc==='cotizacion'?['realizo']:['realizo','reviso','aprobo','presidenta']).forEach(function(key){
       var sig=firmas[key];
       var label=sigLabels[key];
       var permiteRechazo=(key!=='realizo');
       if(sig && sig.no_requerida){
-        h+='<div style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px 12px;margin-bottom:8px;color:#757575;font-size:13px"><b>&#8856; Dirección — No requerida</b>'
+        h+='<div style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px 12px;margin-bottom:8px;color:#757575;font-size:13px"><b>&#8856; '+escHtml(label.split(' — ')[0])+' — No requerida</b>'
           +(puedeVerMonto && o.mayor_10000==='No'?' <span style="font-size:11px">(Compras indicó que no excede $10,000)</span>':'')+'</div>';
         return;
       }
