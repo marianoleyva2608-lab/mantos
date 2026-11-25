@@ -1544,7 +1544,7 @@ function mostrarEnlacePin(nombre, enlace, correoOk){
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
   m.innerHTML='<div style="background:#fff;border-radius:12px;padding:18px;max-width:440px;width:100%;box-shadow:0 6px 24px rgba(0,0,0,.25)">'
     +'<div style="font-size:15px;font-weight:700;color:#1a5c2a;margin-bottom:8px">&#128273; Enlace para crear PIN — '+escHtml(nombre||'')+'</div>'
-    +'<div style="font-size:12px;color:#555;margin-bottom:8px">'+(correoOk?'Se le mandó por correo. ':'<b style="color:#c62828">No se pudo mandar el correo.</b> ')+'También puedes copiarlo y mandárselo por WhatsApp. Solo sirve una vez.</div>'
+    +'<div style="font-size:12px;color:#555;margin-bottom:8px">Cópialo y mándaselo al usuario (por ejemplo por WhatsApp). Solo sirve una vez.</div>'
     +'<input id="enlace-pin-txt" readonly value="'+escHtml(enlace)+'" style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:12px;box-sizing:border-box;margin-bottom:10px">'
     +'<div style="display:flex;gap:8px"><button id="enlace-pin-copiar" style="flex:1;padding:9px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer">&#128203; Copiar</button>'
     +'<button id="enlace-pin-cerrar" style="flex:1;padding:9px;background:#fff;color:#555;border:1.5px solid #ccc;border-radius:8px;font-weight:700;cursor:pointer">Cerrar</button></div></div>';

@@ -553,8 +553,7 @@ def enlace_pin_usuario(user_id):
     token = _nuevo_token_pin()
     sb.update('users', {'pin_hash': PIN_PENDIENTE + token}, return_rows=False, id='eq.' + str(user_id))
     enlace = BASE_URL_PUBLICO + '/?crear_pin=' + token
-    correo_ok = _enviar_enlace_pin(rows[0]['email'], rows[0].get('nombre'), enlace)
-    return jsonify({'ok': True, 'enlace_pin': enlace, 'correo_enviado': correo_ok})
+    return jsonify({'ok': True, 'enlace_pin': enlace})
 
 @app.route('/api/users/register', methods=['POST'])
 def register_user():
@@ -586,13 +585,10 @@ def register_user():
             'nombre': nombre, 'email': email, 'pin_hash': (PIN_PENDIENTE + token) if sin_pin else hash_pin(pin),
             'rol': rol, 'permisos': permisos, 'supervisor_email': supervisor_email, 'cargo': cargo,
         }, return_rows=False)
-        enlace = ''
-        correo_ok = None
-        if sin_pin:
-            enlace = BASE_URL_PUBLICO + '/?crear_pin=' + token
-            correo_ok = _enviar_enlace_pin(email, nombre, enlace)
+        # El enlace NO se manda por correo: el admin lo copia y se lo pasa al usuario
+        enlace = (BASE_URL_PUBLICO + '/?crear_pin=' + token) if sin_pin else ''
         return jsonify({'ok': True, 'nombre': nombre, 'email': email, 'rol': rol, 'permisos': permisos, 'supervisor_email': supervisor_email, 'cargo': cargo,
-                        'enlace_pin': enlace, 'correo_enviado': correo_ok})
+                        'enlace_pin': enlace})
     except requests.exceptions.HTTPError as e:
         if e.response is not None and e.response.status_code == 409:
             return jsonify({'error': 'Este email ya esta registrado'}), 409
@@ -610,7 +606,7 @@ def login_user():
     if not rows:
         pend = sb.select('users', select='pin_hash', email='eq.' + email) if email else []
         if pend and str(pend[0].get('pin_hash') or '').startswith(PIN_PENDIENTE):
-            return jsonify({'error': 'Todavía no creas tu PIN. Abre el enlace que te llegó por correo (o pídelo al administrador).'}), 401
+            return jsonify({'error': 'Todavía no creas tu PIN. Pide al administrador tu enlace para crearlo.'}), 401
         return jsonify({'error': 'Email o PIN incorrecto'}), 401
     row = rows[0]
     return jsonify({'ok': True, 'id': row['id'], 'nombre': row['nombre'], 'email': row['email'],
