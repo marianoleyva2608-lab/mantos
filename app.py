@@ -1556,6 +1556,17 @@ def save_requisicion():
         folio = max_folio + 1
         d['id'] = d.get('id') or (str(folio).zfill(4))
     d['folio'] = folio
+    # Requisicion generada desde una solicitud de cotizacion: se traen sus cotizaciones
+    origen_id = (d.get('origen_cot_id') or '').strip()
+    if origen_id and d.get('tipo_doc') != 'cotizacion' and not d.get('cotizaciones'):
+        try:
+            orig = sb.select('requisiciones', select='data', id='eq.' + origen_id)
+            od = json.loads(orig[0]['data']) if orig else {}
+            if od.get('tipo_doc') == 'cotizacion' and (od.get('autorizacion_cot') or {}).get('estado') == 'autorizada':
+                d['cotizaciones'] = od.get('cotizaciones') or []
+                d['origen_cot_folio'] = folio_prefijo(od) + str(od.get('folio') or 0).zfill(4)
+        except Exception:
+            pass
     # Solicitud de cotizacion: no la autoriza el supervisor, con la firma del solicitante va directo a Compras
     if d.get('tipo_doc') == 'cotizacion':
         if not isinstance(d.get('firmas'), dict):
@@ -1616,7 +1627,7 @@ def save_requisicion():
     else:
         reviso_ya_firmado = isinstance(firmas_iniciales.get('reviso'), dict) and firmas_iniciales['reviso'].get('estado') == 'aprobado'
         if reviso_ya_firmado:
-            aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_aprobador'), 'la apruebes (Compras)')
+            aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_aprobador'), 'la cotices y apruebes (Compras)' if d.get('tipo_doc') != 'cotizacion' else 'la cotices (Compras)')
             estado_actual = 'Pendiente de aprobación por Compras'
         else:
             aviso_enviado, aviso_error = avisar_etapa(d, folio, d.get('email_revisor'), 'la revises')
@@ -2722,6 +2733,9 @@ def firmar_requisicion(rid):
         if not (o.get('cotizaciones') or []):
             return jsonify({'ok': False, 'error': 'Primero registra al menos una cotización'}), 400
     elif key == 'aprobo' and estado == 'aprobado':
+        # Primero se cotiza: con la cotizacion ya se sabe si pasa de $10,000
+        if not (o.get('cotizaciones') or []):
+            return jsonify({'ok': False, 'error': 'Primero registra la cotización de la requisición'}), 400
         # Compras decide si la requisicion pasa de $10,000 (de eso depende si firma Direccion)
         monto = d.get('mayor_10000')
         if monto not in ('Sí', 'No'):
@@ -2775,7 +2789,7 @@ def firmar_requisicion(rid):
         avisar(o.get('solicitante_email'), 'Fue RECHAZADA por ' + etapa_labels.get(key, key))
         return jsonify({'ok': True})
     if key == 'reviso':
-        avisar(o.get('email_aprobador'), 'Ya fue revisada y necesita que la apruebes (Compras)')
+        avisar(o.get('email_aprobador'), 'Ya fue revisada: cotízala, indica si es mayor a $10,000 y apruébala (Compras)')
         avisar(o.get('solicitante_email'), 'Fue aprobada por tu supervisor. Falta: Compras')
     elif key == 'aprobo' and sin_direccion and es_cotizacion:
         avisar(o.get('solicitante_email'), 'Compras ya atendió tu solicitud de cotización. Revisa las cotizaciones en el sistema; si procede, conviértela en requisición de compra')
