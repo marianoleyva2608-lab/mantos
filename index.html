@@ -3988,6 +3988,7 @@ function reqAplicarTipoDoc(){
 }
 // Datos para precargar el formulario (convertir una solicitud de cotizacion en requisicion)
 var _reqPrefill=null;
+var _reqOrigenCot=null; // id de la solicitud de cotizacion de la que sale la requisicion
 var _reqTipoInicial='requisicion'; // boton que abrio el formulario (requisicion o solicitud de cotizacion)
 var _reqVista='requisicion'; // lista abierta desde el menu: requisicion o cotizacion
 function reqConvertirACompra(id){
@@ -3996,7 +3997,7 @@ function reqConvertirACompra(id){
     if(!o) return;
     // Si Compras no hizo visibles las cotizaciones, no se copia el proveedor cotizado
     var provCot=o.cot_visible?(((o.cotizaciones||[]).find(function(c){return c.proveedor;})||{}).proveedor||''):'';
-    _reqPrefill={origen:reqPre(o)+String(o.folio||0).padStart(4,'0'), planta:o.planta, departamento:o.departamento,
+    _reqPrefill={origen_id:o.id, origen:reqPre(o)+String(o.folio||0).padStart(4,'0'), planta:o.planta, departamento:o.departamento,
       justificacion:o.justificacion||'', alcance:o.alcance||'',
       items:(o.items||[]).filter(function(i){return i.cantidad||i.descripcion;}).map(function(i){
         return {cantidad:i.cantidad, unidad:i.unidad, descripcion:i.descripcion, aplicacion:i.aplicacion, proveedor:provCot||i.proveedor||''};
@@ -4006,7 +4007,10 @@ function reqConvertirACompra(id){
 }
 function reqAplicarPrefill(){
   var p=_reqPrefill; _reqPrefill=null;
+  _reqOrigenCot=null;
   if(!p) return;
+  _reqOrigenCot=p.origen_id||null;
+  var _rd=document.querySelector('input[name="req-tipo-doc"][value="requisicion"]'); if(_rd){ _rd.checked=true; reqAplicarTipoDoc(); }
   var set=function(elId,v){var el=document.getElementById(elId); if(el&&v) el.value=v;};
   set('req-planta',p.planta); set('req-departamento',p.departamento);
   set('req-justificacion',p.justificacion);
@@ -4235,6 +4239,7 @@ async function guardarReq(){
     departamento:(function(){var s=document.getElementById('req-departamento');var o=document.getElementById('req-departamento-otro');return(s&&s.value==='otro')?(o?o.value.trim():''):(s?s.value:'');})(),
     tipo:tipoEl?tipoEl.value:'Normal',
     tipo_doc:reqTipoDocSel(),
+    origen_cot_id:(reqTipoDocSel()!=='cotizacion' && _reqOrigenCot)||'',
     items:getReqItems(),
     justificacion:(document.getElementById('req-justificacion')||{}).value||'',
     alcance:((document.getElementById('req-alcance')||{}).value||'').trim(),
@@ -5124,6 +5129,10 @@ async function verReq(id){
       } else {
         var emailAsignado=(key==='realizo'?o.solicitante_email:(key==='reviso'?o.email_revisor:(key==='aprobo'?o.email_aprobador:o.email_presidenta)))||'';
         var yaEsElMismo=(currentUser && currentUser.email && emailAsignado && currentUser.email.toLowerCase()===emailAsignado.toLowerCase()) || (key!=='realizo' && esAlternoDe(emailAsignado));
+        // Requisicion: Compras primero cotiza; ya con la cotizacion indica si pasa de $10,000 y aprueba
+        var _sinCot=(key==='aprobo' && o.tipo_doc!=='cotizacion' && !(o.cotizaciones||[]).length);
+        var _btnAprDis='<button disabled style="flex:1;padding:8px 10px;background:#e0e0e0;color:#888;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:not-allowed">&#128274; Aprobar (primero cotiza)</button>';
+        var _notaCot=_sinCot?'<div style="font-size:12px;color:#e65100;background:#fff3e0;border-radius:6px;padding:6px 8px;margin-bottom:6px">&#9888;&#65039; Primero registra la cotización (sección Cotizaciones, abajo). Con las cantidades indicas si es mayor a $10,000 y apruebas.</div>':'';
         h+='<div id="ver-sig-block-'+key+'" style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px;margin-bottom:8px">'
           +'<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">'+label+'</div>'
           +'<div id="ver-sig-done-'+key+'"></div>'
@@ -5131,22 +5140,24 @@ async function verReq(id){
         if(yaEsElMismo){
           h+='<div style="font-size:12px;color:#2e7d32;margin-bottom:6px">✓ Sesión iniciada como '+currentUser.nombre+' — no hace falta volver a poner correo/PIN</div>'
             +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (obligatorio para aprobar o rechazar)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
-            +(key==='aprobo'&&o.tipo_doc!=='cotizacion'?reqMontoHtml():'')
+            +_notaCot
+            +(key==='aprobo'&&o.tipo_doc!=='cotizacion'&&!_sinCot?reqMontoHtml():'')
             +'<div style="display:flex;gap:6px">'
             +(permiteRechazo
               ? ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="rechazado" onclick="verReqFirmarSesion(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; Rechazar</button>'
-                 +'<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmarSesion(this)" style="flex:1;padding:8px 10px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128274; Aprobar</button>')
+                 +(_sinCot?_btnAprDis:'<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmarSesion(this)" style="flex:1;padding:8px 10px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128274; Aprobar</button>'))
               : ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmarSesion(this)" style="flex:1;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128274; Validar</button>'))
             +'</div>';
         } else {
           h+='<input id="ver-sig-email-'+key+'"'+(key==='aprobo'?(' data-permitidos="'+escHtml([emailAsignado,(_altAj[(emailAsignado||'').toLowerCase()]||'')].join(',').toLowerCase())+'" oninput="reqMontoMostrar(this)" onchange="reqMontoMostrar(this)"'):'')+' type="email" placeholder="Tu correo electrónico" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box">'
             +'<input id="ver-sig-pin-'+key+'" type="password" placeholder="PIN personal" maxlength="20" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;letter-spacing:3px;box-sizing:border-box;margin-bottom:6px">'
             +(permiteRechazo?('<textarea id="ver-sig-comentario-'+key+'" rows="2" placeholder="Comentario (obligatorio para aprobar o rechazar)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>'):'')
-            +(key==='aprobo'&&o.tipo_doc!=='cotizacion'?reqMontoHtml(true):'')
+            +_notaCot
+            +(key==='aprobo'&&o.tipo_doc!=='cotizacion'&&!_sinCot?reqMontoHtml(true):'')
             +'<div style="display:flex;gap:6px">'
             +(permiteRechazo
               ? ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="rechazado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; Rechazar</button>'
-                 +'<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 10px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128274; Aprobar</button>')
+                 +(_sinCot?_btnAprDis:'<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 10px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#128274; Aprobar</button>'))
               : ('<button data-reqid="'+id+'" data-sigkey="'+key+'" data-estado="aprobado" onclick="verReqFirmar(this)" style="flex:1;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128274; Firmar</button>'))
             +'</div>';
         }
