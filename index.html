@@ -3994,7 +3994,8 @@ function reqConvertirACompra(id){
   fetch('/api/requisiciones').then(function(r){return r.json();}).then(function(list){
     var o=list.find(function(x){return x.id===id;});
     if(!o) return;
-    var provCot=((o.cotizaciones||[]).find(function(c){return c.proveedor;})||{}).proveedor||'';
+    // Si Compras no hizo visibles las cotizaciones, no se copia el proveedor cotizado
+    var provCot=o.cot_visible?(((o.cotizaciones||[]).find(function(c){return c.proveedor;})||{}).proveedor||''):'';
     _reqPrefill={origen:reqPre(o)+String(o.folio||0).padStart(4,'0'), planta:o.planta, departamento:o.departamento,
       justificacion:o.justificacion||'', alcance:o.alcance||'',
       items:(o.items||[]).filter(function(i){return i.cantidad||i.descripcion;}).map(function(i){
@@ -4380,8 +4381,7 @@ async function loadReqList(){
       if(rechazoKey){
         var quien={reviso:'Supervisor',aprobo:'Compras',presidenta:'Dirección'}[rechazoKey];
         estadoTxt='&#10060; Rechazada por '+quien; estadoColor='#c62828'; estadoBg='#fce4ec';
-      } else if(r.tipo_doc==='cotizacion' && firmas.aprobo && firmas.aprobo.estado==='aprobado'
-                && (r.cot_visible || (currentUser && (currentUser.email||'').toLowerCase()===(r.email_aprobador||'').toLowerCase()))){
+      } else if(r.tipo_doc==='cotizacion' && firmas.aprobo && firmas.aprobo.estado==='aprobado'){
         estadoTxt='&#9989; Cotizada'; estadoColor='#1565c0'; estadoBg='#e3f2fd';
       } else if(r.tipo_doc==='cotizacion' && firmas.reviso && firmas.reviso.estado==='aprobado'){
         estadoTxt='&#8987; Pendiente de que Compras cotice'; estadoColor='#1565c0'; estadoBg='#e3f2fd';
@@ -5254,12 +5254,12 @@ async function verReq(id){
       }
       h+='</div></div>';
     }
-    if(o.tipo_doc==='cotizacion' && firmas.aprobo && firmas.aprobo.estado==='aprobado' && (hayVisibles || puedeCotizar)){
+    if(o.tipo_doc==='cotizacion' && firmas.aprobo && firmas.aprobo.estado==='aprobado'){
       var _esSol=currentUser&&currentUser.email&&o.solicitante_email&&currentUser.email.toLowerCase()===o.solicitante_email.toLowerCase();
       h+='<div style="background:#e3f2fd;border:1.5px solid #1565c0;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
         +'<div style="font-size:13px;font-weight:700;color:#1565c0">&#9989; Solicitud de cotización atendida por Compras</div>'
-        +'<div style="font-size:12px;color:#333;margin-top:4px">Revisa las cotizaciones. Si se va a comprar, presiona Pasar a compra: se copian los artículos y el proveedor cotizado.</div>'
-        +(_esSol?('<button onclick="reqConvertirACompra(\''+id+'\')" style="margin-top:8px;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#128722; Pasar a compra</button>'):'')
+        +'<div style="font-size:12px;color:#333;margin-top:4px">'+(hayVisibles?'Revisa las cotizaciones. ':'')+'Si se va a comprar, presiona Pasar a requisición: se copian los artículos'+(hayVisibles?' y el proveedor cotizado':'')+'.</div>'
+        +(_esSol?('<button onclick="reqConvertirACompra(\''+id+'\')" style="margin-top:8px;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#128722; Pasar a requisición</button>'):'')
         +'</div>';
     }
     var body=document.getElementById('req-ver-body');
