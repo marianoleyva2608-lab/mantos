@@ -5004,6 +5004,8 @@ async function verReq(id){
         {k:'cierre',l:'Cierre (PO/Factura)'},
         {k:'entrega',l:'Entrega'}
       ];
+      // Solicitud de cotizacion: solo firma el usuario y Compras cotiza
+      if(o.tipo_doc==='cotizacion') pasos=[{k:'realizo',l:'Realizó'},{k:'aprobo',l:'Compras cotiza'}];
       var listaPosD=Array.isArray(o.pos)?o.pos:(o.po_numero?[{numero:o.po_numero}]:[]);
       var listaFacD=Array.isArray(o.facturas)?o.facturas:(o.factura_numero?[{numero:o.factura_numero}]:[]);
       var rechazoKeyD=['reviso','aprobo','presidenta'].find(function(k){return firmas[k]&&firmas[k].estado==='rechazado';});
@@ -5052,12 +5054,13 @@ async function verReq(id){
     h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:10px">'
       +'<div style="background:#1a5c2a;color:#fff;padding:10px 14px;font-weight:700;font-size:13px">Firmas Digitales</div>'
       +'<div style="padding:10px">';
-    ['realizo','reviso','aprobo','presidenta'].forEach(function(key){
+    // Solicitud de cotizacion: solo la firma del usuario (Compras la atiende registrando la cotizacion)
+    (o.tipo_doc==='cotizacion'?['realizo']:['realizo','reviso','aprobo','presidenta']).forEach(function(key){
       var sig=firmas[key];
       var label=sigLabels[key];
       var permiteRechazo=(key!=='realizo');
       if(sig && sig.no_requerida){
-        h+='<div style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px 12px;margin-bottom:8px;color:#757575;font-size:13px"><b>&#8856; Dirección — No requerida</b>'
+        h+='<div style="border:1.5px dashed #bdbdbd;border-radius:8px;padding:10px 12px;margin-bottom:8px;color:#757575;font-size:13px"><b>&#8856; '+escHtml(label.split(' — ')[0])+' — No requerida</b>'
           +(puedeVerMonto && o.mayor_10000==='No'?' <span style="font-size:11px">(Compras indicó que no excede $10,000)</span>':'')+'</div>';
         return;
       }

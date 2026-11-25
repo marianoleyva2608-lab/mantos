@@ -2298,7 +2298,40 @@ def registrar_cotizacion_requisicion(rid):
         o['cotizaciones'] = []
     o['cotizaciones'].append({'numero': cot_numero, 'proveedor': cot_proveedor, 'link': cot_link, 'archivos': cot_archivos,
                               'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M')})
+    # Solicitud de cotizacion: Compras no firma; al registrar la primera cotizacion queda atendida
+    atendida_ahora = False
+    if o.get('tipo_doc') == 'cotizacion':
+        if not isinstance(o.get('firmas'), dict):
+            o['firmas'] = {}
+        apr = o['firmas'].get('aprobo')
+        if not (isinstance(apr, dict) and apr.get('estado') == 'aprobado'):
+            fecha = ahora_mx().strftime('%d/%m/%Y %H:%M')
+            nombre = firmante_email
+            try:
+                u = sb.select('users', select='nombre', email='eq.' + firmante_email) if firmante_email else []
+                nombre = (u[0].get('nombre') or firmante_email) if u else firmante_email
+            except Exception:
+                pass
+            o['firmas']['aprobo'] = {'nombre': nombre or 'Compras', 'email': firmante_email, 'fecha': fecha,
+                                     'serie': 'N/A', 'estado': 'aprobado', 'automatica': True,
+                                     'comentario': 'Cotización registrada por Compras'}
+            o['firmas']['presidenta'] = {'nombre': 'No requerida', 'email': '', 'estado': 'aprobado',
+                                         'no_requerida': True, 'fecha': fecha, 'serie': 'N/A',
+                                         'comentario': 'Solicitud de cotización atendida por Compras'}
+            atendida_ahora = True
     sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    if atendida_ahora and (o.get('solicitante_email') or '').strip():
+        folio_txt = folio_prefijo(o) + str(o.get('folio') or 0).zfill(4)
+        link = BASE_URL_PUBLICO + '/?req=' + rid
+        cuerpo = ('<p>Hola ' + html_escape(o.get('solicitante') or '') + ',</p>'
+                  '<p>Compras ya registró cotización para tu solicitud <b>' + folio_txt + '</b>.</p>'
+                  + _tabla_items_html(o) +
+                  '<p>Revísala en el sistema; si procede, conviértela en requisición de compra: '
+                  '<a href="' + link + '">' + link + '</a></p>')
+        try:
+            enviar_correo(o['solicitante_email'].strip(), 'Cotización lista ' + folio_txt, cuerpo)
+        except Exception:
+            pass
     return jsonify({'ok': True})
 
 # Tope de la caja chica: compras menores a esto se pagan sin PO ni cotizacion
