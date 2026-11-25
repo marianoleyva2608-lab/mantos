@@ -496,6 +496,66 @@ def _normalizar_permisos(permisos):
     partes = [p.strip() for p in permisos.split(',') if p.strip() in TABS_VALIDAS]
     return ','.join(partes)
 
+# Usuario dado de alta sin PIN: en pin_hash se guarda este prefijo + un token de un solo uso
+PIN_PENDIENTE = 'PENDIENTE:'
+
+def _nuevo_token_pin():
+    import secrets as _secrets
+    return _secrets.token_urlsafe(18)
+
+def _enviar_enlace_pin(destinatario, nombre, enlace):
+    cuerpo = ('<p>Hola ' + html_escape(nombre or '') + ',</p>'
+              '<p>Se creó tu cuenta en el Sistema AD-PACK. Entra al siguiente enlace para crear tu PIN '
+              '(es tu contraseña y tu firma electrónica; no lo compartas):</p>'
+              '<p><a href="' + enlace + '">' + enlace + '</a></p>'
+              '<p>El enlace solo sirve una vez.</p>')
+    try:
+        ok, _err = enviar_correo(destinatario, 'Crea tu PIN — Sistema AD-PACK', cuerpo)
+        return bool(ok)
+    except Exception:
+        return False
+
+def _es_admin(email):
+    email = (email or '').strip().lower()
+    if not email:
+        return False
+    a = sb.select('users', select='rol', email='eq.' + email)
+    return bool(a) and (a[0].get('rol') or '') == 'admin'
+
+@app.route('/api/users/crear-pin', methods=['POST'])
+def crear_pin_primera_vez():
+    """El usuario crea su PIN la primera vez con el enlace que le mando el admin."""
+    d = request.json or {}
+    token = (d.get('token') or '').strip()
+    pin = (d.get('pin') or '').strip()
+    if not token:
+        return jsonify({'error': 'Enlace inválido'}), 400
+    if len(pin) < 4:
+        return jsonify({'error': 'El PIN debe tener mínimo 4 caracteres'}), 400
+    rows = sb.select('users', select='id,nombre,email,rol,permisos,supervisor_email,cargo', pin_hash='eq.' + PIN_PENDIENTE + token)
+    if not rows:
+        return jsonify({'error': 'El enlace ya se usó o no es válido. Pide al administrador uno nuevo.'}), 404
+    row = rows[0]
+    sb.update('users', {'pin_hash': hash_pin(pin)}, return_rows=False, id='eq.' + str(row['id']))
+    return jsonify({'ok': True, 'id': row['id'], 'nombre': row['nombre'], 'email': row['email'],
+                    'rol': row.get('rol') or 'usuario', 'permisos': row.get('permisos') or '',
+                    'supervisor_email': row.get('supervisor_email') or '', 'cargo': row.get('cargo') or 'Empleado'})
+
+@app.route('/api/users/<int:user_id>/enlace-pin', methods=['POST'])
+def enlace_pin_usuario(user_id):
+    """El admin genera un enlace nuevo para que el usuario cree (o vuelva a crear) su PIN."""
+    d = request.json or {}
+    if not _es_admin(d.get('admin_email')):
+        return jsonify({'error': 'Solo un administrador puede hacer esto'}), 403
+    rows = sb.select('users', select='id,nombre,email', id='eq.' + str(user_id))
+    if not rows:
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+    token = _nuevo_token_pin()
+    sb.update('users', {'pin_hash': PIN_PENDIENTE + token}, return_rows=False, id='eq.' + str(user_id))
+    enlace = BASE_URL_PUBLICO + '/?crear_pin=' + token
+    correo_ok = _enviar_enlace_pin(rows[0]['email'], rows[0].get('nombre'), enlace)
+    return jsonify({'ok': True, 'enlace_pin': enlace, 'correo_enviado': correo_ok})
+
 @app.route('/api/users/register', methods=['POST'])
 def register_user():
     d = request.json
@@ -516,14 +576,23 @@ def register_user():
     cargo = (d.get('cargo') or 'Empleado').strip()
     if cargo not in CARGOS_VALIDOS:
         cargo = 'Empleado'
-    if not nombre or not email or not pin or len(pin) < 4:
+    # El admin puede dejar el PIN vacio: el usuario lo crea la primera vez con un enlace personal
+    sin_pin = not pin and bool(admin_email)
+    if not nombre or not email or (not sin_pin and (not pin or len(pin) < 4)):
         return jsonify({'error': 'Nombre, email y PIN (minimo 4 caracteres) requeridos'}), 400
+    token = _nuevo_token_pin() if sin_pin else ''
     try:
         sb.insert('users', {
-            'nombre': nombre, 'email': email, 'pin_hash': hash_pin(pin),
+            'nombre': nombre, 'email': email, 'pin_hash': (PIN_PENDIENTE + token) if sin_pin else hash_pin(pin),
             'rol': rol, 'permisos': permisos, 'supervisor_email': supervisor_email, 'cargo': cargo,
         }, return_rows=False)
-        return jsonify({'ok': True, 'nombre': nombre, 'email': email, 'rol': rol, 'permisos': permisos, 'supervisor_email': supervisor_email, 'cargo': cargo})
+        enlace = ''
+        correo_ok = None
+        if sin_pin:
+            enlace = BASE_URL_PUBLICO + '/?crear_pin=' + token
+            correo_ok = _enviar_enlace_pin(email, nombre, enlace)
+        return jsonify({'ok': True, 'nombre': nombre, 'email': email, 'rol': rol, 'permisos': permisos, 'supervisor_email': supervisor_email, 'cargo': cargo,
+                        'enlace_pin': enlace, 'correo_enviado': correo_ok})
     except requests.exceptions.HTTPError as e:
         if e.response is not None and e.response.status_code == 409:
             return jsonify({'error': 'Este email ya esta registrado'}), 409
@@ -539,6 +608,9 @@ def login_user():
     rows = sb.select('users', select='id,nombre,email,rol,permisos,supervisor_email,cargo',
                       email='eq.' + email, pin_hash='eq.' + hash_pin(pin))
     if not rows:
+        pend = sb.select('users', select='pin_hash', email='eq.' + email) if email else []
+        if pend and str(pend[0].get('pin_hash') or '').startswith(PIN_PENDIENTE):
+            return jsonify({'error': 'Todavía no creas tu PIN. Abre el enlace que te llegó por correo (o pídelo al administrador).'}), 401
         return jsonify({'error': 'Email o PIN incorrecto'}), 401
     row = rows[0]
     return jsonify({'ok': True, 'id': row['id'], 'nombre': row['nombre'], 'email': row['email'],
@@ -560,7 +632,10 @@ def verify_user():
 
 @app.route('/api/users', methods=['GET'])
 def list_users():
-    rows = sb.select('users', select='id,nombre,email,rol,permisos,supervisor_email,cargo,created_at', order='nombre.asc')
+    rows = sb.select('users', select='id,nombre,email,rol,permisos,supervisor_email,cargo,created_at,pin_hash', order='nombre.asc')
+    for r in rows:
+        # Nunca se manda el hash ni el token; solo si el PIN sigue pendiente
+        r['pin_pendiente'] = str(r.pop('pin_hash', '') or '').startswith(PIN_PENDIENTE)
     return jsonify(rows)
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
