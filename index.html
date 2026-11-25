@@ -3975,9 +3975,11 @@ function reqAplicarTipoDoc(){
                             :'Compras compra el material y genera la orden de compra.';
   // La solicitud de cotizacion no la revisa el supervisor
   var sb=document.getElementById('req-supervisor-box'); if(sb) sb.style.display=cot?'none':'';
-  var rv=document.getElementById('req-sig-row-reviso'); if(rv) rv.style.display=cot?'none':'';
-  var rd=document.getElementById('req-sig-done-reviso');
-  if(rd) rd.innerHTML=cot?'<div style="font-size:12px;color:#888;font-style:italic">No requerida — va directo a Compras</div>':'';
+  // En la solicitud de cotizacion solo firma el usuario (Realizó): se ocultan las demas firmas
+  ['reviso','aprobo','presidenta'].forEach(function(k){
+    var lb=document.getElementById('req-sig-label-'+k);
+    if(lb && lb.parentNode) lb.parentNode.style.display=cot?'none':'';
+  });
 }
 // Datos para precargar el formulario (convertir una solicitud de cotizacion en requisicion)
 var _reqPrefill=null;
