@@ -2857,7 +2857,7 @@ authInit();
       <label id="req-adjunto-btn" style="display:inline-flex;align-items:center;gap:6px;background:#e8f5e9;color:#1a5c2a;border:2px dashed #1a5c2a;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer">&#128206; Subir PDF o Excel<input type="file" accept=".pdf,.xls,.xlsx" multiple style="display:none" onchange="reqSubirAdjuntos(this)"></label>
       <div style="font-size:11px;color:#888;margin-top:4px">M&#225;ximo 15 MB por archivo.</div>
     </div>
-    <div style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+    <div id="req-supervisor-box" style="background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:6px">&#128100; ¿Quién va a Revisar esta requisición?</label>
       <select id="req-select-supervisor" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-size:14px;box-sizing:border-box;background:#fff">
         <option value="">Cargando...</option>
@@ -3971,8 +3971,13 @@ function reqAplicarTipoDoc(){
   var cot=reqTipoDocSel()==='cotizacion';
   var tt=document.getElementById('req-nueva-titulo'); if(tt) tt.innerHTML=cot?'&#128269; Nueva Solicitud de cotización':'&#128722; Nueva Requisición de compra';
   var ay=document.getElementById('req-tipo-doc-ayuda');
-  if(ay) ay.textContent=cot?'Compras cotiza y te responde con las cotizaciones. No genera orden de compra; después la puedes convertir en requisición de compra.'
+  if(ay) ay.textContent=cot?'No necesita autorización: con tu firma va directo a Compras, que cotiza y te responde con las cotizaciones. No genera orden de compra; después la puedes convertir en requisición de compra.'
                             :'Compras compra el material y genera la orden de compra.';
+  // La solicitud de cotizacion no la revisa el supervisor
+  var sb=document.getElementById('req-supervisor-box'); if(sb) sb.style.display=cot?'none':'';
+  var rv=document.getElementById('req-sig-row-reviso'); if(rv) rv.style.display=cot?'none':'';
+  var rd=document.getElementById('req-sig-done-reviso');
+  if(rd) rd.innerHTML=cot?'<div style="font-size:12px;color:#888;font-style:italic">No requerida — va directo a Compras</div>':'';
 }
 // Datos para precargar el formulario (convertir una solicitud de cotizacion en requisicion)
 var _reqPrefill=null;
@@ -4108,6 +4113,7 @@ async function initReqForm(){
         +'<div id="req-sig-row-'+s.k+'">'+inner+'</div></div>';
     });
   }
+  reqAplicarTipoDoc();
   reqAplicarPrefill();
 }
 
@@ -4261,7 +4267,8 @@ async function guardarReq(){
   }
   var cargoActual=(currentUser&&currentUser.cargo)||'Empleado';
   // Toda requisicion necesita supervisor que la revise (excepto si la hace Compras o Direccion)
-  if(!data.email_revisor && cargoActual!=='Dirección/Presidencia' && cargoActual!=='Compras'){
+  if(data.tipo_doc==='cotizacion'){ data.email_revisor=''; data.firmas=Object.assign({},_reqSigs,{reviso:null}); }
+  if(data.tipo_doc!=='cotizacion' && !data.email_revisor && cargoActual!=='Dirección/Presidencia' && cargoActual!=='Compras'){
     if(typeof showToast==='function') showToast('⚠️ Elige quién va a revisar la requisición (tu supervisor). Si no aparece, pide a un administrador que te lo asigne en Configuración.');
     var _sup=document.getElementById('req-select-supervisor'); if(_sup) _sup.focus();
     return;
@@ -4270,7 +4277,7 @@ async function guardarReq(){
     var res=await fetch('/api/requisiciones',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     var j=await res.json();
     if(j.ok){
-      var msgOk='✅ REQ-'+String(j.folio).padStart(4,'0')+' guardada'+(data.email_revisor?(j.aviso_enviado?' · aviso enviado':' · no se pudo enviar el aviso'):'');
+      var msgOk='✅ REQ-'+String(j.folio).padStart(4,'0')+' guardada'+((data.email_revisor||data.tipo_doc==='cotizacion')?(j.aviso_enviado?' · aviso enviado':' · no se pudo enviar el aviso'):'');
       if(typeof showToast==='function') showToast(msgOk);
       setTimeout(function(){
         _reqVista=data.tipo_doc==='cotizacion'?'cotizacion':'requisicion';
