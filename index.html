@@ -4381,8 +4381,12 @@ async function loadReqList(){
       if(rechazoKey){
         var quien={reviso:'Supervisor',aprobo:'Compras',presidenta:'Dirección'}[rechazoKey];
         estadoTxt='&#10060; Rechazada por '+quien; estadoColor='#c62828'; estadoBg='#fce4ec';
+      } else if(r.tipo_doc==='cotizacion' && r.autorizacion_cot && r.autorizacion_cot.estado==='no_autorizada'){
+        estadoTxt='&#10060; No autorizada'; estadoColor='#c62828'; estadoBg='#fce4ec';
+      } else if(r.tipo_doc==='cotizacion' && r.autorizacion_cot && r.autorizacion_cot.estado==='autorizada'){
+        estadoTxt='&#9989; Autorizada'; estadoColor='#2e7d32'; estadoBg='#e8f5e9';
       } else if(r.tipo_doc==='cotizacion' && firmas.aprobo && firmas.aprobo.estado==='aprobado'){
-        estadoTxt='&#9989; Cotizada'; estadoColor='#1565c0'; estadoBg='#e3f2fd';
+        estadoTxt='&#8987; Cotizada — pendiente de autorizar'; estadoColor='#1565c0'; estadoBg='#e3f2fd';
       } else if(r.tipo_doc==='cotizacion' && firmas.reviso && firmas.reviso.estado==='aprobado'){
         estadoTxt='&#8987; Pendiente de que Compras cotice'; estadoColor='#1565c0'; estadoBg='#e3f2fd';
       } else if(numPos>0 && numFacturas>=numPos){
@@ -4854,6 +4858,21 @@ async function verReqRegistrarCotizacion(btn){
   }
 }
 
+// Compras autoriza o no la solicitud de cotizacion (si no autoriza, comentario obligatorio)
+function verReqCotAutorizar(btn){
+  if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
+  var reqId=btn.getAttribute('data-reqid'), estado=btn.getAttribute('data-estado');
+  var com=((document.getElementById('ver-cot-aut-com-'+reqId)||{}).value||'').trim();
+  if(estado==='no_autorizada' && !com){if(typeof showToast==='function')showToast('⚠️ Escribe el comentario de por qué no se autoriza');var t=document.getElementById('ver-cot-aut-com-'+reqId);if(t)t.focus();return;}
+  btn.disabled=true;
+  fetch('/api/requisicion/'+reqId+'/cotizacion-autorizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estado:estado,comentario:com,firmante_email:currentUser.email})})
+    .then(function(r){return r.json();}).then(function(j){
+      if(!j.ok) throw new Error(j.error||'Error');
+      if(typeof showToast==='function')showToast(estado==='autorizada'?'✅ Autorizada':'❌ No autorizada');
+      verReq(reqId);
+    }).catch(function(e){ btn.disabled=false; if(typeof showToast==='function')showToast('❌ '+e.message); });
+}
+
 // Compras marca/desmarca si el usuario ve las cotizaciones de la solicitud
 function verReqCotVisible(chk){
   if(!currentUser){if(typeof showToast==='function')showToast('Tu sesión expiró, vuelve a iniciar sesión');return;}
@@ -5256,11 +5275,35 @@ async function verReq(id){
     }
     if(o.tipo_doc==='cotizacion' && firmas.aprobo && firmas.aprobo.estado==='aprobado'){
       var _esSol=currentUser&&currentUser.email&&o.solicitante_email&&currentUser.email.toLowerCase()===o.solicitante_email.toLowerCase();
-      h+='<div style="background:#e3f2fd;border:1.5px solid #1565c0;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
-        +'<div style="font-size:13px;font-weight:700;color:#1565c0">&#9989; Solicitud de cotización atendida por Compras</div>'
-        +'<div style="font-size:12px;color:#333;margin-top:4px">'+(hayVisibles?'Revisa las cotizaciones. ':'')+'Si se va a comprar, presiona Pasar a requisición: se copian los artículos'+(hayVisibles?' y el proveedor cotizado':'')+'.</div>'
-        +(_esSol?('<button onclick="reqConvertirACompra(\''+id+'\')" style="margin-top:8px;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#128722; Pasar a requisición</button>'):'')
-        +'</div>';
+      var _aut=o.autorizacion_cot||null;
+      var _autEstado=_aut?_aut.estado:'';
+      // Compras autoriza o no; si no autoriza, el comentario es obligatorio
+      if(puedeCotizar){
+        h+='<div style="background:#fff;border:1.5px solid #1565c0;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
+          +'<div style="font-size:13px;font-weight:700;color:#1565c0;margin-bottom:6px">Autorización de Compras'+(_autEstado?(' — actual: '+(_autEstado==='autorizada'?'&#9989; Autorizada':'&#10060; No autorizada')):'')+'</div>'
+          +'<textarea id="ver-cot-aut-com-'+id+'" rows="2" placeholder="Comentario (obligatorio si no se autoriza)" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:6px">'+escHtml((_aut&&_aut.comentario)||'')+'</textarea>'
+          +'<div style="display:flex;gap:6px">'
+          +'<button data-reqid="'+id+'" data-estado="no_autorizada" onclick="verReqCotAutorizar(this)" style="flex:1;padding:8px 10px;background:#fff;color:#c62828;border:1.5px solid #c62828;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#10005; No autorizar</button>'
+          +'<button data-reqid="'+id+'" data-estado="autorizada" onclick="verReqCotAutorizar(this)" style="flex:1;padding:8px 10px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">&#9989; Autorizar</button>'
+          +'</div></div>';
+      }
+      if(_autEstado==='autorizada'){
+        h+='<div style="background:#e8f5e9;border:1.5px solid #2e7d32;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
+          +'<div style="font-size:13px;font-weight:700;color:#2e7d32">&#9989; Autorizada por Compras'+(_aut.nombre?(' — '+escHtml(_aut.nombre)):'')+(_aut.fecha?(' &bull; '+escHtml(_aut.fecha)):'')+'</div>'
+          +(_aut.comentario?('<div style="font-size:12px;color:#333;margin-top:4px"><b>Comentario:</b> '+escHtml(_aut.comentario)+'</div>'):'')
+          +'<div style="font-size:12px;color:#333;margin-top:4px">Presiona Pasar a requisición: se copian los artículos'+(hayVisibles?' y el proveedor cotizado':'')+'.</div>'
+          +(_esSol?('<button onclick="reqConvertirACompra(\''+id+'\')" style="margin-top:8px;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#128722; Pasar a requisición</button>'):'')
+          +'</div>';
+      } else if(_autEstado==='no_autorizada'){
+        h+='<div style="background:#fce4ec;border:1.5px solid #c62828;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
+          +'<div style="font-size:13px;font-weight:700;color:#c62828">&#10060; No autorizada por Compras'+(_aut.nombre?(' — '+escHtml(_aut.nombre)):'')+(_aut.fecha?(' &bull; '+escHtml(_aut.fecha)):'')+'</div>'
+          +'<div style="font-size:12px;color:#333;margin-top:4px"><b>Comentario:</b> '+escHtml(_aut.comentario||'')+'</div>'
+          +'</div>';
+      } else if(!puedeCotizar){
+        h+='<div style="background:#fff3e0;border:1.5px solid #e65100;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
+          +'<div style="font-size:13px;font-weight:700;color:#e65100">&#8987; Cotizada — pendiente de autorización de Compras</div>'
+          +'</div>';
+      }
     }
     var body=document.getElementById('req-ver-body');
     if(body) body.innerHTML=h;

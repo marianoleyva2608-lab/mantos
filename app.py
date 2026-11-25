@@ -2349,6 +2349,55 @@ def _cotizacion_avisar_solicitante(o, rid):
     except Exception:
         pass
 
+@app.route('/api/requisicion/<rid>/cotizacion-autorizar', methods=['POST'])
+def cotizacion_autorizar(rid):
+    """Compras autoriza (o no) la solicitud de cotizacion ya cotizada. Sin autorizacion el usuario
+    no puede pasarla a requisicion; si no la autoriza debe dejar comentario."""
+    d = request.json or {}
+    firmante_email = (d.get('firmante_email') or '').strip().lower()
+    estado = d.get('estado')
+    comentario = (d.get('comentario') or '').strip()
+    if estado not in ('autorizada', 'no_autorizada'):
+        return jsonify({'ok': False, 'error': 'Datos inválidos'}), 400
+    if estado == 'no_autorizada' and not comentario:
+        return jsonify({'ok': False, 'error': 'Escribe un comentario de por qué no se autoriza'}), 400
+    rows = sb.select('requisiciones', select='data', id='eq.' + rid)
+    if not rows:
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    o = json.loads(rows[0]['data'])
+    if o.get('tipo_doc') != 'cotizacion':
+        return jsonify({'ok': False, 'error': 'Solo aplica a solicitudes de cotización'}), 400
+    asignado = email_compras_de(o)
+    if asignado and firmante_email != asignado:
+        return jsonify({'ok': False, 'error': 'Solo Compras (' + asignado + ') puede autorizar'}), 403
+    if not (o.get('cotizaciones') or []):
+        return jsonify({'ok': False, 'error': 'Primero registra al menos una cotización'}), 400
+    nombre = firmante_email
+    try:
+        u = sb.select('users', select='nombre', email='eq.' + firmante_email) if firmante_email else []
+        nombre = (u[0].get('nombre') or firmante_email) if u else firmante_email
+    except Exception:
+        pass
+    o['autorizacion_cot'] = {'estado': estado, 'comentario': comentario, 'nombre': nombre,
+                             'email': firmante_email, 'fecha': ahora_mx().strftime('%d/%m/%Y %H:%M')}
+    sb.update('requisiciones', {'data': json.dumps(o, ensure_ascii=False)}, return_rows=False, id='eq.' + rid)
+    destinatario = (o.get('solicitante_email') or '').strip()
+    if destinatario:
+        folio_txt = folio_prefijo(o) + str(o.get('folio') or 0).zfill(4)
+        link = BASE_URL_PUBLICO + '/?req=' + rid
+        if estado == 'autorizada':
+            txt_estado = '<p>Compras <b>autorizó</b> tu solicitud <b>' + folio_txt + '</b>. Ya puedes pasarla a requisición.</p>'
+        else:
+            txt_estado = '<p>Compras <b>no autorizó</b> tu solicitud <b>' + folio_txt + '</b>.</p>'
+        cuerpo = ('<p>Hola ' + html_escape(o.get('solicitante') or '') + ',</p>' + txt_estado
+                  + ('<p><b>Comentario:</b> ' + html_escape(comentario) + '</p>' if comentario else '')
+                  + '<p><a href="' + link + '">' + link + '</a></p>')
+        try:
+            enviar_correo(destinatario, ('Autorizada ' if estado == 'autorizada' else 'No autorizada ') + folio_txt, cuerpo)
+        except Exception:
+            pass
+    return jsonify({'ok': True})
+
 @app.route('/api/requisicion/<rid>/cotizaciones-visible', methods=['POST'])
 def cotizaciones_visible(rid):
     """Compras decide con un checkbox en la solicitud si el usuario ve las cotizaciones."""
