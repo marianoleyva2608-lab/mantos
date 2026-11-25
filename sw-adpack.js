@@ -2,7 +2,7 @@
 // Preventivo + accesos a Requisiciones, Refacciones, Ordenes, Reportes,
 // Etiquetas, Trazabilidad y Control de Baños). Solo lo necesario para que
 // el navegador ofrezca "Instalar app". Nunca cachea /api/ (datos en vivo).
-const CACHE_NAME = 'adpack-v2';
+const CACHE_NAME = 'adpack-v3';
 const ARCHIVOS_SHELL = [
   '/',
   '/index.html',
@@ -40,6 +40,23 @@ self.addEventListener('fetch', function (event) {
     url.pathname.indexOf('/imprimir') !== -1 ||
     url.pathname === '/salud'
   ) {
+    return;
+  }
+
+  // Paginas (index.html): primero la red, para que siempre se vea la version nueva;
+  // el cache solo se usa si no hay conexion.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).then(function (respuestaRed) {
+        if (respuestaRed && respuestaRed.ok) {
+          var copia = respuestaRed.clone();
+          caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, copia); });
+        }
+        return respuestaRed;
+      }).catch(function () {
+        return caches.match(event.request).then(function (r) { return r || caches.match('/'); });
+      })
+    );
     return;
   }
 
