@@ -173,7 +173,7 @@ function fila(e){
     <td><input type="checkbox" class="f-sel" onchange="contar()"></td>
     <td>${esc(e.empleado_no)}</td>
     <td><div style="display:flex;align-items:center;gap:8px;min-width:200px">${fotos[e.empleado_no]?`<img class="foto" loading="lazy" src="/api/empleados/${encodeURIComponent(e.empleado_no)}/foto?v=${fotos[e.empleado_no]}" alt="">`:'<span class="foto"></span>'}<span>${esc(e.nombre||'')}</span></div></td>
-    <td>${esc(e.planta||'')}</td>
+    <td>${esc(e.planta||'')}${e.movil?vincHtml(e):''}</td>
     <td>${sel}</td>
     <td class="indiv"><input type="time" class="f-ent" value="${esc(e.hora_entrada||'')}"></td>
     <td class="indiv"><input type="time" class="f-bi" value="${esc(e.hora_break_ini||'')}"></td>
@@ -183,6 +183,24 @@ function fila(e){
     <td class="indiv"><div class="dias">${diasHtml(e.dias||'L,M,X,J,V,S')}</div></td>
     <td style="text-align:center"><input type="checkbox" class="f-act" ${e.activo!==false?'checked':''}></td>
   </tr>`;
+}
+/* Checador movil + checador fisico: vincula el usuario con su No. del aparato */
+function vincHtml(e){
+  const u=esc(e.usuario_movil||'');
+  if(e.vinculado) return `<div style="font-size:11px;color:#5b6560;margin-top:4px">Móvil vinculado · <a href="#" onclick="vincular('${u}','');return false">desvincular</a></div>`;
+  return `<div style="display:flex;gap:4px;margin-top:4px"><input type="text" placeholder="No. checador" style="width:90px;font-size:12px;padding:3px 5px" id="vinc-${u}"><button type="button" style="font-size:12px;padding:3px 8px" onclick="vincular('${u}',document.getElementById('vinc-${u}').value)">Vincular</button></div>`;
+}
+async function vincular(usuario,no){
+  no=(no||'').trim();
+  if(no&&!empleados.some(x=>x.empleado_no===no&&!x.movil)&&!confirm('El No. '+no+' todavía no ha checado en ningún aparato. ¿Vincular de todos modos?')) return;
+  aviso('msg','info',no?'Vinculando…':'Desvinculando…');
+  try{
+    const r=await fetch('/api/checador-movil/vinculo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario_movil:usuario,empleado_no:no})});
+    const d=await r.json();
+    if(!d.ok) return aviso('msg','err','Error: '+(d.error||'no se pudo guardar'));
+    aviso('msg','ok',no?'✓ Vinculado: sus checadas móvil y presenciales salen juntas.':'✓ Desvinculado.');
+    await cargar();
+  }catch(err){ aviso('msg','err','Error: '+err); }
 }
 function contar(){
   const n=document.querySelectorAll('#tb .f-sel:checked').length;
