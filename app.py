@@ -4411,12 +4411,37 @@ def _cm_habilitados():
     except Exception:
         return []
     out = []
+    vinc = _ck_vinculos()
     for u in rows:
         permisos = [p.strip() for p in (u.get('permisos') or '').split(',')]
         correo = (u.get('email') or '').strip().lower()
         if correo and 'checador' in permisos:
-            out.append({'empleado_no': correo, 'nombre': u.get('nombre') or correo})
+            out.append({'empleado_no': vinc.get(correo, correo), 'usuario_movil': correo,
+                        'nombre': u.get('nombre') or correo})
     return out
+
+
+def _ck_vinculos():
+    """{usuario: empleado_no} de las personas que checan en el celular y tambien
+    en un checador fisico. Asi sus checadas se juntan en una sola persona."""
+    try:
+        rows = sb.select('ajustes', select='valor', clave='eq.checador_vinculos')
+        d = json.loads(rows[0]['valor']) if rows and rows[0].get('valor') else {}
+        return {str(k).strip().lower(): str(v).strip() for k, v in d.items() if str(v).strip()}
+    except Exception:
+        return {}
+
+
+def _ck_unificar(rows, vinc=None):
+    """Cambia el usuario de las checadas moviles por el numero del checador vinculado."""
+    vinc = _ck_vinculos() if vinc is None else vinc
+    if vinc:
+        for r in rows:
+            no = vinc.get(str(r.get('empleado_no') or '').strip().lower())
+            if no:
+                r['usuario_movil'] = r['empleado_no']
+                r['empleado_no'] = no
+    return rows
 
 
 def _cm_es_admin(u):
@@ -4526,6 +4551,24 @@ def cm_guardar_plantas():
         plantas.append({'nombre': nombre, 'lat': lat, 'lng': lng, 'radio_m': radio})
     _ck_guardar_ajuste('checador_movil_plantas', plantas)
     return jsonify({'ok': True, 'plantas': plantas})
+
+
+@app.route('/api/checador-movil/vinculo', methods=['POST'])
+def cm_vincular():
+    """Vincula al usuario con checador movil con su numero del checador fisico.
+    empleado_no vacio = desvincular."""
+    d = request.json or {}
+    usuario = (d.get('usuario_movil') or '').strip().lower()
+    no = (d.get('empleado_no') or '').strip()
+    if not usuario:
+        return jsonify({'error': 'Falta el usuario'}), 400
+    vinc = _ck_vinculos()
+    if no:
+        vinc[usuario] = no
+    else:
+        vinc.pop(usuario, None)
+    _ck_guardar_ajuste('checador_vinculos', vinc)
+    return jsonify({'ok': True, 'vinculos': vinc})
 
 
 @app.route('/checador/ultimo')
@@ -4848,7 +4891,10 @@ def empleados_list():
     # Personas con checador movil: aparecen aunque todavia no hayan checado
     for m in _cm_habilitados():
         e = emp.setdefault(m['empleado_no'], {'empleado_no': m['empleado_no'], 'nombre': m['nombre']})
-        e['planta'], e['movil'] = 'Móvil', True
+        vinculado = m['empleado_no'] != m['usuario_movil']
+        pl = e.get('planta')
+        e['planta'] = (pl + ' + Móvil') if vinculado and pl and pl != 'Móvil' else 'Móvil'
+        e['movil'], e['usuario_movil'], e['vinculado'] = True, m['usuario_movil'], vinculado
     try:
         for h in sb.select('horarios', select='*'):
             no = str(h.get('empleado_no') or '')
@@ -5084,7 +5130,7 @@ def _ck_todas(params):
         lote = r.json()
         filas.extend(lote)
         if len(lote) < 1000:
-            return filas
+            return _ck_unificar(filas)
         off += len(lote)
 
 
@@ -5179,6 +5225,15 @@ def checadas_export_excel():
 
 _DIAS_ES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 _DIAS_LETRA = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+
+
+def _ck_planta_rep(i):
+    """Planta(s) de la persona en el reporte: 'Conversion + Movil' si usa las dos."""
+    geo = {pl.get('nombre') for pl in _cm_plantas()} | {'Móvil', 'Fuera de planta'}
+    fisicas = [p for p, _ in i['plantas'].most_common() if p not in geo]
+    movil = i.get('movil') or len(fisicas) < len(i['plantas'])
+    partes = fisicas[:1] + (['Móvil'] if movil else [])
+    return ' + '.join(partes) or 'Matriz'
 
 
 @app.route('/api/checadas/export/semanal', methods=['GET'])
@@ -5319,7 +5374,7 @@ def checadas_export_semanal():
                 c.alignment = centro
                 c.border = borde
         valores = [(1, emp), (2, info[emp]['nombre']),
-                   (3, 'Móvil' if info[emp].get('movil') else info[emp]['plantas'].most_common(1)[0][0]),
+                   (3, _ck_planta_rep(info[emp])),
                    (ncol - 1, tarde), (ncol, faltas)]
         for col, v in valores:
             ws.merge_cells(start_row=fila, start_column=col, end_row=fila + 1, end_column=col)
