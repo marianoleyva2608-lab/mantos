@@ -4454,6 +4454,32 @@ function rspEliminar(id){
   fetch('/api/respuestas-problemas/'+id, {method:'DELETE'}).then(function(){ loadRspList(); });
 }
 
+// Cada usuario solo ve sus requisiciones/cotizaciones y las que le toca firmar.
+// El desarrollador y Compras ven todas (REQ_VEN_TODO / reqEsCompras).
+function reqEsMia(r,alternos){
+  var yo=(currentUser&&currentUser.email||'').toLowerCase();
+  if(!yo) return false;
+  alternos=alternos||{};
+  var f=r.firmas||{};
+  var correos=[r.solicitante_email,r.email_revisor,r.email_aprobador,r.email_presidenta];
+  Object.keys(f).forEach(function(k){ if(f[k]&&f[k].email) correos.push(f[k].email); });
+  return correos.some(function(e){
+    e=(e||'').toLowerCase();
+    if(!e) return false;
+    return e===yo || (alternos[e]||'').toLowerCase()===yo;
+  });
+}
+// Ven todas: el desarrollador y Compras.
+var REQ_VEN_TODO=['mantenimiento@ad-pack.com.mx','marianoleyva2608@gmail.com'];
+async function reqVeTodo(){
+  var yo=(currentUser&&currentUser.email||'').toLowerCase();
+  if(!yo) return false;
+  return REQ_VEN_TODO.indexOf(yo)!==-1 || (await reqEsCompras());
+}
+async function reqAlternos(){
+  try{ return JSON.parse((await _getAjustes()).aprobadores_alternos||'{}')||{}; }catch(e){ return {}; }
+}
+
 async function loadReqList(){
   var el=document.getElementById('req-list');
   if(!el) return;
@@ -4464,7 +4490,13 @@ async function loadReqList(){
     var todas=await res.json();
     var esCot=_reqVista==='cotizacion';
     var tit=document.getElementById('req-lista-titulo'); if(tit) tit.innerHTML=esCot?'&#128269; Solicitudes de cotización':'&#128722; Requisiciones de Compra';
-    var list=todas.filter(function(r){return esCot?r.tipo_doc==='cotizacion':r.tipo_doc!=='cotizacion';});
+    var verTodas=await reqVeTodo();
+    var _alt=verTodas?{}:(await reqAlternos());
+    var list=todas.filter(function(r){return (esCot?r.tipo_doc==='cotizacion':r.tipo_doc!=='cotizacion') && (verTodas || reqEsMia(r,_alt));});
+    if(!currentUser||!currentUser.email){
+      el.innerHTML='<div style="text-align:center;color:#888;padding:30px;font-size:14px">&#128274; Inicia sesión para ver tus '+(esCot?'solicitudes de cotización':'requisiciones')+'.</div>';
+      return;
+    }
     reqEsCompras().then(function(si){ var b=document.getElementById('req-btn-proveedores'); if(b) b.style.display=si?'':'none'; });
     var dashLinkWrap=document.getElementById('req-dashboard-link-wrap');
     if(dashLinkWrap) dashLinkWrap.style.display=puedeVerReporte?'block':'none';
@@ -5054,6 +5086,9 @@ async function verReq(id){
     var list=await res.json();
     var o=list.find(function(r){return r.id===id;});
     if(!o){ if(typeof showToast==='function') showToast('No encontrado'); return; }
+    if(currentUser&&currentUser.email&&!(await reqVeTodo())&&!reqEsMia(o,await reqAlternos())){
+      if(typeof showToast==='function') showToast('No tienes acceso a este folio'); return;
+    }
     _reqVerTipoDoc=o.tipo_doc||'requisicion';
     var _altAj={}; try{ _ajustesCache=null; _altAj=JSON.parse((await _getAjustes()).aprobadores_alternos||'{}')||{}; }catch(e){ _altAj={}; }
     var esAlternoDe=function(email){ if(!email||!currentUser||!currentUser.email) return false; var a=_altAj[email.toLowerCase()]||_altAj[email]; return !!a && a.toLowerCase()===currentUser.email.toLowerCase(); };
