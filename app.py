@@ -4847,6 +4847,8 @@ def _ck_asignar_tipo(rows, horarios=None):
                 if etiqueta == 'Entrada' and tmin > hor['entrada'] + hor['tol']:
                     etiqueta = 'Entrada (tarde)'
                     rows[i]['retardo'] = True
+                elif etiqueta == 'Salida' and tmin < hora_pt:
+                    etiqueta = 'Salida anticipada'
                 rows[i]['tipo'] = etiqueta
             else:
                 rows[i]['tipo'] = 'Entrada' if n % 2 == 0 else 'Salida'
@@ -5369,7 +5371,7 @@ def checadas_export_semanal():
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = 'Semanal'
-    ncol = 3 + len(dias) + 2
+    ncol = 3 + len(dias) + 3
     ult = openpyxl.utils.get_column_letter(ncol)
     ws.merge_cells(f'A1:{ult}1')
     ws['A1'] = 'Reporte de asistencia - ' + (f'Planta {planta}' if planta else 'General (todas las plantas)')
@@ -5384,7 +5386,7 @@ def checadas_export_semanal():
 
     heads = (['Número', 'Nombre', 'Planta']
              + [f'{_DIAS_ES[d.weekday()]}\n{d.strftime("%d/%m")}' for d in dias]
-             + ['Llegadas tarde', 'Faltas'])
+             + ['Llegadas tarde', 'Salidas temprano', 'Faltas'])
     hrow = 4
     fino = Side(style='thin', color='C9D2CC')
     borde = Border(left=fino, right=fino, top=fino, bottom=fino)
@@ -5404,7 +5406,7 @@ def checadas_export_semanal():
     for emp in orden:
         tid = asign.get(emp)
         laborables = dias_turno.get(tid)
-        tarde = faltas = 0
+        tarde = temprano = faltas = 0
         for col, dia in enumerate(dias, 4):
             lista = por_emp[emp].get(dia.isoformat())
             c_ent = ws.cell(row=fila, column=col)
@@ -5431,6 +5433,12 @@ def checadas_export_semanal():
                         if not (x is ent and ent.get('retardo')):
                             celda.font = Font(color='1565C0', underline='single' if ub[1] else None,
                                               bold=ub[0].startswith('Fuera'))
+                # Salida antes de su hora (segun su turno u horario)
+                if sal and 'anticipada' in (sal.get('tipo') or '').lower():
+                    temprano += 1
+                    c_sal.fill = naranja
+                    c_sal.font = Font(bold=True, color='9A5B00',
+                                      underline='single' if c_sal.hyperlink else None)
             elif dia <= hoy and (laborables is None and dia.weekday() < 5
                                  or laborables and _DIAS_LETRA[dia.weekday()] in laborables):
                 faltas += 1
@@ -5443,7 +5451,7 @@ def checadas_export_semanal():
                 c.border = borde
         valores = [(1, emp), (2, info[emp]['nombre']),
                    (3, _ck_planta_rep(info[emp], pl_fisica.get(emp))),
-                   (ncol - 1, tarde), (ncol, faltas)]
+                   (ncol - 2, tarde), (ncol - 1, temprano), (ncol, faltas)]
         for col, v in valores:
             ws.merge_cells(start_row=fila, start_column=col, end_row=fila + 1, end_column=col)
             c = ws.cell(row=fila, column=col, value=v)
@@ -5452,12 +5460,14 @@ def checadas_export_semanal():
             c.border = borde
             ws.cell(row=fila + 1, column=col).border = borde
         if tarde:
+            ws.cell(row=fila, column=ncol - 2).font = Font(bold=True, color='9A5B00')
+        if temprano:
             ws.cell(row=fila, column=ncol - 1).font = Font(bold=True, color='9A5B00')
         if faltas:
             ws.cell(row=fila, column=ncol).font = Font(bold=True, color='B23030')
         fila += 2
 
-    anchos = [13, 34, 13] + [11] * len(dias) + [13, 9]
+    anchos = [13, 34, 13] + [11] * len(dias) + [13, 13, 9]
     for i, w in enumerate(anchos, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
     ws.freeze_panes = 'D5'
