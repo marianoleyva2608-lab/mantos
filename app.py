@@ -498,6 +498,7 @@ def _normalizar_permisos(permisos):
 
 # Usuario dado de alta sin PIN: en pin_hash se guarda este prefijo + un token de un solo uso
 PIN_PENDIENTE = 'PENDIENTE:'
+PIN_TEMPORAL = '1234'  # PIN para entrar tras un reseteo; despues crea el suyo
 
 def _nuevo_token_pin():
     import secrets as _secrets
@@ -610,8 +611,10 @@ def login_user():
     if not rows:
         pend = sb.select('users', select='pin_hash', email='eq.' + email) if email else []
         if pend and str(pend[0].get('pin_hash') or '').startswith(PIN_PENDIENTE):
-            # Primera vez: el usuario crea su PIN escribiendolo dos veces
-            return jsonify({'primer_pin': True, 'email': email}), 200
+            # Primera vez o PIN reseteado: entra con el PIN temporal y crea uno nuevo
+            if pin == PIN_TEMPORAL:
+                return jsonify({'primer_pin': True, 'email': email}), 200
+            return jsonify({'error': 'Tu PIN fue reseteado: entra con el PIN temporal ' + PIN_TEMPORAL}), 401
         return jsonify({'error': 'Email o PIN incorrecto'}), 401
     row = rows[0]
     return jsonify({'ok': True, 'id': row['id'], 'nombre': row['nombre'], 'email': row['email'],
