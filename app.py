@@ -4876,7 +4876,7 @@ def empleados_list():
     """Lista de empleados distintos (de las checadas) + su horario si existe.
     Se usa el nombre y la planta de su checada mas reciente."""
     try:
-        chk = _ck_todas([('select', 'empleado_no,nombre,planta'),
+        chk = _ck_todas([('select', 'empleado_no,nombre,planta,metodo'),
                          ('order', 'fecha_hora.desc,id.desc')])
     except Exception:
         chk = []
@@ -4885,9 +4885,15 @@ def empleados_list():
         no = str(x.get('empleado_no') or '').strip()
         if not no:
             continue
+        movil = x.get('metodo') == 'Móvil'
         if no not in emp:
-            emp[no] = {'empleado_no': no, 'nombre': x.get('nombre') or '',
-                       'planta': x.get('planta') or 'Matriz'}
+            emp[no] = {'empleado_no': no, 'nombre': x.get('nombre') or ''}
+        # Nombre y planta salen del checador fisico; las del celular traen la geocerca
+        if not movil and not emp[no].get('planta'):
+            emp[no]['planta'] = x.get('planta') or 'Matriz'
+            emp[no]['nombre'] = x.get('nombre') or emp[no]['nombre']
+    for e in emp.values():
+        e.setdefault('planta', 'Móvil')
     # Personas con checador movil: aparecen aunque todavia no hayan checado
     for m in _cm_habilitados():
         e = emp.setdefault(m['empleado_no'], {'empleado_no': m['empleado_no'], 'nombre': m['nombre']})
@@ -5227,13 +5233,31 @@ _DIAS_ES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Do
 _DIAS_LETRA = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
 
-def _ck_planta_rep(i):
-    """Planta(s) de la persona en el reporte: 'Conversion + Movil' si usa las dos."""
+def _ck_planta_rep(i, fallback=None):
+    """Planta(s) de la persona en el reporte: 'Conversion + Movil' si usa las dos.
+    fallback = planta de su checador fisico cuando en el rango solo checo en el celular."""
     geo = {pl.get('nombre') for pl in _cm_plantas()} | {'Móvil', 'Fuera de planta'}
-    fisicas = [p for p, _ in i['plantas'].most_common() if p not in geo]
-    movil = i.get('movil') or len(fisicas) < len(i['plantas'])
+    fisicas = [p for p, _ in i['plantas'].most_common() if p not in geo] or ([fallback] if fallback else [])
+    movil = i.get('movil') or bool(i.get('con_movil'))
     partes = fisicas[:1] + (['Móvil'] if movil else [])
     return ' + '.join(partes) or 'Matriz'
+
+
+def _ck_planta_fisica(numeros):
+    """{empleado_no: planta} de su checada mas reciente en un checador fisico."""
+    out = {}
+    numeros = [n for n in numeros if n and '@' not in n]
+    if not numeros:
+        return out
+    try:
+        filas = _ck_todas([('select', 'empleado_no,planta'), ('metodo', 'neq.Móvil'),
+                           ('empleado_no', 'in.(' + ','.join(f'"{n}"' for n in numeros) + ')'),
+                           ('order', 'fecha_hora.desc')])
+    except Exception:
+        return out
+    for f in filas:
+        out.setdefault(str(f.get('empleado_no')), f.get('planta') or 'Matriz')
+    return out
 
 
 @app.route('/api/checadas/export/semanal', methods=['GET'])
@@ -5276,6 +5300,8 @@ def checadas_export_semanal():
         por_emp[emp][str(x.get('fecha_hora') or '')[:10]].append(x)
         i = info.setdefault(emp, {'nombre': x.get('nombre') or '', 'plantas': Counter()})
         i['plantas'][x.get('planta') or 'Matriz'] += 1
+        if x.get('metodo') == 'Móvil':
+            i['con_movil'] = True
 
     # Personas con checador movil: salen siempre (si no checaron, con faltas)
     nombre_f = _ck_norm(request.args.get('nombre') or '')
@@ -5286,6 +5312,10 @@ def checadas_export_semanal():
             por_emp[m['empleado_no']]  # crea la entrada aunque no tenga checadas
             i = info.setdefault(m['empleado_no'], {'nombre': m['nombre'], 'plantas': Counter()})
             i['movil'] = True
+
+    # Quien solo checo en el celular en este rango: su planta del checador fisico
+    pl_fisica = _ck_planta_fisica([e for e, i in info.items()
+                                   if i.get('movil') or i.get('con_movil')])
 
     # Dias del reporte: lunes a viernes, mas sabado/domingo si alguien checo
     con_datos = {d for e in por_emp.values() for d in e}
@@ -5374,7 +5404,7 @@ def checadas_export_semanal():
                 c.alignment = centro
                 c.border = borde
         valores = [(1, emp), (2, info[emp]['nombre']),
-                   (3, _ck_planta_rep(info[emp])),
+                   (3, _ck_planta_rep(info[emp], pl_fisica.get(emp))),
                    (ncol - 1, tarde), (ncol, faltas)]
         for col, v in valores:
             ws.merge_cells(start_row=fila, start_column=col, end_row=fila + 1, end_column=col)
