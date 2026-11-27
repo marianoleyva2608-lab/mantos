@@ -5383,7 +5383,12 @@ async function verReq(id){
       h+='</div></div>';
     }
     if(o.tipo_doc==='cotizacion' && firmas.aprobo && firmas.aprobo.estado==='aprobado'){
-      var _esSol=currentUser&&currentUser.email&&o.solicitante_email&&currentUser.email.toLowerCase()===o.solicitante_email.toLowerCase();
+      // Puede generar la requisición: el solicitante, quien firmó "Realizó" o Compras.
+      // Si la cotización no guardó solicitante_email, cualquier usuario con sesión.
+      var _yo=(currentUser&&currentUser.email||'').toLowerCase();
+      var _solEm=(o.solicitante_email||'').toLowerCase();
+      var _realizoEm=((firmas.realizo&&firmas.realizo.email)||'').toLowerCase();
+      var _esSol=!!_yo&&(!_solEm||_yo===_solEm||_yo===_realizoEm||puedeCotizar);
       var _aut=o.autorizacion_cot||null;
       var _autEstado=_aut?_aut.estado:'';
       // Compras autoriza o no; si no autoriza, el comentario es obligatorio
@@ -5401,7 +5406,7 @@ async function verReq(id){
           +'<div style="font-size:13px;font-weight:700;color:#2e7d32">&#9989; Autorizada por Compras'+(_aut.nombre?(' — '+escHtml(_aut.nombre)):'')+(_aut.fecha?(' &bull; '+escHtml(_aut.fecha)):'')+'</div>'
           +(_aut.comentario?('<div style="font-size:12px;color:#333;margin-top:4px"><b>Comentario:</b> '+escHtml(_aut.comentario)+'</div>'):'')
           +'<div style="font-size:12px;color:#333;margin-top:4px">Presiona Generar requisición: se copian los artículos'+(hayVisibles?' y el proveedor cotizado':'')+'.</div>'
-          +(_esSol?('<button onclick="reqConvertirACompra(\''+id+'\')" style="margin-top:8px;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#128722; Generar requisición</button>'):'')
+          +(_esSol?('<button onclick="reqConvertirACompra(\''+id+'\')" style="margin-top:8px;padding:8px 14px;background:#1a5c2a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#128722; Generar requisición</button>'):('<div style="font-size:12px;color:#c62828;margin-top:6px">'+(_yo?'Solo el solicitante ('+escHtml(o.solicitante_email||'')+') o Compras puede generar la requisición.':'Inicia sesión para generar la requisición.')+'</div>'))
           +'</div>';
       } else if(_autEstado==='no_autorizada'){
         h+='<div style="background:#fce4ec;border:1.5px solid #c62828;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
