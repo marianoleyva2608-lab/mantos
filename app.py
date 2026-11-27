@@ -5155,6 +5155,24 @@ def checadas_export():
                      download_name=fname, mimetype='text/csv')
 
 
+def _ck_ubic(x):
+    """(texto, liga_mapa) de una checada del celular; None si fue en un checador fisico."""
+    if (x or {}).get('metodo') != 'Móvil':
+        return None
+    raw = x.get('raw') or {}
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            raw = {}
+    lat, lng, dist = raw.get('lat'), raw.get('lng'), raw.get('distancia_m')
+    texto = x.get('planta') or 'Sin ubicación'
+    if texto == 'Fuera de planta' and dist is not None:
+        texto += ' (a ' + (f'{dist / 1000:.1f} km' if dist >= 1000 else f'{round(dist)} m') + ')'
+    url = f'https://maps.google.com/?q={lat},{lng}' if lat is not None and lng is not None else None
+    return texto, url
+
+
 @app.route('/api/checadas/export/excel', methods=['GET'])
 def checadas_export_excel():
     import openpyxl
@@ -5170,7 +5188,7 @@ def checadas_export_excel():
     ws.title = 'Asistencia'
 
     # Titulo
-    ws.merge_cells('A1:H1')
+    ws.merge_cells('A1:I1')
     c = ws['A1']
     c.value = 'Reporte de Asistencia - ' + (f'Planta {planta}' if planta else 'Todas las plantas')
     c.font = Font(bold=True, size=14, color='FFFFFF')
@@ -5183,12 +5201,12 @@ def checadas_export_excel():
         rango.append('desde ' + desde)
     if hasta:
         rango.append('hasta ' + hasta)
-    ws.merge_cells('A2:H2')
+    ws.merge_cells('A2:I2')
     ws['A2'] = ('Rango: ' + ' '.join(rango)) if rango else 'Todas las checadas'
     ws['A2'].font = Font(italic=True, color='5B6560')
 
     # Encabezados
-    heads = ['Fecha', 'Hora', 'Planta', 'No. empleado', 'Nombre', 'Tipo', 'Metodo', 'Retardo']
+    heads = ['Fecha', 'Hora', 'Planta', 'No. empleado', 'Nombre', 'Tipo', 'Metodo', 'Retardo', 'Ubicación (celular)']
     hrow = 4
     for i, h in enumerate(heads, 1):
         cell = ws.cell(row=hrow, column=i, value=h)
@@ -5214,9 +5232,16 @@ def checadas_export_excel():
             cret = ws.cell(row=rownum, column=8, value='Sí')
             cret.font = rojo
             ctipo.font = rojo
+        ub = _ck_ubic(x)
+        if ub:
+            cub = ws.cell(row=rownum, column=9, value=ub[0] + (' · ver mapa' if ub[1] else ''))
+            if ub[1]:
+                cub.hyperlink = ub[1]
+            cub.font = Font(color='B23030' if ub[0].startswith('Fuera') else '1565C0',
+                            underline='single' if ub[1] else None)
         rownum += 1
 
-    anchos = [12, 10, 14, 16, 34, 18, 12, 10]
+    anchos = [12, 10, 14, 16, 34, 18, 12, 10, 34]
     for i, w in enumerate(anchos, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
     ws.freeze_panes = 'A5'
@@ -5267,6 +5292,7 @@ def checadas_export_semanal():
     Sin desde/hasta toma la semana actual (lunes a hoy)."""
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.comments import Comment
     from collections import defaultdict, Counter
     planta = (request.args.get('planta') or '').strip()
     hoy = datetime.datetime.now(TRAZA_TZ).date()
@@ -5352,7 +5378,8 @@ def checadas_export_semanal():
     ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
     ws.row_dimensions[1].height = 24
     ws.merge_cells(f'A2:{ult}2')
-    ws['A2'] = f'Del {desde.strftime("%d/%m/%Y")} al {hasta.strftime("%d/%m/%Y")} · arriba entrada, abajo salida'
+    ws['A2'] = (f'Del {desde.strftime("%d/%m/%Y")} al {hasta.strftime("%d/%m/%Y")} · arriba entrada, abajo salida'
+                ' · 📱 = checó en celular (clic para ver el mapa, la nota dice dónde)')
     ws['A2'].font = Font(italic=True, color='5B6560')
 
     heads = (['Número', 'Nombre', 'Planta']
@@ -5393,6 +5420,17 @@ def checadas_export_semanal():
                 c_sal.value = hm(sal) if sal else ('' if dia == hoy else 'Sin salida')
                 if not sal:
                     c_sal.font = Font(italic=True, color='9AA39E')
+                # Checada del celular: se marca y lleva liga al mapa + ubicacion en nota
+                for celda, x in ((c_ent, ent), (c_sal, sal)):
+                    ub = _ck_ubic(x) if x else None
+                    if ub:
+                        celda.value = f'{celda.value} 📱'
+                        if ub[1]:
+                            celda.hyperlink = ub[1]
+                        celda.comment = Comment('Celular: ' + ub[0], 'Asistencia')
+                        if not (x is ent and ent.get('retardo')):
+                            celda.font = Font(color='1565C0', underline='single' if ub[1] else None,
+                                              bold=ub[0].startswith('Fuera'))
             elif dia <= hoy and (laborables is None and dia.weekday() < 5
                                  or laborables and _DIAS_LETRA[dia.weekday()] in laborables):
                 faltas += 1
